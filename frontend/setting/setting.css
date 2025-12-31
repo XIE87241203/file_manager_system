@@ -1,0 +1,96 @@
+/* 选项卡容器 */
+.tabs {
+    display: flex;
+    border-bottom: 2px solid #f0f2f5;
+    margin-bottom: 1.5rem;
+}
+
+.tab-btn {
+    padding: 10px 20px;
+    cursor: pointer;
+    background: none;
+    border: none;
+    font-size: 1rem;
+    color: #666;
+    transition: all 0.3s;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+}
+
+.tab-btn.active {
+    color: #007bff;
+    border-bottom: 2px solid #007bff;
+}
+
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+/* 仓库列表样式 */
+.repo-list {
+    margin-bottom: 1rem;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.repo-item {
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    background: #f8f9fa;
+    border: 1px solid #eee;
+    border-radius: 4px;
+    margin-bottom: 8px;
+}
+
+.repo-path {
+    flex: 1;
+    font-size: 0.9rem;
+    color: #333;
+    word-break: break-all;
+}
+
+.repo-actions {
+    margin-left: 10px;
+}
+
+.btn-delete {
+    background: none;
+    border: none;
+    color: #dc3545;
+    cursor: pointer;
+    font-size: 0.8rem;
+}
+
+.btn-delete:hover {
+    text-decoration: underline;
+}
+
+/* 调整添加仓库表单布局 */
+.add-repo-form {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+    align-items: flex-start; /* 确保子元素顶部对齐 */
+}
+
+.add-repo-form .input-field {
+    flex: 1;
+    margin-bottom: 0;
+}
+
+.btn-add {
+    white-space: nowrap;
+    width: auto;
+    padding: 0.75rem 1rem; /* 保持与 input-field 一致的垂直内边距 */
+    margin-top: 0; /* 移除 common.css 中默认的 margin-top */
+}
+
+/* 重写 card-container 宽度以适应更多内容 */
+.card-container {
+    max-width: 600px;
+}

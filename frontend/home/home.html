@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>首页 - 文件管理系统</title>
+    <link rel="stylesheet" href="../common/common.css">
+    <link rel="stylesheet" href="home.css">
+</head>
+<body>
+    <!-- 顶部工具栏容器，由 ui_components.js 动态初始化 -->
+    <header class="top-bar"></header>
+
+    <main class="main-content">
+        <div class="menu-grid">
+            <!-- 文件仓库入口 -->
+            <div id="menu-file-repository" class="menu-item">
+                <div class="menu-icon">📂</div>
+                <div class="menu-label">文件仓库</div>
+            </div>
+
+            <!-- 设置入口 -->
+            <div id="menu-setting" class="menu-item">
+                <div class="menu-icon">⚙️</div>
+                <div class="menu-label">系统设置</div>
+            </div>
+            
+            <!-- 预留其他功能入口 -->
+            <div class="menu-item" onclick="Toast.show('功能开发中...')">
+                <div class="menu-icon">📊</div>
+                <div class="menu-label">运行日志</div>
+            </div>
+
+            <div id="menu-logout" class="menu-item">
+                <div class="menu-icon">🚪</div>
+                <div class="menu-label">退出登录</div>
+            </div>
+        </div>
+    </main>
+
+    <!-- 引入公用工具 -->
+    <script src="../common/ui_components.js"></script>
+    <script src="../common/request.js"></script>
+    <script src="../common/toast.js"></script>
+    <script src="home.js"></script>
+</body>
+</html>

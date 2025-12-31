@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文件仓库 - 文件管理系统</title>
+    <link rel="stylesheet" href="../common/common.css">
+    <link rel="stylesheet" href="file_repository.css">
+</head>
+<body class="repo-body">
+<!-- 私有顶部工具栏 -->
+<header class="top-bar">
+    <div class="top-bar-left">
+        <button id="nav-back-btn" class="back-btn">
+            <span>&lt; 返回</span>
+        </button>
+    </div>
+    <div class="top-bar-center">
+        <div class="search-container">
+            <input type="text" id="search-input" placeholder="搜索文件名 (正则模糊匹配)..."
+                   autocomplete="off">
+            <button id="search-btn" title="搜索">
+                <i class="search-icon"></i>
+            </button>
+        </div>
+        <div class="search-section">
+            <div class="search-options">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="search-history-checkbox"> 搜索历史库
+                </label>
+            </div>
+        </div>
+    </div>
+    <div class="top-bar-right"></div>
+</header>
+
+<main class="repo-container">
+    <!-- 顶部操作栏 -->
+    <div class="action-bar-wrapper">
+        <!-- 第一行：扫描状态区域 (扫描中显示) -->
+        <div id="scanning-row" class="scan-row-active" style="display: none;">
+            <button id="btn-stop" class="btn-danger">停止扫描</button>
+            <div class="scan-status-container">
+                <span id="scan-status-text">正在准备...</span>
+                <div class="progress-bar-bg">
+                    <div id="scan-progress-bar" class="progress-bar-fill"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 第二行：按键操作区域 (非扫描显示) -->
+        <div id="normal-row" class="scan-row-normal">
+            <button id="btn-scan" class="btn-primary">建立索引</button>
+            <button id="btn-duplicate-check" class="btn-primary">查重</button>
+        </div>
+    </div>
+
+    <!-- 中间表格区域：自适应宽高并带双向滚动条 -->
+    <div class="table-wrapper">
+        <table id="file-table">
+            <thead>
+            <tr>
+                <th class="sortable" data-field="file_name" style="width: 20%;">文件名 <span
+                        class="sort-icon"></span></th>
+                <th class="sortable" data-field="file_path" style="width: 45%;">完整路径 <span
+                        class="sort-icon"></span></th>
+                <th class="sortable" data-field="file_md5" style="width: 20%;">MD5 哈希值 <span
+                        class="sort-icon"></span></th>
+                <th class="sortable" data-field="scan_time" style="width: 15%;">扫描时间 <span
+                        class="sort-icon"></span></th>
+            </tr>
+            </thead>
+            <tbody id="file-list-body">
+            <!-- 数据动态加载 -->
+            </tbody>
+        </table>
+    </div>
+
+    <!-- 底部工具栏 -->
+    <div class="footer-bar">
+        <div class="pagination-container">
+            <button id="btn-prev-page" class="btn-secondary-small">上一页</button>
+            <span id="page-info">第 1 / 1 页</span>
+            <button id="btn-next-page" class="btn-secondary-small">下一页</button>
+        </div>
+    </div>
+</main>
+
+<!-- 引入公用工具 -->
+<script src="../common/ui_components.js"></script>
+<script src="../common/request.js"></script>
+<script src="../common/toast.js"></script>
+<script src="file_repository.js"></script>
+</body>
+</html>

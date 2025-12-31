@@ -1,0 +1,55 @@
+from flask import Blueprint, request
+from backend.setting.setting import settings
+from backend.common.response import success_response, error_response
+from backend.common.log_utils import LogUtils
+from backend.common.auth_middleware import token_required
+
+# 创建设置模块的蓝图
+setting_bp = Blueprint('setting', __name__)
+
+@setting_bp.route('/get', methods=['GET'])
+@token_required
+def get_setting():
+    """
+    用途：获取当前的配置信息
+    入参说明：无
+    返回值说明：包含用户配置数据和文件仓库配置的 JSON 响应
+    """
+    LogUtils.debug(f"用户 {request.username} 尝试获取配置")
+    data = {
+        "user_data": settings.user_data,
+        "file_repository": settings.file_repository
+    }
+    return success_response("获取配置成功", data=data)
+
+@setting_bp.route('/update', methods=['POST'])
+@token_required
+def update_setting():
+    """
+    用途：更新并保存配置信息
+    入参说明：JSON 对象，包含需要更新的配置项（user_data 或 file_repository）
+    返回值说明：操作结果响应
+    """
+    # 使用 silent=True 防止解析失败时直接返回 HTML 400 错误
+    data = request.get_json(silent=True)
+    if not data:
+        return error_response("请求数据不能为空 or 格式错误")
+
+    LogUtils.info(f"用户 {request.username} 尝试更新配置: {data}")
+
+    # 更新 settings 实例中的 user_data (如果存在)
+    if 'user_data' in data:
+        for key, value in data['user_data'].items():
+            settings.user_data[key] = value
+    
+    # 更新 settings 实例中的 file_repository (如果存在)
+    if 'file_repository' in data:
+        settings.file_repository = data['file_repository']
+    
+    try:
+        settings.save_config()
+        LogUtils.info(f"配置已更新并保存。操作人: {request.username}")
+        return success_response("配置更新成功")
+    except Exception as e:
+        LogUtils.error(f"保存配置失败: {str(e)}")
+        return error_response(f"保存配置失败: {str(e)}", 500)

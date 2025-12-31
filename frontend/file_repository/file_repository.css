@@ -1,0 +1,332 @@
+/* 
+ * 用途：文件仓库页面专用样式 - 全屏自适应布局
+ */
+
+/* 覆盖 body 样式，确保全屏高度 */
+.repo-body {
+    height: 100vh;
+    width: 100vw;
+    margin: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    background-color: #fff;
+}
+
+/* 私有头部样式 - 兼容 common.css 的 top-bar */
+.top-bar {
+    width: 100%;
+    height: 60px;
+    background-color: #fff;
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 1000;
+    box-sizing: border-box;
+}
+
+/* 头部三段式布局 */
+.top-bar-left {
+    width: 80px;
+    display: flex;
+    align-items: center;
+}
+
+.top-bar-center {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.top-bar-right {
+    width: 80px; /* 与左侧对称 */
+}
+
+/* 搜索框容器 */
+.search-container {
+    display: flex;
+    align-items: center;
+    background-color: #f1f3f4;
+    border: 1px solid transparent;
+    border-radius: 24px;
+    padding: 2px 16px;
+    width: 100%;
+    max-width: 500px;
+    transition: background-color 0.2s, border-color 0.2s, box-shadow 0.2s;
+}
+
+.search-container:focus-within {
+    background-color: #fff;
+    border-color: #80bdff;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+#search-input {
+    flex: 1;
+    border: none;
+    outline: none;
+    background: transparent;
+    padding: 8px 0;
+    font-size: 14px;
+    color: #3c4043;
+}
+
+#search-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #5f6368;
+    display: flex;
+    align-items: center;
+    padding-left: 8px;
+    transition: color 0.2s;
+}
+
+#search-btn:hover {
+    color: #1a73e8;
+}
+
+#search-btn:hover .search-icon {
+    background-color: #1a73e8;
+}
+
+/* 搜索图标 - 引用外部 SVG 文件 */
+.search-icon {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    background-color: #5f6368;
+    -webkit-mask: url("search_icon.svg") no-repeat center;
+    mask: url("search_icon.svg") no-repeat center;
+    -webkit-mask-size: contain;
+    mask-size: contain;
+}
+
+/* 搜索选项区域 */
+.search-section {
+    margin-left: 20px; /* 增加左边距，与搜索框拉开距离 */
+}
+
+.checkbox-label {
+    font-size: 14px;
+    color: #5f6368;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    white-space: nowrap;
+    user-select: none;
+}
+
+#search-history-checkbox {
+    margin-right: 6px;
+    cursor: pointer;
+    width: 16px;
+    height: 16px;
+}
+
+/* 主容器：撑满剩余空间 */
+.repo-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    margin-top: 60px; /* 避开固定顶部的 top-bar */
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+/* 操作栏容器 */
+.action-bar-wrapper {
+    padding: 12px 15px;
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* 扫描激活状态行样式 */
+.scan-row-active {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 30px;
+    width: auto;
+}
+
+/* 进度条容器 */
+.scan-status-container {
+    width: 400px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+/* 普通操作行样式 */
+.scan-row-normal {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+}
+
+/* 进度条基础样式 */
+#scan-status-text {
+    font-size: 12px;
+    color: #5f6368;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.progress-bar-bg {
+    height: 8px;
+    background-color: #e8eaed;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.progress-bar-fill {
+    height: 100%;
+    background-color: #1a73e8;
+    width: 0%;
+    transition: width 0.3s ease;
+}
+
+/* 表格容器 */
+.table-wrapper {
+    flex: 1;
+    overflow: auto;
+    width: 100%;
+    background-color: #fff;
+}
+
+table {
+    width: 100%;
+    min-width: 900px;
+    border-collapse: collapse;
+}
+
+th {
+    position: sticky;
+    top: 0;
+    background-color: #f8f9fa;
+    z-index: 10;
+    box-shadow: inset 0 -1px 0 #dee2e6;
+    text-align: left;
+    padding: 12px 15px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #5f6368;
+}
+
+/* 表头排序相关样式 */
+th.sortable {
+    cursor: pointer;
+    user-select: none;
+}
+
+th.sortable:hover {
+    background-color: #f1f3f4;
+}
+
+.sort-icon {
+    display: inline-block;
+    margin-left: 5px;
+    width: 12px;
+    height: 12px;
+    vertical-align: middle;
+    position: relative;
+    color: #bdc1c6;
+}
+
+/* 默认状态：显示两个淡色的上下箭头 */
+.sort-icon::before {
+    content: "▲";
+    position: absolute;
+    top: -4px;
+    font-size: 8px;
+}
+
+.sort-icon::after {
+    content: "▼";
+    position: absolute;
+    bottom: -4px;
+    font-size: 8px;
+}
+
+/* 升序状态 */
+th.sort-asc .sort-icon {
+    color: #1a73e8;
+}
+th.sort-asc .sort-icon::after {
+    display: none;
+}
+th.sort-asc .sort-icon::before {
+    top: 0;
+    font-size: 10px;
+}
+
+/* 降序状态 */
+th.sort-desc .sort-icon {
+    color: #1a73e8;
+}
+th.sort-desc .sort-icon::before {
+    display: none;
+}
+th.sort-desc .sort-icon::after {
+    bottom: 0;
+    font-size: 10px;
+}
+
+td {
+    padding: 10px 15px;
+    border-bottom: 1px solid #f1f3f4;
+    font-size: 13px;
+    color: #3c4043;
+    max-width: 400px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* 底部工具栏 */
+.footer-bar {
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #fff;
+    border-top: 1px solid #dee2e6;
+}
+
+/* 按钮样式微调 */
+.btn-primary, .btn-danger {
+    width: 100px;
+    padding: 8px 0;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.btn-secondary-small {
+    width: 70px;
+    padding: 6px 0;
+    background-color: #f1f3f4;
+    color: #3c4043;
+    font-size: 12px;
+}
+
+.btn-secondary-small:hover:not(:disabled) {
+    background-color: #e8eaed;
+}
+
+.btn-secondary-small:disabled {
+    color: #bdc1c6;
+    cursor: not-allowed;
+}

@@ -1,0 +1,18 @@
+{
+    "USER_DATA": {
+        "username": "admin",
+        "password": "k37088575"
+    },
+    "FILE_REPOSITORY": {
+        "directories": [
+            "/home/xie/Desktop/app安装包/"
+        ],
+        "scan_suffixes": [
+            "*"
+        ],
+        "search_replace_chars": [
+            "-",
+            "_"
+        ]
+    }
+}

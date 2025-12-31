@@ -1,0 +1,13 @@
+/**
+ * 用途：登录页专用样式
+ */
+
+/* 使登录卡片在页面中垂直居中 */
+body {
+    justify-content: center;
+}
+
+/* 移除可能受 common.css 影响的默认外边距（如果有的话） */
+.card-container {
+    margin: 0;
+}
