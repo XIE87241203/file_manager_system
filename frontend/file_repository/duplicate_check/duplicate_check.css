@@ -1,0 +1,291 @@
+/* 
+ * 用途：查重页面专用样式
+ */
+
+.repo-body {
+    height: 100vh;
+    width: 100vw;
+    margin: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    background-color: #fff;
+}
+
+.repo-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    margin-top: 50px; /* 避开固定顶部的 top-bar */
+    box-sizing: border-box;
+    position: relative; /* 为浮动操作栏定位 */
+    overflow: hidden;
+}
+
+/* 居中状态容器：用于显示进度条并上下左右居中 */
+.centered-status-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-color: #f1f3f4;
+    z-index: 50;
+}
+
+.scan-status-card {
+    background: white;
+    padding: 30px 40px;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
+    width: 400px;
+}
+
+.spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #1a73e8;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+#scan-status-text {
+    font-size: 14px;
+    color: #3c4043;
+    text-align: center;
+    font-weight: 500;
+}
+
+.progress-bar-bg {
+    width: 100%;
+    height: 10px;
+    background-color: #e8eaed;
+    border-radius: 5px;
+    overflow: hidden;
+}
+
+.progress-bar-fill {
+    height: 100%;
+    background-color: #1a73e8;
+    width: 0%;
+    transition: width 0.3s ease;
+}
+
+/* 引导提示样式 */
+.empty-hint {
+    text-align: center; 
+    color: #9aa0a6; 
+    margin-top: 100px;
+    font-size: 15px;
+}
+
+/* 结果组容器 */
+.results-group {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* 结果统计标题栏 */
+.summary-bar {
+    background-color: #fff;
+    border-bottom: 1px solid #e8eaed;
+    padding: 12px 20px;
+    flex-shrink: 0;
+}
+
+.summary-content {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    font-size: 15px;
+    font-weight: bold;
+    color: #3c4043;
+}
+
+.summary-divider {
+    color: #dadce0;
+    font-weight: normal;
+}
+
+/* 查重结果区域 */
+.results-wrapper {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    padding-bottom: 60px; /* 调整底边距，适配新的底部操作栏高度 */
+    background-color: #f1f3f4;
+}
+
+.duplicate-group {
+    background-color: #fff;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    margin-bottom: 12px;
+    overflow: hidden;
+}
+
+.group-header {
+    padding: 12px 16px;
+    background-color: #fff;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    user-select: none;
+    transition: background-color 0.2s;
+}
+
+.group-header:hover {
+    background-color: #f8f9fa;
+}
+
+.group-info {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.group-title {
+    font-weight: 600;
+    color: #3c4043;
+}
+
+.group-count {
+    background-color: #e8eaed;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    color: #5f6368;
+}
+
+.group-md5 {
+    font-family: monospace;
+    font-size: 12px;
+    color: #70757a;
+}
+
+.group-actions {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.expand-icon {
+    transition: transform 0.3s;
+    font-size: 12px;
+    color: #5f6368;
+}
+
+.duplicate-group.expanded .expand-icon {
+    transform: rotate(90deg);
+}
+
+.group-content {
+    display: none;
+    border-top: 1px solid #f1f3f4;
+}
+
+.duplicate-group.expanded .group-content {
+    display: block;
+}
+
+/* 组内文件列表 */
+.file-item-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.file-item-table th, .file-item-table td {
+    padding: 10px 16px;
+    text-align: left;
+    font-size: 13px;
+    border-bottom: 1px solid #f1f3f4;
+}
+
+.file-item-table th {
+    background-color: #fafafa;
+    color: #5f6368;
+    font-weight: 500;
+}
+
+.file-item-table tr:last-child td {
+    border-bottom: none;
+}
+
+.clickable-row {
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.clickable-row:hover {
+    background-color: #f8f9fa;
+}
+
+.file-path {
+    color: #70757a;
+    max-width: 500px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* 底部浮动操作栏样式 */
+.floating-action-bar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    background-color: #fff;
+    padding: 10px 0;
+    box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+    z-index: 100;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    animation: slideUpSimple 0.3s ease-out;
+}
+
+@keyframes slideUpSimple {
+    from { transform: translateY(100%); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+.btn-danger-large {
+    min-width: 200px;
+    padding: 8px 24px;
+    background-color: #dc3545;
+    color: white;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: background-color 0.2s;
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.btn-danger-large:hover {
+    background-color: #c82333;
+}
+
+.btn-danger-large:active {
+    transform: scale(0.98);
+}

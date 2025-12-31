@@ -4,6 +4,7 @@ from backend.common.response import success_response, error_response
 from backend.common.log_utils import LogUtils
 from backend.common.auth_middleware import token_required
 from backend.file_repository.scan_service import ScanService
+from backend.file_repository.duplicate_service import DuplicateService
 from backend.common.db_manager import db_manager
 from backend.setting.setting import settings
 
@@ -40,17 +41,28 @@ def stop_scan():
 @token_required
 def clear_repository():
     """
-    用途说明：清空数据库中的文件索引表
-    入参说明：无
+    用途说明：清空数据库中的文件索引表，支持选择是否同时清空历史索引表
+    入参说明：JSON 包含 clear_history (bool)
     返回值说明：JSON 格式响应，包含操作结果
     """
-    LogUtils.info(f"用户 {request.username} 请求清空文件数据库")
+    data = request.json or {}
+    clear_history = data.get('clear_history', False)
+    
+    LogUtils.info(f"用户 {request.username} 请求清空文件数据库 (clear_history={clear_history})")
     try:
         # 执行删除全表数据的 SQL
         db_manager.execute_update("DELETE FROM file_index")
         # 重置自增 ID (可选)
         db_manager.execute_update("DELETE FROM sqlite_sequence WHERE name='file_index'")
-        return success_response("文件索引表已成功清空")
+        
+        msg = "文件索引表已成功清空"
+        
+        if clear_history:
+            db_manager.execute_update("DELETE FROM history_file_index")
+            db_manager.execute_update("DELETE FROM sqlite_sequence WHERE name='history_file_index'")
+            msg = "文件索引表及历史索引表已成功清空"
+            
+        return success_response(msg)
     except Exception as e:
         LogUtils.error(f"清空数据库失败: {e}")
         return error_response(f"清空数据库失败: {str(e)}", 500)
@@ -134,3 +146,70 @@ def list_files():
     except Exception as e:
         LogUtils.error(f"获取文件列表失败: {e}")
         return error_response(f"获取文件列表失败: {str(e)}", 500)
+
+@file_repo_bp.route('/duplicate/check', methods=['POST'])
+@token_required
+def start_duplicate_check():
+    """
+    用途说明：异步触发文件查重任务
+    入参说明：无
+    返回值说明：JSON 格式响应
+    """
+    LogUtils.info(f"用户 {request.username} 触发了文件查重")
+    if DuplicateService.start_async_check():
+        return success_response("查重任务已启动")
+    else:
+        return error_response("查重任务已在运行中", 400)
+
+@file_repo_bp.route('/duplicate/stop', methods=['POST'])
+@token_required
+def stop_duplicate_check():
+    """
+    用途说明：手动停止正在进行的查重任务
+    入参说明：无
+    返回值说明：JSON 格式响应
+    """
+    LogUtils.info(f"用户 {request.username} 请求停止查重任务")
+    DuplicateService.stop_check()
+    return success_response("已发送停止指令")
+
+@file_repo_bp.route('/duplicate/progress', methods=['GET'])
+@token_required
+def get_duplicate_progress():
+    """
+    用途说明：获取当前查重任务的状态、进度和结果信息
+    入参说明：无
+    返回值说明：包含 status, progress 和 results 的 JSON 响应
+    """
+    status_info = DuplicateService.get_status()
+    return success_response("获取进度成功", data=status_info)
+
+@file_repo_bp.route('/duplicate/delete', methods=['POST'])
+@token_required
+def delete_duplicate_file():
+    """
+    用途说明：删除指定的重复文件（包含物理文件和索引记录）
+    入参说明：JSON 包含 file_path 或 group_md5
+    返回值说明：JSON 格式响应
+    """
+    data = request.json
+    file_path = data.get('file_path')
+    group_md5 = data.get('group_md5')
+    
+    if file_path:
+        LogUtils.info(f"用户 {request.username} 请求删除文件: {file_path}")
+        success, msg = DuplicateService.delete_file(file_path)
+        if success:
+            return success_response("文件删除成功")
+        else:
+            return error_response(f"文件删除失败: {msg}", 500)
+    
+    if group_md5:
+        LogUtils.info(f"用户 {request.username} 请求删除重复组: {group_md5}")
+        count, failed = DuplicateService.delete_group(group_md5)
+        if not failed:
+            return success_response(f"成功删除组内 {count} 个文件")
+        else:
+            return error_response(f"部分文件删除失败({len(failed)}个): {', '.join(failed[:3])}...", 500)
+
+    return error_response("无效的请求参数", 400)

@@ -1,37 +1,26 @@
-/* 
- * 用途：文件仓库页面专用样式 - 全屏自适应布局
+/**
+ * 用途说明：文件仓库页面专用样式，实现全屏自适应布局、搜索栏集成、数据表格美化及排序状态展示。
  */
 
-/* 覆盖 body 样式，确保全屏高度 */
+/* 1. 基础布局调整 */
 .repo-body {
     height: 100vh;
     width: 100vw;
     margin: 0;
-    overflow: hidden;
+    overflow: hidden; /* 防止外层滚动，由内部容器处理 */
     display: flex;
     flex-direction: column;
     background-color: #fff;
 }
 
-/* 私有头部样式 - 兼容 common.css 的 top-bar */
+/* 2. 顶部工具栏自定义 (扩展 common.css 中的 .top-bar) */
 .top-bar {
-    width: 100%;
     height: 60px;
-    background-color: #fff;
-    display: flex;
-    align-items: center;
-    padding: 0 16px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    position: fixed;
-    top: 0;
-    left: 0;
-    z-index: 1000;
-    box-sizing: border-box;
+    justify-content: space-between; /* 三段式分布 */
 }
 
-/* 头部三段式布局 */
 .top-bar-left {
-    width: 80px;
+    width: 100px;
     display: flex;
     align-items: center;
 }
@@ -41,13 +30,16 @@
     display: flex;
     justify-content: center;
     align-items: center;
+    gap: 20px;
 }
 
 .top-bar-right {
-    width: 80px; /* 与左侧对称 */
+    width: 100px;
+    display: flex;
+    justify-content: flex-end;
 }
 
-/* 搜索框容器 */
+/* 3. 搜索组件样式 */
 .search-container {
     display: flex;
     align-items: center;
@@ -57,7 +49,7 @@
     padding: 2px 16px;
     width: 100%;
     max-width: 500px;
-    transition: background-color 0.2s, border-color 0.2s, box-shadow 0.2s;
+    transition: all 0.2s ease;
 }
 
 .search-container:focus-within {
@@ -91,11 +83,7 @@
     color: #1a73e8;
 }
 
-#search-btn:hover .search-icon {
-    background-color: #1a73e8;
-}
-
-/* 搜索图标 - 引用外部 SVG 文件 */
+/* 搜索图标 (使用 mask 技术实现颜色可控的图标) */
 .search-icon {
     display: inline-block;
     width: 20px;
@@ -107,9 +95,8 @@
     mask-size: contain;
 }
 
-/* 搜索选项区域 */
-.search-section {
-    margin-left: 20px; /* 增加左边距，与搜索框拉开距离 */
+#search-btn:hover .search-icon {
+    background-color: #1a73e8;
 }
 
 .checkbox-label {
@@ -129,77 +116,32 @@
     height: 16px;
 }
 
-/* 主容器：撑满剩余空间 */
+/* 4. 主容器及内容区域 */
 .repo-container {
     flex: 1;
     display: flex;
     flex-direction: column;
     width: 100%;
-    margin-top: 60px; /* 避开固定顶部的 top-bar */
+    margin-top: 60px; /* 避开固定顶部的工具栏 */
     box-sizing: border-box;
     overflow: hidden;
+    position: relative; /* 为公共进度条蒙层提供定位参考 */
 }
 
-/* 操作栏容器 */
-.action-bar-wrapper {
-    padding: 12px 15px;
-    background-color: #f8f9fa;
-    border-bottom: 1px solid #dee2e6;
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-/* 扫描激活状态行样式 */
-.scan-row-active {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 30px;
-    width: auto;
-}
-
-/* 进度条容器 */
-.scan-status-container {
-    width: 400px;
+.repo-content-group {
+    flex: 1;
     display: flex;
     flex-direction: column;
-    gap: 6px;
-}
-
-/* 普通操作行样式 */
-.scan-row-normal {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 20px;
-}
-
-/* 进度条基础样式 */
-#scan-status-text {
-    font-size: 12px;
-    color: #5f6368;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.progress-bar-bg {
-    height: 8px;
-    background-color: #e8eaed;
-    border-radius: 4px;
+    width: 100%;
     overflow: hidden;
 }
 
-.progress-bar-fill {
-    height: 100%;
-    background-color: #1a73e8;
-    width: 0%;
-    transition: width 0.3s ease;
+/* 文件去重按钮最大宽度限制 */
+#btn-duplicate-check {
+    max-width: 200px;
 }
 
-/* 表格容器 */
+/* 5. 数据表格样式优化 */
 .table-wrapper {
     flex: 1;
     overflow: auto;
@@ -226,10 +168,11 @@ th {
     color: #5f6368;
 }
 
-/* 表头排序相关样式 */
+/* 排序表头交互 */
 th.sortable {
     cursor: pointer;
     user-select: none;
+    transition: background-color 0.2s;
 }
 
 th.sortable:hover {
@@ -246,7 +189,6 @@ th.sortable:hover {
     color: #bdc1c6;
 }
 
-/* 默认状态：显示两个淡色的上下箭头 */
 .sort-icon::before {
     content: "▲";
     position: absolute;
@@ -261,29 +203,14 @@ th.sortable:hover {
     font-size: 8px;
 }
 
-/* 升序状态 */
-th.sort-asc .sort-icon {
-    color: #1a73e8;
-}
-th.sort-asc .sort-icon::after {
-    display: none;
-}
-th.sort-asc .sort-icon::before {
-    top: 0;
-    font-size: 10px;
-}
+/* 排序激活状态 */
+th.sort-asc .sort-icon { color: #1a73e8; }
+th.sort-asc .sort-icon::after { display: none; }
+th.sort-asc .sort-icon::before { top: 0; font-size: 10px; }
 
-/* 降序状态 */
-th.sort-desc .sort-icon {
-    color: #1a73e8;
-}
-th.sort-desc .sort-icon::before {
-    display: none;
-}
-th.sort-desc .sort-icon::after {
-    bottom: 0;
-    font-size: 10px;
-}
+th.sort-desc .sort-icon { color: #1a73e8; }
+th.sort-desc .sort-icon::before { display: none; }
+th.sort-desc .sort-icon::after { bottom: 0; font-size: 10px; }
 
 td {
     padding: 10px 15px;
@@ -296,30 +223,35 @@ td {
     white-space: nowrap;
 }
 
-/* 底部工具栏 */
+/* 6. 底部工具栏与分页 */
 .footer-bar {
-    height: 48px;
+    height: 52px;
     display: flex;
     align-items: center;
     justify-content: center;
     background-color: #fff;
     border-top: 1px solid #dee2e6;
+    flex-shrink: 0;
 }
 
-/* 按钮样式微调 */
-.btn-primary, .btn-danger {
-    width: 100px;
-    padding: 8px 0;
+.pagination-container {
+    display: flex;
+    align-items: center;
+    gap: 20px;
     font-size: 13px;
-    font-weight: 500;
+    color: #5f6368;
 }
 
+/* 7. 按钮样式微调 */
 .btn-secondary-small {
-    width: 70px;
-    padding: 6px 0;
+    padding: 6px 12px;
     background-color: #f1f3f4;
     color: #3c4043;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    cursor: pointer;
     font-size: 12px;
+    transition: all 0.2s;
 }
 
 .btn-secondary-small:hover:not(:disabled) {
@@ -329,4 +261,5 @@ td {
 .btn-secondary-small:disabled {
     color: #bdc1c6;
     cursor: not-allowed;
+    background-color: #f8f9fa;
 }

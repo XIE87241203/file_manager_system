@@ -21,8 +21,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // 绑定清空数据库按钮
     const clearDbBtn = document.getElementById('clear-db-btn');
     if (clearDbBtn) {
-        clearDbBtn.addEventListener('click', clearFileRepositoryDatabase);
+        clearDbBtn.addEventListener('click', showClearDbModal);
     }
+
+    // 绑定弹窗确认和取消按钮
+    document.getElementById('confirm-clear-btn').addEventListener('click', clearFileRepositoryDatabase);
+    document.getElementById('cancel-clear-btn').addEventListener('click', hideClearDbModal);
     
     // 绑定修改密码保存按钮
     document.getElementById('save-pwd-btn').addEventListener('click', savePasswordSettings);
@@ -195,20 +199,40 @@ async function saveFileRepositorySettings() {
 }
 
 /**
- * 用途说明：向后端发起请求清空文件索引数据库，包含二次确认逻辑
+ * 用途说明：显示清空数据库二次确认弹窗
+ * 入参说明：无
+ * 返回值说明：无
+ */
+function showClearDbModal() {
+    document.getElementById('clear-db-modal').style.display = 'flex';
+    document.getElementById('clear-history-check').checked = false; // 默认不勾选
+}
+
+/**
+ * 用途说明：隐藏清空数据库二次确认弹窗
+ * 入参说明：无
+ * 返回值说明：无
+ */
+function hideClearDbModal() {
+    document.getElementById('clear-db-modal').style.display = 'none';
+}
+
+/**
+ * 用途说明：向后端发起请求清空文件索引数据库
  * 入参说明：无
  * 返回值说明：无
  */
 async function clearFileRepositoryDatabase() {
-    // 二次确认
-    if (!confirm('警告：此操作将清空所有已扫描的文件索引数据，且不可恢复！确定要继续吗？')) {
-        return;
-    }
+    const clearHistory = document.getElementById('clear-history-check').checked;
+    
+    hideClearDbModal();
 
     try {
-        const response = await Request.post('/api/file_repository/clear');
+        const response = await Request.post('/api/file_repository/clear', {
+            clear_history: clearHistory
+        });
         if (response.status === 'success') {
-            Toast.show('文件数据库已成功清空');
+            Toast.show(response.msg || '文件数据库已成功清空');
         } else {
             Toast.show('清空失败: ' + response.msg);
         }

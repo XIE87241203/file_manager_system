@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文件查重 - 文件管理系统</title>
+    <link rel="stylesheet" href="../../common/common.css">
+    <link rel="stylesheet" href="duplicate_check.css">
+</head>
+<body class="repo-body">
+<!-- 公用顶部工具栏 -->
+<header class="top-bar"></header>
+
+<main class="repo-container">
+    <!-- 查重状态容器：用于挂载通用进度条组件 -->
+    <div id="scanning-container" class="centered-status-container" style="display: none;">
+        <!-- 内容将由 UIComponents.showProgressBar 动态生成 -->
+    </div>
+
+    <!-- 结果区域组 -->
+    <div id="results-group" class="results-group" style="display: none;">
+        <!-- 结果统计标题栏 -->
+        <div id="results-summary-bar" class="summary-bar" style="display: none;">
+            <div class="summary-content">
+                <span id="summary-groups">分组: 0</span>
+                <span class="summary-divider">|</span>
+                <span id="summary-files">文件: 0</span>
+                <span class="summary-divider">|</span>
+                <span id="summary-time">查重时间: --</span>
+            </div>
+        </div>
+
+        <!-- 结果显示区域 -->
+        <div id="results-wrapper" class="results-wrapper"></div>
+
+        <!-- 底部浮动操作栏 -->
+        <div id="floating-action-bar" class="floating-action-bar" style="display: none;">
+            <button id="btn-delete-selected-global" class="btn-danger-large">删除选中的重复文件</button>
+        </div>
+    </div>
+
+    <!-- 初始引导提示 -->
+    <div id="empty-hint" class="empty-hint">
+        点击右上角“开始查重”分析重复文件
+    </div>
+</main>
+
+<!-- 引入公用工具 -->
+<script src="../../common/ui_components.js"></script>
+<script src="../../common/request.js"></script>
+<script src="../../common/toast.js"></script>
+<script src="duplicate_check.js"></script>
+</body>
+</html>

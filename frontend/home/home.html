@@ -12,28 +12,36 @@
     <header class="top-bar"></header>
 
     <main class="main-content">
-        <div class="menu-grid">
-            <!-- 文件仓库入口 -->
-            <div id="menu-file-repository" class="menu-item">
-                <div class="menu-icon">📂</div>
-                <div class="menu-label">文件仓库</div>
+        <div style="width: 100%; max-width: 800px;">
+            <!-- 文件管理分组 -->
+            <div class="menu-group-title">文件管理</div>
+            <div class="menu-grid">
+                <!-- 文件仓库入口 -->
+                <div id="menu-file-repository" class="menu-item">
+                    <div class="menu-icon">📂</div>
+                    <div class="menu-label">文件仓库</div>
+                </div>
+                <!-- 文件去重入口 -->
+                <div id="menu-duplicate-check" class="menu-item">
+                    <div class="menu-icon">👯</div>
+                    <div class="menu-label">文件去重</div>
+                </div>
             </div>
 
-            <!-- 设置入口 -->
-            <div id="menu-setting" class="menu-item">
-                <div class="menu-icon">⚙️</div>
-                <div class="menu-label">系统设置</div>
-            </div>
-            
-            <!-- 预留其他功能入口 -->
-            <div class="menu-item" onclick="Toast.show('功能开发中...')">
-                <div class="menu-icon">📊</div>
-                <div class="menu-label">运行日志</div>
-            </div>
-
-            <div id="menu-logout" class="menu-item">
-                <div class="menu-icon">🚪</div>
-                <div class="menu-label">退出登录</div>
+            <!-- 系统管理分组 -->
+            <div class="menu-group-title">系统管理</div>
+            <div class="menu-grid">
+                <!-- 设置入口 -->
+                <div id="menu-setting" class="menu-item">
+                    <div class="menu-icon">⚙️</div>
+                    <div class="menu-label">系统设置</div>
+                </div>
+                
+                <!-- 运行日志 -->
+                <div id="menu-logs" class="menu-item">
+                    <div class="menu-icon">📊</div>
+                    <div class="menu-label">运行日志</div>
+                </div>
             </div>
         </div>
     </main>

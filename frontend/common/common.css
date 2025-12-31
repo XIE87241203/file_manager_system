@@ -34,7 +34,7 @@ body {
     cursor: pointer;
     background: none;
     border: none;
-    font-size: 1.2rem;
+    font-size: 1rem;
     color: #007bff;
     padding: 8px;
     display: flex;
@@ -44,6 +44,29 @@ body {
 }
 
 .back-btn:hover {
+    color: #0056b3;
+}
+
+/* 右侧按钮区域 */
+.right-area {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    z-index: 1001;
+    position: relative;
+}
+
+.right-btn {
+    cursor: pointer;
+    background: none;
+    border: none;
+    font-size: 1rem;
+    color: #007bff;
+    padding: 8px;
+    white-space: nowrap;
+}
+
+.right-btn:hover {
     color: #0056b3;
 }
 
@@ -164,6 +187,22 @@ body {
     background-color: #c82333;
 }
 
+/* 公共红色文字按钮样式 (如：停止索引) */
+.btn-text-danger {
+    cursor: pointer;
+    background: none;
+    border: none;
+    font-size: 1rem;
+    color: #dc3545;
+    padding: 8px;
+    white-space: nowrap;
+    transition: color 0.3s;
+}
+
+.btn-text-danger:hover {
+    color: #bd2130;
+}
+
 /* 次要按钮样式 */
 .btn-secondary {
     width: 100%;
@@ -263,4 +302,61 @@ body {
 @keyframes spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
+}
+
+/* 通用进度条组件样式 (Common Progress Bar) */
+.common-progress-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-color: rgba(241, 243, 244, 0.9);
+    z-index: 500;
+}
+
+.common-progress-card {
+    background: white;
+    padding: 30px 40px;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
+    width: 400px;
+}
+
+.common-progress-spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #1a73e8;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+.common-progress-text {
+    font-size: 14px;
+    color: #3c4043;
+    text-align: center;
+    font-weight: 500;
+}
+
+.common-progress-bar-bg {
+    width: 100%;
+    height: 10px;
+    background-color: #e8eaed;
+    border-radius: 5px;
+    overflow: hidden;
+}
+
+.common-progress-bar-fill {
+    height: 100%;
+    background-color: #1a73e8;
+    width: 0%;
+    transition: width 0.3s ease;
 }

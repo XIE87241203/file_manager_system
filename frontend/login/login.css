@@ -1,13 +1,29 @@
 /**
- * 用途：登录页专用样式
+ * 用途：登录页专用样式，补充 common.css 的布局
  */
 
-/* 使登录卡片在页面中垂直居中 */
-body {
+/* 登录页主内容垂直居中展示 */
+.main-content {
+    min-height: calc(100vh - 50px); /* 减去 header 高度 */
+    display: flex;
+    align-items: center;
     justify-content: center;
+    margin-top: 50px; /* 顶部导航栏占位 */
+    padding: 0;
 }
 
-/* 移除可能受 common.css 影响的默认外边距（如果有的话） */
+/* 覆盖 common.css 中的 body 居中，由 .main-content 负责内部居中 */
+body {
+    display: block;
+}
+
+/* 针对登录卡片的细微调整 */
 .card-container {
-    margin: 0;
+    margin: 20px;
+    animation: fadeIn 0.5s ease-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
 }

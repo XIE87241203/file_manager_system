@@ -1,41 +1,80 @@
 /**
- * 用途：首页样式，定义功能入口按钮布局
+ * 用途：首页样式，定义功能入口按钮布局及分组样式
  */
+
+/* 分组标题样式 - 优化为更现代、清爽的风格 */
+.menu-group-title {
+    width: 100%;
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: #1a73e8; /* 使用更具现代感的品牌蓝 */
+    margin: 32px 0 16px 0;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #e8eaed; /* 减弱底边线视觉强度 */
+    display: flex;
+    align-items: center;
+    letter-spacing: 0.5px;
+}
+
+.menu-group-title::before {
+    content: '';
+    display: inline-block;
+    width: 4px;
+    height: 1.1rem;
+    background-color: #1a73e8;
+    margin-right: 12px;
+    border-radius: 2px;
+}
+
+/* 第一个分组标题顶边距微调 */
+.menu-group-title:first-child {
+    margin-top: 10px;
+}
+
+/* 菜单网格布局 */
 .menu-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 20px;
     width: 100%;
+    margin-bottom: 10px;
 }
 
 .menu-item {
     background-color: #fff;
     border-radius: 8px;
-    padding: 20px;
+    padding: 24px 20px;
     text-align: center;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     cursor: pointer;
-    transition: transform 0.2s, box-shadow 0.2s;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    border: 1px solid #eee;
+    border: 1px solid #f1f3f4;
 }
 
 .menu-item:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-    border-color: #007bff;
+    transform: translateY(-4px);
+    box-shadow: 0 8px 16px rgba(26, 115, 232, 0.1);
+    border-color: #1a73e8;
+    background-color: #f8fbff;
 }
 
 .menu-icon {
-    font-size: 2rem;
-    margin-bottom: 10px;
+    font-size: 2.2rem;
+    margin-bottom: 12px;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
 }
 
 .menu-label {
-    font-size: 1rem;
-    font-weight: bold;
-    color: #333;
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: #3c4043;
+    transition: color 0.2s;
+}
+
+.menu-item:hover .menu-label {
+    color: #1a73e8;
 }
