@@ -161,4 +161,4 @@ backend/runtime/logs/
 log/
 
 # Project specific
-backend/setting/setting.json
+setting.json
