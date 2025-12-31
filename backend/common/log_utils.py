@@ -2,7 +2,6 @@ import logging
 import sys
 import os
 from datetime import datetime
-from backend.common.utils import Utils
 
 class LogUtils:
     """
@@ -22,13 +21,13 @@ class LogUtils:
             cls._logger = logging.getLogger("file_manager_system")
             cls._logger.setLevel(level)
             
-            # 1. 确保日志目录存在 (使用 Utils 获取运行时路径)
-            runtime_path = Utils.get_runtime_path()
+            # 1. 确保日志目录存在 (直接使用 os.getcwd() 避免循环导入 Utils)
+            runtime_path = os.getcwd()
             log_dir = os.path.join(runtime_path, 'log')
             if not os.path.exists(log_dir):
                 os.makedirs(log_dir)
             
-            # 2. 构造日志文件路径 (yyyyMMdd.txt)
+            # 2. 构造日志文件路径 (yyyyMMdd.log)
             log_filename = datetime.now().strftime('%Y%m%d') + ".log"
             log_path = os.path.join(log_dir, log_filename)
             

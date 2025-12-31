@@ -3,7 +3,7 @@
  */
 const UIComponents = {
     /**
-     * 用途说明：初始化并渲染公用顶部工具栏
+     * 用途说明：初始化并渲染公用顶部工具栏，并自动处理页面内容避让
      * 入参说明：
      *   - title (str): 工具栏显示的标题文字
      *   - showBack (bool): 是否显示返回按钮，默认为 true
@@ -22,18 +22,25 @@ const UIComponents = {
             document.body.prepend(header);
         }
 
-        // 2. 渲染内部 HTML 结构
+        // 2. 渲染内部 HTML 结构 (适配 common.css 中的左、中、右三段式布局)
         header.innerHTML = `
-            <button id="nav-back-btn" class="back-btn" style="${showBack ? '' : 'visibility: hidden;'}">
-                <span>&lt; 返回</span>
-            </button>
+            <div class="top-bar-left">
+                <button id="nav-back-btn" class="back-btn" style="${showBack ? '' : 'visibility: hidden;'}">
+                    <span>&lt; 返回</span>
+                </button>
+            </div>
             <div class="top-bar-title">${title}</div>
-            <div class="right-area">
+            <div class="top-bar-right">
                 ${rightBtnText ? `<button id="nav-right-btn" class="${rightBtnClass}">${rightBtnText}</button>` : ''}
             </div>
         `;
 
-        // 3. 绑定返回按钮逻辑
+        // 3. 避开头部高度：通过 JS 动态设置 body 的 paddingTop，确保内容不被固定定位的 header 遮挡
+        // 统一处理高度为 60px，不再依赖 CSS 中的各类 margin-top 避让
+        document.body.style.paddingTop = this.getToolbarHeight() + 'px';
+        document.body.style.boxSizing = 'border-box';
+
+        // 4. 绑定返回按钮逻辑
         if (showBack) {
             const backBtn = document.getElementById('nav-back-btn');
             if (backBtn) {
@@ -47,13 +54,24 @@ const UIComponents = {
             }
         }
 
-        // 4. 绑定右侧按钮逻辑
+        // 5. 绑定右侧按钮逻辑
         if (rightBtnText && rightBtnCallback) {
             const rightBtn = document.getElementById('nav-right-btn');
             if (rightBtn) {
                 rightBtn.onclick = rightBtnCallback;
             }
         }
+    },
+
+    /**
+     * 用途说明：获取顶部工具栏的高度
+     * 入参说明：无
+     * 返回值说明：Number - 工具栏高度（像素）
+     */
+    getToolbarHeight() {
+        const header = document.querySelector('header.top-bar');
+        // 如果 header 存在则返回其高度，否则返回预设的 60px
+        return header ? header.offsetHeight || 60 : 60;
     },
 
     /**
@@ -83,7 +101,7 @@ const UIComponents = {
             `;
             parent.appendChild(overlay);
         } else {
-            // 如果已存在，重置进度和文本
+            // 如果已存在，重置进度 and 文本
             this.updateProgressBar(parentSelector, 0, initialText);
         }
         overlay.style.display = 'flex';

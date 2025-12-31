@@ -1,15 +1,19 @@
 import os
-import hashlib
 import threading
+from typing import List
+
+from backend.db.model.file_index import FileIndex
 from backend.setting.setting import settings
-from backend.common.db_manager import db_manager
+from backend.db.db_operations import DBOperations
 from backend.common.log_utils import LogUtils
+from backend.common.utils import Utils
+
 
 class ScanService:
     """
     用途：文件仓库扫描服务类，支持异步扫描、进度查询和任务停止
     """
-    
+
     # 扫描状态：idle, scanning, completed, error
     _status = "idle"
     # 进度信息
@@ -20,7 +24,7 @@ class ScanService:
     }
     # 任务控制标志位
     _stop_flag = False
-    
+
     # 锁，保证状态更新的线程安全
     _lock = threading.Lock()
 
@@ -50,23 +54,6 @@ class ScanService:
                 LogUtils.info("收到停止扫描任务请求")
 
     @staticmethod
-    def calculate_md5(file_path):
-        """
-        用途：计算指定文件的 MD5 哈希值
-        入参说明：file_path (str) - 文件的绝对路径
-        返回值说明：str - 文件的 MD5 十六进制字符串；如果读取失败则返回空字符串
-        """
-        hash_md5 = hashlib.md5()
-        try:
-            with open(file_path, "rb") as f:
-                for chunk in iter(lambda: f.read(4096), b""):
-                    hash_md5.update(chunk)
-            return hash_md5.hexdigest()
-        except Exception as e:
-            LogUtils.error(f"计算文件 MD5 失败: {file_path}, 错误: {e}")
-            return ""
-
-    @staticmethod
     def start_async_scan():
         """
         用途：启动异步扫描任务
@@ -76,7 +63,7 @@ class ScanService:
         with ScanService._lock:
             if ScanService._status == "scanning":
                 return False
-            
+
             # 初始化状态
             ScanService._status = "scanning"
             ScanService._stop_flag = False
@@ -98,7 +85,7 @@ class ScanService:
         try:
             # 1. 扫描开始前清空当前索引表
             LogUtils.info("扫描开始，正在清空当前索引表...")
-            if not db_manager.clear_file_index():
+            if not DBOperations.clear_file_index():
                 LogUtils.error("清空索引表失败，终止扫描")
                 with ScanService._lock:
                     ScanService._status = "error"
@@ -110,7 +97,7 @@ class ScanService:
             scan_all = "*" in suffixes
 
             all_files_info = []
-            
+
             # 第一阶段：统计总文件数
             LogUtils.info("扫描任务：开始统计文件总数...")
             temp_file_list = []
@@ -123,7 +110,7 @@ class ScanService:
                         file_ext = os.path.splitext(file)[1].replace('.', '').lower()
                         if scan_all or file_ext in suffixes:
                             temp_file_list.append(os.path.join(root, file))
-            
+
             if ScanService._stop_flag:
                 ScanService._handle_stopped()
                 return
@@ -136,26 +123,28 @@ class ScanService:
             for i, file_path in enumerate(temp_file_list):
                 if ScanService._stop_flag:
                     break
-                    
+
                 file_name = os.path.basename(file_path)
-                
+
                 # 更新进度
                 with ScanService._lock:
                     ScanService._progress["current"] = i + 1
                     ScanService._progress["current_file"] = file_name
-                
-                file_md5 = ScanService.calculate_md5(file_path)
+
+                # 调用通用工具类计算 MD5
+                file_md5 = Utils.calculate_md5(file_path)
                 if file_md5:
-                    all_files_info.append((file_path, file_name, file_md5))
-                
+                    all_files_info.append(
+                        FileIndex(file_path=file_path, file_name=file_name, file_md5=file_md5))
+
                 # 每 100 个文件批量写入一次
                 if len(all_files_info) >= 100:
-                    db_manager.batch_insert_files(all_files_info)
+                    DBOperations.batch_insert_files(all_files_info)
                     all_files_info = []
 
             # 处理剩余的文件
             if all_files_info and not ScanService._stop_flag:
-                db_manager.batch_insert_files(all_files_info)
+                DBOperations.batch_insert_files(all_files_info)
 
             with ScanService._lock:
                 if ScanService._stop_flag:
@@ -163,7 +152,7 @@ class ScanService:
                 else:
                     # 2. 扫描成功完成后，将数据复制到历史表
                     LogUtils.info("扫描成功，正在备份至历史表...")
-                    if db_manager.copy_to_history():
+                    if DBOperations.copy_to_history():
                         ScanService._status = "completed"
                         LogUtils.info(f"扫描任务正常完成，共索引 {total_count} 个文件")
                     else:

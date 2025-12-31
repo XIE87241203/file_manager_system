@@ -164,31 +164,35 @@ const UIController = {
         groupEl.setAttribute('data-group-id', group.group_id);
         
         groupEl.innerHTML = `
-            <div class=\"group-header\">
-                <div class=\"group-info\">
-                    <span class=\"group-title\">重复组</span>
-                    <span class=\"group-count\">${group.count} 个文件</span>
-                    <span class=\"group-md5\">MD5: ${group.group_id}</span>
+            <div class="group-header">
+                <div class="group-info">
+                    <span class="group-title">重复组</span>
+                    <span class="group-count">${group.count} 个文件</span>
+                    <span class="group-md5">MD5: ${group.group_id}</span>
                 </div>
-                <div class=\"group-actions\">
-                    <span class=\"expand-icon\">▶</span>
+                <div class="group-actions">
+                    <span class="expand-icon">▶</span>
                 </div>
             </div>
-            <div class=\"group-content\">
-                <table class=\"file-item-table\">
+            <div class="group-content">
+                <table class="file-item-table">
                     <thead>
                         <tr>
-                            <th style=\"width: 40px;\"><input type=\"checkbox\" class=\"select-all-in-group\"></th>
-                            <th>文件名</th>
-                            <th>完整路径</th>
+                            <th style="width: 25%;">文件名</th>
+                            <th style="width: 70%;">完整路径</th>
+                            <th style="width: 30px; text-align: center;">
+                                <input type="checkbox" class="select-all-in-group">
+                            </th>
                         </tr>
                     </thead>
                     <tbody>
                         ${group.files.map(f => `
-                            <tr class=\"clickable-row\">
-                                <td style=\"width: 40px;\"><input type=\"checkbox\" class=\"file-checkbox\" data-path=\"${f.file_path}\"></td>
-                                <td style=\"width: 25%;\" title=\"${f.file_name}\">${f.file_name}</td>
-                                <td style=\"width: 70%;\" class=\"file-path\" title=\"${f.file_path}\">${f.file_path}</td>
+                            <tr class="clickable-row">
+                                <td style="width: 25%;" title="${f.file_name}">${f.file_name}</td>
+                                <td style="width: 70%;" class="file-path" title="${f.file_path}">${f.file_path}</td>
+                                <td style="width: 30px; text-align: center;">
+                                    <input type="checkbox" class="file-checkbox" data-path="${f.file_path}">
+                                </td>
                             </tr>
                         `).join('')}
                     </tbody>
@@ -197,7 +201,8 @@ const UIController = {
         `;
 
         // 绑定折叠/展开事件
-        groupEl.querySelector('.group-header').addEventListener('click', () => {
+        groupEl.querySelector('.group-header').addEventListener('click', (e) => {
+            if (e.target.type === 'checkbox') return;
             const isExpanded = groupEl.classList.toggle('expanded');
             group.isExpanded = isExpanded;
         });
@@ -205,18 +210,36 @@ const UIController = {
         // 绑定组内全选事件
         const selectAllCheckbox = groupEl.querySelector('.select-all-in-group');
         const fileCheckboxes = groupEl.querySelectorAll('.file-checkbox');
-        selectAllCheckbox.onchange = () => {
-            fileCheckboxes.forEach(cb => cb.checked = selectAllCheckbox.checked);
+        selectAllCheckbox.onchange = (e) => {
+            const isChecked = selectAllCheckbox.checked;
+            fileCheckboxes.forEach(cb => {
+                cb.checked = isChecked;
+                const row = cb.closest('tr');
+                if (isChecked) row.classList.add('selected-row');
+                else row.classList.remove('selected-row');
+            });
             this.updateFloatingBar();
         };
 
-        // 绑定行点击选择事件
+        // 绑定行点击选择事件 (符合 AGENTS.md 规范)
         groupEl.querySelectorAll('.clickable-row').forEach(tr => {
             tr.addEventListener('click', (e) => {
                 const cb = tr.querySelector('.file-checkbox');
+                let isChecked;
                 if (e.target !== cb) {
                     cb.checked = !cb.checked;
                 }
+                isChecked = cb.checked;
+                
+                // 更新行背景
+                if (isChecked) tr.classList.add('selected-row');
+                else tr.classList.remove('selected-row');
+
+                // 如果取消选中，同步取消组全选框的状态
+                if (!isChecked) {
+                    selectAllCheckbox.checked = false;
+                }
+                
                 this.updateFloatingBar();
             });
         });
@@ -257,7 +280,7 @@ const DuplicateCheckAPI = {
                 UIController.toggleView('checking');
                 App.startPolling();
             } else {
-                Toast.show(response.msg);
+                Toast.show(response.message);
             }
         } catch (error) {
             Toast.show('启动失败');

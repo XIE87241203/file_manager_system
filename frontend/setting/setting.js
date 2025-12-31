@@ -232,9 +232,9 @@ async function clearFileRepositoryDatabase() {
             clear_history: clearHistory
         });
         if (response.status === 'success') {
-            Toast.show(response.msg || '文件数据库已成功清空');
+            Toast.show(response.message || '文件数据库已成功清空');
         } else {
-            Toast.show('清空失败: ' + response.msg);
+            Toast.show('清空失败: ' + response.message);
         }
     } catch (error) {
         console.error('清空数据库出错:', error);

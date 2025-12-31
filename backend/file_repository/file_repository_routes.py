@@ -1,11 +1,10 @@
-import re
 from flask import Blueprint, request
 from backend.common.response import success_response, error_response
 from backend.common.log_utils import LogUtils
 from backend.common.auth_middleware import token_required
 from backend.file_repository.scan_service import ScanService
 from backend.file_repository.duplicate_service import DuplicateService
-from backend.common.db_manager import db_manager
+from backend.db.db_operations import DBOperations
 from backend.setting.setting import settings
 
 # 创建文件仓库模块的蓝图
@@ -50,21 +49,18 @@ def clear_repository():
     
     LogUtils.info(f"用户 {request.username} 请求清空文件数据库 (clear_history={clear_history})")
     try:
-        # 执行删除全表数据的 SQL
-        db_manager.execute_update("DELETE FROM file_index")
-        # 重置自增 ID (可选)
-        db_manager.execute_update("DELETE FROM sqlite_sequence WHERE name='file_index'")
-        
-        msg = "文件索引表已成功清空"
-        
-        if clear_history:
-            db_manager.execute_update("DELETE FROM history_file_index")
-            db_manager.execute_update("DELETE FROM sqlite_sequence WHERE name='history_file_index'")
-            msg = "文件索引表及历史索引表已成功清空"
-            
-        return success_response(msg)
+        if DBOperations.clear_file_index():
+            msg = "文件索引表已成功清空"
+            if clear_history:
+                if DBOperations.clear_history_index():
+                    msg = "文件索引表及历史索引表已成功清空"
+                else:
+                    return error_response("清空历史索引表失败", 500)
+            return success_response(msg)
+        else:
+            return error_response("清空文件索引表失败", 500)
     except Exception as e:
-        LogUtils.error(f"清空数据库失败: {e}")
+        LogUtils.error(f"清空数据库操作异常: {e}")
         return error_response(f"清空数据库失败: {str(e)}", 500)
 
 @file_repo_bp.route('/progress', methods=['GET'])
@@ -124,20 +120,21 @@ def list_files():
             params.append(sql_like_query)
 
         # 获取总数
-        count_sql = f"SELECT COUNT(*) FROM {table_name}{where_clause}"
-        total_res = db_manager.execute_query(count_sql, tuple(params))
-        total = total_res[0][0] if total_res else 0
+        total = DBOperations.get_file_count(table_name, where_clause, tuple(params))
 
-        # 获取分页数据
-        query_params = list(params)
-        query_params.extend([limit, offset])
-        query = f"SELECT id, file_path, file_name, file_md5, scan_time FROM {table_name}{where_clause} ORDER BY {sort_by} {order} LIMIT ? OFFSET ?"
-        results = db_manager.execute_query(query, tuple(query_params))
+        # 获取分页数据，返回值类型为 List[Union[FileIndex, HistoryFileIndex]]
+        results = DBOperations.get_file_list_with_pagination(
+            table_name, where_clause, tuple(params), sort_by, order, limit, offset
+        )
         
         file_list = []
         for row in results:
             file_list.append({
-                "id": row[0], "file_path": row[1], "file_name": row[2], "file_md5": row[3], "scan_time": row[4]
+                "id": row.id, 
+                "file_path": row.file_path, 
+                "file_name": row.file_name, 
+                "file_md5": row.file_md5, 
+                "scan_time": row.scan_time
             })
             
         return success_response("获取文件列表成功", data={
@@ -146,6 +143,38 @@ def list_files():
     except Exception as e:
         LogUtils.error(f"获取文件列表失败: {e}")
         return error_response(f"获取文件列表失败: {str(e)}", 500)
+
+@file_repo_bp.route('/delete', methods=['POST'])
+@token_required
+def delete_files():
+    """
+    用途说明：批量删除文件（物理文件及索引记录）
+    入参说明：JSON 包含 file_paths (list)
+    返回值说明：JSON 格式响应
+    """
+    data = request.json or {}
+    file_paths = data.get('file_paths', [])
+    
+    if not file_paths:
+        return error_response("未选择要删除的文件", 400)
+    
+    LogUtils.info(f"用户 {request.username} 请求批量删除文件，数量: {len(file_paths)}")
+    
+    success_count = 0
+    failed_paths = []
+    
+    for path in file_paths:
+        success, msg = DuplicateService.delete_file(path)
+        if success:
+            success_count += 1
+        else:
+            failed_paths.append(path)
+            
+    if success_count == len(file_paths):
+        return success_response(f"成功删除 {success_count} 个文件")
+    else:
+        return success_response(f"删除完成。成功: {success_count}, 失败: {len(failed_paths)}", 
+                               data={"failed": failed_paths})
 
 @file_repo_bp.route('/duplicate/check', methods=['POST'])
 @token_required

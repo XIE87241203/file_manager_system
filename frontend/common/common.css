@@ -14,15 +14,15 @@ body {
     margin: 0;
 }
 
-/* 公用顶部工具栏样式 - 优化彻底居中逻辑 */
+/* 公用顶部工具栏样式 - 统一高度为 60px */
 .top-bar {
     width: 100%;
-    height: 50px;
+    height: 60px;
     background-color: #fff;
     display: flex;
     align-items: center;
-    padding: 0 16px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    padding: 0 24px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
     position: fixed;
     top: 0;
     left: 0;
@@ -30,63 +30,98 @@ body {
     box-sizing: border-box;
 }
 
-.back-btn {
-    cursor: pointer;
-    background: none;
-    border: none;
-    font-size: 1rem;
-    color: #007bff;
-    padding: 8px;
+/* 左侧区域（通常放返回按钮） */
+.top-bar-left {
     display: flex;
     align-items: center;
-    z-index: 1001; /* 确保按钮在标题层级之上，可被点击 */
-    position: relative;
-}
-
-.back-btn:hover {
-    color: #0056b3;
-}
-
-/* 右侧按钮区域 */
-.right-area {
-    margin-left: auto;
-    display: flex;
-    align-items: center;
+    flex: 1;
     z-index: 1001;
-    position: relative;
 }
 
-.right-btn {
-    cursor: pointer;
-    background: none;
-    border: none;
-    font-size: 1rem;
-    color: #007bff;
-    padding: 8px;
-    white-space: nowrap;
-}
-
-.right-btn:hover {
-    color: #0056b3;
-}
-
-/* 标题样式：通过绝对定位实现无视两侧按钮的彻底居中 */
+/* 标题样式：通过绝对定位实现彻底居中 */
 .top-bar-title {
     position: absolute;
     left: 50%;
     transform: translateX(-50%);
     width: auto;
     text-align: center;
-    font-size: 1.1rem;
-    font-weight: bold;
-    color: #333;
-    pointer-events: none; /* 防止标题区域遮挡按钮点击事件 */
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: #202124;
+    pointer-events: none; /* 防止标题区域遮挡中间可能存在的其他元素 */
     white-space: nowrap;
+}
+
+/* 右侧按钮区域 */
+.right-area, .top-bar-right {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex: 1;
+    z-index: 1001;
+}
+
+/* 返回按钮样式优化 */
+.back-btn {
+    cursor: pointer;
+    background: none;
+    border: none;
+    font-size: 14px;
+    color: #1a73e8;
+    padding: 8px 12px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    transition: background-color 0.2s;
+    user-select: none;
+}
+
+.back-btn:hover {
+    background-color: #f1f3f4;
+    color: #174ea6;
+}
+
+/* 右侧文本按钮样式 */
+.right-btn {
+    cursor: pointer;
+    background: none;
+    border: 1px solid #dadce0;
+    font-size: 14px;
+    color: #1a73e8;
+    padding: 6px 16px;
+    border-radius: 4px;
+    white-space: nowrap;
+    transition: all 0.2s;
+    font-weight: 500;
+}
+
+.right-btn:hover {
+    background-color: #f8f9fa;
+    border-color: #d2e3fc;
+}
+
+/* 危险操作按钮样式 (如：停止) */
+.btn-text-danger {
+    cursor: pointer;
+    background: none;
+    border: 1px solid #f8d7da;
+    font-size: 14px;
+    color: #d93025;
+    padding: 6px 16px;
+    border-radius: 4px;
+    white-space: nowrap;
+    transition: all 0.3s;
+    font-weight: 500;
+}
+
+.btn-text-danger:hover {
+    background-color: #fce8e6;
+    border-color: #f5c2c7;
 }
 
 /* 内容区域容器 */
 .main-content {
-    margin-top: 70px;
     width: 100%;
     display: flex;
     justify-content: center;
@@ -185,22 +220,6 @@ body {
 
 .btn-danger:hover {
     background-color: #c82333;
-}
-
-/* 公共红色文字按钮样式 (如：停止索引) */
-.btn-text-danger {
-    cursor: pointer;
-    background: none;
-    border: none;
-    font-size: 1rem;
-    color: #dc3545;
-    padding: 8px;
-    white-space: nowrap;
-    transition: color 0.3s;
-}
-
-.btn-text-danger:hover {
-    color: #bd2130;
 }
 
 /* 次要按钮样式 */
@@ -359,4 +378,9 @@ body {
     background-color: #1a73e8;
     width: 0%;
     transition: width 0.3s ease;
+}
+
+/* 表格/列表项选中样式 */
+.selected-row {
+    background-color: #e8f0fe !important;
 }

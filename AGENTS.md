@@ -16,8 +16,11 @@
 
 ## 2. 后端开发规范 (Python)
 - **组织结构**: 按照功能模块划分目录（例如 `backend/setting/`, `backend/auth/`）。
+- **类型提示 (Type Hinting)**: 
+    - **所有 Python 方法必须显式注明入参类型和返回值类型**。
+    - 示例：`def my_method(param1: str, param2: int) -> bool:`。
 - **逻辑分层**: 
-    - `main.py` 仅作为程序入口和路由分发器，**严禁在其中实现任何业务逻辑**。
+    - `main.py` 仅作为程序入口 and 路由分发器，**严禁在其中实现任何业务逻辑**。
     - 所有业务逻辑必须封装在对应模块（如 `backend/auth/`）的类或函数中。
 - **代码风格**: 遵循 [PEP 8](https://peps.python.org/pep-0008/) 编程规范。
 - **注释要求**: 遵循全局规则，使用 Docstring 格式。
@@ -38,24 +41,45 @@
 
 ## 3. 前端开发规范
 - **组织结构**: 按照功能模块划分目录（例如 `frontend/login/`）。
-- **前端代码结构**: 页面专用的 JS 和 CSS 储存在与 HTML 统一目录中，使用同一名字。
+- **前端代码结构**: 
+    - 页面专用的 JS 和 CSS 储存在与 HTML 统一目录中，且文件名保持一致（如 `file_repository.html`, `file_repository.js`, `file_repository.css`）。
+    - HTML 底部脚本引入顺序：`ui_components.js` -> `request.js` -> `toast.js` -> 页面私有 JS。
+- **JS 代码组织模式 (Module Pattern)**:
+    - **严禁编写零散的全局变量和函数**。必须使用对象字面量将代码模块化，推荐结构如下：
+        - `const State = { ... }`: 统一管理页面状态（如分页、搜索参数、定时器句柄等）。
+        - `const UIController = { ... }`: 负责 DOM 元素缓存（`init` 方法中完成）及所有 UI 渲染逻辑（如 `renderTable`, `toggleLoading`）。
+        - `const API = { ... }`: 封装所有与后端的异步请求（基于 `Request` 工具类）。
+        - `const App = { ... }`: 程序的入口，负责初始化模块、绑定事件（`bindEvents`）及协调业务流程。
 - **元素绑定约定**: 
     - **使用 `class` 绑定 CSS 样式**。
     - **使用 `id` 绑定 JavaScript 逻辑**（如获取 DOM 节点）。
 - **前端公用代码**: 
-    - 前端公用代码转移到 `frontend/common/` 目录下。
-    - **样式复用**: 必须引入 `frontend/common/common.css` 以保持全局视觉风格统一（如卡片容器 `.card-container`、表单组 `.form-group`、主按钮 `.btn-primary` 等）。
-    - **请求工具**: 必须使用 `frontend/common/request.js` 进行 API 调用。
-    - **消息提示**: **严禁使用原生的 `alert()` 弹窗**。必须引入 `frontend/common/toast.js` 并使用 `Toast.show(message)` 进行交互提示。
-    - **UI 组件复用**: **公用头部在 `frontend/common/ui_components.js` 中，如无特殊要求，默认引用此头部**。
-        - 必须在 HTML 中包含 `<header class="top-bar"></header>` 占位符。
-        - 必须在页面逻辑加载时调用 `UIComponents.initHeader(title, ...)` 方法动态初始化顶部工具栏，以确保全局导航和标题风格的一致性。
-- **注释要求**: 遵循全局规则，所有 JS 函数必须包含中文注释。
-- **前后端分离**: 前端仅负责 UI 展示与交互，通过 API 与后端通信。
-- **API 地址配置**: 基础 API 地址通过登录页面的输入框动态指定，并存储在 `sessionStorage` 中。所有请求必须基于该地址。
-- **Token 管理**: 登录成功后，前端必须将后端返回的 Token 存储在浏览器 Cookie 中（有效期 6 小时）。在后续调用除登录外的所有 API 时，必须在请求中携带该 Token。通常推荐使用封装好的 `Request` 工具类。
+    - **样式复用**: 必须引入 `frontend/common/common.css`。页面主容器推荐使用 `.repo-container` 或 `.card-container`。
+    - **请求工具**: 必须使用 `frontend/common/request.js`。调用方式：`await Request.get(url, params, showLoading)`。
+    - **消息提示**: 严禁使用原生 `alert()`。必须使用 `Toast.show(message)`。
+    - **UI 组件复用**: 
+        - 默认引用 `frontend/common/ui_components.js` 处理顶部工具栏（`initHeader`）。
+        - 异步长时任务（如扫描、清理）必须调用 `UIComponents.showProgressBar` 展示全局进度条，并使用 `State` 中的定时器进行状态轮询。
+- **布局与样式规范**:
+    - **全屏布局**: 复杂管理页面推荐使用 `100vh`/`100vw` 布局，并设置 `overflow: hidden`，由内部容器（如 `.table-wrapper`）处理滚动。
+    - **表格规范**: 
+        - 表头推荐使用 `sticky` 定位以便在滚动时固定。
+        - 支持排序的列需添加 `class="sortable"` 和 `data-field` 属性，并通过 JS 切换 `sort-asc` / `sort-desc` 样式。
+        - **复选框交互**: 对于支持批量删除的列表，复选框列应放置在列表**最右侧**，且支持**点击行内容自动触发**对应复选框的选中/取消状态。
+        - **选中行样式**: 选中的列表项/表格行必须应用公用样式 `.selected-row` 以提供视觉反馈。
+- **注释要求**: 遵循全局规则。每个模块内部的方法必须包含：**用途说明**、**入参说明**、**返回值说明**。
+- **前后端分离**: 前端仅负责 UI 展示与交互，所有数据通过 API 获取。
+- **API 地址配置**: 基础 API 地址通过登录页面的输入框动态指定，并存储在 `sessionStorage` 中。
+- **Token 管理**: 登录成功后存储在浏览器 Cookie 中（有效期 6 小时）。所有请求（除登录外）必须携带该 Token。
 
-## 4. 安全与配置
+## 4. 数据库规范 (Database Standards)
+- **数据表定义**:
+    - **`file_index`**: 定义为当前有效的文件索引。记录最近一次完整扫描后仍存在于磁盘上的文件信息。
+    - **`history_file_index`**: 定义为文件索引历史。包含所有曾经被索引过的文件，即使该文件目前已从磁盘删除或在当前索引中被移除。
+- **操作原则**:
+    - 执行物理删除文件操作时，应同步清理 `file_index`，不能操作`history_file_index`
+
+## 5. 安全与配置
 - **安全性**: 
     - 严禁在代码或数据库中明文存储用户密码。
     - 后端验证应使用哈希值（目前项目采用 SHA-256）。

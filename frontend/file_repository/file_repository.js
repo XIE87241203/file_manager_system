@@ -5,12 +5,13 @@
 // --- 状态管理 ---
 const State = {
     page: 1,
-    limit: 15,
+    limit: 20,
     sortBy: 'scan_time',
     order: 'DESC',
     search: '',
     searchHistory: false,
-    scanInterval: null
+    scanInterval: null,
+    selectedPaths: new Set() // 存储选中文件的路径
 };
 
 // --- UI 控制模块 ---
@@ -18,7 +19,7 @@ const UIController = {
     elements: {},
 
     /**
-     * 用途说明：初始化 UI 控制器，缓存常用的 DOM 元素
+     * 用途说明：初始化 UI 控制器，缓存常用的 DOM 元素，并动态处理页面内容避让
      * 入参说明：无
      * 返回值说明：无
      */
@@ -35,8 +36,16 @@ const UIController = {
             backBtn: document.getElementById('nav-back-btn'),
             searchBtn: document.getElementById('search-btn'),
             duplicateBtn: document.getElementById('btn-duplicate-check'),
-            sortableHeaders: document.querySelectorAll('th.sortable')
+            sortableHeaders: document.querySelectorAll('th.sortable'),
+            selectAllCheckbox: document.getElementById('select-all-checkbox'),
+            deleteSelectedBtn: document.getElementById('btn-delete-selected')
         };
+
+        // 动态避开头部高度：不再依赖 CSS 硬编码，确保布局精准
+        const repoContainer = document.querySelector('.repo-container');
+        if (repoContainer) {
+            repoContainer.style.marginTop = UIComponents.getToolbarHeight() + 'px';
+        }
     },
 
     /**
@@ -45,24 +54,48 @@ const UIController = {
      * 返回值说明：无
      */
     renderTable(list) {
-        const { tableBody } = this.elements;
+        const { tableBody, selectAllCheckbox } = this.elements;
         tableBody.innerHTML = '';
+        
+        // 重置并根据模式控制全选列显示
+        if (selectAllCheckbox) {
+            selectAllCheckbox.checked = false;
+            // 历史库不支持删除，隐藏全选列头
+            selectAllCheckbox.parentElement.style.display = State.searchHistory ? 'none' : 'table-cell';
+        }
 
         if (!list || list.length === 0) {
-            tableBody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding: 100px; color: #9aa0a6;">暂无索引文件</td></tr>';
+            tableBody.innerHTML = `<tr><td colspan="${State.searchHistory ? 4 : 5}" style="text-align:center; padding: 100px; color: #9aa0a6;">暂无索引文件</td></tr>`;
             return;
         }
 
         list.forEach(file => {
+            const isChecked = State.selectedPaths.has(file.file_path);
             const tr = document.createElement('tr');
-            tr.innerHTML = `
+            tr.setAttribute('data-path', file.file_path);
+            if (isChecked) tr.classList.add('selected-row');
+            
+            let html = `
                 <td title="${file.file_name}">${file.file_name}</td>
                 <td title="${file.file_path}">${file.file_path}</td>
                 <td><code>${file.file_md5}</code></td>
                 <td>${file.scan_time}</td>
             `;
+
+            // 非历史库模式下展示复选框列
+            if (!State.searchHistory) {
+                html += `
+                    <td style="text-align: center;">
+                        <input type="checkbox" class="file-checkbox" data-path="${file.file_path}" ${isChecked ? 'checked' : ''}>
+                    </td>
+                `;
+            }
+
+            tr.innerHTML = html;
             tableBody.appendChild(tr);
         });
+        
+        this.updateDeleteButtonVisibility();
     },
 
     /**
@@ -102,7 +135,7 @@ const UIController = {
             mainContent.style.visibility = 'hidden';
             if (scanBtn) {
                 scanBtn.textContent = '停止索引';
-                scanBtn.className = 'btn-text-danger'; // 使用公共红色文字按钮样式
+                scanBtn.className = 'btn-text-danger';
             }
         } else {
             mainContent.style.visibility = 'visible';
@@ -122,6 +155,29 @@ const UIController = {
         const percent = progress.total > 0 ? Math.round((progress.current / progress.total) * 100) : 0;
         const text = `进度: ${percent}% (${progress.current}/${progress.total}) - ${progress.current_file}`;
         UIComponents.updateProgressBar('.repo-container', percent, text);
+    },
+
+    /**
+     * 用途说明：根据选中状态更新删除按钮可见性
+     * 入参说明：无
+     * 返回值说明：无
+     */
+    updateDeleteButtonVisibility() {
+        const { deleteSelectedBtn } = this.elements;
+        if (!deleteSelectedBtn) return;
+        
+        // 历史库模式下禁止删除，强制隐藏按钮
+        if (State.searchHistory) {
+            deleteSelectedBtn.style.display = 'none';
+            return;
+        }
+
+        if (State.selectedPaths.size > 0) {
+            deleteSelectedBtn.style.display = 'block';
+            deleteSelectedBtn.textContent = `删除选中 (${State.selectedPaths.size})`;
+        } else {
+            deleteSelectedBtn.style.display = 'none';
+        }
     }
 };
 
@@ -135,6 +191,15 @@ const RepositoryAPI = {
     async getFileList(params) {
         const query = new URLSearchParams(params).toString();
         return await Request.get(`/api/file_repository/list?${query}`, {}, true);
+    },
+
+    /**
+     * 用途说明：批量删除文件
+     * 入参说明：filePaths (Array) - 文件路径列表
+     * 返回值说明：Promise - 请求响应结果
+     */
+    async deleteFiles(filePaths) {
+        return await Request.post('/api/file_repository/delete', { file_paths: filePaths }, {}, true);
     },
 
     /**
@@ -185,7 +250,11 @@ const App = {
      * 返回值说明：无
      */
     bindEvents() {
-        const { prevBtn, nextBtn, scanBtn, searchInput, searchBtn, searchHistoryCheckbox, backBtn, duplicateBtn, sortableHeaders } = UIController.elements;
+        const { 
+            prevBtn, nextBtn, scanBtn, searchInput, searchBtn, 
+            searchHistoryCheckbox, backBtn, duplicateBtn, sortableHeaders,
+            selectAllCheckbox, tableBody, deleteSelectedBtn 
+        } = UIController.elements;
 
         // 分页逻辑
         if (prevBtn) prevBtn.onclick = () => { if (State.page > 1) { State.page--; this.loadFileList(); } };
@@ -196,6 +265,7 @@ const App = {
             State.search = searchInput.value.trim();
             State.searchHistory = searchHistoryCheckbox.checked;
             State.page = 1;
+            State.selectedPaths.clear(); // 搜索时清空选中
             this.loadFileList();
         };
         if (searchBtn) searchBtn.onclick = onSearch;
@@ -224,6 +294,67 @@ const App = {
                 this.loadFileList();
             };
         });
+
+        // 全选/取消全选逻辑
+        if (selectAllCheckbox) {
+            selectAllCheckbox.onchange = (e) => {
+                if (State.searchHistory) return; // 历史库不支持选择
+                
+                const isChecked = e.target.checked;
+                const checkboxes = tableBody.querySelectorAll('.file-checkbox');
+                checkboxes.forEach(cb => {
+                    cb.checked = isChecked;
+                    const path = cb.getAttribute('data-path');
+                    const row = cb.closest('tr');
+                    if (isChecked) {
+                        State.selectedPaths.add(path);
+                        row.classList.add('selected-row');
+                    } else {
+                        State.selectedPaths.delete(path);
+                        row.classList.remove('selected-row');
+                    }
+                });
+                UIController.updateDeleteButtonVisibility();
+            };
+        }
+
+        // 行点击勾选逻辑（包含复选框自身点击的处理）
+        if (tableBody) {
+            tableBody.onclick = (e) => {
+                if (State.searchHistory) return; // 历史库不支持选择
+                
+                const tr = e.target.closest('tr');
+                if (!tr) return;
+                
+                const path = tr.getAttribute('data-path');
+                if (!path) return;
+
+                const checkbox = tr.querySelector('.file-checkbox');
+                let isChecked;
+                
+                if (e.target.classList.contains('file-checkbox')) {
+                    isChecked = e.target.checked;
+                } else {
+                    isChecked = !checkbox.checked;
+                    checkbox.checked = isChecked;
+                }
+
+                if (isChecked) {
+                    State.selectedPaths.add(path);
+                    tr.classList.add('selected-row');
+                } else {
+                    State.selectedPaths.delete(path);
+                    tr.classList.remove('selected-row');
+                    if (selectAllCheckbox) selectAllCheckbox.checked = false;
+                }
+                UIController.updateDeleteButtonVisibility();
+            };
+        }
+
+        // 批量删除逻辑
+        if (deleteSelectedBtn) {
+            deleteSelectedBtn.onclick = () => this.handleBatchDelete();
+        }
 
         // 导航与跳转
         if (backBtn) backBtn.onclick = () => window.history.back();
@@ -260,6 +391,33 @@ const App = {
     },
 
     /**
+     * 用途说明：执行批量删除操作
+     * 入参说明：无
+     * 返回值说明：无
+     */
+    async handleBatchDelete() {
+        const count = State.selectedPaths.size;
+        if (count === 0) return;
+        
+        if (!confirm(`确定要从磁盘及数据库中删除选中的 ${count} 个文件吗？此操作不可逆！`)) return;
+        
+        try {
+            const paths = Array.from(State.selectedPaths);
+            const response = await RepositoryAPI.deleteFiles(paths);
+            
+            if (response.status === 'success') {
+                Toast.show(response.message);
+                State.selectedPaths.clear();
+                this.loadFileList();
+            } else {
+                Toast.show('删除失败: ' + (response.message || '未知错误'));
+            }
+        } catch (error) {
+            Toast.show('请求删除出错');
+        }
+    },
+
+    /**
      * 用途说明：触发启动扫描任务
      * 入参说明：无
      * 返回值说明：无
@@ -272,7 +430,7 @@ const App = {
                 UIComponents.showProgressBar('.repo-container', '正在准备建立索引...');
                 this.enterScanningState();
             } else {
-                Toast.show(response.msg);
+                Toast.show(response.message);
             }
         } catch (error) {
             Toast.show('启动失败');
