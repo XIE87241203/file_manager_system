@@ -6,11 +6,6 @@ const Login = {
      * 用途：初始化登录页面，绑定事件并清空旧的认证状态
      */
     init() {
-        // 初始化顶部工具栏
-        if (typeof UIComponents !== 'undefined') {
-            UIComponents.initHeader('系统登录', false);
-        }
-
         // 清空认证信息
         Request.eraseCookie('token');
         sessionStorage.removeItem('username');
