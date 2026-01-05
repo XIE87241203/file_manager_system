@@ -3,12 +3,21 @@
  */
 const Login = {
     /**
-     * 用途：初始化登录页面，绑定事件并清空旧的认证状态
+     * 用途：初始化登录页面，绑定事件并恢复上次保存的 API 地址
      */
     init() {
         // 清空认证信息
         Request.eraseCookie('token');
         sessionStorage.removeItem('username');
+
+        // 尝试从 localStorage 恢复上次保存的 API 地址
+        const savedApiUrl = localStorage.getItem('lastApiUrl');
+        if (savedApiUrl) {
+            const apiUrlInput = document.getElementById('apiUrl');
+            if (apiUrlInput) {
+                apiUrlInput.value = savedApiUrl;
+            }
+        }
 
         // 绑定回车键事件
         this.bindEvents();
@@ -54,8 +63,10 @@ const Login = {
             return;
         }
 
-        // 存储 API 地址供 Request 工具使用
+        // 存储 API 地址供 Request 工具使用 (sessionStorage 用于当前会话)
         sessionStorage.setItem('baseUrl', apiUrl);
+        // 持久化存储 API 地址 (localStorage 用于记住上次输入)
+        localStorage.setItem('lastApiUrl', apiUrl);
 
         // 前端 SHA-256 加密
         const passwordHash = CryptoJS.SHA256(password).toString();

@@ -162,3 +162,5 @@ log/
 
 # Project specific
 setting.json
+MEMO.md
+deploy/

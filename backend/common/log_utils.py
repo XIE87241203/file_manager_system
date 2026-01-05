@@ -22,7 +22,7 @@ class LogUtils:
             cls._logger.setLevel(level)
             
             # 1. 确保日志目录存在 (直接使用 os.getcwd() 避免循环导入 Utils)
-            runtime_path = os.getcwd()
+            runtime_path = os.path.join(os.getcwd(), "data")
             log_dir = os.path.join(runtime_path, 'log')
             if not os.path.exists(log_dir):
                 os.makedirs(log_dir)

@@ -63,6 +63,24 @@ def clear_repository():
         LogUtils.error(f"清空数据库操作异常: {e}")
         return error_response(f"清空数据库失败: {str(e)}", 500)
 
+@file_repo_bp.route('/clear_video_features', methods=['POST'])
+@token_required
+def clear_video_features():
+    """
+    用途说明：清空数据库中的视频特征表
+    入参说明：无
+    返回值说明：JSON 格式响应，包含操作结果
+    """
+    LogUtils.info(f"用户 {request.username} 请求清空视频特征库")
+    try:
+        if DBOperations.clear_video_features():
+            return success_response("视频特征库已成功清空")
+        else:
+            return error_response("清空视频特征库失败", 500)
+    except Exception as e:
+        LogUtils.error(f"清空视频特征库操作异常: {e}")
+        return error_response(f"清空视频特征库失败: {str(e)}", 500)
+
 @file_repo_bp.route('/progress', methods=['GET'])
 @token_required
 def get_scan_progress():

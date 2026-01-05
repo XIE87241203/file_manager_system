@@ -1,0 +1,13 @@
+.git
+.idea
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.db
+setting.json
+backend/log/*.log
+venv
+.venv
+node_modules
+frontend/

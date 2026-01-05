@@ -1,6 +1,7 @@
 from typing import List
 import os
 from backend.file_repository.duplicate_check.checker.md5_checker import MD5Checker
+from backend.file_repository.duplicate_check.checker.image_checker import ImageChecker
 from backend.db.model.file_index import FileIndex
 from backend.file_repository.duplicate_check.checker.video_checker import VideoChecker
 from backend.file_repository.duplicate_check.checker.models.duplicate_models import DuplicateGroup
@@ -18,7 +19,8 @@ class DuplicateCheckHelper:
         返回值说明：无
         """
         # 维护一个检查器列表，注意顺序：专用检查器在前，兜底检查器在后
-        self.checkers = [VideoChecker(), MD5Checker()]
+        # ImageChecker 建议放在 MD5Checker 之前，以便对图片进行相似度（汉明距离）分析
+        self.checkers = [VideoChecker(), ImageChecker(), MD5Checker()]
 
     def add_file(self, file_info: FileIndex) -> None:
         """

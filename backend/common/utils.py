@@ -6,18 +6,26 @@ class Utils:
     """
     用途：后端通用工具类
     """
-    
-    @staticmethod
-    def get_runtime_path():
-        """
-        用途：获取程序运行时的根路径
-        入参说明：无
-        返回值说明：返回当前工作目录的绝对路径
-        """
-        return os.getcwd()
 
     @staticmethod
-    def calculate_md5(file_path):
+    def get_runtime_path() -> str:
+        """
+        用途：获取程序运行时的 data 目录路径。改为基于项目根目录的绝对路径，确保 Docker 兼容性。
+        入参说明：无
+        返回值说明：str - 返回项目根目录下的 data 目录的绝对路径
+        """
+        # 获取当前文件所在目录的父目录的父目录（即项目根目录 /app）
+        base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        data_path = os.path.join(base_path, "data")
+
+        if not os.path.exists(data_path):
+            # 使用 exist_ok=True 避免并发创建时的异常
+            os.makedirs(data_path, exist_ok=True)
+
+        return data_path
+
+    @staticmethod
+    def calculate_md5(file_path: str) -> str:
         """
         用途：计算指定文件的 MD5 哈希值
         入参说明：file_path (str) - 文件的绝对路径

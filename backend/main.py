@@ -82,5 +82,5 @@ app.register_blueprint(file_repo_bp, url_prefix='/api/file_repository')
 
 if __name__ == '__main__':
     LogUtils.info("后端服务正在启动...")
-    # 运行在 5000 端口
-    app.run(port=5000, debug=True)
+    # 运行在 5000 端口，监听所有接口以支持 Docker 访问
+    app.run(host='0.0.0.0', port=5000, debug=False)

@@ -1,3 +1,6 @@
-flask_cors
 flask
+flask_cors
 imagehash
+Pillow
+opencv-python-headless
+python-magic

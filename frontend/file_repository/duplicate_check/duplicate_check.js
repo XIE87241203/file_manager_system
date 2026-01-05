@@ -108,13 +108,23 @@ const UIController = {
     },
 
     /**
-     * 用途说明：更新扫描进度条和状态文字
+     * 用途说明：更新扫描进度条和状态文字，显示当前数量/总数
      * 入参说明：progress (Object) - 进度数据
      * 返回值说明：无
      */
     updateProgress(progress) {
-        const percent = progress.total > 0 ? Math.round((progress.current / progress.total) * 100) : 0;
-        const text = `${progress.status_text} (${percent}%)`;
+        const current = progress.current || 0;
+        const total = progress.total || 0;
+        const percent = total > 0 ? Math.round((current / total) * 100) : 0;
+        
+        // 拼接进度文本：状态描述 + 数量对比
+        let text = `${progress.status_text} (${current}/${total})`;
+        
+        // 如果后端传回了当前正在处理的文件名，则附加显示
+        if (progress.current_file) {
+            text += ` - ${progress.current_file}`;
+        }
+
         // 使用封装的公共进度条组件更新
         UIComponents.updateProgressBar('#scanning-container', percent, text);
     },
@@ -129,7 +139,7 @@ const UIController = {
         wrapper.innerHTML = '';
 
         const results = CheckState.results;
-        // 如果查重完成但没有发现重复文件
+        // 如果查重完成 but 没有发现重复文件
         if (!results || results.length === 0) {
             summaryBar.style.display = 'none';
             wrapper.innerHTML = '<div style="text-align: center; color: #9aa0a6; padding-top: 100px;">未发现重复文件</div>';

@@ -19,6 +19,10 @@ class DBManager:
     TABLE_VIDEO_FEATURES = 'video_features'
     # 视频信息缓存表名
     TABLE_VIDEO_INFO_CACHE = 'video_info_cache'
+    # 重复文件分组表名
+    TABLE_DUPLICATE_GROUPS = 'duplicate_groups'
+    # 重复文件详情表名
+    TABLE_DUPLICATE_FILES = 'duplicate_files'
 
     _db_path = os.path.join(Utils.get_runtime_path(), DB_NAME)
 
@@ -88,6 +92,26 @@ class DBManager:
                     md5 TEXT NOT NULL,
                     duration REAL,
                     video_hashes TEXT
+                )
+            ''')
+            # 创建重复文件分组表
+            cursor.execute(f'''
+                CREATE TABLE IF NOT EXISTS {self.TABLE_DUPLICATE_GROUPS} (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    group_id TEXT NOT NULL UNIQUE,
+                    checker_type TEXT NOT NULL
+                )
+            ''')
+            # 创建重复文件详情表
+            cursor.execute(f'''
+                CREATE TABLE IF NOT EXISTS {self.TABLE_DUPLICATE_FILES} (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    group_id TEXT NOT NULL,
+                    file_name TEXT NOT NULL,
+                    file_path TEXT NOT NULL,
+                    file_md5 TEXT,
+                    extra_info TEXT,
+                    FOREIGN KEY (group_id) REFERENCES {self.TABLE_DUPLICATE_GROUPS}(group_id) ON DELETE CASCADE
                 )
             ''')
             conn.commit()

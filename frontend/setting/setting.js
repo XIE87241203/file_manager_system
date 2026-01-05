@@ -7,6 +7,8 @@ let currentFileRepository = {
     search_replace_chars: []
 }; // 存储本地修改中的文件仓库配置
 
+let currentClearType = 'db'; // 'db' 或 'video'
+
 document.addEventListener('DOMContentLoaded', () => {
     // 初始化公用头部
     UIComponents.initHeader('系统设置');
@@ -21,12 +23,18 @@ document.addEventListener('DOMContentLoaded', () => {
     // 绑定清空数据库按钮
     const clearDbBtn = document.getElementById('clear-db-btn');
     if (clearDbBtn) {
-        clearDbBtn.addEventListener('click', showClearDbModal);
+        clearDbBtn.addEventListener('click', () => showClearModal('db'));
+    }
+
+    // 绑定清空视频特征库按钮
+    const clearVideoBtn = document.getElementById('clear-video-btn');
+    if (clearVideoBtn) {
+        clearVideoBtn.addEventListener('click', () => showClearModal('video'));
     }
 
     // 绑定弹窗确认和取消按钮
-    document.getElementById('confirm-clear-btn').addEventListener('click', clearFileRepositoryDatabase);
-    document.getElementById('cancel-clear-btn').addEventListener('click', hideClearDbModal);
+    document.getElementById('confirm-clear-btn').addEventListener('click', handleConfirmClear);
+    document.getElementById('cancel-clear-btn').addEventListener('click', hideClearModal);
     
     // 绑定修改密码保存按钮
     document.getElementById('save-pwd-btn').addEventListener('click', savePasswordSettings);
@@ -108,7 +116,7 @@ function renderRepositoryList() {
     const directories = currentFileRepository.directories;
 
     if (!directories || directories.length === 0) {
-        listContainer.innerHTML = '<div style="color: #999; text-align: center; padding: 20px;">暂无仓库路径</div>';
+        listContainer.innerHTML = '<div class="empty-hint-text">暂无仓库路径</div>';
         return;
     }
 
@@ -199,22 +207,48 @@ async function saveFileRepositorySettings() {
 }
 
 /**
- * 用途说明：显示清空数据库二次确认弹窗
- * 入参说明：无
+ * 用途说明：显示清空确认弹窗
+ * 入参说明：type - 'db' (文件数据库) 或 'video' (视频特征库)
  * 返回值说明：无
  */
-function showClearDbModal() {
-    document.getElementById('clear-db-modal').style.display = 'flex';
-    document.getElementById('clear-history-check').checked = false; // 默认不勾选
+function showClearModal(type) {
+    currentClearType = type;
+    const modal = document.getElementById('clear-db-modal');
+    const msg = document.getElementById('clear-modal-msg');
+    const historyContainer = document.getElementById('clear-history-container');
+    
+    if (type === 'db') {
+        msg.innerText = '警告：此操作将清空所有已扫描的文件索引数据，且不可恢复！确定要继续吗？';
+        historyContainer.classList.remove('hidden');
+        document.getElementById('clear-history-check').checked = false;
+    } else {
+        msg.innerText = '警告：此操作将清空所有视频特征指纹库（用于视频查重），确定要继续吗？';
+        historyContainer.classList.add('hidden');
+    }
+    
+    modal.classList.remove('hidden');
 }
 
 /**
- * 用途说明：隐藏清空数据库二次确认弹窗
+ * 用途说明：隐藏清空确认弹窗
  * 入参说明：无
  * 返回值说明：无
  */
-function hideClearDbModal() {
-    document.getElementById('clear-db-modal').style.display = 'none';
+function hideClearModal() {
+    document.getElementById('clear-db-modal').classList.add('hidden');
+}
+
+/**
+ * 用途说明：处理确认清空逻辑
+ * 入参说明：无
+ * 返回值说明：无
+ */
+async function handleConfirmClear() {
+    if (currentClearType === 'db') {
+        await clearFileRepositoryDatabase();
+    } else {
+        await clearVideoFeaturesDatabase();
+    }
 }
 
 /**
@@ -225,7 +259,7 @@ function hideClearDbModal() {
 async function clearFileRepositoryDatabase() {
     const clearHistory = document.getElementById('clear-history-check').checked;
     
-    hideClearDbModal();
+    hideClearModal();
 
     try {
         const response = await Request.post('/api/file_repository/clear', {
@@ -238,6 +272,27 @@ async function clearFileRepositoryDatabase() {
         }
     } catch (error) {
         console.error('清空数据库出错:', error);
+        Toast.show('网络请求失败');
+    }
+}
+
+/**
+ * 用途说明：向后端发起请求清空视频特征库
+ * 入参说明：无
+ * 返回值说明：无
+ */
+async function clearVideoFeaturesDatabase() {
+    hideClearModal();
+
+    try {
+        const response = await Request.post('/api/file_repository/clear_video_features');
+        if (response.status === 'success') {
+            Toast.show(response.message || '视频特征库已成功清空');
+        } else {
+            Toast.show('清空失败: ' + response.message);
+        }
+    } catch (error) {
+        console.error('清空视频特征库出错:', error);
         Toast.show('网络请求失败');
     }
 }

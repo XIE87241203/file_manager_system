@@ -2,6 +2,12 @@
  * 用途：首页样式，定义功能入口按钮布局及分组样式
  */
 
+/* 首页主容器 */
+.home-container {
+    width: 100%;
+    max-width: 800px;
+}
+
 /* 分组标题样式 - 优化为更现代、清爽的风格 */
 .menu-group-title {
     width: 100%;
