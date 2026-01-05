@@ -163,12 +163,16 @@ const UIController = {
         groupEl.className = `duplicate-group ${group.isExpanded ? 'expanded' : ''}`;
         groupEl.setAttribute('data-group-id', group.group_id);
         
+        // 注意：后端数据类 DuplicateGroup 包含 files 数组
+        const fileCount = group.files ? group.files.length : 0;
+        const groupType = group.checker_type === 'video_similarity' ? '视频相似组' : '重复组';
+
         groupEl.innerHTML = `
             <div class="group-header">
                 <div class="group-info">
-                    <span class="group-title">重复组</span>
-                    <span class="group-count">${group.count} 个文件</span>
-                    <span class="group-md5">MD5: ${group.group_id}</span>
+                    <span class="group-title">${groupType}</span>
+                    <span class="group-count">${fileCount} 个文件</span>
+                    <span class="group-md5">ID: ${group.group_id}</span>
                 </div>
                 <div class="group-actions">
                     <span class="expand-icon">▶</span>
@@ -186,15 +190,18 @@ const UIController = {
                         </tr>
                     </thead>
                     <tbody>
-                        ${group.files.map(f => `
-                            <tr class="clickable-row">
-                                <td style="width: 25%;" title="${f.file_name}">${f.file_name}</td>
-                                <td style="width: 70%;" class="file-path" title="${f.file_path}">${f.file_path}</td>
-                                <td style="width: 30px; text-align: center;">
-                                    <input type="checkbox" class="file-checkbox" data-path="${f.file_path}">
-                                </td>
-                            </tr>
-                        `).join('')}
+                        ${group.files.map(f => {
+                            const extra = f.extra_info && f.extra_info.duration ? ` [${f.extra_info.duration}s]` : '';
+                            return `
+                                <tr class="clickable-row">
+                                    <td style="width: 25%;" title="${f.file_name}">${f.file_name}${extra}</td>
+                                    <td style="width: 70%;" class="file-path" title="${f.file_path}">${f.file_path}</td>
+                                    <td style="width: 30px; text-align: center;">
+                                        <input type="checkbox" class="file-checkbox" data-path="${f.file_path}">
+                                    </td>
+                                </tr>
+                            `;
+                        }).join('')}
                     </tbody>
                 </table>
             </div>
@@ -458,8 +465,8 @@ const App = {
     removeFileFromState(path) {
         CheckState.results = CheckState.results.map(group => {
             const newFiles = group.files.filter(f => f.file_path !== path);
-            return { ...group, files: newFiles, count: newFiles.length };
-        }).filter(group => group.count > 0);
+            return { ...group, files: newFiles };
+        }).filter(group => group.files.length > 0);
     }
 };
 

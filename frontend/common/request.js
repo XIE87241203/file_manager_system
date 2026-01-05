@@ -107,7 +107,20 @@ const Request = {
                 if (!url.includes('/api/login')) {
                     this.eraseCookie('token');
                     if (typeof Toast !== 'undefined') Toast.show('登录已过期，请重新登录');
-                    setTimeout(() => { window.location.href = '../login/login.html'; }, 1500);
+                    
+                    // 获取当前页面路径
+                    const path = window.location.pathname;
+                    let loginUrl = '../login/login.html';
+                    
+                    // 如果是在多层级目录（如 file_repository/duplicate_check/），需要根据层级调整
+                    // 获取 frontend 后的路径层级
+                    if (path.includes('/frontend/')) {
+                        const subPath = path.split('/frontend/')[1];
+                        const depth = subPath.split('/').filter(p => p && !p.endsWith('.html')).length;
+                        loginUrl = '../'.repeat(depth) + 'login/login.html';
+                    }
+
+                    setTimeout(() => { window.location.href = loginUrl; }, 1500);
                     if (showMask) this.hideLoading();
                     return Promise.reject({ message: '登录已过期' });
                 }

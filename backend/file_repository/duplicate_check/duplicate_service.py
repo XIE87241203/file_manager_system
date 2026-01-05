@@ -1,13 +1,16 @@
 import threading
 import os
+from dataclasses import asdict
 from backend.db.db_operations import DBOperations
+from backend.db.db_manager import DBManager
 from backend.common.log_utils import LogUtils
+from backend.file_repository.duplicate_check.duplicate_check_helper import DuplicateCheckHelper
 
 class DuplicateService:
     """
     用途：文件查重服务类，支持异步查重、进度查询、任务停止以及文件删除。
     """
-    
+
     # 查重状态：idle, checking, completed, error
     _status = "idle"
     # 进度信息
@@ -16,11 +19,11 @@ class DuplicateService:
         "current": 0,
         "status_text": ""
     }
-    # 查重结果缓存
+    # 查重结果缓存 (存储 DuplicateGroup 对象列表)
     _results = []
     # 任务控制标志位
     _stop_flag = False
-    
+
     # 锁，保证状态更新的线程安全
     _lock = threading.Lock()
 
@@ -29,13 +32,18 @@ class DuplicateService:
         """
         用途：获取当前查重状态和进度。
         入参说明：无
-        返回值说明：dict - 包含 status (状态), progress (进度详情) 和 results (查重结果列表) 的字典。
+        返回值说明：dict - 包含 status (状态), progress (进度详情) 和 results (查重结果列表，已转换为字典) 的字典。
         """
         with DuplicateService._lock:
+            # 只有在完成状态下才返回结果，并将数据类对象转换为字典以支持 JSON 序列化
+            results_dict = []
+            if DuplicateService._status == "completed":
+                results_dict = [asdict(group) for group in DuplicateService._results]
+
             return {
                 "status": DuplicateService._status,
                 "progress": DuplicateService._progress.copy(),
-                "results": DuplicateService._results if DuplicateService._status == "completed" else []
+                "results": results_dict
             }
 
     @staticmethod
@@ -61,11 +69,11 @@ class DuplicateService:
             if DuplicateService._status == "checking":
                 LogUtils.warning("查重任务已在运行中，请勿重复启动")
                 return False
-            
+
             # 初始化状态
             DuplicateService._status = "checking"
             DuplicateService._stop_flag = False
-            DuplicateService._progress = {"total": 100, "current": 0, "status_text": "正在初始化..."}
+            DuplicateService._progress = {"total": 0, "current": 0, "status_text": "正在初始化..."}
             DuplicateService._results = []
 
         # 开启线程执行查重
@@ -108,7 +116,7 @@ class DuplicateService:
         """
         用途：完成查重任务，更新最终状态和结果（线程安全）。
         入参说明：
-            results (list) - 查重结果列表。
+            results (List[DuplicateGroup]) - 查重结果对象列表。
             status_text (str) - 结束时的描述。
         返回值说明：无
         """
@@ -122,58 +130,53 @@ class DuplicateService:
     @staticmethod
     def _internal_check():
         """
-        用途：内部查重逻辑，在独立线程中运行。
+        用途：内部查重逻辑，在独立线程中运行。遍历文件索引并调用检查器。
         入参说明：无
         返回值说明：无
         """
         try:
             LogUtils.info("开始执行文件查重逻辑...")
             
-            DuplicateService._update_progress(current=20, status_text="正在查询数据库中的重复 MD5...")
+            # 1. 获取总文件数
+            total_files = DBOperations.get_file_count(DBManager.TABLE_FILE_INDEX)
+            if total_files == 0:
+                DuplicateService._complete_check([], "未发现可检查的文件")
+                return
 
-            # 1. 找出重复的 MD5
-            duplicate_md5s = DBOperations.get_duplicate_md5s()
+            DuplicateService._update_progress(total=total_files, status_text="正在分析文件重复情况...")
+
+            # 2. 实例化查重助手
+            helper = DuplicateCheckHelper()
+
+            # 3. 分批读取文件并录入
+            batch_size = 500
+            processed_count = 0
             
-            if DuplicateService._is_stopped():
-                DuplicateService._handle_stopped()
-                return
-
-            if not duplicate_md5s:
-                DuplicateService._complete_check([], "未发现重复文件")
-                return
-
-            total_groups = len(duplicate_md5s)
-            DuplicateService._update_progress(current=0, total=total_groups, status_text=f"发现 {total_groups} 组重复文件，正在提取详细信息...")
-
-            # 2. 提取重复文件的详细信息
-            results = []
-            for i, (md5, count) in enumerate(duplicate_md5s):
+            while processed_count < total_files:
                 if DuplicateService._is_stopped():
+                    DuplicateService._handle_stopped()
+                    return
+
+                files = DBOperations.get_file_list_with_pagination(
+                    table_name=DBManager.TABLE_FILE_INDEX,
+                    limit=batch_size,
+                    offset=processed_count,
+                    sort_by="id",
+                    order="ASC"
+                )
+                
+                if not files:
                     break
-                
-                # get_files_by_md5 现在返回 List[FileIndex]
-                files_in_group = DBOperations.get_files_by_md5(md5)
-                
-                group_data = {
-                    "group_id": md5,
-                    "count": count,
-                    "files": [
-                        {
-                            "file_name": f.file_name,
-                            "file_path": f.file_path,
-                            "file_md5": f.file_md5
-                        } for f in files_in_group
-                    ]
-                }
-                results.append(group_data)
-                
-                DuplicateService._update_progress(current=i + 1)
 
-            if DuplicateService._is_stopped():
-                DuplicateService._handle_stopped()
-                return
+                for file_info in files:
+                    helper.add_file(file_info)
+                
+                processed_count += len(files)
+                DuplicateService._update_progress(current=processed_count)
 
-            DuplicateService._complete_check(results, f"查重完成，共发现 {total_groups} 组重复文件")
+            # 4. 获取并完成结果汇总
+            results = helper.get_all_results()
+            DuplicateService._complete_check(results, f"查重完成，共发现 {len(results)} 组重复文件")
 
         except Exception as e:
             LogUtils.error(f"异步查重任务发生异常: {e}")
@@ -236,12 +239,11 @@ class DuplicateService:
             # 遍历并更新结果
             new_results = []
             for group in DuplicateService._results:
-                # 过滤掉被删除的文件
-                group["files"] = [f for f in group["files"] if f["file_path"] != file_path]
-                group["count"] = len(group["files"])
+                # 过滤掉被删除的文件对象
+                group.files = [f for f in group.files if f.file_path != file_path]
                 
                 # 只有当组内文件数仍大于 1 时，才保留该重复组
-                if group["count"] > 1:
+                if len(group.files) > 1:
                     new_results.append(group)
             
             DuplicateService._results = new_results
@@ -255,7 +257,6 @@ class DuplicateService:
         返回值说明：tuple - (int, list) 成功删除的数量及失败的文件路径列表。
         """
         # 1. 查询该 MD5 关联的所有路径
-        # get_paths_by_md5 现在返回 List[str]
         results = DBOperations.get_paths_by_md5(md5)
         
         success_count = 0

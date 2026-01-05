@@ -17,6 +17,8 @@ class DBManager:
     TABLE_HISTORY_INDEX = 'history_file_index'
     # 视频特征表名
     TABLE_VIDEO_FEATURES = 'video_features'
+    # 视频信息缓存表名
+    TABLE_VIDEO_INFO_CACHE = 'video_info_cache'
 
     _db_path = os.path.join(Utils.get_runtime_path(), DB_NAME)
 
@@ -75,6 +77,17 @@ class DBManager:
                     md5 TEXT NOT NULL UNIQUE,
                     video_hashes TEXT,
                     duration REAL
+                )
+            ''')
+            # 创建视频信息缓存表
+            cursor.execute(f'''
+                CREATE TABLE IF NOT EXISTS {self.TABLE_VIDEO_INFO_CACHE} (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    path TEXT NOT NULL UNIQUE,
+                    video_name TEXT NOT NULL,
+                    md5 TEXT NOT NULL,
+                    duration REAL,
+                    video_hashes TEXT
                 )
             ''')
             conn.commit()

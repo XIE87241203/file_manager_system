@@ -5,6 +5,8 @@ from dataclasses import asdict
 
 from backend.db.model.file_index import FileIndex
 from backend.db.model.history_file_index import HistoryFileIndex
+from backend.db.model.video_features import VideoFeatures
+from backend.db.model.video_info_cache import VideoInfoCache
 
 
 class DBOperations:
@@ -231,3 +233,120 @@ class DBOperations:
         query = f"SELECT file_path FROM {DBManager.TABLE_FILE_INDEX} WHERE file_md5 = ?"
         rows = DBOperations.__execute_query(query, (md5,))
         return [r[0] for r in rows]
+
+    # --- 视频特征相关操作 (Video Features) ---
+
+    @staticmethod
+    def add_video_features(features: VideoFeatures) -> bool:
+        """
+        用途：存储或更新视频特征信息
+        入参说明：
+            features (VideoFeatures): 视频特征对象
+        返回值说明：
+            bool: 是否执行成功
+        """
+        query = f"""
+            INSERT INTO {DBManager.TABLE_VIDEO_FEATURES} (md5, video_hashes, duration)
+            VALUES (?, ?, ?)
+            ON CONFLICT(md5) DO UPDATE SET
+            video_hashes = excluded.video_hashes,
+            duration = excluded.duration
+        """
+        params = (features.md5, features.video_hashes, features.duration)
+        return DBOperations.__execute_update(query, params) > 0
+
+    @staticmethod
+    def get_video_features_by_md5(md5: str) -> Optional[VideoFeatures]:
+        """
+        用途：根据 MD5 获取视频特征
+        入参说明：
+            md5 (str): 视频 MD5
+        返回值说明：
+            Optional[VideoFeatures]: 视频特征对象或 None
+        """
+        query = f"SELECT id, md5, video_hashes, duration FROM {DBManager.TABLE_VIDEO_FEATURES} WHERE md5 = ?"
+        rows = DBOperations.__execute_query(query, (md5,))
+        if rows:
+            r = rows[0]
+            return VideoFeatures(id=r[0], md5=r[1], video_hashes=r[2], duration=r[3])
+        return None
+
+    @staticmethod
+    def clear_video_features() -> bool:
+        """
+        用途：清空视频特征表
+        入参说明：无
+        返回值说明：
+            bool: 是否执行成功
+        """
+        try:
+            DBOperations.__execute_update(f'DELETE FROM {DBManager.TABLE_VIDEO_FEATURES}')
+            DBOperations.__execute_update(f"DELETE FROM sqlite_sequence WHERE name='{DBManager.TABLE_VIDEO_FEATURES}'")
+            return True
+        except Exception as e:
+            LogUtils.error(f"清空视频特征表失败: {e}")
+            return False
+
+    # --- 视频信息缓存相关操作 (Video Info Cache) ---
+
+    @staticmethod
+    def add_video_info_cache(video_info: VideoInfoCache) -> bool:
+        """
+        用途：添加或更新视频信息到缓存表
+        入参说明：
+            video_info (VideoInfoCache): 视频信息缓存对象
+        返回值说明：
+            bool: 是否执行成功
+        """
+        query = f"""
+            INSERT INTO {DBManager.TABLE_VIDEO_INFO_CACHE} (path, video_name, md5, duration, video_hashes)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(path) DO UPDATE SET
+            video_name = excluded.video_name,
+            md5 = excluded.md5,
+            duration = excluded.duration,
+            video_hashes = excluded.video_hashes
+        """
+        params = (video_info.path, video_info.video_name, video_info.md5, video_info.duration, video_info.video_hashes)
+        return DBOperations.__execute_update(query, params) > 0
+
+    @staticmethod
+    def get_video_info_cache_by_md5(md5: str) -> List[VideoInfoCache]:
+        """
+        用途：根据 MD5 获取缓存中的视频信息列表
+        入参说明：
+            md5 (str): 视频 MD5
+        返回值说明：
+            List[VideoInfoCache]: 视频信息缓存对象列表
+        """
+        query = f"SELECT id, path, video_name, md5, duration, video_hashes FROM {DBManager.TABLE_VIDEO_INFO_CACHE} WHERE md5 = ?"
+        rows = DBOperations.__execute_query(query, (md5,))
+        return [VideoInfoCache(id=r[0], path=r[1], video_name=r[2], md5=r[3], duration=r[4], video_hashes=r[5]) for r in rows]
+
+    @staticmethod
+    def get_all_video_info_caches() -> List[VideoInfoCache]:
+        """
+        用途：获取所有视频信息缓存
+        入参说明：无
+        返回值说明：
+            List[VideoInfoCache]: 所有视频信息缓存列表
+        """
+        query = f"SELECT id, path, video_name, md5, duration, video_hashes FROM {DBManager.TABLE_VIDEO_INFO_CACHE}"
+        rows = DBOperations.__execute_query(query)
+        return [VideoInfoCache(id=r[0], path=r[1], video_name=r[2], md5=r[3], duration=r[4], video_hashes=r[5]) for r in rows]
+
+    @staticmethod
+    def clear_video_info_cache() -> bool:
+        """
+        用途：清空视频信息缓存表
+        入参说明：无
+        返回值说明：
+            bool: 是否执行成功
+        """
+        try:
+            DBOperations.__execute_update(f'DELETE FROM {DBManager.TABLE_VIDEO_INFO_CACHE}')
+            DBOperations.__execute_update(f"DELETE FROM sqlite_sequence WHERE name='{DBManager.TABLE_VIDEO_INFO_CACHE}'")
+            return True
+        except Exception as e:
+            LogUtils.error(f"清空视频信息缓存表失败: {e}")
+            return False

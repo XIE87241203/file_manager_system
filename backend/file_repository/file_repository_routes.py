@@ -3,7 +3,7 @@ from backend.common.response import success_response, error_response
 from backend.common.log_utils import LogUtils
 from backend.common.auth_middleware import token_required
 from backend.file_repository.scan_service import ScanService
-from backend.file_repository.duplicate_service import DuplicateService
+from backend.file_repository.duplicate_check.duplicate_service import DuplicateService
 from backend.db.db_operations import DBOperations
 from backend.setting.setting import settings
 
