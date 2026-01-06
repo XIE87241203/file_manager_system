@@ -1,5 +1,5 @@
 /**
- * 用途说明：查重页面逻辑处理，负责触发查重任务、进度监控以及查重结果的展示与交互。
+ * 用途说明：查重页面 logic 处理，负责触发查重任务、进度监控以及查重结果的展示与交互。
  */
 
 // --- 状态管理 ---
@@ -7,6 +7,7 @@ const CheckState = {
     results: [],
     lastCheckTime: '--',
     pollingInterval: null,
+    settings: null, // 存储系统设置
 
     /**
      * 用途说明：更新结果列表并更新最后检查时间
@@ -57,18 +58,18 @@ const UIController = {
             floatingBar: document.getElementById('floating-action-bar'),
             globalDeleteBtn: document.getElementById('btn-delete-selected-global')
         };
-        this.renderHeader('idle');
+        this.renderHeader(ProgressStatus.IDLE);
     },
 
     /**
      * 用途说明：渲染顶部导航栏，根据任务状态切换“开始”与“停止”按钮
-     * 入参说明：status (String) - 'idle' 或 'checking'
+     * 入参说明：status (String) - ProgressStatus 枚举值
      * 返回值说明：无
      */
     renderHeader(status) {
         if (typeof UIComponents !== 'undefined') {
             const title = '文件查重';
-            if (status === 'checking') {
+            if (status === ProgressStatus.PROCESSING) {
                 UIComponents.initHeader(title, true, null, '停止查重', () => DuplicateCheckAPI.stop(), 'btn-text-danger');
             } else {
                 UIComponents.initHeader(title, true, null, '开始查重', () => DuplicateCheckAPI.start());
@@ -78,55 +79,42 @@ const UIController = {
 
     /**
      * 用途说明：切换页面视图状态（查重中、显示结果、显示初始引导）
-     * 入参说明：status (String) - 任务状态（idle, checking, completed）
+     * 入参说明：status (String) - 任务状态（ProgressStatus 枚举值）
      * 返回值说明：无
      */
     toggleView(status) {
         const { scanningContainer, resultsGroup, emptyHint } = this.elements;
-        if (status === 'checking') {
-            this.renderHeader('checking');
+        if (status === ProgressStatus.PROCESSING) {
+            this.renderHeader(ProgressStatus.PROCESSING);
             scanningContainer.style.display = 'flex';
             resultsGroup.style.display = 'none';
             emptyHint.style.display = 'none';
-            // 使用封装的公共进度条组件
-            UIComponents.showProgressBar('#scanning-container', '正在准备扫描...');
+            // 使用封装的公共进度条组件，初始消息由 updateProgress 很快覆盖
+            UIComponents.showProgressBar('#scanning-container', '正在准备分析文件...');
         } else {
-            this.renderHeader('idle');
+            this.renderHeader(ProgressStatus.IDLE);
             scanningContainer.style.display = 'none';
             UIComponents.hideProgressBar('#scanning-container');
-            
+
             // 核心修复逻辑：如果是查重完成状态，或者当前内存中已有结果数据，则必须显示结果区域
-            if (status === 'completed' || (CheckState.results && CheckState.results.length > 0)) {
+            if (status === ProgressStatus.COMPLETED || (CheckState.results && CheckState.results.length > 0)) {
                 resultsGroup.style.display = 'flex';
                 emptyHint.style.display = 'none';
             } else {
                 // 只有在空闲且无数据时才显示引导提示
                 resultsGroup.style.display = 'none';
-                emptyHint.style.display = (status === 'idle') ? 'block' : 'none';
+                emptyHint.style.display = (status === ProgressStatus.IDLE) ? 'block' : 'none';
             }
         }
     },
 
     /**
-     * 用途说明：更新扫描进度条和状态文字，显示当前数量/总数
+     * 用途说明：更新扫描进度条和状态文字
      * 入参说明：progress (Object) - 进度数据
      * 返回值说明：无
      */
     updateProgress(progress) {
-        const current = progress.current || 0;
-        const total = progress.total || 0;
-        const percent = total > 0 ? Math.round((current / total) * 100) : 0;
-        
-        // 拼接进度文本：状态描述 + 数量对比
-        let text = `${progress.status_text} (${current}/${total})`;
-        
-        // 如果后端传回了当前正在处理的文件名，则附加显示
-        if (progress.current_file) {
-            text += ` - ${progress.current_file}`;
-        }
-
-        // 使用封装的公共进度条组件更新
-        UIComponents.updateProgressBar('#scanning-container', percent, text);
+        UIComponents.renderProgress('#scanning-container', progress);
     },
 
     /**
@@ -172,7 +160,7 @@ const UIController = {
         const groupEl = document.createElement('div');
         groupEl.className = `duplicate-group ${group.isExpanded ? 'expanded' : ''}`;
         groupEl.setAttribute('data-group-id', group.group_id);
-        
+
         // 注意：后端数据类 DuplicateGroup 包含 files 数组
         const fileCount = group.files ? group.files.length : 0;
         const groupType = group.checker_type === 'video_similarity' ? '视频相似组' : '重复组';
@@ -203,7 +191,7 @@ const UIController = {
                         ${group.files.map(f => {
                             const extra = f.extra_info && f.extra_info.duration ? ` [${f.extra_info.duration}s]` : '';
                             return `
-                                <tr class="clickable-row">
+                                <tr class="clickable-row" data-thumbnail="${f.thumbnail_path || ''}">
                                     <td style="width: 25%;" title="${f.file_name}">${f.file_name}${extra}</td>
                                     <td style="width: 70%;" class="file-path" title="${f.file_path}">${f.file_path}</td>
                                     <td style="width: 30px; text-align: center;">
@@ -247,7 +235,7 @@ const UIController = {
                     cb.checked = !cb.checked;
                 }
                 isChecked = cb.checked;
-                
+
                 // 更新行背景
                 if (isChecked) tr.classList.add('selected-row');
                 else tr.classList.remove('selected-row');
@@ -256,9 +244,19 @@ const UIController = {
                 if (!isChecked) {
                     selectAllCheckbox.checked = false;
                 }
-                
+
                 this.updateFloatingBar();
             });
+
+            // 绑定悬停预览事件 (使用通用 UI 组件)
+            if (CheckState.settings && CheckState.settings.file_repository.quick_view_thumbnail) {
+                tr.addEventListener('mouseenter', (e) => {
+                    const thumbPath = tr.getAttribute('data-thumbnail');
+                    UIComponents.showQuickPreview(e, thumbPath);
+                });
+                tr.addEventListener('mousemove', (e) => UIComponents.moveQuickPreview(e));
+                tr.addEventListener('mouseleave', () => UIComponents.hideQuickPreview());
+            }
         });
 
         return groupEl;
@@ -294,7 +292,7 @@ const DuplicateCheckAPI = {
             if (response.status === 'success') {
                 Toast.show('查重任务已启动');
                 CheckState.results = [];
-                UIController.toggleView('checking');
+                UIController.toggleView(ProgressStatus.PROCESSING);
                 App.startPolling();
             } else {
                 Toast.show(response.message);
@@ -355,16 +353,34 @@ const App = {
      * 入参说明：无
      * 返回值说明：无
      */
-    init() {
+    async init() {
         UIController.init();
-        
+
         // 绑定底部批量删除按钮逻辑
         if (UIController.elements.globalDeleteBtn) {
             UIController.elements.globalDeleteBtn.onclick = () => this.handleBatchDelete();
         }
 
+        await this.loadSettings();
+
         // 检查页面进入时的初始状态
         this.checkInitialStatus();
+    },
+
+    /**
+     * 用途说明：从后端加载设置
+     * 入参说明：无
+     * 返回值说明：无
+     */
+    async loadSettings() {
+        try {
+            const response = await Request.get('/api/setting/get');
+            if (response.status === 'success') {
+                CheckState.settings = response.data;
+            }
+        } catch (error) {
+            console.error('加载设置失败:', error);
+        }
     },
 
     /**
@@ -413,20 +429,20 @@ const App = {
      */
     processStatusUpdate(data) {
         const { status, progress, results } = data;
-        
-        if (status === 'checking') {
+
+        if (status === ProgressStatus.PROCESSING) {
             this.startPolling();
-            UIController.toggleView('checking');
+            UIController.toggleView(ProgressStatus.PROCESSING);
             UIController.updateProgress(progress);
         } else {
             this.stopPolling();
-            
+
             // 查重已完成或空闲状态时的逻辑
-            if (status === 'completed' && results !== undefined) {
+            if (status === ProgressStatus.COMPLETED && results !== undefined) {
                 CheckState.setResults(results);
                 UIController.renderResults();
             }
-            
+
             // 更新视图显示状态
             UIController.toggleView(status);
         }

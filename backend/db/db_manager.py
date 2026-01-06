@@ -61,9 +61,17 @@ class DBManager:
                     file_path TEXT NOT NULL UNIQUE,
                     file_name TEXT NOT NULL,
                     file_md5 TEXT NOT NULL,
+                    thumbnail_path TEXT,
                     scan_time DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
             ''')
+            
+            # 兼容性处理：为旧版本数据库添加 thumbnail_path 字段
+            try:
+                cursor.execute(f"ALTER TABLE {self.TABLE_FILE_INDEX} ADD COLUMN thumbnail_path TEXT")
+            except sqlite3.OperationalError:
+                pass
+
             # 创建历史文件索引表
             cursor.execute(f'''
                 CREATE TABLE IF NOT EXISTS {self.TABLE_HISTORY_INDEX} (
@@ -91,9 +99,16 @@ class DBManager:
                     video_name TEXT NOT NULL,
                     md5 TEXT NOT NULL,
                     duration REAL,
-                    video_hashes TEXT
+                    video_hashes TEXT,
+                    thumbnail_path TEXT
                 )
             ''')
+            # 兼容性处理：为 video_info_cache 添加 thumbnail_path
+            try:
+                cursor.execute(f"ALTER TABLE {self.TABLE_VIDEO_INFO_CACHE} ADD COLUMN thumbnail_path TEXT")
+            except sqlite3.OperationalError:
+                pass
+
             # 创建重复文件分组表
             cursor.execute(f'''
                 CREATE TABLE IF NOT EXISTS {self.TABLE_DUPLICATE_GROUPS} (
@@ -110,10 +125,17 @@ class DBManager:
                     file_name TEXT NOT NULL,
                     file_path TEXT NOT NULL,
                     file_md5 TEXT,
+                    thumbnail_path TEXT,
                     extra_info TEXT,
                     FOREIGN KEY (group_id) REFERENCES {self.TABLE_DUPLICATE_GROUPS}(group_id) ON DELETE CASCADE
                 )
             ''')
+            # 兼容性处理：为 duplicate_files 添加 thumbnail_path
+            try:
+                cursor.execute(f"ALTER TABLE {self.TABLE_DUPLICATE_FILES} ADD COLUMN thumbnail_path TEXT")
+            except sqlite3.OperationalError:
+                pass
+
             conn.commit()
             conn.close()
             LogUtils.info("数据库初始化及表创建成功")

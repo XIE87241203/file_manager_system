@@ -1,7 +1,19 @@
 /**
+ * 用途说明：任务进度状态枚举，与后端 ProgressStatus 对应
+ */
+const ProgressStatus = {
+    IDLE: 'idle',
+    PROCESSING: 'processing',
+    COMPLETED: 'completed',
+    ERROR: 'error'
+};
+
+/**
  * 用途说明：通用 UI 组件库，封装可复用的页面元素
  */
 const UIComponents = {
+    _previewPopover: null,
+
     /**
      * 用途说明：初始化并渲染公用顶部工具栏，并自动处理页面内容避让
      * 入参说明：
@@ -108,7 +120,28 @@ const UIComponents = {
     },
 
     /**
-     * 用途说明：更新进度条进度和文本
+     * 用途说明：封装通用的进度更新逻辑，从后端进度对象中计算百分比并更新 UI
+     * 入参说明：
+     *   - parentSelector (str): 进度条所在的父容器选择器
+     *   - progress (object): 后端返回的进度对象 (包含 current, total, message)
+     * 返回值说明：无
+     */
+    renderProgress(parentSelector, progress) {
+        if (!progress) return;
+        const current = progress.current || 0;
+        const total = progress.total || 0;
+        const percent = total > 0 ? Math.round((current / total) * 100) : 0;
+        const message = progress.message || '';
+        
+        // 统一进度文本格式
+        const text = `进度: ${percent}% (${current}/${total}) - ${message}`;
+
+        // 调用基础更新方法
+        this.updateProgressBar(parentSelector, percent, text);
+    },
+
+    /**
+     * 用途说明：更新进度条进度 and 文本
      * 入参说明：
      *   - parentSelector (str): 进度条所在的父容器选择器
      *   - percent (number): 进度百分比 (0-100)
@@ -139,6 +172,139 @@ const UIComponents = {
         let overlay = parent.querySelector('.common-progress-overlay');
         if (overlay) {
             overlay.style.display = 'none';
+        }
+    },
+
+    /**
+     * 用途说明：显示通用二次确认弹窗
+     * 入参说明：
+     *   - options (object): {
+     *       title: (str) 标题,
+     *       message: (str) 正文信息,
+     *       confirmText: (str) 确认按钮文字,
+     *       cancelText: (str) 取消按钮文字,
+     *       checkbox: { label: (str), checked: (bool) } 可选复选框配置,
+     *       onConfirm: (func) 点击确认的回调，入参为 checkbox 的状态,
+     *       onCancel: (func) 点击取消的回调
+     *     }
+     * 返回值说明：无
+     */
+    showConfirmModal(options) {
+        const { title = '确认操作', message, confirmText = '确定', cancelText = '取消', checkbox, onConfirm, onCancel } = options;
+        
+        // 查找或创建 modal 容器
+        let modal = document.getElementById('common-confirm-modal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'common-confirm-modal';
+            modal.className = 'modal-mask hidden';
+            document.body.appendChild(modal);
+        }
+
+        const checkboxHtml = checkbox ? `
+            <div class="modal-checkbox-container">
+                <input type="checkbox" id="common-modal-checkbox" ${checkbox.checked ? 'checked' : ''}>
+                <label for="common-modal-checkbox">${checkbox.label}</label>
+            </div>
+        ` : '';
+
+        modal.innerHTML = `
+            <div class="modal-content">
+                <h3 class="title">${title}</h3>
+                <p class="modal-msg">${message}</p>
+                ${checkboxHtml}
+                <div class="flex-gap-5">
+                    <button id="common-modal-confirm-btn" class="btn-danger mt-0 flex-1">${confirmText}</button>
+                    <button id="common-modal-cancel-btn" class="btn-secondary mt-0 flex-1">${cancelText}</button>
+                </div>
+            </div>
+        `;
+
+        modal.classList.remove('hidden');
+
+        // 绑定事件
+        const confirmBtn = document.getElementById('common-modal-confirm-btn');
+        const cancelBtn = document.getElementById('common-modal-cancel-btn');
+        const checkboxInput = document.getElementById('common-modal-checkbox');
+
+        confirmBtn.onclick = () => {
+            modal.classList.add('hidden');
+            if (onConfirm) onConfirm(checkboxInput ? checkboxInput.checked : false);
+        };
+
+        cancelBtn.onclick = () => {
+            modal.classList.add('hidden');
+            if (onCancel) onCancel();
+        };
+    },
+
+    /**
+     * 用途说明：初始化快速预览组件
+     * 入参说明：无
+     * 返回值说明：无
+     */
+    initQuickPreview() {
+        if (this._previewPopover) return;
+        this._previewPopover = document.createElement('div');
+        this._previewPopover.className = 'quick-preview-popover';
+        document.body.appendChild(this._previewPopover);
+    },
+
+    /**
+     * 用途说明：显示快速预览缩略图
+     * 入参说明：
+     *   - e (Event): 鼠标事件对象
+     *   - thumbPath (str): 缩略图在服务端的物理路径
+     * 返回值说明：无
+     */
+    showQuickPreview(e, thumbPath) {
+        if (!thumbPath) return;
+        this.initQuickPreview();
+        
+        const apiBase = Request.baseUrl;
+        const token = Request.getCookie('token');
+        const imgUrl = `${apiBase}/api/file_repository/thumbnail/view?path=${encodeURIComponent(thumbPath)}&token=${token}`;
+        
+        this._previewPopover.innerHTML = `<img src="${imgUrl}" alt="预览图">`;
+        this._previewPopover.style.display = 'block';
+        this.moveQuickPreview(e);
+    },
+
+    /**
+     * 用途说明：随着鼠标移动更新预览窗口位置
+     * 入参说明：
+     *   - e (Event): 鼠标事件对象
+     * 返回值说明：无
+     */
+    moveQuickPreview(e) {
+        if (!this._previewPopover || this._previewPopover.style.display === 'none') return;
+        
+        const offset = 20;
+        let x = e.clientX + offset;
+        let y = e.clientY + offset;
+        
+        // 边界检查：防止预览窗超出屏幕
+        const popoverRect = this._previewPopover.getBoundingClientRect();
+        if (x + popoverRect.width > window.innerWidth) {
+            x = e.clientX - popoverRect.width - offset;
+        }
+        if (y + popoverRect.height > window.innerHeight) {
+            y = e.clientY - popoverRect.height - offset;
+        }
+        
+        this._previewPopover.style.left = `${x}px`;
+        this._previewPopover.style.top = `${y}px`;
+    },
+
+    /**
+     * 用途说明：隐藏快速预览窗口
+     * 入参说明：无
+     * 返回值说明：无
+     */
+    hideQuickPreview() {
+        if (this._previewPopover) {
+            this._previewPopover.style.display = 'none';
+            this._previewPopover.innerHTML = '';
         }
     }
 };

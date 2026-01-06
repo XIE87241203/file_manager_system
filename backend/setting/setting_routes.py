@@ -13,12 +13,13 @@ def get_setting():
     """
     用途：获取当前的配置信息
     入参说明：无
-    返回值说明：包含用户配置数据和文件仓库配置的 JSON 响应
+    返回值说明：包含用户配置数据、文件仓库配置和查重配置的 JSON 响应
     """
     LogUtils.debug(f"用户 {request.username} 尝试获取配置")
     data = {
         "user_data": settings.user_data,
-        "file_repository": settings.file_repository
+        "file_repository": settings.file_repository,
+        "duplicate_check": settings.duplicate_check
     }
     return success_response("获取配置成功", data=data)
 
@@ -27,7 +28,7 @@ def get_setting():
 def update_setting():
     """
     用途：更新并保存配置信息
-    入参说明：JSON 对象，包含需要更新的配置项（user_data 或 file_repository）
+    入参说明：JSON 对象，包含需要更新的配置项（user_data、file_repository 或 duplicate_check）
     返回值说明：操作结果响应
     """
     # 使用 silent=True 防止解析失败时直接返回 HTML 400 错误
@@ -35,21 +36,11 @@ def update_setting():
     if not data:
         return error_response("请求数据不能为空 or 格式错误")
 
-    LogUtils.info(f"用户 {request.username} 尝试更新配置: {data}")
+    LogUtils.info(f"用户 {request.username} 请求更新配置")
 
-    # 更新 settings 实例中的 user_data (如果存在)
-    if 'user_data' in data:
-        for key, value in data['user_data'].items():
-            settings.user_data[key] = value
-    
-    # 更新 settings 实例中的 file_repository (如果存在)
-    if 'file_repository' in data:
-        settings.file_repository = data['file_repository']
-    
-    try:
-        settings.save_config()
+    # 调用 SettingService 的封装逻辑处理配置更新及相关业务逻辑
+    if settings.update_settings(data, request.username):
         LogUtils.info(f"配置已更新并保存。操作人: {request.username}")
         return success_response("配置更新成功")
-    except Exception as e:
-        LogUtils.error(f"保存配置失败: {str(e)}")
-        return error_response(f"保存配置失败: {str(e)}", 500)
+    else:
+        return error_response("配置更新失败，请检查后端日志", 500)

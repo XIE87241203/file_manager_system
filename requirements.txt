@@ -4,3 +4,4 @@ imagehash
 Pillow
 opencv-python-headless
 python-magic
+waitress

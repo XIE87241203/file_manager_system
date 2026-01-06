@@ -12,3 +12,4 @@ class VideoInfoCache:
     md5: str = ""
     duration: Optional[float] = None
     video_hashes: Optional[str] = None
+    thumbnail_path: Optional[str] = None

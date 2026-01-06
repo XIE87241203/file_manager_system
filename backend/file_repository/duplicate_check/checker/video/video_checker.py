@@ -3,8 +3,8 @@ from typing import List, Set
 from backend.file_repository.duplicate_check.checker.base_checker import BaseDuplicateChecker
 from backend.db.model.file_index import FileIndex
 from backend.db.db_operations import DBOperations
-from backend.file_repository.duplicate_check.utils.video_similarity_Tree import VideoSimilarityTree
-from backend.file_repository.duplicate_check.utils.video_analyzer import VideoAnalyzer
+from backend.file_repository.duplicate_check.checker.video.utils.video_similarity_Tree import VideoSimilarityTree
+from backend.file_repository.duplicate_check.checker.video.utils.video_analyzer import VideoAnalyzer
 from backend.common.log_utils import LogUtils
 from backend.file_repository.duplicate_check.checker.models.duplicate_models import DuplicateGroup, \
     DuplicateFile
@@ -20,15 +20,28 @@ class VideoChecker(BaseDuplicateChecker):
         '.mp4', '.avi', '.mkv', '.mov', '.wmv', '.flv', '.webm', '.mpeg', '.mpg', '.m4v', '.3gp'
     }
 
-    def __init__(self):
+    def __init__(self, frame_similar_distance: int = 5,
+                 frame_similarity_rate: float = 0.7, interval_seconds: int = 30,
+                 max_duration_diff_ratio: float = 0.6):
         """
         用途：初始化视频检查器，配置分析引擎。
+        入参说明：
+            - frame_similar_distance (int): 相似判定阈值（汉明距离）。
+            - frame_similarity_rate (float): 帧匹配成功的占比阈值（0.0-1.0）。
+            - interval_seconds (int): 采样间隔（秒）。
+            - max_duration_diff_ratio (float): 最大时长比例阈值。
         """
         # 获取 VideoAnalyzer 单例
         self.analyzer = VideoAnalyzer()
 
         # 初始化相似度树，用于管理视频分组
-        self.tree = VideoSimilarityTree(self.analyzer, max_duration_diff_ratio=0.6)
+        self.tree = VideoSimilarityTree(
+            self.analyzer,
+            frame_similar_distance=frame_similar_distance,
+            frame_similarity_rate=frame_similarity_rate,
+            interval_seconds=interval_seconds,
+            max_duration_diff_ratio=max_duration_diff_ratio
+        )
 
     def add_file(self, file_info: FileIndex) -> None:
         """
@@ -62,6 +75,7 @@ class VideoChecker(BaseDuplicateChecker):
                     file_name=video.video_name,
                     file_path=video.path,
                     file_md5=video.md5,
+                    thumbnail_path=video.thumbnail_path,
                     extra_info={
                         "duration": round(video.duration, 2)
                     }

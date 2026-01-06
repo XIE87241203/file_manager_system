@@ -104,6 +104,7 @@ class ImageChecker(BaseDuplicateChecker):
                         file_name=item["info"].file_name,
                         file_path=item["info"].file_path,
                         file_md5=item["info"].file_md5,
+                        thumbnail_path=item["info"].thumbnail_path,
                         extra_info={
                             "hash": str(item["hash"]),
                             "match_type": "exact_md5" if is_exact_md5_match else "phash_similarity"

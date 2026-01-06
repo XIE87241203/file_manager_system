@@ -105,10 +105,10 @@ class DBOperations:
         """
         if not file_list:
             return
-        data = [(f.file_path, f.file_name, f.file_md5) for f in file_list]
+        data = [(f.file_path, f.file_name, f.file_md5, f.thumbnail_path) for f in file_list]
         query = f'''
-            INSERT OR REPLACE INTO {DBManager.TABLE_FILE_INDEX} (file_path, file_name, file_md5, scan_time)
-            VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+            INSERT OR REPLACE INTO {DBManager.TABLE_FILE_INDEX} (file_path, file_name, file_md5, thumbnail_path, scan_time)
+            VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
         '''
         count = DBOperations.__execute_batch(query, data)
         LogUtils.info(f"成功更新 {count} 条文件索引记录")
@@ -165,6 +165,19 @@ class DBOperations:
         return [(r['file_md5'], r['count']) for r in rows]
 
     @staticmethod
+    def get_file_by_path(file_path: str) -> Optional[FileIndex]:
+        """
+        用途：根据路径从索引表中获取单个文件信息
+        入参说明：
+            file_path (str): 文件路径
+        返回值说明：
+            Optional[FileIndex]: 文件索引对象，若不存在则返回 None
+        """
+        query = f"SELECT * FROM {DBManager.TABLE_FILE_INDEX} WHERE file_path = ?"
+        row = DBOperations.__execute(query, (file_path,), is_query=True, fetch_one=True)
+        return FileIndex(**row) if row else None
+
+    @staticmethod
     def get_files_by_md5(md5: str) -> List[FileIndex]:
         """
         用途：根据 MD5 获取所有匹配的文件对象
@@ -197,7 +210,8 @@ class DBOperations:
         sort_by: str = "scan_time", 
         order: str = "DESC", 
         limit: int = 100, 
-        offset: int = 0
+        offset: int = 0,
+        only_no_thumbnail: bool = False
     ) -> List[Union[FileIndex, HistoryFileIndex]]:
         """
         用途：通用分页查询文件列表
@@ -209,9 +223,17 @@ class DBOperations:
             order (str): 排序方向 (ASC/DESC)
             limit (int): 分页大小
             offset (int): 偏移量
+            only_no_thumbnail (bool): 是否仅查询没有缩略图的文件
         返回值说明：
             List[Union[FileIndex, HistoryFileIndex]]: 数据对象列表
         """
+        if only_no_thumbnail:
+            no_thumb_condition = "(thumbnail_path IS NULL OR thumbnail_path = '')"
+            if "WHERE" in where_clause.upper():
+                where_clause += f" AND {no_thumb_condition}"
+            else:
+                where_clause = f" WHERE {no_thumb_condition}"
+
         query = f"SELECT * FROM {table_name} {where_clause} ORDER BY {sort_by} {order} LIMIT ? OFFSET ?"
         full_params = list(params) + [limit, offset]
         rows = DBOperations.__execute(query, tuple(full_params), is_query=True)
@@ -220,16 +242,24 @@ class DBOperations:
         return [model_cls(**r) for r in rows]
 
     @staticmethod
-    def get_file_count(table_name: str, where_clause: str = "", params: tuple = ()) -> int:
+    def get_file_count(table_name: str, where_clause: str = "", params: tuple = (), only_no_thumbnail: bool = False) -> int:
         """
         用途：获取表中满足条件的记录总数
         入参说明：
             table_name (str): 表名
             where_clause (str): 条件子句
             params (tuple): 参数
+            only_no_thumbnail (bool): 是否仅查询没有缩略图的文件
         返回值说明：
             int: 总记录数
         """
+        if only_no_thumbnail:
+            no_thumb_condition = "(thumbnail_path IS NULL OR thumbnail_path = '')"
+            if "WHERE" in where_clause.upper():
+                where_clause += f" AND {no_thumb_condition}"
+            else:
+                where_clause = f" WHERE {no_thumb_condition}"
+
         query = f"SELECT COUNT(*) as count FROM {table_name} {where_clause}"
         res = DBOperations.__execute(query, params, is_query=True, fetch_one=True)
         return res['count'] if res else 0
@@ -275,7 +305,7 @@ class DBOperations:
         入参说明：
             md5 (str): 视频 MD5
         返回值说明：
-            Optional[VideoFeatures]: 视频特征对象或 None
+            Optional[VideoFeatures]: 视频特征对象 or None
         """
         query = f"SELECT * FROM {DBManager.TABLE_VIDEO_FEATURES} WHERE md5 = ?"
         row = DBOperations.__execute(query, (md5,), is_query=True, fetch_one=True)
@@ -303,15 +333,16 @@ class DBOperations:
             bool: 是否成功
         """
         query = f"""
-            INSERT INTO {DBManager.TABLE_VIDEO_INFO_CACHE} (path, video_name, md5, duration, video_hashes)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO {DBManager.TABLE_VIDEO_INFO_CACHE} (path, video_name, md5, duration, video_hashes, thumbnail_path)
+            VALUES (?, ?, ?, ?, ?, ?)
             ON CONFLICT(path) DO UPDATE SET
             video_name = excluded.video_name,
             md5 = excluded.md5,
             duration = excluded.duration,
-            video_hashes = excluded.video_hashes
+            video_hashes = excluded.video_hashes,
+            thumbnail_path = excluded.thumbnail_path
         """
-        params = (info.path, info.video_name, info.md5, info.duration, info.video_hashes)
+        params = (info.path, info.video_name, info.md5, info.duration, info.video_hashes, info.thumbnail_path)
         return DBOperations.__execute(query, params) > 0
 
     @staticmethod
@@ -386,11 +417,11 @@ class DBOperations:
                 )
                 # 2. 批量插入该组下的文件
                 file_data = [
-                    (group.group_id, f.file_name, f.file_path, f.file_md5, json.dumps(f.extra_info)) 
+                    (group.group_id, f.file_name, f.file_path, f.file_md5, f.thumbnail_path, json.dumps(f.extra_info)) 
                     for f in group.files
                 ]
                 cursor.executemany(
-                    f"INSERT INTO {DBManager.TABLE_DUPLICATE_FILES} (group_id, file_name, file_path, file_md5, extra_info) VALUES (?, ?, ?, ?, ?)",
+                    f"INSERT INTO {DBManager.TABLE_DUPLICATE_FILES} (group_id, file_name, file_path, file_md5, thumbnail_path, extra_info) VALUES (?, ?, ?, ?, ?, ?)",
                     file_data
                 )
             conn.commit()
@@ -424,6 +455,7 @@ class DBOperations:
                     file_name=f['file_name'],
                     file_path=f['file_path'],
                     file_md5=f['file_md5'],
+                    thumbnail_path=f['thumbnail_path'],
                     extra_info=json.loads(f['extra_info']) if f['extra_info'] else {}
                 ) for f in files_data
             ]
@@ -460,3 +492,54 @@ class DBOperations:
             LogUtils.info(f"由于成员不足，已清理查重组: {group_id}")
             
         return True
+
+    # --- 缩略图相关操作 ---
+
+    @staticmethod
+    def update_thumbnail_path(file_path: str, thumbnail_path: str) -> bool:
+        """
+        用途：更新指定文件的缩略图路径
+        入参说明：
+            file_path (str): 文件路径
+            thumbnail_path (str): 缩略图路径
+        返回值说明：
+            bool: 是否成功
+        """
+        query = f"UPDATE {DBManager.TABLE_FILE_INDEX} SET thumbnail_path = ? WHERE file_path = ?"
+        return DBOperations.__execute(query, (thumbnail_path, file_path)) > 0
+
+    @staticmethod
+    def get_files_without_thumbnail() -> List[FileIndex]:
+        """
+        用途：获取所有没有缩略图的文件记录
+        入参说明：无
+        返回值说明：
+            List[FileIndex]: 文件对象列表
+        """
+        query = f"SELECT * FROM {DBManager.TABLE_FILE_INDEX} WHERE thumbnail_path IS NULL OR thumbnail_path = ''"
+        rows = DBOperations.__execute(query, is_query=True)
+        return [FileIndex(**r) for r in rows]
+
+    @staticmethod
+    def clear_all_thumbnail_records() -> bool:
+        """
+        用途：清空所有文件记录中的缩略图路径字段
+        入参说明：无
+        返回值说明：
+            bool: 是否成功
+        """
+        query = f"UPDATE {DBManager.TABLE_FILE_INDEX} SET thumbnail_path = NULL"
+        return DBOperations.__execute(query) >= 0
+
+    @staticmethod
+    def get_file_index_by_path(file_path: str) -> Optional[FileIndex]:
+        """
+        用途：根据路径从索引表中获取单个文件信息
+        入参说明：
+            file_path (str): 文件路径
+        返回值说明：
+            Optional[FileIndex]: 文件索引对象，若不存在则返回 None
+        """
+        query = f"SELECT * FROM {DBManager.TABLE_FILE_INDEX} WHERE file_path = ?"
+        row = DBOperations.__execute(query, (file_path,), is_query=True, fetch_one=True)
+        return FileIndex(**row) if row else None

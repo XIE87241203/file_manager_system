@@ -8,8 +8,9 @@ from typing import List, Dict
 import imagehash
 from backend.common.log_utils import LogUtils
 from backend.db.model.video_info_cache import VideoInfoCache
-from backend.file_repository.duplicate_check.utils.video_analyzer import VideoAnalyzer
-from backend.file_repository.duplicate_check.utils.video_comparison_util import VideoComparisonUtil
+from backend.file_repository.duplicate_check.checker.video.utils.video_analyzer import VideoAnalyzer
+from backend.file_repository.duplicate_check.checker.video.utils.video_comparison_util import \
+    VideoComparisonUtil
 
 
 class VideoSimilarityTree:

@@ -1,6 +1,7 @@
 import os
 import sys
 import logging
+from typing import Any
 
 # 1. 优先处理路径，确保后续导入正常
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -10,8 +11,9 @@ from backend.common.log_utils import LogUtils
 LogUtils.init(level=logging.DEBUG)
 
 # 3. 之后再导入其他业务模块
-from flask import Flask, request, jsonify
+from flask import Flask, request, Response
 from flask_cors import CORS
+from waitress import serve
 from backend.auth.auth_routes import auth_bp
 from backend.setting.setting_routes import setting_bp
 from backend.file_repository.file_repository_routes import file_repo_bp
@@ -22,7 +24,7 @@ app = Flask(__name__)
 CORS(app, resources={r"/api/*": {"origins": "*"}}, allow_headers=["Content-Type", "Authorization"])
 
 @app.before_request
-def log_request_info():
+def log_request_info() -> None:
     """
     用途：Flask 钩子函数，在每个请求处理前自动记录请求信息
     入参说明：无
@@ -47,7 +49,7 @@ def log_request_info():
 # --- 全局错误处理，确保始终返回 JSON ---
 
 @app.errorhandler(400)
-def bad_request(e):
+def bad_request(e: Any) -> Response:
     """
     用途：处理 400 错误，返回 JSON
     入参说明：e - 错误对象
@@ -56,7 +58,7 @@ def bad_request(e):
     return error_response("请求参数错误或格式非法", 400)
 
 @app.errorhandler(404)
-def page_not_found(e):
+def page_not_found(e: Any) -> Response:
     """
     用途：处理 404 错误，返回 JSON
     入参说明：e - 错误对象
@@ -65,7 +67,7 @@ def page_not_found(e):
     return error_response("请求的接口不存在", 404)
 
 @app.errorhandler(500)
-def server_error(e):
+def server_error(e: Any) -> Response:
     """
     用途：处理 500 错误，返回 JSON
     入参说明：e - 错误对象
@@ -81,6 +83,7 @@ app.register_blueprint(setting_bp, url_prefix='/api/setting')
 app.register_blueprint(file_repo_bp, url_prefix='/api/file_repository')
 
 if __name__ == '__main__':
-    LogUtils.info("后端服务正在启动...")
-    # 运行在 5000 端口，监听所有接口以支持 Docker 访问
-    app.run(host='0.0.0.0', port=5000, debug=False)
+    LogUtils.info("后端服务正在通过 Waitress 启动 (Port: 5000)...")
+    # 使用 Waitress 生产级 WSGI 服务器替代 Flask 开发服务器
+    # threads=8 提供并发处理能力，防止长耗时请求阻塞整个服务
+    serve(app, host='0.0.0.0', port=5000, threads=8)

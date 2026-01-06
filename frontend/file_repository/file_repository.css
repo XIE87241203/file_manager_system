@@ -309,3 +309,31 @@ tbody tr:hover {
 .btn-danger-large:active {
     transform: scale(0.98);
 }
+
+/* 8. 缩略图生成相关 */
+.thumbnail-action-container {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.progress-text {
+    font-size: 13px;
+    color: #1a73e8;
+    font-weight: 500;
+}
+
+.btn-text-danger-small {
+    padding: 6px 12px;
+    background-color: #fce8e6;
+    color: #d93025;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.2s;
+}
+
+.btn-text-danger-small:hover {
+    background-color: #fad2cf;
+}

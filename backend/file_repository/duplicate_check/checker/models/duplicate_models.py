@@ -9,11 +9,13 @@ class DuplicateFile:
         file_name (str): 文件名。
         file_path (str): 文件绝对路径。
         file_md5 (Optional[str]): 文件的 MD5 值。
+        thumbnail_path (Optional[str]): 缩略图路径。
         extra_info (Dict[str, Any]): 额外信息，用于存储特定类型检查器的附加数据（如视频时长）。
     """
     file_name: str
     file_path: str
     file_md5: Optional[str] = None
+    thumbnail_path: Optional[str] = None
     extra_info: Dict[str, Any] = field(default_factory=dict)
 
 @dataclass

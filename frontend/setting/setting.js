@@ -4,10 +4,22 @@
 let currentFileRepository = {
     directories: [],
     scan_suffixes: ["*"],
-    search_replace_chars: []
+    search_replace_chars: [],
+    ignore_filenames: [],
+    ignore_filenames_case_insensitive: true,
+    ignore_paths: [],
+    ignore_paths_case_insensitive: true,
+    thumbnail_size: 256,
+    quick_view_thumbnail: false
 }; // 存储本地修改中的文件仓库配置
 
-let currentClearType = 'db'; // 'db' 或 'video'
+let currentDuplicateCheck = {
+    image_threshold: 8,
+    video_frame_similar_distance: 5,
+    video_frame_similarity_rate: 0.7,
+    video_interval_seconds: 30,
+    video_max_duration_diff_ratio: 0.6
+}; // 存储查重配置
 
 document.addEventListener('DOMContentLoaded', () => {
     // 初始化公用头部
@@ -20,6 +32,9 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('add-repo-btn').addEventListener('click', addRepository);
     document.getElementById('save-repo-btn').addEventListener('click', saveFileRepositorySettings);
     
+    // 绑定查重配置保存按钮
+    document.getElementById('save-dup-check-btn').addEventListener('click', saveDuplicateCheckSettings);
+
     // 绑定清空数据库按钮
     const clearDbBtn = document.getElementById('clear-db-btn');
     if (clearDbBtn) {
@@ -32,10 +47,6 @@ document.addEventListener('DOMContentLoaded', () => {
         clearVideoBtn.addEventListener('click', () => showClearModal('video'));
     }
 
-    // 绑定弹窗确认和取消按钮
-    document.getElementById('confirm-clear-btn').addEventListener('click', handleConfirmClear);
-    document.getElementById('cancel-clear-btn').addEventListener('click', hideClearModal);
-    
     // 绑定修改密码保存按钮
     document.getElementById('save-pwd-btn').addEventListener('click', savePasswordSettings);
 });
@@ -46,23 +57,26 @@ document.addEventListener('DOMContentLoaded', () => {
  * 返回值说明：无
  */
 function initTabs() {
-    const tabRepo = document.getElementById('tab-repo');
-    const tabPassword = document.getElementById('tab-password');
-    const contentRepo = document.getElementById('content-repo');
-    const contentPassword = document.getElementById('content-password');
+    const tabs = [
+        { btn: 'tab-repo', content: 'content-repo' },
+        { btn: 'tab-dup-check', content: 'content-dup-check' },
+        { btn: 'tab-password', content: 'content-password' }
+    ];
 
-    tabRepo.addEventListener('click', () => {
-        tabRepo.classList.add('active');
-        tabPassword.classList.remove('active');
-        contentRepo.classList.add('active');
-        contentPassword.classList.remove('active');
-    });
-
-    tabPassword.addEventListener('click', () => {
-        tabPassword.classList.add('active');
-        tabRepo.classList.remove('active');
-        contentPassword.classList.add('active');
-        contentRepo.classList.remove('active');
+    tabs.forEach(tab => {
+        const btnElement = document.getElementById(tab.btn);
+        if (btnElement) {
+            btnElement.addEventListener('click', () => {
+                // 移除所有激活状态
+                tabs.forEach(t => {
+                    document.getElementById(t.btn).classList.remove('active');
+                    document.getElementById(t.content).classList.remove('active');
+                });
+                // 激活当前点击的
+                document.getElementById(tab.btn).classList.add('active');
+                document.getElementById(tab.content).classList.add('active');
+            });
+        }
     });
 }
 
@@ -87,15 +101,33 @@ async function loadSettings() {
             currentFileRepository = data.file_repository || {
                 directories: [],
                 scan_suffixes: ["*"],
-                search_replace_chars: []
+                search_replace_chars: [],
+                ignore_filenames: [],
+                ignore_filenames_case_insensitive: true,
+                ignore_paths: [],
+                ignore_paths_case_insensitive: true,
+                thumbnail_size: 256,
+                quick_view_thumbnail: false
             };
             
-            // 填充后缀输入框
+            // 填充输入框
             document.getElementById('scan-suffixes').value = (currentFileRepository.scan_suffixes || ["*"]).join(', ');
-            
-            // 填充搜索替换字符输入框
+            document.getElementById('thumbnail-size').value = currentFileRepository.thumbnail_size || 256;
+            document.getElementById('quick-view-thumbnail').checked = currentFileRepository.quick_view_thumbnail || false;
+            document.getElementById('ignore-filenames').value = (currentFileRepository.ignore_filenames || []).join(', ');
+            document.getElementById('ignore-filenames-case-insensitive').checked = currentFileRepository.ignore_filenames_case_insensitive;
+            document.getElementById('ignore-paths').value = (currentFileRepository.ignore_paths || []).join(', ');
+            document.getElementById('ignore-paths-case-insensitive').checked = currentFileRepository.ignore_paths_case_insensitive;
             document.getElementById('search-replace-chars').value = (currentFileRepository.search_replace_chars || []).join(', ');
             
+            // 填充查重配置
+            currentDuplicateCheck = data.duplicate_check || currentDuplicateCheck;
+            document.getElementById('image-threshold').value = currentDuplicateCheck.image_threshold;
+            document.getElementById('video-frame-similar-distance').value = currentDuplicateCheck.video_frame_similar_distance;
+            document.getElementById('video-frame-similarity-rate').value = currentDuplicateCheck.video_frame_similarity_rate;
+            document.getElementById('video-interval-seconds').value = currentDuplicateCheck.video_interval_seconds;
+            document.getElementById('video-max-duration-diff-ratio').value = currentDuplicateCheck.video_max_duration_diff_ratio;
+
             renderRepositoryList();
         }
     } catch (error) {
@@ -184,6 +216,28 @@ async function saveFileRepositorySettings() {
         return;
     }
 
+    // 获取并处理缩略图尺寸
+    const thumbSize = parseInt(document.getElementById('thumbnail-size').value);
+    if (isNaN(thumbSize) || thumbSize <= 0) {
+        Toast.show('缩略图尺寸必须是正整数');
+        return;
+    }
+
+    const quickViewThumbnail = document.getElementById('quick-view-thumbnail').checked;
+
+    // 获取并处理忽略列表
+    const ignoreFilenamesInput = document.getElementById('ignore-filenames').value;
+    const ignoreFilenames = ignoreFilenamesInput.split(',')
+        .map(s => s.trim())
+        .filter(s => s !== '');
+    const ignoreFilenamesCaseInsensitive = document.getElementById('ignore-filenames-case-insensitive').checked;
+        
+    const ignorePathsInput = document.getElementById('ignore-paths').value;
+    const ignorePaths = ignorePathsInput.split(',')
+        .map(s => s.trim())
+        .filter(s => s !== '');
+    const ignorePathsCaseInsensitive = document.getElementById('ignore-paths-case-insensitive').checked;
+
     // 获取并处理替换字符列表
     const replaceCharsInput = document.getElementById('search-replace-chars').value;
     const replaceChars = replaceCharsInput.split(',')
@@ -191,6 +245,12 @@ async function saveFileRepositorySettings() {
         .filter(s => s !== '');
 
     currentFileRepository.scan_suffixes = suffixes;
+    currentFileRepository.thumbnail_size = thumbSize;
+    currentFileRepository.quick_view_thumbnail = quickViewThumbnail;
+    currentFileRepository.ignore_filenames = ignoreFilenames;
+    currentFileRepository.ignore_filenames_case_insensitive = ignoreFilenamesCaseInsensitive;
+    currentFileRepository.ignore_paths = ignorePaths;
+    currentFileRepository.ignore_paths_case_insensitive = ignorePathsCaseInsensitive;
     currentFileRepository.search_replace_chars = replaceChars;
 
     try {
@@ -207,60 +267,78 @@ async function saveFileRepositorySettings() {
 }
 
 /**
+ * 用途：提交修改后的查重配置到后端
+ * 入参说明：无
+ * 返回值说明：无
+ */
+async function saveDuplicateCheckSettings() {
+    const imageThreshold = parseInt(document.getElementById('image-threshold').value);
+    const videoDist = parseInt(document.getElementById('video-frame-similar-distance').value);
+    const videoRate = parseFloat(document.getElementById('video-frame-similarity-rate').value);
+    const videoInterval = parseInt(document.getElementById('video-interval-seconds').value);
+    const videoDurationRatio = parseFloat(document.getElementById('video-max-duration-diff-ratio').value);
+
+    if (isNaN(imageThreshold) || isNaN(videoDist) || isNaN(videoRate) || isNaN(videoInterval) || isNaN(videoDurationRatio)) {
+        Toast.show('请确保所有查重参数输入正确且为数字');
+        return;
+    }
+
+    const dupConfig = {
+        image_threshold: imageThreshold,
+        video_frame_similar_distance: videoDist,
+        video_frame_similarity_rate: videoRate,
+        video_interval_seconds: videoInterval,
+        video_max_duration_diff_ratio: videoDurationRatio
+    };
+
+    try {
+        const response = await Request.post('/api/setting/update', {
+            duplicate_check: dupConfig
+        });
+        if (response.status === 'success') {
+            Toast.show('查重配置保存成功');
+            loadSettings();
+        }
+    } catch (error) {
+        Toast.show('保存查重配置失败: ' + (error.message || '未知错误'));
+    }
+}
+
+/**
  * 用途说明：显示清空确认弹窗
  * 入参说明：type - 'db' (文件数据库) 或 'video' (视频特征库)
  * 返回值说明：无
  */
 function showClearModal(type) {
-    currentClearType = type;
-    const modal = document.getElementById('clear-db-modal');
-    const msg = document.getElementById('clear-modal-msg');
-    const historyContainer = document.getElementById('clear-history-container');
-    
     if (type === 'db') {
-        msg.innerText = '警告：此操作将清空所有已扫描的文件索引数据，且不可恢复！确定要继续吗？';
-        historyContainer.classList.remove('hidden');
-        document.getElementById('clear-history-check').checked = false;
+        UIComponents.showConfirmModal({
+            title: '确认清空数据库',
+            message: '警告：此操作将清空所有已扫描的文件索引数据，且不可恢复！确定要继续吗？',
+            checkbox: {
+                label: '同时清空历史文件数据库',
+                checked: false
+            },
+            onConfirm: (clearHistory) => {
+                clearFileRepositoryDatabase(clearHistory);
+            }
+        });
     } else {
-        msg.innerText = '警告：此操作将清空所有视频特征指纹库（用于视频查重），确定要继续吗？';
-        historyContainer.classList.add('hidden');
-    }
-    
-    modal.classList.remove('hidden');
-}
-
-/**
- * 用途说明：隐藏清空确认弹窗
- * 入参说明：无
- * 返回值说明：无
- */
-function hideClearModal() {
-    document.getElementById('clear-db-modal').classList.add('hidden');
-}
-
-/**
- * 用途说明：处理确认清空逻辑
- * 入参说明：无
- * 返回值说明：无
- */
-async function handleConfirmClear() {
-    if (currentClearType === 'db') {
-        await clearFileRepositoryDatabase();
-    } else {
-        await clearVideoFeaturesDatabase();
+        UIComponents.showConfirmModal({
+            title: '确认清空视频特征库',
+            message: '警告：此操作将清空所有视频特征指纹库（用于视频查重），确定要继续吗？',
+            onConfirm: () => {
+                clearVideoFeaturesDatabase();
+            }
+        });
     }
 }
 
 /**
  * 用途说明：向后端发起请求清空文件索引数据库
- * 入参说明：无
+ * 入参说明：clearHistory (bool) - 是否同时清空历史记录
  * 返回值说明：无
  */
-async function clearFileRepositoryDatabase() {
-    const clearHistory = document.getElementById('clear-history-check').checked;
-    
-    hideClearModal();
-
+async function clearFileRepositoryDatabase(clearHistory) {
     try {
         const response = await Request.post('/api/file_repository/clear', {
             clear_history: clearHistory
@@ -282,8 +360,6 @@ async function clearFileRepositoryDatabase() {
  * 返回值说明：无
  */
 async function clearVideoFeaturesDatabase() {
-    hideClearModal();
-
     try {
         const response = await Request.post('/api/file_repository/clear_video_features');
         if (response.status === 'success') {

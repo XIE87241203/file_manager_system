@@ -5,7 +5,7 @@
 """
 import os
 import threading
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 import cv2
 import imagehash
@@ -26,9 +26,11 @@ class VideoAnalyzer:
     _instance = None
     _lock = threading.Lock()
 
-    def __new__(cls, *args, **kwargs):
+    def __new__(cls, *args, **kwargs) -> 'VideoAnalyzer':
         """
         用途：实现单例模式，确保全局只有一个 VideoAnalyzer 实例。
+        入参说明：无
+        返回值说明：VideoAnalyzer - 单例实例
         """
         if not cls._instance:
             with cls._lock:
@@ -37,9 +39,11 @@ class VideoAnalyzer:
                     cls._instance._initialized = False
         return cls._instance
 
-    def __init__(self):
+    def __init__(self) -> None:
         """
         用途：初始化视频分析器。使用标识位确保初始化逻辑只运行一次。
+        入参说明：无
+        返回值说明：无
         """
         if self._initialized:
             return
@@ -133,7 +137,20 @@ class VideoAnalyzer:
             return None
 
         try:
-            video_md5 = Utils.calculate_md5(video_path)
+            # 修复点 3：优先从数据库索引获取 MD5，避免重复计算大文件的 MD5 (耗时 IO)
+            video_md5 = ""
+            thumbnail_path = None
+            file_idx = DBOperations.get_file_index_by_path(video_path)
+            
+            if file_idx and file_idx.file_md5:
+                video_md5 = file_idx.file_md5
+                thumbnail_path = file_idx.thumbnail_path
+            else:
+                _, video_md5 = Utils.calculate_md5(video_path)
+            
+            if not video_md5:
+                LogUtils.error(f"无法获取视频 MD5: {video_path}")
+                return None
 
             # 1. 尝试从缓存获取 (VideoInfoCache)
             cached_infos = DBOperations.get_video_info_cache_by_md5(video_md5)
@@ -142,6 +159,7 @@ class VideoAnalyzer:
                 LogUtils.info(f"从缓存中获取到视频信息: {video_path}")
                 info.path = video_path
                 info.video_name = os.path.basename(video_path)
+                info.thumbnail_path = thumbnail_path
                 return info
 
             # 2. 尝试从特征库获取 (VideoFeatures) - 避免不必要的视频打开操作
@@ -154,7 +172,8 @@ class VideoAnalyzer:
                     video_name=os.path.basename(video_path),
                     md5=video_md5,
                     duration=video_feature.duration,
-                    video_hashes=video_feature.video_hashes
+                    video_hashes=video_feature.video_hashes,
+                    thumbnail_path=thumbnail_path
                 )
                 DBOperations.add_video_info_cache(video_info)
                 return video_info
@@ -191,7 +210,8 @@ class VideoAnalyzer:
                     video_name=os.path.basename(video_path),
                     md5=video_md5,
                     duration=duration,
-                    video_hashes=video_hashes_str
+                    video_hashes=video_hashes_str,
+                    thumbnail_path=thumbnail_path
                 )
 
                 # 4. 持久化

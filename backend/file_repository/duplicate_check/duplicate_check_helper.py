@@ -3,8 +3,9 @@ import os
 from backend.file_repository.duplicate_check.checker.md5_checker import MD5Checker
 from backend.file_repository.duplicate_check.checker.image_checker import ImageChecker
 from backend.db.model.file_index import FileIndex
-from backend.file_repository.duplicate_check.checker.video_checker import VideoChecker
 from backend.file_repository.duplicate_check.checker.models.duplicate_models import DuplicateGroup
+from backend.file_repository.duplicate_check.checker.video.video_checker import VideoChecker
+from backend.setting.setting import settings
 
 
 class DuplicateCheckHelper:
@@ -14,13 +15,29 @@ class DuplicateCheckHelper:
 
     def __init__(self) -> None:
         """
-        用途：初始化查重助手，实例化所有注册的检查器。
+        用途：初始化查重助手，实例化所有注册的检查器。从配置中加载参数。
         入参说明：无
         返回值说明：无
         """
+        # 从 settings 中读取查重配置
+        dup_config = settings.duplicate_check
+        
+        # 初始化视频检查器
+        video_checker = VideoChecker(
+            frame_similar_distance=dup_config.get("video_frame_similar_distance", 5),
+            frame_similarity_rate=dup_config.get("video_frame_similarity_rate", 0.7),
+            interval_seconds=dup_config.get("video_interval_seconds", 30),
+            max_duration_diff_ratio=dup_config.get("video_max_duration_diff_ratio", 0.6)
+        )
+        
+        # 初始化图片检查器
+        image_checker = ImageChecker(
+            threshold=dup_config.get("image_threshold", 8)
+        )
+        
         # 维护一个检查器列表，注意顺序：专用检查器在前，兜底检查器在后
         # ImageChecker 建议放在 MD5Checker 之前，以便对图片进行相似度（汉明距离）分析
-        self.checkers = [VideoChecker(), ImageChecker(), MD5Checker()]
+        self.checkers = [video_checker, image_checker, MD5Checker()]
 
     def add_file(self, file_info: FileIndex) -> None:
         """

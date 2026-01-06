@@ -39,7 +39,8 @@ class MD5Checker(BaseDuplicateChecker):
                     DuplicateFile(
                         file_name=f.file_name,
                         file_path=f.file_path,
-                        file_md5=f.file_md5
+                        file_md5=f.file_md5,
+                        thumbnail_path=f.thumbnail_path
                     ) for f in files
                 ]
                 group = DuplicateGroup(

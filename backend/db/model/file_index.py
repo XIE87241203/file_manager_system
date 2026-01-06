@@ -10,4 +10,5 @@ class FileIndex:
     file_path: str = ""
     file_name: str = ""
     file_md5: str = ""
+    thumbnail_path: Optional[str] = None
     scan_time: Optional[str] = None
