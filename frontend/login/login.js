@@ -3,21 +3,12 @@
  */
 const Login = {
     /**
-     * 用途：初始化登录页面，绑定事件并恢复上次保存的 API 地址
+     * 用途：初始化登录页面，绑定事件
      */
     init() {
         // 清空认证信息
         Request.eraseCookie('token');
         sessionStorage.removeItem('username');
-
-        // 尝试从 localStorage 恢复上次保存的 API 地址
-        const savedApiUrl = localStorage.getItem('lastApiUrl');
-        if (savedApiUrl) {
-            const apiUrlInput = document.getElementById('apiUrl');
-            if (apiUrlInput) {
-                apiUrlInput.value = savedApiUrl;
-            }
-        }
 
         // 绑定回车键事件
         this.bindEvents();
@@ -27,7 +18,7 @@ const Login = {
      * 用途：为输入框绑定回车提交事件
      */
     bindEvents() {
-        ['apiUrl', 'username', 'password'].forEach(id => {
+        ['username', 'password'].forEach(id => {
             const element = document.getElementById(id);
             if (element) {
                 element.addEventListener('keypress', (event) => {
@@ -49,24 +40,18 @@ const Login = {
      * 用途：获取表单数据并执行登录逻辑
      */
     async handleLogin() {
-        const apiUrl = document.getElementById('apiUrl').value.trim();
         const username = document.getElementById('username').value.trim();
         const password = document.getElementById('password').value;
 
         // 表单校验
-        if (!apiUrl) {
-            Toast.show("请输入后端 API 地址");
-            return;
-        }
         if (!username || !password) {
             Toast.show("请输入用户名和密码");
             return;
         }
 
-        // 存储 API 地址供 Request 工具使用 (sessionStorage 用于当前会话)
+        // 自动使用当前页面 origin 作为 API 基础地址
+        const apiUrl = window.location.origin;
         sessionStorage.setItem('baseUrl', apiUrl);
-        // 持久化存储 API 地址 (localStorage 用于记住上次输入)
-        localStorage.setItem('lastApiUrl', apiUrl);
 
         // 前端 SHA-256 加密
         const passwordHash = CryptoJS.SHA256(password).toString();
@@ -91,7 +76,7 @@ const Login = {
             }
         } catch (error) {
             console.error('登录请求异常:', error);
-            Toast.show(error.message || "无法连接到后端服务器，请检查地址是否正确");
+            Toast.show(error.message || "无法连接到后端服务器，请检查服务是否启动");
         }
     }
 };

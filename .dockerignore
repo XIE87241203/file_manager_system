@@ -10,4 +10,5 @@ backend/log/*.log
 venv
 .venv
 node_modules
-frontend/
+# 为了支持 run.py 在 Docker 中启动前端，必须移除 frontend/ 的排除
+# frontend/

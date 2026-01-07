@@ -6,20 +6,16 @@
     <title>登录 - 文件管理系统</title>
     <!-- 引入第三方加密库 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
-    <!-- 引入全局公共样式 -->
-    <link rel="stylesheet" href="../common/common.css">
-    <!-- 引入登录页专用样式 -->
-    <link rel="stylesheet" href="login.css">
+    <!-- 使用绝对路径引入资源 -->
+    <link rel="stylesheet" href="/common/common.css">
+    <link rel="stylesheet" href="/login/login.css">
 </head>
 <body>
     <main class="main-content">
         <div class="card-container">
             <h2 class="title">系统登录</h2>
             
-            <div class="form-group">
-                <label class="label-text" for="apiUrl">后端 API 地址</label>
-                <input type="text" id="apiUrl" class="input-field" placeholder="例如: http://127.0.0.1:5000" value="http://127.0.0.1:5000">
-            </div>
+            <!-- 已移除 API 地址输入框，系统将自动使用当前服务器地址 -->
 
             <div class="form-group">
                 <label class="label-text" for="username">用户名</label>
@@ -33,16 +29,15 @@
 
             <button id="loginBtn" class="btn-primary">登录</button>
             
-            <!-- 用于显示错误信息的区域 -->
             <div id="message" class="message"></div>
         </div>
     </main>
 
-    <!-- 基础依赖库 -->
-    <script src="../common/request.js"></script>
-    <script src="../common/toast.js"></script>
-    <script src="../common/ui_components.js"></script>
+    <!-- 使用绝对路径引入基础依赖库 -->
+    <script src="/common/request.js"></script>
+    <script src="/common/toast.js"></script>
+    <script src="/common/ui_components.js"></script>
     <!-- 页面逻辑 -->
-    <script src="login.js"></script>
+    <script src="/login/login.js"></script>
 </body>
 </html>
