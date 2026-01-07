@@ -2,8 +2,8 @@ import os
 from typing import List, Dict, Any, Optional
 from concurrent.futures import as_completed
 
-from backend.db.model.file_index import FileIndex
-from backend.setting.setting import settings
+from backend.db.file_index_processor import FileIndex
+from backend.setting.setting_service import settingService
 from backend.db.db_operations import DBOperations
 from backend.common.log_utils import LogUtils
 from backend.common.utils import Utils
@@ -69,16 +69,16 @@ class ScanService:
         """
         try:
 
-            repo_config = settings.file_repository
-            directories = repo_config.get("directories", [])
-            suffixes = repo_config.get("scan_suffixes", ["*"])
+            repo_config = settingService.get_config().file_repository
+            directories = repo_config.directories
+            suffixes = repo_config.scan_suffixes
             suffixes = [s.replace('.', '').lower() for s in suffixes]
             scan_all = "*" in suffixes
             
-            ignore_filenames = repo_config.get("ignore_filenames", [])
-            ignore_paths = repo_config.get("ignore_paths", [])
-            ignore_filenames_case_insensitive = repo_config.get("ignore_filenames_case_insensitive", True)
-            ignore_paths_case_insensitive = repo_config.get("ignore_paths_case_insensitive", True)
+            ignore_filenames = repo_config.ignore_filenames
+            ignore_paths = repo_config.ignore_paths
+            ignore_filenames_case_insensitive = repo_config.ignore_filenames_case_insensitive
+            ignore_paths_case_insensitive = repo_config.ignore_paths_case_insensitive
 
             # --- 第一阶段：文件发现 (File Discovery) ---
             LogUtils.info("第一阶段：开始发现文件并统计总数...")
@@ -160,7 +160,7 @@ class ScanService:
                 ScanService._handle_stopped()
             else:
                 LogUtils.info("所有文件处理完成，正在同步至历史表...")
-                if DBOperations.copy_to_history():
+                if DBOperations.copy_file_index_to_history():
                     ScanService._progress_manager.set_status(ProgressStatus.COMPLETED)
                     ScanService._progress_manager.update_progress(message=f"扫描任务正常完成，共索引 {processed_count} 个文件")
                     LogUtils.info(f"扫描任务正常完成，共索引 {processed_count} 个文件")

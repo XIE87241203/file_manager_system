@@ -111,9 +111,15 @@ def list_files():
     order = request.args.get('order', default='DESC').upper()
     search_query = request.args.get('search', default='').strip()
     search_history = request.args.get('search_history', default='false').lower() == 'true'
-
-    data = FileService.get_file_list(page, limit, sort_by, order, search_query, search_history)
-    return success_response("获取文件列表成功", data=data)
+    # todo
+    if search_history:
+        data = FileService.search_history_file_index_list(page, limit, sort_by, order == 'ASC',
+                                                          search_query)
+        return success_response("获取文件列表成功", data=data)
+    else:
+        data = FileService.search_file_index_list(page, limit, sort_by, order == 'ASC',
+                                                  search_query)
+        return success_response("获取文件列表成功", data=data)
 
 
 @file_repo_bp.route('/delete', methods=['POST'])

@@ -1,6 +1,6 @@
 import uuid
 import time
-from backend.setting.setting import settings
+from backend.setting.setting_service import settingService
 
 class AuthManager:
     """
@@ -29,9 +29,9 @@ class AuthManager:
         if not username or not password_hash_received:
             return False, "用户名或密码不能为空", None
 
-        stored_username = settings.user_data.get('username')
+        stored_username = settingService.get_config().user_data.username
         # 使用 Setting 类中缓存好的哈希值进行对比
-        if username == stored_username and password_hash_received == settings.password_hash:
+        if username == stored_username and password_hash_received == settingService.password_hash:
             # 登录成功，生成新 Token
             new_token = str(uuid.uuid4())
             expire_at = time.time() + self._expire_seconds

@@ -7,7 +7,7 @@ from typing import List, Optional, Union
 
 import imagehash
 from backend.common.log_utils import LogUtils
-from backend.db.model.video_info_cache import VideoInfoCache
+from backend.db.video_info_cache_processor import VideoInfoCache
 
 
 class VideoComparisonUtil:

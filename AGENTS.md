@@ -1,6 +1,6 @@
 # 项目代码规范 (Project Coding Standards)
 
-本规范旨在为 `file_manager_system` 项目提供统一的代码编写和协作标准，以确保代码的可读性、可维护性和安全性。
+本规范旨在为 `file_manager_system` 项目提供统一的代码编写 and 协作标准，以确保代码的可读性、可维护性和安全性。
 
 ## 0. 全局规则 (Global Rules)
 - **代码注释**: 所有方法（后端 Python 函数、前端 JavaScript 函数等）都必须添加中文注解。
@@ -23,7 +23,7 @@
 - **逻辑分层与封装**: 
     - `main.py` 仅作为程序入口 and 路由分发器，**严禁在其中实现 any 业务逻辑**。
     - **业务逻辑封装**: **复杂业务逻辑必须封装到专用的业务类中处理**（如 `AuthManager`, `FileManager`），严禁在路由函数中堆砌大量业务逻辑。
-    - **低耦合高内聚**: 通过类和方法封装业务流程，减少代码间的耦合度和逻辑分散，提高可测试性和复用性。
+    - **低耦合高内聚**: 通过类 and 方法封装业务流程，减少代码间的耦合度和逻辑分散，提高可测试性和复用性。
 - **代码风格**: 遵循 [PEP 8](https://peps.python.org/pep-0008/) 编程规范。
 - **注释要求**: 遵循全局规则，使用 Docstring 格式。
 - **日志规范**: **严禁使用 `print()` 打印信息**。必须使用 `backend/common/log_utils.py` 中的 `LogUtils` 类进行日志记录。
@@ -74,12 +74,62 @@
 - **API 地址配置**: 基础 API 地址通过登录页面的输入框动态指定，并存储在 `sessionStorage` 中。
 - **Token 管理**: 登录成功后存储在浏览器 Cookie 中（有效期 6 小时）。所有请求（除登录外）必须携带该 Token。
 
-## 4. 数据库规范 (Database Standards)
-- **数据表定义**:
-    - **`file_index`**: 定义为当前有效的文件索引。记录最近一次完整扫描后仍存在于磁盘上的文件信息。
-    - **`history_file_index`**: 定义为文件索引历史。包含所有曾经被索引过的文件，即使该文件目前已从磁盘删除或在当前索引中被移除。
+## 4. 数据库说明 (Database Documentation)
+**注意：每当数据库表结构或操作原则发生变更时，必须同步修改本小节内容以保持文档与代码的一致性。**
+
+### 4.1 数据表定义与操作原则
+- **`file_index`**: 定义为当前有效的文件索引。记录最近一次完整扫描后仍存在于磁盘上的文件信息。
+- **`history_file_index`**: 定义为文件索引历史。包含所有曾经被索引过的文件，即使该文件目前已从磁盘删除或在当前索引中被移除。
+- **`video_features`**: 记录视频文件的特征指纹及相关属性，用于辅助视频去重逻辑。
+- **`duplicate_groups`**: 存储重复文件检测后的分组标识。
+- **`duplicate_files`**: 记录每个重复分组中包含的具体文件成员。
 - **操作原则**:
-    - 执行物理删除文件操作时，应同步清理 `file_index`，不能操作`history_file_index`
+    - 执行物理删除文件操作时，应同步清理 `file_index`，根据文件id清理`duplicate_files`，不能操作 `history_file_index`。
+    - `video_features`和`history_file_index`与`file_index`无关联
+
+### 4.2 具体表结构
+
+#### 4.2.1 `file_index` (文件索引表)
+- **用途**: 记录文件仓库下当前所有有效文件的基本信息及元数据。
+- **字段说明**:
+    - `id`: INTEGER, 主键, 自增。
+    - `file_path`: TEXT, 文件绝对路径, 唯一约束 (UNIQUE)。
+    - `file_md5`: TEXT, 文件 MD5 校验值, 唯一约束 (UNIQUE)。
+    - `file_size`: INTEGER, 文件大小 (字节), 默认为 0。
+    - `scan_time`: DATETIME, 扫描/更新时间, 默认为当前时间。
+    - `thumbnail_path`: TEXT, 缩略图存储路径。
+    - `is_in_recycle_bin`: INTEGER, 是否处于系统回收站 (0: 否, 1: 是), 默认为 0。
+
+#### 4.2.2 `history_file_index` (历史文件索引表)
+- **用途**: 记录所有曾经被索引的文件信息。
+- **字段说明**:
+    - `id`: INTEGER, 主键, 自增。
+    - `file_path`: TEXT, 文件路径, 唯一约束。
+    - `file_md5`: TEXT, 文件 MD5 值, 唯一约束。
+    - `file_size`: INTEGER, 文件大小, 默认为 0。
+    - `scan_time`: DATETIME, 原始扫描时间。
+    - `delete_time`: DATETIME, 记录移入历史表的时间, 默认为当前时间。
+
+#### 4.2.3 `video_features` (视频特征表)
+- **用途**: 记录视频文件的特征指纹及相关属性，用于辅助视频去重逻辑。
+- **字段说明**:
+    - `id`: INTEGER, 主键, 自增。
+    - `file_md5`: TEXT, 文件 MD5 值, 唯一约束。
+    - `video_hashes`: TEXT, 视频指纹特征字符串, 唯一约束。
+    - `duration`: REAL, 视频时长 (秒)。
+
+#### 4.2.4 `duplicate_groups` (重复文件分组表)
+- **用途**: 存储重复文件检测后的分组标识。
+- **字段说明**:
+    - `id`: INTEGER, 主键, 自增。
+    - `group_id`: TEXT, 分组唯一标识符 (UUID 或 Hash), 唯一约束。
+
+#### 4.2.5 `duplicate_files` (重复文件详情表)
+- **用途**: 记录每个重复分组中包含的具体文件成员。
+- **字段说明**:
+    - `id`: INTEGER, 主键, 自增。
+    - `group_id`: TEXT, 关联 `duplicate_groups` 表的 `group_id`。
+    - `file_id`: INTEGER, 关联 `file_index` 表的 `id`, 唯一约束。
 
 ## 5. 安全与配置
 - **安全性**: 

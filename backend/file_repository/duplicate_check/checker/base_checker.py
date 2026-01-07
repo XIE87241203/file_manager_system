@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import List
-from backend.db.model.file_index import FileIndex
+from backend.db.file_index_processor import FileIndex
 from backend.file_repository.duplicate_check.checker.models.duplicate_models import DuplicateGroup
 
 class BaseDuplicateChecker(ABC):

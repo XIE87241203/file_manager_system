@@ -13,8 +13,8 @@ from PIL import Image
 from backend.common.log_utils import LogUtils
 from backend.common.utils import Utils
 from backend.db.db_operations import DBOperations
-from backend.db.model.video_features import VideoFeatures
-from backend.db.model.video_info_cache import VideoInfoCache
+from backend.db.video_feature_processor import VideoFeature
+from backend.db.video_info_cache_processor import VideoInfoCache
 
 
 class VideoAnalyzer:
@@ -162,7 +162,7 @@ class VideoAnalyzer:
                 info.thumbnail_path = thumbnail_path
                 return info
 
-            # 2. 尝试从特征库获取 (VideoFeatures) - 避免不必要的视频打开操作
+            # 2. 尝试从特征库获取 (VideoFeature) - 避免不必要的视频打开操作
             video_feature = DBOperations.get_video_features_by_md5(video_md5)
             
             if video_feature and video_feature.video_hashes:
@@ -200,7 +200,7 @@ class VideoAnalyzer:
 
                 # 更新或创建特征记录
                 if video_feature is None:
-                    video_feature = VideoFeatures(md5=video_md5, video_hashes=video_hashes_str, duration=duration)
+                    video_feature = VideoFeature(md5=video_md5, video_hashes=video_hashes_str, duration=duration)
                 else:
                     video_feature.video_hashes = video_hashes_str
                     video_feature.duration = duration

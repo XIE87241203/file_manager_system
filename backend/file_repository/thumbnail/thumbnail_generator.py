@@ -10,7 +10,7 @@ from backend.common.utils import Utils
 from backend.common.log_utils import LogUtils
 from backend.common.thread_pool import ThreadPoolManager
 from backend.db.db_operations import DBOperations
-from backend.setting.setting import settings
+from backend.setting.setting_service import settingService
 
 class ThumbnailGenerator:
     """
@@ -105,7 +105,7 @@ class ThumbnailGenerator:
         # 2. 锁外执行耗时任务（磁盘IO与图像处理，预防死锁）
         if file_path:
             try:
-                thumb_size = settings.file_repository.get("thumbnail_size", 256)
+                thumb_size = settingService.get_config().file_repository.thumbnail_size
                 actual_path, thumb_path = self._generate_single_thumbnail(file_path, thumb_size)
                 if thumb_path:
                     DBOperations.update_thumbnail_path(actual_path, thumb_path)

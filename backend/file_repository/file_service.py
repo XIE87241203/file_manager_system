@@ -1,16 +1,23 @@
 import os
 from typing import List, Tuple, Dict, Any, Optional
 
+from backend.common.utils import Utils
 from backend.db.db_operations import DBOperations
 from backend.db.db_manager import DBManager
 from backend.common.log_utils import LogUtils
+from backend.db.model.file_pagination_result_model import FilePaginationResult
 from backend.file_repository.thumbnail.thumbnail_service import ThumbnailService
-from backend.setting.setting import settings
+from backend.setting.setting_service import settingService
 
 class FileService:
     """
     用途：文件仓库业务服务类，封装文件列表查询、删除、清理等核心操作。
     """
+
+    @staticmethod
+    def search_file_index_list(page: int, limit: int, sort_by: str, order: bool, search_query: str) -> FilePaginationResult:
+        return DBOperations.search_file_index_list(page, limit, sort_by, order, search_query)
+
 
     @staticmethod
     def get_file_list(
@@ -41,7 +48,7 @@ class FileService:
         
         if search_query:
             # 获取配置中的替换字符并处理搜索逻辑
-            replace_chars = settings.file_repository.get('search_replace_chars', [])
+            replace_chars = settingService.get_config().file_repository.search_replace_chars
             processed_query = search_query
             for char in replace_chars:
                 if char:
@@ -85,39 +92,7 @@ class FileService:
 
     @staticmethod
     def delete_file(file_path: str) -> Tuple[bool, str]:
-        """
-        用途：物理删除文件，并同步清理关联的缩略图及数据库索引记录。
-        入参说明：
-            file_path (str): 文件的绝对路径
-        返回值说明：
-            Tuple[bool, str]: (是否成功, 结果描述)
-        """
-        try:
-            # 1. 查询并物理删除关联的缩略图
-            file_info = DBOperations.get_file_by_path(file_path)
-            if file_info and file_info.thumbnail_path:
-                if os.path.exists(file_info.thumbnail_path):
-                    try:
-                        os.remove(file_info.thumbnail_path)
-                        LogUtils.info(f"缩略图已同步删除: {file_info.thumbnail_path}")
-                    except Exception as e:
-                        LogUtils.error(f"物理删除缩略图文件失败: {e}")
-
-            # 2. 删除原物理文件
-            if os.path.exists(file_path):
-                os.remove(file_path)
-                LogUtils.info(f"物理文件已删除: {file_path}")
-            else:
-                LogUtils.warn(f"物理文件不存在，仅清理数据库索引: {file_path}")
-
-            # 3. 清理数据库记录（索引表和查重结果表）
-            DBOperations.delete_file_index_by_path(file_path)
-            DBOperations.delete_duplicate_file_by_path(file_path)
-
-            return True, "文件及相关缓存、索引已成功删除"
-        except Exception as e:
-            LogUtils.error(f"删除文件操作异常: {file_path}, 错误: {e}")
-            return False, str(e)
+        return Utils.delete_file(file_path)
 
     @staticmethod
     def clear_repository(clear_history: bool) -> bool:
@@ -133,7 +108,7 @@ class FileService:
             ThumbnailService.clear_all_thumbnails()
 
             # 2. 清空当前文件索引表
-            if not DBOperations.clear_file_index():
+            if not DBOperations.clear_all_file_index():
                 return False
             
             # 3. 若需要，清空历史索引表

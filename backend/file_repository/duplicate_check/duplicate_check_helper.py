@@ -2,10 +2,10 @@ from typing import List
 import os
 from backend.file_repository.duplicate_check.checker.md5_checker import MD5Checker
 from backend.file_repository.duplicate_check.checker.image_checker import ImageChecker
-from backend.db.model.file_index import FileIndex
+from backend.db.file_index_processor import FileIndex
 from backend.file_repository.duplicate_check.checker.models.duplicate_models import DuplicateGroup
 from backend.file_repository.duplicate_check.checker.video.video_checker import VideoChecker
-from backend.setting.setting import settings
+from backend.setting.setting_service import settingService
 
 
 class DuplicateCheckHelper:
@@ -20,7 +20,7 @@ class DuplicateCheckHelper:
         返回值说明：无
         """
         # 从 settings 中读取查重配置
-        dup_config = settings.duplicate_check
+        dup_config = settingService.get_config().duplicate_check
         
         # 初始化视频检查器
         video_checker = VideoChecker(

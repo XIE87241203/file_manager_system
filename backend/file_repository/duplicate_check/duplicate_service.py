@@ -2,6 +2,7 @@ import os
 from dataclasses import asdict
 from typing import Dict, Any, List, Tuple, Optional
 
+from backend.common.utils import Utils
 from backend.db.db_operations import DBOperations
 from backend.db.db_manager import DBManager
 from backend.common.log_utils import LogUtils
@@ -181,41 +182,6 @@ class DuplicateService:
         LogUtils.info("查重任务已手动终止并重置状态")
 
     @staticmethod
-    def delete_file(file_path: str) -> Tuple[bool, str]:
-        """
-        用途：删除物理文件并从数据库索引及重复结果中移除，同时删除对应的缩略图文件。
-        入参说明：
-            file_path (str) - 文件的绝对路径。
-        返回值说明：Tuple[bool, str] - (是否成功, 详细说明)。
-        """
-        try:
-            # 1. 获取并删除缩略图文件
-            file_info = DBOperations.get_file_by_path(file_path)
-            if file_info and file_info.thumbnail_path:
-                if os.path.exists(file_info.thumbnail_path):
-                    try:
-                        os.remove(file_info.thumbnail_path)
-                        LogUtils.info(f"缩略图文件已删除: {file_info.thumbnail_path}")
-                    except Exception as e:
-                        LogUtils.error(f"删除缩略图文件失败: {file_info.thumbnail_path}, 错误: {e}")
-
-            # 2. 删除原物理文件
-            if os.path.exists(file_path):
-                os.remove(file_path)
-                LogUtils.info(f"物理文件已成功删除: {file_path}")
-            else:
-                LogUtils.error(f"物理文件路径不存在，将仅清理数据库索引: {file_path}")
-
-            # 3. 清理数据库记录
-            DBOperations.delete_file_index_by_path(file_path)
-            DBOperations.delete_duplicate_file_by_path(file_path)
-
-            return True, "文件及其索引、缩略图已成功删除"
-        except Exception as e:
-            LogUtils.error(f"删除文件操作失败: {file_path}, 错误: {e}")
-            return False, f"删除失败: {str(e)}"
-
-    @staticmethod
     def delete_group(md5: str) -> Tuple[int, List[str]]:
         """
         用途：删除指定 MD5 对应的所有物理文件及其索引。
@@ -229,7 +195,7 @@ class DuplicateService:
         failed_files = []
 
         for path in results:
-            success, _ = DuplicateService.delete_file(path)
+            success, _ = Utils.delete_file(path)
             if success:
                 success_count += 1
             else:

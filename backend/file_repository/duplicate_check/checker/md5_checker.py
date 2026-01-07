@@ -1,6 +1,6 @@
 from typing import List, Dict
 from backend.file_repository.duplicate_check.checker.base_checker import BaseDuplicateChecker
-from backend.db.model.file_index import FileIndex
+from backend.db.file_index_processor import FileIndex
 from backend.file_repository.duplicate_check.checker.models.duplicate_models import DuplicateGroup, DuplicateFile
 
 class MD5Checker(BaseDuplicateChecker):

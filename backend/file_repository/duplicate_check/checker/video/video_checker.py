@@ -1,7 +1,7 @@
 import os
 from typing import List, Set
 from backend.file_repository.duplicate_check.checker.base_checker import BaseDuplicateChecker
-from backend.db.model.file_index import FileIndex
+from backend.db.file_index_processor import FileIndex
 from backend.db.db_operations import DBOperations
 from backend.file_repository.duplicate_check.checker.video.utils.video_similarity_Tree import VideoSimilarityTree
 from backend.file_repository.duplicate_check.checker.video.utils.video_analyzer import VideoAnalyzer

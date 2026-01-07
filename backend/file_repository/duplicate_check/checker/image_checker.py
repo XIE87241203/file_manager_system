@@ -3,7 +3,7 @@ from PIL import Image
 import imagehash
 from typing import List, Dict, Set
 from backend.file_repository.duplicate_check.checker.base_checker import BaseDuplicateChecker
-from backend.db.model.file_index import FileIndex
+from backend.db.file_index_processor import FileIndex
 from backend.common.log_utils import LogUtils
 from backend.file_repository.duplicate_check.checker.models.duplicate_models import DuplicateGroup, DuplicateFile
 

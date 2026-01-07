@@ -4,6 +4,8 @@ import fnmatch
 import re
 from typing import Tuple, List
 from backend.common.log_utils import LogUtils
+from backend.db.db_operations import DBOperations
+
 
 class Utils:
     """
@@ -85,4 +87,40 @@ class Utils:
                 if fnmatch.fnmatchcase(file_path, search_pattern):
                     return True
                 
+        return False
+
+    @staticmethod
+    def delete_file(file_path: str) -> Tuple[bool, str]:
+        """
+        用途：删除物理文件并从数据库索引及重复结果中移除，同时删除对应的缩略图文件。
+        入参说明：
+            file_path (str) - 文件的绝对路径。
+        返回值说明：Tuple[bool, str] - (是否成功, 详细说明)。
+        """
+        try:
+            # 1. 获取并删除缩略图文件
+            file_info = DBOperations.get_file_by_path(file_path)
+            if file_info and file_info.thumbnail_path:
+                Utils.delete_os_file(file_info.thumbnail_path)
+
+            # 2. 删除原物理文件
+            Utils.delete_os_file(file_path)
+
+            # 3. 清理数据库记录
+            DBOperations.delete_file_index_by_file_id(file_info.id)
+
+            return True, "文件及其索引、缩略图已成功删除"
+        except Exception as e:
+            LogUtils.error(f"删除文件操作失败: {file_path}, 错误: {e}")
+            return False, f"删除失败: {str(e)}"
+
+    @staticmethod
+    def delete_os_file(file_path: str) -> bool:
+        if os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+                LogUtils.info(f"文件已删除: {file_path}")
+                return True
+            except Exception as e:
+                LogUtils.error(f"删除文件失败: {file_path}, 错误: {e}")
         return False

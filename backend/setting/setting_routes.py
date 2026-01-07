@@ -1,5 +1,6 @@
 from flask import Blueprint, request
-from backend.setting.setting import settings
+from dataclasses import asdict
+from backend.setting.setting_service import settingService
 from backend.common.response import success_response, error_response
 from backend.common.log_utils import LogUtils
 from backend.common.auth_middleware import token_required
@@ -13,14 +14,14 @@ def get_setting():
     """
     用途：获取当前的配置信息
     入参说明：无
-    返回值说明：包含用户配置数据、文件仓库配置和查重配置的 JSON 响应
+    返回值说明：包含全局配置信息 (AppConfig) 的 JSON 响应
     """
     LogUtils.debug(f"用户 {request.username} 尝试获取配置")
-    data = {
-        "user_data": settings.user_data,
-        "file_repository": settings.file_repository,
-        "duplicate_check": settings.duplicate_check
-    }
+    
+    # 获取完整的配置对象并转换为字典返回
+    config = settingService.get_config()
+    data = asdict(config)
+    
     return success_response("获取配置成功", data=data)
 
 @setting_bp.route('/update', methods=['POST'])
@@ -39,7 +40,7 @@ def update_setting():
     LogUtils.info(f"用户 {request.username} 请求更新配置")
 
     # 调用 SettingService 的封装逻辑处理配置更新及相关业务逻辑
-    if settings.update_settings(data, request.username):
+    if settingService.update_settings(data, request.username):
         LogUtils.info(f"配置已更新并保存。操作人: {request.username}")
         return success_response("配置更新成功")
     else:
