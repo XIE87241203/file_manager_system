@@ -4,9 +4,9 @@ import os
 from backend.common.utils import Utils
 from backend.file_repository.duplicate_check.checker.md5_checker import MD5Checker
 from backend.file_repository.duplicate_check.checker.image_checker import ImageChecker
-from backend.db.file_index_processor import FileIndexDBModel
 from backend.file_repository.duplicate_check.checker.video.video_checker import VideoChecker
 from backend.model.db.duplicate_group_db_model import DuplicateGroupDBModule
+from backend.model.db.file_index_db_model import FileIndexDBModel
 from backend.setting.setting_service import settingService
 
 

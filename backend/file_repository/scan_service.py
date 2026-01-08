@@ -2,7 +2,7 @@ import os
 from typing import List, Dict, Any, Optional
 from concurrent.futures import as_completed
 
-from backend.db.file_index_processor import FileIndexDBModel
+from backend.model.db.file_index_db_model import FileIndexDBModel
 from backend.setting.setting_service import settingService
 from backend.db.db_operations import DBOperations
 from backend.common.log_utils import LogUtils

@@ -3,9 +3,9 @@ from typing import List, Set
 
 from backend.common.utils import Utils
 from backend.model.db.duplicate_group_db_model import DuplicateGroupDBModule
+from backend.model.db.file_index_db_model import FileIndexDBModel
 from backend.model.video_file_info_result import VideoFileInfoResult
 from backend.file_repository.duplicate_check.checker.base_checker import BaseDuplicateChecker
-from backend.db.file_index_processor import FileIndexDBModel
 from backend.file_repository.duplicate_check.checker.video.utils.video_similarity_Tree import \
     VideoSimilarityTree
 from backend.file_repository.duplicate_check.checker.video.utils.video_analyzer import VideoAnalyzer

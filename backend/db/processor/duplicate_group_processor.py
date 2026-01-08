@@ -2,8 +2,8 @@ import sqlite3
 from typing import List
 
 from backend.common.log_utils import LogUtils
-from backend.db.base_db_processor import BaseDBProcessor
 from backend.db.db_manager import db_manager
+from backend.db.processor.base_db_processor import BaseDBProcessor
 from backend.model.db.duplicate_group_db_model import DuplicateGroupDBModule
 
 

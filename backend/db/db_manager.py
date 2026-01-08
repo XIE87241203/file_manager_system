@@ -2,10 +2,10 @@ import sqlite3
 import os
 from backend.common.utils import Utils
 from backend.common.log_utils import LogUtils
-from backend.db.file_index_processor import FileIndexProcessor
-from backend.db.history_file_index_processor import HistoryFileIndexProcessor
-from backend.db.video_feature_processor import VideoFeatureProcessor
-from backend.db.duplicate_group_processor import DuplicateGroupDBModuleProcessor
+from backend.db.processor.duplicate_group_processor import DuplicateGroupDBModuleProcessor
+from backend.db.processor.file_index_processor import FileIndexProcessor
+from backend.db.processor.history_file_index_processor import HistoryFileIndexProcessor
+from backend.db.processor.video_feature_processor import VideoFeatureProcessor
 
 
 class DBManager:

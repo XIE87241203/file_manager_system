@@ -4,9 +4,9 @@ import imagehash
 from typing import List, Set
 from dataclasses import dataclass # 添加dataclass导入
 from backend.file_repository.duplicate_check.checker.base_checker import BaseDuplicateChecker
-from backend.db.file_index_processor import FileIndexDBModel
 from backend.common.log_utils import LogUtils
 from backend.model.db.duplicate_group_db_model import DuplicateGroupDBModule
+from backend.model.db.file_index_db_model import FileIndexDBModel
 
 
 @dataclass

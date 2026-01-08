@@ -1,6 +1,7 @@
 import sqlite3
 from typing import Optional, List
-from backend.db.base_db_processor import BaseDBProcessor
+
+from backend.db.processor.base_db_processor import BaseDBProcessor
 from backend.model.db.file_index_db_model import FileIndexDBModel
 from backend.model.pagination_result import PaginationResult
 

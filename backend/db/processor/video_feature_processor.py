@@ -1,8 +1,9 @@
 import sqlite3
 from dataclasses import dataclass
 from typing import Optional
-from backend.db.base_db_processor import BaseDBProcessor
-from backend.model.video_feature_db_model import VideoFeature
+
+from backend.db.processor.base_db_processor import BaseDBProcessor
+from backend.model.db.video_feature_db_model import VideoFeatureDBModel
 
 
 class VideoFeatureProcessor(BaseDBProcessor):
@@ -37,11 +38,11 @@ class VideoFeatureProcessor(BaseDBProcessor):
         ''')
         conn.commit()
 
-    def add_or_update_feature(self, features: VideoFeature) -> bool:
+    def add_or_update_feature(self, features: VideoFeatureDBModel) -> bool:
         """
         用途：添加或更新视频特征信息
         入参说明：
-            features (VideoFeature): 视频特征对象
+            features (VideoFeatureDBModel): 视频特征对象
         返回值说明：
             bool: 是否成功
         """
@@ -56,18 +57,18 @@ class VideoFeatureProcessor(BaseDBProcessor):
         result = self._execute(query, params)
         return result is not None and result > 0
 
-    def get_feature_by_md5(self, file_md5: str) -> Optional[VideoFeature]:
+    def get_feature_by_md5(self, file_md5: str) -> Optional[VideoFeatureDBModel]:
         """
         用途：根据 MD5 获取视频特征信息
         入参说明：
             file_md5 (str): 文件的 MD5 值
         返回值说明：
-            Optional[VideoFeature]: 视频特征对象，若不存在则返回 None
+            Optional[VideoFeatureDBModel]: 视频特征对象，若不存在则返回 None
         """
         query = f"SELECT * FROM {self.TABLE_NAME} WHERE {self.COL_FILE_MD5} = ?"
         row = self._execute(query, (file_md5,), is_query=True, fetch_one=True)
         if row:
-            return VideoFeature(**row)
+            return VideoFeatureDBModel(**row)
         return None
     @staticmethod
     def clear_video_features() -> bool:
