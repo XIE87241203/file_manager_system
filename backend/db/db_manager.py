@@ -5,7 +5,7 @@ from backend.common.log_utils import LogUtils
 from backend.db.file_index_processor import FileIndexProcessor
 from backend.db.history_file_index_processor import HistoryFileIndexProcessor
 from backend.db.video_feature_processor import VideoFeatureProcessor
-from backend.db.duplicate_group_processor import DuplicateGroupProcessor
+from backend.db.duplicate_group_processor import DuplicateGroupDBModuleProcessor
 
 
 class DBManager:
@@ -31,7 +31,7 @@ class DBManager:
             cls._instance.file_index_processor = FileIndexProcessor()
             cls._instance.history_file_index_processor = HistoryFileIndexProcessor()
             cls._instance.video_feature_processor = VideoFeatureProcessor()
-            cls._instance.duplicate_group_processor = DuplicateGroupProcessor()
+            cls._instance.duplicate_group_processor = DuplicateGroupDBModuleProcessor()
             cls._instance.init_db()
         return cls._instance
 

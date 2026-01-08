@@ -2,7 +2,7 @@ import os
 from typing import List, Dict, Any, Optional
 from concurrent.futures import as_completed
 
-from backend.db.file_index_processor import FileIndex
+from backend.db.file_index_processor import FileIndexDBModel
 from backend.setting.setting_service import settingService
 from backend.db.db_operations import DBOperations
 from backend.common.log_utils import LogUtils
@@ -111,7 +111,7 @@ class ScanService:
             ScanService._progress_manager.update_progress(total=total_count, message="开始提取文件特征...")
 
             # --- 第二阶段：分批并行特征提取与入库 (Parallel Processing) ---
-            all_files_info: List[FileIndex] = []
+            all_files_info: List[FileIndexDBModel] = []
             processed_count = 0
             
             # 修复点 5：分批提交任务到线程池，避免在大仓库下内存中堆积过多的 Future 对象
@@ -131,7 +131,7 @@ class ScanService:
                         f_path, f_md5 = future.result()
                         if f_md5:
                             all_files_info.append(
-                                FileIndex(
+                                FileIndexDBModel(
                                     file_path=f_path, 
                                     file_name=os.path.basename(f_path), 
                                     file_md5=f_md5

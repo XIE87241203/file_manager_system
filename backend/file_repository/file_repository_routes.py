@@ -1,3 +1,5 @@
+from dataclasses import asdict
+
 from flask import Blueprint, request, send_file
 import os
 from backend.common.response import success_response, error_response
@@ -14,6 +16,15 @@ from backend.file_repository.thumbnail.thumbnail_service import ThumbnailService
 file_repo_bp = Blueprint('file_repository', __name__)
 
 
+def _get_current_user() -> str:
+    """
+    用途说明：从当前请求上下文中获取登录用户名
+    入参说明：无
+    返回值说明：返回当前用户的用户名字符串
+    """
+    return getattr(request, 'username', 'Unknown')
+
+
 @file_repo_bp.route('/scan', methods=['POST'])
 @token_required
 def start_scan():
@@ -22,7 +33,7 @@ def start_scan():
     入参说明：无
     返回值说明：JSON 格式响应
     """
-    LogUtils.info(f"用户 {request.username} 触发了文件仓库扫描")
+    LogUtils.info(f"用户 {_get_current_user()} 触发了文件仓库扫描")
 
     # 修复点 1：先检查扫描状态，避免正在运行中被 clear 破坏数据
     status_info = ScanService.get_status()
@@ -47,7 +58,7 @@ def stop_scan():
     入参说明：无
     返回值说明：JSON 格式响应
     """
-    LogUtils.info(f"用户 {request.username} 请求停止扫描任务")
+    LogUtils.info(f"用户 {_get_current_user()} 请求停止扫描任务")
     ScanService.stop_scan()
     return success_response("已发送停止指令")
 
@@ -63,7 +74,7 @@ def clear_repository():
     data = request.json or {}
     clear_history = data.get('clear_history', False)
 
-    LogUtils.info(f"用户 {request.username} 请求清空文件数据库 (clear_history={clear_history})")
+    LogUtils.info(f"用户 {_get_current_user()} 请求清空文件数据库 (clear_history={clear_history})")
     if FileService.clear_repository(clear_history):
         return success_response("文件索引及相关缓存已成功清空")
     else:
@@ -78,7 +89,7 @@ def clear_video_features():
     入参说明：无
     返回值说明：JSON 格式响应，包含操作结果
     """
-    LogUtils.info(f"用户 {request.username} 请求清空视频特征库")
+    LogUtils.info(f"用户 {_get_current_user()} 请求清空视频特征库")
     if FileService.clear_video_features():
         return success_response("视频特征库已成功清空")
     else:
@@ -102,24 +113,48 @@ def get_scan_progress():
 def list_files():
     """
     用途说明：分页获取文件列表，支持搜索和历史查询。
-    入参说明：page, limit, sort_by, order, search, search_history
-    返回值说明：包含数据列表的 JSON 响应
+    入参说明：
+        page (int): 当前页码，默认 1。
+        limit (int): 每页记录数，默认 100。
+        sort_by (str): 排序字段，默认 'scan_time'。
+        order_asc (bool): 是否正序排序，默认 false (即倒序)。
+        search (str): 搜索关键词。
+        search_history (bool): 是否查询历史记录，默认 false。
+    返回值说明：
+        JSON 格式响应，data 字段包含分页结果 (PaginationResult):
+        {
+            "total": int,           # 总记录数
+            "page": int,            # 当前页码
+            "limit": int,           # 每页限制数
+            "sort_by": str,         # 排序字段
+            "order": str,           # 排序方向 (ASC/DESC)
+            "list": [               # 数据对象列表
+                {
+                    # 当 search_history 为 false 时，为 FileIndex 结构:
+                    "id": int, "file_path": str, "file_md5": str, "file_size": int,
+                    "is_in_recycle_bin": int, "thumbnail_path": str, "scan_time": str
+                    
+                    # 当 search_history 为 true 时，为 HistoryFileIndex 结构:
+                    "id": int, "file_path": str, "file_md5": str, "file_size": int,
+                    "scan_time": str, "delete_time": str
+                }, ...
+            ]
+        }
     """
     page = request.args.get('page', default=1, type=int)
     limit = request.args.get('limit', default=100, type=int)
     sort_by = request.args.get('sort_by', default='scan_time')
-    order = request.args.get('order', default='DESC').upper()
+    order_asc = request.args.get('order_asc', default='false').lower() == 'true'
     search_query = request.args.get('search', default='').strip()
     search_history = request.args.get('search_history', default='false').lower() == 'true'
-    # todo
     if search_history:
-        data = FileService.search_history_file_index_list(page, limit, sort_by, order == 'ASC',
+        data = FileService.search_history_file_index_list(page, limit, sort_by, order_asc,
                                                           search_query)
-        return success_response("获取文件列表成功", data=data)
+        return success_response("获取文件列表成功", data=asdict(data))
     else:
-        data = FileService.search_file_index_list(page, limit, sort_by, order == 'ASC',
+        data = FileService.search_file_index_list(page, limit, sort_by, order_asc,
                                                   search_query)
-        return success_response("获取文件列表成功", data=data)
+        return success_response("获取文件列表成功", data=asdict(data))
 
 
 @file_repo_bp.route('/delete', methods=['POST'])
@@ -136,7 +171,7 @@ def delete_files():
     if not file_paths:
         return error_response("未选择要删除的文件", 400)
 
-    LogUtils.info(f"用户 {request.username} 请求批量删除文件，数量: {len(file_paths)}")
+    LogUtils.info(f"用户 {_get_current_user()} 请求批量删除文件，数量: {len(file_paths)}")
 
     success_count = 0
     failed_paths = []
@@ -163,7 +198,7 @@ def start_duplicate_check():
     入参说明：无
     返回值说明：JSON 格式响应
     """
-    LogUtils.info(f"用户 {request.username} 触发了文件查重")
+    LogUtils.info(f"用户 {_get_current_user()} 触发了文件查重")
     if DuplicateService.start_async_check():
         return success_response("查重任务已启动")
     else:
@@ -178,7 +213,7 @@ def stop_duplicate_check():
     入参说明：无
     返回值说明：JSON 格式响应
     """
-    LogUtils.info(f"用户 {request.username} 请求停止查重任务")
+    LogUtils.info(f"用户 {_get_current_user()} 请求停止查重任务")
     DuplicateService.stop_check()
     return success_response("已发送停止指令")
 
@@ -208,7 +243,7 @@ def delete_duplicate_file():
     group_md5 = data.get('group_md5')
 
     if file_path:
-        LogUtils.info(f"用户 {request.username} 请求删除文件: {file_path}")
+        LogUtils.info(f"用户 {_get_current_user()} 请求删除文件: {file_path}")
         success, msg = FileService.delete_file(file_path)
         if success:
             return success_response("文件删除成功")
@@ -216,7 +251,7 @@ def delete_duplicate_file():
             return error_response(f"文件删除失败: {msg}", 500)
 
     if group_md5:
-        LogUtils.info(f"用户 {request.username} 请求删除重复组: {group_md5}")
+        LogUtils.info(f"用户 {_get_current_user()} 请求删除重复组: {group_md5}")
         count, failed = DuplicateService.delete_group(group_md5)
         if not failed:
             return success_response(f"成功删除组内 {count} 个文件")
@@ -240,7 +275,7 @@ def start_thumbnail_generation():
     data = request.json or {}
     rebuild_all = data.get('rebuild_all', False)
 
-    LogUtils.info(f"用户 {request.username} 触发了缩略图生成 (rebuild_all={rebuild_all})")
+    LogUtils.info(f"用户 {_get_current_user()} 触发了缩略图生成 (rebuild_all={rebuild_all})")
     if ThumbnailService.start_async_generation(rebuild_all):
         return success_response("缩略图生成任务已启动")
     else:
@@ -255,7 +290,7 @@ def stop_thumbnail_generation():
     入参说明：无
     返回值说明：JSON 格式响应
     """
-    LogUtils.info(f"用户 {request.username} 请求停止缩略图生成任务")
+    LogUtils.info(f"用户 {_get_current_user()} 请求停止缩略图生成任务")
     ThumbnailService.stop_generation()
     return success_response("已发送停止指令")
 
@@ -280,7 +315,7 @@ def clear_thumbnails():
     入参说明：无
     返回值说明：JSON 格式响应
     """
-    LogUtils.info(f"用户 {request.username} 请求清空所有缩略图")
+    LogUtils.info(f"用户 {_get_current_user()} 请求清空所有缩略图")
     if ThumbnailService.clear_all_thumbnails():
         return success_response("缩略图已成功清空")
     else:

@@ -1,10 +1,12 @@
 from typing import List
 import os
+
+from backend.common.utils import Utils
 from backend.file_repository.duplicate_check.checker.md5_checker import MD5Checker
 from backend.file_repository.duplicate_check.checker.image_checker import ImageChecker
-from backend.db.file_index_processor import FileIndex
-from backend.file_repository.duplicate_check.checker.models.duplicate_models import DuplicateGroup
+from backend.db.file_index_processor import FileIndexDBModel
 from backend.file_repository.duplicate_check.checker.video.video_checker import VideoChecker
+from backend.model.db.duplicate_group_db_model import DuplicateGroupDBModule
 from backend.setting.setting_service import settingService
 
 
@@ -39,7 +41,7 @@ class DuplicateCheckHelper:
         # ImageChecker 建议放在 MD5Checker 之前，以便对图片进行相似度（汉明距离）分析
         self.checkers = [video_checker, image_checker, MD5Checker()]
 
-    def add_file(self, file_info: FileIndex) -> None:
+    def add_file(self, file_info: FileIndexDBModel) -> None:
         """
         用途：遍历检查器列表，利用检查器的 is_supported 方法进行文件分发录入。
         入参说明：
@@ -47,7 +49,7 @@ class DuplicateCheckHelper:
         返回值说明：
             None
         """
-        file_name = file_info.file_name or ""
+        file_name = Utils.get_filename(file_info.file_path) or ""
         _, ext = os.path.splitext(file_name.lower())
         
         # 遍历所有检查器，找到第一个支持该后缀名的检查器并处理
@@ -56,14 +58,14 @@ class DuplicateCheckHelper:
                 checker.add_file(file_info)
                 break
 
-    def get_all_results(self) -> List[DuplicateGroup]:
+    def get_all_results(self) -> List[DuplicateGroupDBModule]:
         """
         用途：汇总所有检查器的查重结果。
         入参说明：无
         返回值说明：
-            List[DuplicateGroup]: 合并后的重复文件组列表。
+            List[DuplicateGroupDBModule]: 合并后的重复文件组列表。
         """
-        all_results: List[DuplicateGroup] = []
+        all_results: List[DuplicateGroupDBModule] = []
         for checker in self.checkers:
             all_results.extend(checker.get_results())
         return all_results

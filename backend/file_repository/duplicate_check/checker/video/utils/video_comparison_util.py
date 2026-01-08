@@ -3,11 +3,10 @@
 @author: 文件校验工具
 @time: 2024/05/16
 """
-from typing import List, Optional, Union
+from typing import List
 
 import imagehash
 from backend.common.log_utils import LogUtils
-from backend.db.video_info_cache_processor import VideoInfoCache
 
 
 class VideoComparisonUtil:
@@ -33,43 +32,6 @@ class VideoComparisonUtil:
         except Exception as e:
             LogUtils.error(f"解析视频哈希序列出错: {e}")
             return []
-
-    @staticmethod
-    def find_video_fragment_similarity(video1: VideoInfoCache, video2: VideoInfoCache,
-                                       similar_distance: int = 8,
-                                       max_duration_diff_ratio: float = 0.5) -> Optional[float]:
-        """
-        用途：使用滑动窗口策略比较两个视频的相似度。
-
-        入参说明：
-            - video1 (VideoInfoCache): 视频信息对象1。
-            - video2 (VideoInfoCache): 视频信息对象2。
-            - similar_distance (int): 相似判定阈值，汉明距离小于此值则认为相似。
-            - max_duration_diff_ratio (float): 最大时长比例阈值（0.0-1.0）。
-
-        返回值说明：
-            - Optional[float]: 最大相似率（0.0 到 1.0），失败返回 None。
-        """
-        if not video1 or not video2:
-            return None
-
-        # 1. MD5 校验优化（完全一致）
-        if video1.md5 == video2.md5:
-            return 1.0
-
-        # 2. 时长过滤优化
-        if max_duration_diff_ratio > 0:
-            d1, d2 = video1.duration, video2.duration
-            if d1 is not None and d2 is not None:
-                min_d, max_d = (d1, d2) if d1 < d2 else (d2, d1)
-                if max_d > 0 and (min_d / max_d) < max_duration_diff_ratio:
-                    return 0.0
-
-        # 3. 解析指纹并对比
-        hashes1 = VideoComparisonUtil.parse_hashes(video1.video_hashes)
-        hashes2 = VideoComparisonUtil.parse_hashes(video2.video_hashes)
-
-        return VideoComparisonUtil.calculate_max_similarity(hashes1, hashes2, similar_distance)
 
     @staticmethod
     def calculate_max_similarity(hashes1: List[imagehash.ImageHash],

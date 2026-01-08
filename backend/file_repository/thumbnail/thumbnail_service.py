@@ -56,7 +56,7 @@ class ThumbnailService:
         """
         用途：启动异步缩略图生成任务。
         入参说明：
-            rebuild_all (bool): True - 全部重建模式；False - 仅针对无缩略图或路径无效的文件重建。
+            rebuild_all (bool): True - 全部重建模式；False - 仅针对无缩略图文件重建。
         返回值说明：bool - 是否成功启动
         """
         if ThumbnailService._progress_manager.get_raw_status() == ProgressStatus.PROCESSING:
@@ -64,11 +64,10 @@ class ThumbnailService:
             return False
 
         # 1. 确定查询条件
-        table_name = DBManager.TABLE_FILE_INDEX
         only_no_thumb = not rebuild_all
         
         # 获取符合条件的文件总数，用于初始化进度条
-        total_count = DBOperations.get_file_count(table_name, only_no_thumbnail=only_no_thumb)
+        total_count = DBOperations.get_file_index_count(only_no_thumbnail=only_no_thumb)
         
         if total_count == 0:
             ThumbnailService._progress_manager.set_status(ProgressStatus.COMPLETED)
@@ -92,15 +91,12 @@ class ThumbnailService:
 
         while offset < total_count:
             # 分批从数据库查询文件记录
-            batch = DBOperations.get_file_list_with_pagination(
-                table_name=table_name,
+            batch = DBOperations.get_file_index_list_by_condition(
                 limit=batch_size,
                 offset=offset,
-                only_no_thumbnail=only_no_thumb,
-                sort_by="id",  # 使用 ID 排序保证分页稳定性
-                order="ASC"
+                only_no_thumbnail= only_no_thumb
             )
-            
+
             if not batch:
                 break
                 

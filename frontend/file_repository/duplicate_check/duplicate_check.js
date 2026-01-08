@@ -161,7 +161,7 @@ const UIController = {
         groupEl.className = `duplicate-group ${group.isExpanded ? 'expanded' : ''}`;
         groupEl.setAttribute('data-group-id', group.group_id);
 
-        // 注意：后端数据类 DuplicateGroup 包含 files 数组
+        // 注意：后端数据类 DuplicateGroupDBModule 包含 files 数组
         const fileCount = group.files ? group.files.length : 0;
         const groupType = group.checker_type === 'video_similarity' ? '视频相似组' : '重复组';
 

@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 @dataclass
-class FileIndex:
+class FileIndexDBModel:
     """
     用途：文件索引数据类，对应 file_index 表
     """

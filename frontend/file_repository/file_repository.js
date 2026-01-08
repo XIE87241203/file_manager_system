@@ -228,8 +228,16 @@ const UIController = {
 const RepositoryAPI = {
     /**
      * 用途说明：获取文件列表
-     * 入参说明：params (Object) - 查询参数
-     * 返回值说明：Promise - 请求响应结果
+     * 入参说明：params (Object) - 查询参数，包含 page, limit, sort_by, order, search, search_history
+     * 返回值说明：Promise - 请求响应结果，data 字段结构为 PaginationResult:
+     *   {
+     *     total: number,           // 总记录数
+     *     page: number,            // 当前页码
+     *     limit: number,           // 每页限制数
+     *     sort_by: string,         // 排序字段
+     *     order: string,           // 排序方向 (ASC/DESC)
+     *     list: Array<Object>      // 文件对象列表 (FileIndex 或 HistoryFileIndex)
+     *   }
      */
     async getFileList(params) {
         const query = new URLSearchParams(params).toString();

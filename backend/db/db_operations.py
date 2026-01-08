@@ -3,13 +3,12 @@ import json
 import sqlite3
 from backend.db.db_manager import db_manager, DBManager
 from backend.common.log_utils import LogUtils
-from backend.db.file_index_processor import FileIndex
-from backend.db.history_file_index_processor import HistoryFileIndex
-from backend.db.model.file_pagination_result_model import FilePaginationResult
-
-from backend.db.video_feature_processor import VideoFeature
-from backend.file_repository.duplicate_check.checker.models.duplicate_models import DuplicateGroup, \
-    DuplicateFile
+from backend.model.db.duplicate_group_db_model import DuplicateGroupDBModule
+from backend.model.db.file_index_db_model import FileIndexDBModel
+from backend.model.db.history_file_index_db_model import HistoryFileIndexDBModule
+from backend.model.db.video_feature_db_model import VideoFeatureDBModel
+from backend.model.pagination_result import PaginationResult
+from backend.model.video_file_info_result import VideoFileInfoResult
 
 
 class DBOperations:
@@ -29,7 +28,7 @@ class DBOperations:
         return db_manager.history_file_index_processor.clear_all_table()
 
     @staticmethod
-    def get_file_by_path(file_path: str) -> Optional[FileIndex]:
+    def get_file_by_path(file_path: str) -> Optional[FileIndexDBModel]:
         return db_manager.file_index_processor.get_file_index_by_path(file_path)
 
     @staticmethod
@@ -38,191 +37,47 @@ class DBOperations:
                 db_manager.duplicate_group_processor.delete_file_by_id(file_id))
 
     @staticmethod
-    def search_file_index_list(page: int, limit: int, sort_by: str, order: bool, search_query: str) -> FilePaginationResult:
+    def search_file_index_list(page: int, limit: int, sort_by: str, order: bool, search_query: str) -> PaginationResult[FileIndexDBModel]:
         return db_manager.file_index_processor.get_paged_list(page, limit, sort_by, order, search_query)
 
     @staticmethod
-    def get_file_list_with_pagination(
-            table_name: str,
-            where_clause: str = "",
-            params: tuple = (),
-            sort_by: str = "scan_time",
-            order: str = "DESC",
-            limit: int = 100,
-            offset: int = 0,
-            only_no_thumbnail: bool = False
-    ) -> List[Union[FileIndex, HistoryFileIndex]]:
-        """
-        用途：通用分页查询文件列表
-        入参说明：
-            table_name (str): 表名
-            where_clause (str): SQL 条件子句
-            params (tuple): 条件参数
-            sort_by (str): 排序字段
-            order (str): 排序方向 (ASC/DESC)
-            limit (int): 分页大小
-            offset (int): 偏移量
-            only_no_thumbnail (bool): 是否仅查询没有缩略图的文件
-        返回值说明：
-            List[Union[FileIndex, HistoryFileIndex]]: 数据对象列表
-        """
-
-
-
-        if only_no_thumbnail:
-            no_thumb_condition = "(thumbnail_path IS NULL OR thumbnail_path = '')"
-            if "WHERE" in where_clause.upper():
-                where_clause += f" AND {no_thumb_condition}"
-            else:
-                where_clause = f" WHERE {no_thumb_condition}"
-
-        query = f"SELECT * FROM {table_name} {where_clause} ORDER BY {sort_by} {order} LIMIT ? OFFSET ?"
-        full_params = list(params) + [limit, offset]
-        rows = DBOperations.__execute(query, tuple(full_params), is_query=True)
-
-        model_cls = HistoryFileIndex if table_name == DBManager.TABLE_HISTORY_INDEX else FileIndex
-        return [model_cls(**r) for r in rows]
+    def search_history_file_index_list(page: int, limit: int, sort_by: str, order: bool, search_query: str) -> PaginationResult[HistoryFileIndexDBModule]:
+        return db_manager.history_file_index_processor.get_paged_list(page, limit, sort_by, order, search_query)
 
     @staticmethod
-    def get_file_count(table_name: str, where_clause: str = "", params: tuple = (),
-                       only_no_thumbnail: bool = False) -> int:
-        """
-        用途：获取表中满足条件的记录总数
-        入参说明：
-            table_name (str): 表名
-            where_clause (str): 条件子句
-            params (tuple): 参数
-            only_no_thumbnail (bool): 是否仅查询没有缩略图的文件
-        返回值说明：
-            int: 总记录数
-        """
-        if only_no_thumbnail:
-            no_thumb_condition = "(thumbnail_path IS NULL OR thumbnail_path = '')"
-            if "WHERE" in where_clause.upper():
-                where_clause += f" AND {no_thumb_condition}"
-            else:
-                where_clause = f" WHERE {no_thumb_condition}"
-
-        query = f"SELECT COUNT(*) as count FROM {table_name} {where_clause}"
-        res = DBOperations.__execute(query, params, is_query=True, fetch_one=True)
-        return res['count'] if res else 0
+    def get_file_index_list_by_condition(offset: int, limit: int, only_no_thumbnail: bool = False) -> List[FileIndexDBModel]:
+        return db_manager.file_index_processor.get_list_by_condition(offset, limit, only_no_thumbnail)
 
     @staticmethod
-    def get_paths_by_md5(md5: str) -> List[str]:
-        """
-        用途：根据 MD5 获取所有相关的物理路径
-        入参说明：
-            md5 (str): 文件的 MD5 值
-        返回值说明：
-            List[str]: 路径列表
-        """
-        query = f"SELECT file_path FROM {DBManager.TABLE_FILE_INDEX} WHERE file_md5 = ?"
-        rows = DBOperations.__execute(query, (md5,), is_query=True)
-        return [r['file_path'] for r in rows]
+    def get_file_index_count(only_no_thumbnail: bool = False) -> int:
+        return db_manager.file_index_processor.get_count(only_no_thumbnail)
 
     # --- 视频特征相关操作 (Video Features) ---
 
     @staticmethod
-    def add_video_features(features: VideoFeature) -> bool:
-        """
-        用途：添加或更新视频特征信息
-        入参说明：
-            features (VideoFeature): 视频特征对象
-        返回值说明：
-            bool: 是否成功
-        """
-        query = f"""
-            INSERT INTO {DBManager.TABLE_VIDEO_FEATURES} (md5, video_hashes, duration)
-            VALUES (?, ?, ?)
-            ON CONFLICT(md5) DO UPDATE SET
-            video_hashes = excluded.video_hashes,
-            duration = excluded.duration
-        """
-        params = (features.md5, features.video_hashes, features.duration)
-        return DBOperations.__execute(query, params) > 0
+    def add_video_features(features: VideoFeatureDBModel) -> bool:
+        return db_manager.video_feature_processor.add_or_update_feature(features)
 
     @staticmethod
-    def get_video_features_by_md5(md5: str) -> Optional[VideoFeature]:
-        """
-        用途：根据 MD5 获取视频特征
-        入参说明：
-            md5 (str): 视频 MD5
-        返回值说明：
-            Optional[VideoFeature]: 视频特征对象 or None
-        """
-        query = f"SELECT * FROM {DBManager.TABLE_VIDEO_FEATURES} WHERE md5 = ?"
-        row = DBOperations.__execute(query, (md5,), is_query=True, fetch_one=True)
-        return VideoFeature(**row) if row else None
+    def get_video_features_by_md5(md5: str) -> Optional[VideoFeatureDBModel]:
+        return db_manager.video_feature_processor.get_feature_by_md5(md5)
+
 
     @staticmethod
     def clear_video_features() -> bool:
-        """
-        用途：清空视频特征表
-        入参说明：无
-        返回值说明：
-            bool: 是否成功
-        """
-        return DBOperations.__clear_table(DBManager.TABLE_VIDEO_FEATURES)
-
-    # --- 视频信息缓存相关操作 (Video Info Cache) ---
+        return db_manager.video_feature_processor.clear_video_features()
 
     @staticmethod
-    def add_video_info_cache(info: VideoInfoCache) -> bool:
-        """
-        用途：添加或更新视频信息缓存
-        入参说明：
-            info (VideoInfoCache): 视频信息缓存对象
-        返回值说明：
-            bool: 是否成功
-        """
-        query = f"""
-            INSERT INTO {DBManager.TABLE_VIDEO_INFO_CACHE} (path, video_name, md5, duration, video_hashes, thumbnail_path)
-            VALUES (?, ?, ?, ?, ?, ?)
-            ON CONFLICT(path) DO UPDATE SET
-            video_name = excluded.video_name,
-            md5 = excluded.md5,
-            duration = excluded.duration,
-            video_hashes = excluded.video_hashes,
-            thumbnail_path = excluded.thumbnail_path
-        """
-        params = (info.path, info.video_name, info.md5, info.duration, info.video_hashes,
-                  info.thumbnail_path)
-        return DBOperations.__execute(query, params) > 0
+    def get_video_file_info(file_path: str) -> Optional[VideoFileInfoResult]:
+        file_index = DBOperations.get_file_by_path(file_path)
+        if not file_index:
+            return None
+        video_feature = DBOperations.get_video_features_by_md5(file_index.file_md5)
+        if not video_feature:
+            return None
+        return VideoFileInfoResult(file_index=file_index, video_feature=video_feature)
 
-    @staticmethod
-    def get_video_info_cache_by_md5(md5: str) -> List[VideoInfoCache]:
-        """
-        用途：根据 MD5 获取缓存的视频信息列表
-        入参说明：
-            md5 (str): 视频 MD5
-        返回值说明：
-            List[VideoInfoCache]: 缓存对象列表
-        """
-        query = f"SELECT * FROM {DBManager.TABLE_VIDEO_INFO_CACHE} WHERE md5 = ?"
-        rows = DBOperations.__execute(query, (md5,), is_query=True)
-        return [VideoInfoCache(**r) for r in rows]
 
-    @staticmethod
-    def get_all_video_info_caches() -> List[VideoInfoCache]:
-        """
-        用途：获取所有视频信息缓存
-        入参说明：无
-        返回值说明：
-            List[VideoInfoCache]: 缓存对象列表
-        """
-        query = f"SELECT * FROM {DBManager.TABLE_VIDEO_INFO_CACHE}"
-        rows = DBOperations.__execute(query, is_query=True)
-        return [VideoInfoCache(**r) for r in rows]
-
-    @staticmethod
-    def clear_video_info_cache() -> bool:
-        """
-        用途：清空视频信息缓存表
-        入参说明：无
-        返回值说明：
-            bool: 是否成功
-        """
-        return DBOperations.__clear_table(DBManager.TABLE_VIDEO_INFO_CACHE)
 
     # --- 查重结果相关操作 (Duplicate Results) ---
 
@@ -234,57 +89,19 @@ class DBOperations:
         返回值说明：
             bool: 是否成功
         """
-        DBOperations.__clear_table(DBManager.TABLE_DUPLICATE_FILES)
-        DBOperations.__clear_table(DBManager.TABLE_DUPLICATE_GROUPS)
-        return True
+        return db_manager.duplicate_group_processor.clear_all_table()
 
     @staticmethod
-    def save_duplicate_results(results: List[DuplicateGroup]) -> bool:
-        """
-        用途：保存查重结果分组及其关联文件
-        入参说明：
-            results (List[DuplicateGroup]): 查重结果分组列表
-        返回值说明：
-            bool: 是否成功
-        """
-        if not results:
-            return True
-        conn = None
-        try:
-            conn = db_manager.get_connection()
-            cursor = conn.cursor()
-            for group in results:
-                # 1. 插入分组
-                cursor.execute(
-                    f"INSERT INTO {DBManager.TABLE_DUPLICATE_GROUPS} (group_id, checker_type) VALUES (?, ?)",
-                    (group.group_id, group.checker_type)
-                )
-                # 2. 批量插入该组下的文件
-                file_data = [
-                    (group.group_id, f.file_name, f.file_path, f.file_md5, f.thumbnail_path,
-                     json.dumps(f.extra_info))
-                    for f in group.files
-                ]
-                cursor.executemany(
-                    f"INSERT INTO {DBManager.TABLE_DUPLICATE_FILES} (group_id, file_name, file_path, file_md5, thumbnail_path, extra_info) VALUES (?, ?, ?, ?, ?, ?)",
-                    file_data
-                )
-            conn.commit()
-            return True
-        except Exception as e:
-            LogUtils.error(f"保存查重结果失败: {e}")
-            return False
-        finally:
-            if conn:
-                conn.close()
-
+    def save_duplicate_results(results: List[DuplicateGroupDBModule]) -> bool:
+        return db_manager.duplicate_group_processor.batch_save_duplicate_groups(results)
+    # todo 修改至此
     @staticmethod
-    def get_all_duplicate_results() -> List[DuplicateGroup]:
+    def get_all_duplicate_results() -> List[DuplicateGroupDBModule]:
         """
         用途：获取数据库中所有的查重结果
         入参说明：无
         返回值说明：
-            List[DuplicateGroup]: 查重分组列表
+            List[DuplicateGroupDBModule]: 查重分组列表
         """
         groups_data = DBOperations.__execute(
             f"SELECT group_id, checker_type FROM {DBManager.TABLE_DUPLICATE_GROUPS}", is_query=True
@@ -296,7 +113,7 @@ class DBOperations:
                 (g['group_id'],), is_query=True
             )
             files = [
-                DuplicateFile(
+                DuplicateItem(
                     file_name=f['file_name'],
                     file_path=f['file_path'],
                     file_md5=f['file_md5'],
@@ -305,7 +122,7 @@ class DBOperations:
                 ) for f in files_data
             ]
             results.append(
-                DuplicateGroup(group_id=g['group_id'], checker_type=g['checker_type'], files=files))
+                DuplicateGroupDBModule(group_id=g['group_id'], checker_type=g['checker_type'], file_ids=files))
         return results
 
     @staticmethod
@@ -359,7 +176,7 @@ class DBOperations:
         return DBOperations.__execute(query, (thumbnail_path, file_path)) > 0
 
     @staticmethod
-    def get_files_without_thumbnail() -> List[FileIndex]:
+    def get_files_without_thumbnail() -> List[FileIndexDBModel]:
         """
         用途：获取所有没有缩略图的文件记录
         入参说明：无
@@ -368,7 +185,7 @@ class DBOperations:
         """
         query = f"SELECT * FROM {DBManager.TABLE_FILE_INDEX} WHERE thumbnail_path IS NULL OR thumbnail_path = ''"
         rows = DBOperations.__execute(query, is_query=True)
-        return [FileIndex(**r) for r in rows]
+        return [FileIndexDBModel(**r) for r in rows]
 
     @staticmethod
     def clear_all_thumbnail_records() -> bool:
@@ -382,7 +199,7 @@ class DBOperations:
         return DBOperations.__execute(query) >= 0
 
     @staticmethod
-    def get_file_index_by_path(file_path: str) -> Optional[FileIndex]:
+    def get_file_index_by_path(file_path: str) -> Optional[FileIndexDBModel]:
         """
         用途：根据路径从索引表中获取单个文件信息
         入参说明：
@@ -392,4 +209,4 @@ class DBOperations:
         """
         query = f"SELECT * FROM {DBManager.TABLE_FILE_INDEX} WHERE file_path = ?"
         row = DBOperations.__execute(query, (file_path,), is_query=True, fetch_one=True)
-        return FileIndex(**row) if row else None
+        return FileIndexDBModel(**row) if row else None

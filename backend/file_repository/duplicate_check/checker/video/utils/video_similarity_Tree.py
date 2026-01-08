@@ -7,7 +7,9 @@ from typing import List, Dict
 
 import imagehash
 from backend.common.log_utils import LogUtils
-from backend.db.video_info_cache_processor import VideoInfoCache
+from backend.common.utils import Utils
+from backend.db.db_operations import DBOperations
+from backend.model.video_file_info_result import VideoFileInfoResult
 from backend.file_repository.duplicate_check.checker.video.utils.video_analyzer import VideoAnalyzer
 from backend.file_repository.duplicate_check.checker.video.utils.video_comparison_util import \
     VideoComparisonUtil
@@ -31,7 +33,8 @@ class VideoSimilarityTree:
             - interval_seconds (int): 采样间隔（秒）。
             - max_duration_diff_ratio (float): 最大时长比例阈值。
         """
-        self.video_groups: List[List[VideoInfoCache]] = []
+        # self.video_groups 存储的是文件路径的列表，每个列表代表一个相似组
+        self.video_groups: List[List[str]] = []
         # 性能优化：缓存已解析的哈希列表，避免在多轮比对中重复解析字符串
         self._parsed_hash_cache: Dict[str, List[imagehash.ImageHash]] = {}
         
@@ -48,36 +51,44 @@ class VideoSimilarityTree:
         入参说明：
             - video_path (str): 视频文件的磁盘路径。
         """
+        # 使用 video_analyzer 确保视频信息已提取并存入数据库，返回 VideoFileInfo 对象
         video_info = self.video_analyzer.create_video_info(video_path, self.interval_seconds)
         if video_info:
             self._compare_video_and_group(video_info)
 
-    def _get_or_parse_hashes(self, video_info: VideoInfoCache) -> List[imagehash.ImageHash]:
+    def _get_or_parse_hashes(self, video_info: VideoFileInfoResult) -> List[imagehash.ImageHash]:
         """
         用途：获取视频的哈希列表，优先从本地缓存读取。
         """
-        if video_info.md5 not in self._parsed_hash_cache:
-            self._parsed_hash_cache[video_info.md5] = VideoComparisonUtil.parse_hashes(video_info.video_hashes)
-        return self._parsed_hash_cache[video_info.md5]
+        if video_info.file_index.file_md5 not in self._parsed_hash_cache:
+            self._parsed_hash_cache[video_info.file_index.file_md5] = VideoComparisonUtil.parse_hashes(video_info.video_feature.video_hashes)
+        return self._parsed_hash_cache[video_info.file_index.file_md5]
 
-    def _compare_video_and_group(self, video_info: VideoInfoCache) -> None:
+    def _compare_video_and_group(self, video_info: VideoFileInfoResult) -> None:
         """
         用途：核心归类逻辑。将视频与现有各组的代表进行指纹比对。
         """
         # 1. 预解析当前视频哈希
         current_hashes = self._get_or_parse_hashes(video_info)
+        current_path = video_info.file_index.file_path
+        
         if not current_hashes:
-            self.video_groups.append([video_info])
+            self.video_groups.append([current_path])
             return
 
         for group in self.video_groups:
             # 每一组的第一个元素约定为该组最长的视频（代表视频）
-            representative = group[0]
+            representative_path = group[0]
+            # 通过数据库获取代表视频的完整信息
+            representative = DBOperations.get_video_file_info(representative_path)
+            
+            if not representative:
+                continue
 
             # 2. 快速时长过滤 (Fast-fail)
             # 作用：如果两个视频时长差异过大，则直接判定为不相似，跳过耗时的指纹比对。
             if self.max_duration_diff_ratio > 0:
-                d1, d2 = video_info.duration, representative.duration
+                d1, d2 = video_info.video_feature.duration, representative.video_feature.duration
                 if d1 is not None and d2 is not None:
                     min_d, max_d = (d1, d2) if d1 < d2 else (d2, d1)
                     if max_d > 0 and (min_d / max_d) < self.max_duration_diff_ratio:
@@ -88,21 +99,40 @@ class VideoSimilarityTree:
             similarity = VideoComparisonUtil.calculate_max_similarity(
                 current_hashes, rep_hashes, self.frame_similar_distance
             )
+            video_name = Utils.get_filename(current_path)
+            representative_name = Utils.get_filename(representative_path)
 
             if similarity >= self.frame_similarity_rate:
-                LogUtils.info(f"匹配成功：{video_info.video_name} -> 组 {representative.video_name} (相似度: {similarity:.2%})")
+                LogUtils.info(f"匹配成功：{video_name} -> 组 {representative_name} (相似度: {similarity:.2%})")
                 # 保持组内第一个视频是时长最长的
-                if video_info.duration > representative.duration:
-                    group.insert(0, video_info)
+                if video_info.video_feature.duration > representative.video_feature.duration:
+                    group.insert(0, current_path)
                 else:
-                    group.append(video_info)
+                    group.append(current_path)
                 return
 
         # 4. 无匹配组，作为新组的代表
-        self.video_groups.append([video_info])
+        self.video_groups.append([current_path])
 
-    def get_similar_video_groups(self, min_group_size: int = 2) -> List[List[VideoInfoCache]]:
+    def get_similar_video_groups(self, min_group_size: int = 2) -> List[List[VideoFileInfoResult]]:
         """
-        用途：获取达到最小规模要求的相似视频分组。
+        用途：获取达到最小规模要求的相似视频分组，并将路径转换为 VideoFileInfo 对象。
+        
+        入参说明：
+            - min_group_size (int): 最小组规模。
+            
+        返回值说明：
+            - List[List[VideoFileInfo]]: 相似视频组列表。
         """
-        return [g for g in self.video_groups if len(g) >= min_group_size]
+        results = []
+        for group_paths in self.video_groups:
+            if len(group_paths) >= min_group_size:
+                info_group = []
+                for path in group_paths:
+                    info = DBOperations.get_video_file_info(path)
+                    if info:
+                        info_group.append(info)
+                
+                if len(info_group) >= min_group_size:
+                    results.append(info_group)
+        return results

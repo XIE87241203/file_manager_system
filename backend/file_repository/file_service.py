@@ -5,7 +5,9 @@ from backend.common.utils import Utils
 from backend.db.db_operations import DBOperations
 from backend.db.db_manager import DBManager
 from backend.common.log_utils import LogUtils
-from backend.db.model.file_pagination_result_model import FilePaginationResult
+from backend.model.db.file_index_db_model import FileIndexDBModel
+from backend.model.db.history_file_index_db_model import HistoryFileIndexDBModule
+from backend.model.pagination_result import PaginationResult
 from backend.file_repository.thumbnail.thumbnail_service import ThumbnailService
 from backend.setting.setting_service import settingService
 
@@ -15,80 +17,13 @@ class FileService:
     """
 
     @staticmethod
-    def search_file_index_list(page: int, limit: int, sort_by: str, order: bool, search_query: str) -> FilePaginationResult:
+    def search_file_index_list(page: int, limit: int, sort_by: str, order: bool, search_query: str) -> PaginationResult[FileIndexDBModel]:
         return DBOperations.search_file_index_list(page, limit, sort_by, order, search_query)
 
 
     @staticmethod
-    def get_file_list(
-        page: int, 
-        limit: int, 
-        sort_by: str, 
-        order: str, 
-        search_query: str, 
-        search_history: bool
-    ) -> Dict[str, Any]:
-        """
-        用途：分页查询文件索引列表，支持模糊搜索。
-        入参说明：
-            page (int): 当前页码
-            limit (int): 每页记录数
-            sort_by (str): 排序字段
-            order (str): 排序方向 (ASC/DESC)
-            search_query (str): 搜索关键词
-            search_history (bool): 是否查询历史表
-        返回值说明：
-            Dict[str, Any]: 包含 total, list, page, limit 等分页信息的字典
-        """
-        table_name = DBManager.TABLE_FILE_INDEX if not search_history else DBManager.TABLE_HISTORY_INDEX
-        offset = (page - 1) * limit
-        
-        where_clause = ""
-        params = []
-        
-        if search_query:
-            # 获取配置中的替换字符并处理搜索逻辑
-            replace_chars = settingService.get_config().file_repository.search_replace_chars
-            processed_query = search_query
-            for char in replace_chars:
-                if char:
-                    processed_query = processed_query.replace(char, '.*')
-            
-            sql_like_query = f"%{processed_query.replace('.*', '%')}%"
-            where_clause = " WHERE file_name LIKE ? "
-            params.append(sql_like_query)
-
-        # 获取总数
-        total = DBOperations.get_file_count(table_name, where_clause, tuple(params))
-
-        # 获取数据
-        results = DBOperations.get_file_list_with_pagination(
-            table_name, where_clause, tuple(params), sort_by, order, limit, offset
-        )
-        
-        # 数据转换
-        file_list = []
-        for row in results:
-            item = {
-                "id": row.id, 
-                "file_path": row.file_path, 
-                "file_name": row.file_name, 
-                "file_md5": row.file_md5, 
-                "scan_time": row.scan_time
-            }
-            if not search_history:
-                item["thumbnail_path"] = getattr(row, 'thumbnail_path', None)
-            file_list.append(item)
-            
-        return {
-            "total": total, 
-            "list": file_list, 
-            "page": page, 
-            "limit": limit, 
-            "sort_by": sort_by, 
-            "order": order, 
-            "is_history": search_history
-        }
+    def search_history_file_index_list(page: int, limit: int, sort_by: str, order: bool, search_query: str) -> PaginationResult[HistoryFileIndexDBModule]:
+        return DBOperations.search_history_file_index_list(page, limit, sort_by, order, search_query)
 
     @staticmethod
     def delete_file(file_path: str) -> Tuple[bool, str]:

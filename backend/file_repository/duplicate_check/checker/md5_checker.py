@@ -1,7 +1,8 @@
 from typing import List, Dict
 from backend.file_repository.duplicate_check.checker.base_checker import BaseDuplicateChecker
-from backend.db.file_index_processor import FileIndex
-from backend.file_repository.duplicate_check.checker.models.duplicate_models import DuplicateGroup, DuplicateFile
+from backend.db.file_index_processor import FileIndexDBModel
+from backend.model.db.duplicate_group_db_model import DuplicateGroupDBModule
+
 
 class MD5Checker(BaseDuplicateChecker):
     """
@@ -10,9 +11,9 @@ class MD5Checker(BaseDuplicateChecker):
 
     def __init__(self):
         # 用于存储 MD5 分组的字典: {md5: [FileIndex, ...]}
-        self.md5_groups: Dict[str, List[FileIndex]] = {}
+        self.md5_groups: Dict[str, List[FileIndexDBModel]] = {}
 
-    def add_file(self, file_info: FileIndex) -> None:
+    def add_file(self, file_info: FileIndexDBModel) -> None:
         """
         用途：根据 MD5 进行分组录入。
         入参说明：
@@ -21,32 +22,26 @@ class MD5Checker(BaseDuplicateChecker):
         md5 = file_info.file_md5
         if not md5:
             return
-            
+
         if md5 not in self.md5_groups:
             self.md5_groups[md5] = []
         self.md5_groups[md5].append(file_info)
 
-    def get_results(self) -> List[DuplicateGroup]:
+    def get_results(self) -> List[DuplicateGroupDBModule]:
         """
         用途：获取 MD5 重复的分组结果。
         返回值说明：
-            List[DuplicateGroup]: 重复文件组列表。
+            List[DuplicateGroupDBModule]: 重复文件组列表。
         """
         results = []
         for md5, files in self.md5_groups.items():
             if len(files) > 1:
                 duplicate_files = [
-                    DuplicateFile(
-                        file_name=f.file_name,
-                        file_path=f.file_path,
-                        file_md5=f.file_md5,
-                        thumbnail_path=f.thumbnail_path
-                    ) for f in files
+                    f.id for f in files
                 ]
-                group = DuplicateGroup(
-                    group_id=md5,
-                    checker_type="md5",
-                    files=duplicate_files
+                group = DuplicateGroupDBModule(
+                    group_name=md5,
+                    file_ids=duplicate_files
                 )
                 results.append(group)
         return results

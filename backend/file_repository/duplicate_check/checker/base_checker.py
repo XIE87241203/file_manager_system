@@ -1,7 +1,8 @@
 from abc import ABC, abstractmethod
 from typing import List
-from backend.db.file_index_processor import FileIndex
-from backend.file_repository.duplicate_check.checker.models.duplicate_models import DuplicateGroup
+from backend.db.file_index_processor import FileIndexDBModel
+from backend.model.db.duplicate_group_db_model import DuplicateGroupDBModule
+
 
 class BaseDuplicateChecker(ABC):
     """
@@ -9,7 +10,7 @@ class BaseDuplicateChecker(ABC):
     """
 
     @abstractmethod
-    def add_file(self, file_info: FileIndex) -> None:
+    def add_file(self, file_info: FileIndexDBModel) -> None:
         """
         用途：录入一个文件信息进行查重分析。
         入参说明：
@@ -20,12 +21,12 @@ class BaseDuplicateChecker(ABC):
         pass
 
     @abstractmethod
-    def get_results(self) -> List[DuplicateGroup]:
+    def get_results(self) -> List[DuplicateGroupDBModule]:
         """
         用途：获取查重分析后的结果。
         入参说明：无
         返回值说明：
-            List[DuplicateGroup]: 查重结果组列表。
+            List[DuplicateGroupDBModule]: 查重结果组列表。
         """
         pass
 

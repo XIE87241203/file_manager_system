@@ -13,8 +13,9 @@ from PIL import Image
 from backend.common.log_utils import LogUtils
 from backend.common.utils import Utils
 from backend.db.db_operations import DBOperations
-from backend.db.video_feature_processor import VideoFeature
-from backend.db.video_info_cache_processor import VideoInfoCache
+from backend.model.db.file_index_db_model import FileIndexDBModel
+from backend.model.db.video_feature_db_model import VideoFeatureDBModel
+from backend.model.video_file_info_result import VideoFileInfoResult
 
 
 class VideoAnalyzer:
@@ -73,7 +74,8 @@ class VideoAnalyzer:
 
         return frame_count / fps
 
-    def extract_frame_hash(self, cap: cv2.VideoCapture, timestamp: float) -> Optional[imagehash.ImageHash]:
+    def extract_frame_hash(self, cap: cv2.VideoCapture, timestamp: float) -> Optional[
+        imagehash.ImageHash]:
         """
         用途：从视频的指定时间点提取单帧，并计算其感知哈希（pHash）。
 
@@ -121,7 +123,7 @@ class VideoAnalyzer:
                 LogUtils.info(f"警告: 无法获取 {video_path} 在 {timestamp}s 处的采样哈希。")
         return hashes
 
-    def create_video_info(self, video_path: str, interval_seconds: int) -> Optional[VideoInfoCache]:
+    def create_video_info(self, video_path: str, interval_seconds: int) -> Optional[VideoFileInfoResult]:
         """
         用途：根据视频路径生成 VideoInfoCache 对象。
 
@@ -138,44 +140,20 @@ class VideoAnalyzer:
 
         try:
             # 修复点 3：优先从数据库索引获取 MD5，避免重复计算大文件的 MD5 (耗时 IO)
-            video_md5 = ""
             thumbnail_path = None
-            file_idx = DBOperations.get_file_index_by_path(video_path)
-            
-            if file_idx and file_idx.file_md5:
-                video_md5 = file_idx.file_md5
-                thumbnail_path = file_idx.thumbnail_path
-            else:
-                _, video_md5 = Utils.calculate_md5(video_path)
-            
-            if not video_md5:
-                LogUtils.error(f"无法获取视频 MD5: {video_path}")
+            file_idx: Optional[FileIndexDBModel] = DBOperations.get_file_index_by_path(video_path)
+            if file_idx is None:
                 return None
 
-            # 1. 尝试从缓存获取 (VideoInfoCache)
-            cached_infos = DBOperations.get_video_info_cache_by_md5(video_md5)
-            if cached_infos:
-                info = cached_infos[0]
-                LogUtils.info(f"从缓存中获取到视频信息: {video_path}")
-                info.path = video_path
-                info.video_name = os.path.basename(video_path)
-                info.thumbnail_path = thumbnail_path
-                return info
-
             # 2. 尝试从特征库获取 (VideoFeature) - 避免不必要的视频打开操作
-            video_feature = DBOperations.get_video_features_by_md5(video_md5)
-            
+            video_feature = DBOperations.get_video_features_by_md5(file_idx.file_md5)
+
             if video_feature and video_feature.video_hashes:
                 LogUtils.info(f"从特征库中匹配到视频指纹: {video_path}")
-                video_info = VideoInfoCache(
-                    path=video_path,
-                    video_name=os.path.basename(video_path),
-                    md5=video_md5,
-                    duration=video_feature.duration,
-                    video_hashes=video_feature.video_hashes,
-                    thumbnail_path=thumbnail_path
+                video_info = VideoFileInfoResult(
+                    file_index=file_idx,
+                    video_feature=video_feature
                 )
-                DBOperations.add_video_info_cache(video_info)
                 return video_info
 
             # 3. 实时分析视频
@@ -190,36 +168,29 @@ class VideoAnalyzer:
                     return None
 
                 LogUtils.info(f"正在为视频生成哈希序列: {video_path}")
-                video_hashes_list = self.generate_hash_sequence(cap, video_path, interval_seconds, duration)
+                video_hashes_list = self.generate_hash_sequence(cap, video_path, interval_seconds,
+                                                                duration)
 
                 if not video_hashes_list:
                     LogUtils.info(f"未能为视频 {video_path} 生成任何有效哈希。")
                     return None
-                
+
                 video_hashes_str = ",".join(map(str, video_hashes_list))
 
                 # 更新或创建特征记录
                 if video_feature is None:
-                    video_feature = VideoFeature(md5=video_md5, video_hashes=video_hashes_str, duration=duration)
+                    video_feature = VideoFeatureDBModel(file_md5=file_idx.file_md5,
+                                                        video_hashes=video_hashes_str, duration=duration)
                 else:
                     video_feature.video_hashes = video_hashes_str
                     video_feature.duration = duration
 
-                video_info = VideoInfoCache(
-                    path=video_path,
-                    video_name=os.path.basename(video_path),
-                    md5=video_md5,
-                    duration=duration,
-                    video_hashes=video_hashes_str,
-                    thumbnail_path=thumbnail_path
-                )
-
                 # 4. 持久化
                 DBOperations.add_video_features(video_feature)
-                DBOperations.add_video_info_cache(video_info)
-                LogUtils.info(f"视频分析完成并存入数据库: {video_path}")
-
-                return video_info
+                return VideoFileInfoResult(
+                    file_index=file_idx,
+                    video_feature=video_feature
+                )
             finally:
                 cap.release()
 

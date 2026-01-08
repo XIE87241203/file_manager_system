@@ -90,6 +90,15 @@ class Utils:
         return False
 
     @staticmethod
+    def get_filename(file_path: str) -> str:
+        """
+        用途：从文件路径中获取文件名（包括后缀）。
+        入参说明：file_path (str) - 文件的路径。
+        返回值说明：str - 文件名（包括后缀）。
+        """
+        return os.path.basename(file_path)
+
+    @staticmethod
     def delete_file(file_path: str) -> Tuple[bool, str]:
         """
         用途：删除物理文件并从数据库索引及重复结果中移除，同时删除对应的缩略图文件。
@@ -107,7 +116,8 @@ class Utils:
             Utils.delete_os_file(file_path)
 
             # 3. 清理数据库记录
-            DBOperations.delete_file_index_by_file_id(file_info.id)
+            if file_info:
+                DBOperations.delete_file_index_by_file_id(file_info.id)
 
             return True, "文件及其索引、缩略图已成功删除"
         except Exception as e:
@@ -116,6 +126,11 @@ class Utils:
 
     @staticmethod
     def delete_os_file(file_path: str) -> bool:
+        """
+        用途：删除操作系统层面的物理文件。
+        入参说明：file_path (str) - 文件的绝对路径。
+        返回值说明：bool - 删除成功返回 True，文件不存在或删除失败返回 False。
+        """
         if os.path.exists(file_path):
             try:
                 os.remove(file_path)

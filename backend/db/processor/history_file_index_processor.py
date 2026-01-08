@@ -2,19 +2,9 @@ import sqlite3
 from dataclasses import dataclass
 from typing import Optional, List
 from backend.db.base_db_processor import BaseDBProcessor
+from backend.model.db.history_file_index_db_model import HistoryFileIndexDBModule
+from backend.model.pagination_result import PaginationResult
 
-
-@dataclass
-class HistoryFileIndex:
-    """
-    用途：历史文件索引数据类，对应 history_file_index 表
-    """
-    id: Optional[int] = None
-    file_path: str = ""
-    file_md5: str = ""
-    file_size: int = 0
-    scan_time: Optional[str] = None
-    delete_time: Optional[str] = None
 
 
 class HistoryFileIndexProcessor(BaseDBProcessor):
@@ -54,7 +44,7 @@ class HistoryFileIndexProcessor(BaseDBProcessor):
         conn.commit()
 
     @staticmethod
-    def batch_insert_data(data_list: List[HistoryFileIndex]) -> int:
+    def batch_insert_data(data_list: List[HistoryFileIndexDBModule]) -> int:
         """
         用途：批量插入历史文件索引数据
         入参说明：
@@ -81,11 +71,47 @@ class HistoryFileIndexProcessor(BaseDBProcessor):
                 {HistoryFileIndexProcessor.COL_FILE_MD5},
                 {HistoryFileIndexProcessor.COL_FILE_SIZE},
                 {HistoryFileIndexProcessor.COL_SCAN_TIME},
+                {HistoryFileIndexProcessor.COL_DELETE_TIME}
             ) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
         '''
 
-        return HistoryFileIndexProcessor._execute_batch(query, data)
+        return BaseDBProcessor._execute_batch(query, data)
 
     @staticmethod
     def clear_all_table() -> bool:
         return BaseDBProcessor._clear_table(HistoryFileIndexProcessor.TABLE_NAME)
+
+    @staticmethod
+    def get_paged_list(page: int, limit: int, sort_by: str, order: bool, search_query: str) -> PaginationResult[HistoryFileIndexDBModule]:
+        """
+        用途：分页查询历史文件索引列表，支持模糊搜索。
+        入参说明：
+            page (int): 当前页码
+            limit (int): 每页记录数
+            sort_by (str): 排序字段
+            order (bool): 排序方向 (True 为 ASC, False 为 DESC)
+            search_query (str): 搜索关键词
+        返回值说明：
+            PaginationResult[HistoryFileIndex]: 包含 total, list, page, limit 等分页信息的对象
+        """
+        allowed_cols = [
+            HistoryFileIndexProcessor.COL_ID,
+            HistoryFileIndexProcessor.COL_FILE_PATH,
+            HistoryFileIndexProcessor.COL_FILE_MD5,
+            HistoryFileIndexProcessor.COL_FILE_SIZE,
+            HistoryFileIndexProcessor.COL_SCAN_TIME,
+            HistoryFileIndexProcessor.COL_DELETE_TIME
+        ]
+        
+        return BaseDBProcessor._search_paged_list(
+            table_name=HistoryFileIndexProcessor.TABLE_NAME,
+            model_class=HistoryFileIndexDBModule,
+            page=page,
+            limit=limit,
+            sort_by=sort_by,
+            order=order,
+            search_query=search_query,
+            search_column=HistoryFileIndexProcessor.COL_FILE_PATH,
+            allowed_sort_columns=allowed_cols,
+            default_sort_column=HistoryFileIndexProcessor.COL_DELETE_TIME
+        )

@@ -87,7 +87,7 @@ class DuplicateService:
         """
         用途：完成查重任务，将结果保存至数据库并更新最终状态。
         入参说明：
-            results (List[DuplicateGroup]) - 查重结果对象列表。
+            results (List[DuplicateGroupDBModule]) - 查重结果对象列表。
             status_text (str) - 结束时的描述。
         返回值说明：无
         """
@@ -111,7 +111,7 @@ class DuplicateService:
         try:
             LogUtils.info("开始执行文件查重逻辑...")
 
-            total_files = DBOperations.get_file_count(DBManager.TABLE_FILE_INDEX)
+            total_files = DBOperations.get_file_index_count()
             if total_files == 0:
                 DuplicateService._complete_check([], "未发现可检查的文件")
                 return
@@ -129,13 +129,11 @@ class DuplicateService:
                 if DuplicateService._progress_manager.is_stopped():
                     DuplicateService._handle_stopped()
                     return
-                
-                files = DBOperations.get_file_list_with_pagination(
-                    table_name=DBManager.TABLE_FILE_INDEX,
+
+                files = DBOperations.get_file_index_list_by_condition(
                     limit=batch_size,
                     offset=processed_count,
-                    sort_by="id",
-                    order="ASC"
+                    only_no_thumbnail= False
                 )
 
                 if not files:
@@ -150,7 +148,7 @@ class DuplicateService:
                     DuplicateService._progress_manager.update_progress(
                         current=current_processed,
                         total=total_files,
-                        message=f"正在分析 ({current_processed}/{total_files}): {file_info.file_name}"
+                        message=f"正在分析 ({current_processed}/{total_files}): {Utils.get_filename(file_info.file_path)}"
                     )
                     helper.add_file(file_info)
 

@@ -1,10 +1,13 @@
 from abc import ABC, abstractmethod
 import sqlite3
+from typing import List, Any, Type, TypeVar, Generic, Optional
 
 from backend.common.log_utils import LogUtils
 from backend.db.db_manager import db_manager
-from typing import List, Any
+from backend.model.pagination_result import PaginationResult
+from backend.setting.setting_service import settingService
 
+T = TypeVar('T')
 
 class BaseDBProcessor(ABC):
     """
@@ -96,3 +99,77 @@ class BaseDBProcessor(ABC):
         BaseDBProcessor._execute("DELETE FROM sqlite_sequence WHERE name=?", (table_name,))
         LogUtils.info(f"表 {table_name} 已清空")
         return True
+
+    @staticmethod
+    def _search_paged_list(
+            table_name: str,
+            model_class: Type[T],
+            page: int,
+            limit: int,
+            sort_by: str,
+            order: bool,
+            search_query: str,
+            search_column: str,
+            allowed_sort_columns: List[str],
+            default_sort_column: str
+    ) -> PaginationResult[T]:
+        """
+        用途：通用的分页查询逻辑封装
+        入参说明：
+            table_name (str): 表名
+            model_class (Type[T]): 结果转换的目标类
+            page (int): 当前页码
+            limit (int): 每页大小
+            sort_by (str): 排序字段
+            order (bool): 排序方向 (True 为 ASC)
+            search_query (str): 搜索文本
+            search_column (str): 搜索匹配的列
+            allowed_sort_columns (List[str]): 允许排序的列列表
+            default_sort_column (str): 默认排序字段
+        返回值说明：
+            PaginationResult[T]: 分页结果对象
+        """
+        # 1. 处理搜索关键词
+        search_replace_chars = settingService.get_config().file_repository.search_replace_chars
+        processed_query = search_query
+        if processed_query:
+            for char in search_replace_chars:
+                if char:
+                    processed_query = processed_query.replace(char, '%')
+            sql_search_param = f"%{processed_query}%"
+        else:
+            sql_search_param = "%"
+
+        # 2. 校验排序字段
+        if sort_by not in allowed_sort_columns:
+            sort_by = default_sort_column
+        
+        order_str = "ASC" if order else "DESC"
+
+        # 3. 分页计算
+        offset = max(0, (page - 1) * limit)
+
+        # 4. 总数查询
+        count_query = f"SELECT COUNT(*) as total FROM {table_name} WHERE {search_column} LIKE ?"
+        total_res = BaseDBProcessor._execute(count_query, (sql_search_param,), is_query=True, fetch_one=True)
+        total = total_res['total'] if total_res else 0
+
+        # 5. 列表查询
+        list_query = f"""
+            SELECT * FROM {table_name}
+            WHERE {search_column} LIKE ?
+            ORDER BY {sort_by} {order_str}
+            LIMIT ? OFFSET ?
+        """
+        rows = BaseDBProcessor._execute(list_query, (sql_search_param, limit, offset), is_query=True)
+        
+        data_list = [model_class(**row) for row in rows]
+
+        return PaginationResult(
+            total=total,
+            list=data_list,
+            page=page,
+            limit=limit,
+            sort_by=sort_by,
+            order=order_str
+        )
