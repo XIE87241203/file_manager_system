@@ -5,13 +5,13 @@
 """
 import os
 import threading
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 import cv2
 import imagehash
 from PIL import Image
+
 from backend.common.log_utils import LogUtils
-from backend.common.utils import Utils
 from backend.db.db_operations import DBOperations
 from backend.model.db.file_index_db_model import FileIndexDBModel
 from backend.model.db.video_feature_db_model import VideoFeatureDBModel
@@ -140,8 +140,7 @@ class VideoAnalyzer:
 
         try:
             # 修复点 3：优先从数据库索引获取 MD5，避免重复计算大文件的 MD5 (耗时 IO)
-            thumbnail_path = None
-            file_idx: Optional[FileIndexDBModel] = DBOperations.get_file_index_by_path(video_path)
+            file_idx: Optional[FileIndexDBModel] = DBOperations.get_file_by_path(video_path)
             if file_idx is None:
                 return None
 

@@ -12,10 +12,8 @@
 <header class="top-bar"></header>
 
 <main class="repo-container">
-    <!-- 查重状态容器：用于挂载通用进度条组件 -->
-    <div id="scanning-container" class="centered-status-container" style="display: none;">
-        <!-- 内容将由 UIComponents.showProgressBar 动态生成 -->
-    </div>
+    <!-- 查重状态容器 -->
+    <div id="scanning-container" class="centered-status-container" style="display: none;"></div>
 
     <!-- 结果区域组 -->
     <div id="results-group" class="results-group" style="display: none;">
@@ -33,6 +31,13 @@
         <!-- 结果显示区域 -->
         <div id="results-wrapper" class="results-wrapper"></div>
 
+        <!-- 分页控制栏 (模仿文件仓库样式) -->
+        <div id="pagination-container" class="pagination-bar" style="display: none;">
+            <button id="btn-prev-page" class="btn-page">上一页</button>
+            <span id="page-info" class="page-info">第 1 / 1 页 (共 0 条)</span>
+            <button id="btn-next-page" class="btn-page">下一页</button>
+        </div>
+
         <!-- 底部浮动操作栏 -->
         <div id="floating-action-bar" class="floating-action-bar" style="display: none;">
             <button id="btn-delete-selected-global" class="btn-danger-large">删除选中的重复文件</button>
@@ -45,7 +50,6 @@
     </div>
 </main>
 
-<!-- 引入公用工具 -->
 <script src="../../common/ui_components.js"></script>
 <script src="../../common/request.js"></script>
 <script src="../../common/toast.js"></script>

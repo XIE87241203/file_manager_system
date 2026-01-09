@@ -1,19 +1,21 @@
-import os
-from dataclasses import asdict
-from typing import Dict, Any, List, Tuple, Optional
+from typing import Dict, Any, List, Tuple
 
+from backend.common.log_utils import LogUtils
+from backend.common.progress_manager import ProgressManager, ProgressInfo, ProgressStatus
+from backend.common.thread_pool import ThreadPoolManager
 from backend.common.utils import Utils
 from backend.db.db_operations import DBOperations
-from backend.db.db_manager import DBManager
-from backend.common.log_utils import LogUtils
+from backend.file_repository.base_file_service import BaseFileService
 from backend.file_repository.duplicate_check.duplicate_check_helper import DuplicateCheckHelper
-from backend.common.thread_pool import ThreadPoolManager
-from backend.common.progress_manager import ProgressManager, ProgressInfo, ProgressStatus
+from backend.model.db.file_index_db_model import FileIndexDBModel
+from backend.model.duplicate_group_result import DuplicateGroupResult
+from backend.model.pagination_result import PaginationResult
 
 
-class DuplicateService:
+class DuplicateService(BaseFileService):
     """
     用途：文件查重服务类，支持异步查重、进度查询、任务停止以及文件删除。
+    继承自 BaseFileService 以复用核心文件操作逻辑。
     接入全局线程池 ThreadPoolManager。
     """
 
@@ -22,32 +24,11 @@ class DuplicateService:
     @staticmethod
     def get_status() -> Dict[str, Any]:
         """
-        用途：获取当前查重任务的状态、进度及结果信息。
+        用途：获取当前查重任务的状态及进度。
         入参说明：无
-        返回值说明：Dict[str, Any] - 包含 status (状态), progress (进度详情) 和 results (查重结果列表) 的字典。
+        返回值说明：Dict[str, Any] - 包含 status (状态字符串) 和 progress (进度详情对象) 的字典。
         """
-        # 直接获取 ProgressManager 维护的状态字典作为基础
-        status_data = DuplicateService._progress_manager.get_status()
-        
-        # 初始化结果列表
-        results_list: List[Dict[str, Any]] = []
-        
-        # 查重特有逻辑：非运行状态下，尝试从数据库恢复历史查重结果
-        if status_data["status"] != ProgressStatus.PROCESSING:
-            results = DBOperations.get_all_duplicate_results()
-            if results:
-                # 自动同步状态：如果有历史结果担管理器状态不是“已完成”，则修正状态和消息
-                if status_data["status"] != ProgressStatus.COMPLETED:
-                    DuplicateService._progress_manager.set_status(ProgressStatus.COMPLETED)
-                    DuplicateService._progress_manager.update_progress(message="已加载历史查重结果")
-                    # 状态变更后重新拉取最新的状态字典
-                    status_data = DuplicateService._progress_manager.get_status()
-                
-                results_list = [asdict(group) for group in results]
-
-        # 挂载结果数据并返回
-        status_data["results"] = results_list
-        return status_data
+        return DuplicateService._progress_manager.get_status()
 
     @staticmethod
     def stop_check() -> None:
@@ -56,7 +37,8 @@ class DuplicateService:
         入参说明：无
         返回值说明：无
         """
-        if DuplicateService._progress_manager.get_raw_status() == ProgressStatus.PROCESSING:
+        status: ProgressStatus = DuplicateService._progress_manager.get_raw_status()
+        if status == ProgressStatus.PROCESSING:
             DuplicateService._progress_manager.set_stop_flag(True)
             LogUtils.info("收到停止查重任务请求")
 
@@ -65,9 +47,10 @@ class DuplicateService:
         """
         用途：通过全局线程池启动异步查重任务。
         入参说明：无
-        返回值说明：bool - 如果成功启动返回 True，如果已在查重中则返回 False。
+        返回值说明：bool - 如果成功启动返回 True，如果任务已在运行中则返回 False。
         """
-        if DuplicateService._progress_manager.get_raw_status() == ProgressStatus.PROCESSING:
+        status: ProgressStatus = DuplicateService._progress_manager.get_raw_status()
+        if status == ProgressStatus.PROCESSING:
             LogUtils.error("查重任务已在运行中，请勿重复启动")
             return False
 
@@ -75,6 +58,7 @@ class DuplicateService:
         DuplicateService._progress_manager.set_stop_flag(False)
         DuplicateService._progress_manager.reset_progress(message="正在初始化...")
 
+        # 清空旧的重复数据
         DBOperations.clear_duplicate_results()
 
         # 使用全局线程池提交查重任务
@@ -87,16 +71,16 @@ class DuplicateService:
         """
         用途：完成查重任务，将结果保存至数据库并更新最终状态。
         入参说明：
-            results (List[DuplicateGroupDBModule]) - 查重结果对象列表。
-            status_text (str) - 结束时的描述。
+            results (List[DuplicateGroupDBModule]): 查重生成的分组结果列表。
+            status_text (str): 任务结束时的描述信息。
         返回值说明：无
         """
         DBOperations.save_duplicate_results(results)
 
         DuplicateService._progress_manager.set_status(ProgressStatus.COMPLETED)
-        current_progress_info = DuplicateService._progress_manager.get_raw_progress_info()
+        current_info: ProgressInfo = DuplicateService._progress_manager.get_raw_progress_info()
         DuplicateService._progress_manager.update_progress(
-            current=current_progress_info.total,
+            current=current_info.total,
             message=status_text
         )
         LogUtils.info(status_text)
@@ -104,36 +88,37 @@ class DuplicateService:
     @staticmethod
     def _internal_check() -> None:
         """
-        用途：内部查重逻辑，在全局线程池中运行。
+        用途：内部查重逻辑，在独立线程中执行耗时扫描。
         入参说明：无
         返回值说明：无
         """
         try:
             LogUtils.info("开始执行文件查重逻辑...")
 
-            total_files = DBOperations.get_file_index_count()
+            total_files: int = DBOperations.get_file_index_count()
             if total_files == 0:
                 DuplicateService._complete_check([], "未发现可检查的文件")
                 return
 
-            DuplicateService._progress_manager.update_progress(total=total_files,
-                                              message="正在准备分析文件...")
+            DuplicateService._progress_manager.update_progress(
+                total=total_files,
+                message="正在准备分析文件..."
+            )
 
-            helper = DuplicateCheckHelper()
-
-            batch_size = 500
-            processed_count = 0
-            current_processed = 0
+            helper: DuplicateCheckHelper = DuplicateCheckHelper()
+            batch_size: int = 500
+            processed_count: int = 0
+            current_processed: int = 0
 
             while processed_count < total_files:
                 if DuplicateService._progress_manager.is_stopped():
                     DuplicateService._handle_stopped()
                     return
 
-                files = DBOperations.get_file_index_list_by_condition(
+                files: List[FileIndexDBModel] = DBOperations.get_file_index_list_by_condition(
                     limit=batch_size,
                     offset=processed_count,
-                    only_no_thumbnail= False
+                    only_no_thumbnail=False
                 )
 
                 if not files:
@@ -145,10 +130,11 @@ class DuplicateService:
                         return
                     
                     current_processed += 1
+                    file_name: str = Utils.get_filename(file_info.file_path)
                     DuplicateService._progress_manager.update_progress(
                         current=current_processed,
                         total=total_files,
-                        message=f"正在分析 ({current_processed}/{total_files}): {Utils.get_filename(file_info.file_path)}"
+                        message=f"正在分析 ({current_processed}/{total_files}): {file_name}"
                     )
                     helper.add_file(file_info)
 
@@ -159,7 +145,7 @@ class DuplicateService:
                 return
 
             DuplicateService._progress_manager.update_progress(message="正在生成查重报告，请稍候...")
-            results = helper.get_all_results()
+            results: List[Any] = helper.get_all_results()
             DuplicateService._complete_check(results, f"查重完成，共发现 {len(results)} 组重复文件")
 
         except Exception as e:
@@ -170,7 +156,7 @@ class DuplicateService:
     @staticmethod
     def _handle_stopped() -> None:
         """
-        用途：处理任务被停止时的状态重置。
+        用途：处理查重任务被手动停止时的状态重设。
         入参说明：无
         返回值说明：无
         """
@@ -182,18 +168,22 @@ class DuplicateService:
     @staticmethod
     def delete_group(md5: str) -> Tuple[int, List[str]]:
         """
-        用途：删除指定 MD5 对应的所有物理文件及其索引。
+        用途：删除指定 MD5 对应的所有重复物理文件及其索引记录。
         入参说明：
-            md5 (str) - 文件的 MD5 哈希值。
-        返回值说明：Tuple[int, List[str]] - (成功删除的数量, 失败的文件路径列表)。
+            md5 (str): 目标文件的 MD5 哈希值。
+        返回值说明：
+            Tuple[int, List[str]]: (成功删除的文件数量, 删除失败的文件路径列表)。
         """
-        results = DBOperations.get_paths_by_md5(md5)
+        # 注意：此处假设 DBOperations 已实现 get_paths_by_md5，
+        # 如果未实现，应改为通过 get_all_duplicate_results 逻辑获取路径。
+        results: List[str] = DBOperations.get_paths_by_md5(md5)
 
-        success_count = 0
-        failed_files = []
+        success_count: int = 0
+        failed_files: List[str] = []
 
         for path in results:
-            success, _ = Utils.delete_file(path)
+            # 调用基类 BaseFileService 的删除逻辑
+            success, _ = BaseFileService.delete_file(path)
             if success:
                 success_count += 1
             else:
@@ -201,3 +191,15 @@ class DuplicateService:
 
         LogUtils.info(f"批量删除完成: MD5={md5}, 成功={success_count}, 失败={len(failed_files)}")
         return success_count, failed_files
+
+    @staticmethod
+    def get_all_duplicate_results(page: int, limit: int) -> PaginationResult[DuplicateGroupResult]:
+        """
+        用途：分页获取所有查重结果分组。
+        入参说明：
+            page (int): 当前页码。
+            limit (int): 每页记录数。
+        返回值说明：
+            PaginationResult[DuplicateGroupResult]: 包含分页信息和结果列表的对象。
+        """
+        return DBOperations.get_all_duplicate_results(page, limit)

@@ -1,15 +1,14 @@
 import os
-from typing import List, Dict, Any, Optional
 from concurrent.futures import as_completed
+from typing import List, Dict, Any
 
+from backend.common.log_utils import LogUtils
+from backend.common.progress_manager import ProgressManager, ProgressStatus
+from backend.common.thread_pool import ThreadPoolManager
+from backend.common.utils import Utils
+from backend.db.db_operations import DBOperations
 from backend.model.db.file_index_db_model import FileIndexDBModel
 from backend.setting.setting_service import settingService
-from backend.db.db_operations import DBOperations
-from backend.common.log_utils import LogUtils
-from backend.common.utils import Utils
-from backend.common.thread_pool import ThreadPoolManager
-from backend.common.progress_manager import ProgressManager, ProgressInfo, ProgressStatus
-from backend.file_repository.thumbnail.thumbnail_service import ThumbnailService
 
 
 class ScanService:
@@ -133,7 +132,6 @@ class ScanService:
                             all_files_info.append(
                                 FileIndexDBModel(
                                     file_path=f_path, 
-                                    file_name=os.path.basename(f_path), 
                                     file_md5=f_md5
                                 )
                             )
@@ -144,7 +142,7 @@ class ScanService:
                     
                     # 批量写入数据库（每 100 条）以平衡 IO 性能
                     if len(all_files_info) >= 100:
-                        DBOperations.batch_insert_files(all_files_info)
+                        DBOperations.batch_insert_files_index(all_files_info)
                         all_files_info = []
                     
                     # 定期更新进度
@@ -153,20 +151,17 @@ class ScanService:
 
             # 写入剩余数据
             if all_files_info and not ScanService._progress_manager.is_stopped():
-                DBOperations.batch_insert_files(all_files_info)
+                DBOperations.batch_insert_files_index(all_files_info)
 
             # --- 第三阶段：收尾工作 ---
             if ScanService._progress_manager.is_stopped():
                 ScanService._handle_stopped()
             else:
                 LogUtils.info("所有文件处理完成，正在同步至历史表...")
-                if DBOperations.copy_file_index_to_history():
-                    ScanService._progress_manager.set_status(ProgressStatus.COMPLETED)
-                    ScanService._progress_manager.update_progress(message=f"扫描任务正常完成，共索引 {processed_count} 个文件")
-                    LogUtils.info(f"扫描任务正常完成，共索引 {processed_count} 个文件")
-                else:
-                    ScanService._progress_manager.set_status(ProgressStatus.ERROR)
-                    ScanService._progress_manager.update_progress(message="备份至历史表失败")
+                DBOperations.copy_file_index_to_history()
+                ScanService._progress_manager.set_status(ProgressStatus.COMPLETED)
+                ScanService._progress_manager.update_progress(message=f"扫描任务正常完成，共索引 {processed_count} 个文件")
+                LogUtils.info(f"扫描任务正常完成，共索引 {processed_count} 个文件")
 
         except Exception as e:
             LogUtils.error(f"扫描服务运行异常: {e}")

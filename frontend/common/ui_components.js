@@ -82,8 +82,20 @@ const UIComponents = {
      */
     getToolbarHeight() {
         const header = document.querySelector('header.top-bar');
-        // 如果 header 存在则返回其高度，否则返回预设的 60px
+        // 如果 header 存在则返回其高度，否则返回预设特 60px
         return header ? header.offsetHeight || 60 : 60;
+    },
+
+    /**
+     * 用途说明：从文件路径中截取文件名（带后缀）
+     * 入参说明：path (str): 文件完整路径
+     * 返回值说明：str - 文件名
+     */
+    getFileName(path) {
+        if (!path) return '';
+        // 兼容 Windows (\) 和 Unix (/) 路径分隔符
+        const parts = path.split(/[/\\]/);
+        return parts.pop() || '';
     },
 
     /**
@@ -306,5 +318,46 @@ const UIComponents = {
             this._previewPopover.style.display = 'none';
             this._previewPopover.innerHTML = '';
         }
+    },
+
+    /**
+     * 用途说明：初始化并绑定通用分页组件的逻辑
+     * 入参说明：
+     *   - containerId (str): 分页容器的 ID
+     *   - options (object): {
+     *       onPageChange: (func) 页码切换回调，入参为新页码,
+     *       limit: (number) 每页限制数
+     *     }
+     * 返回值说明：Object - 包含 update 方法的控制器
+     */
+    initPagination(containerId, options) {
+        const container = document.getElementById(containerId);
+        if (!container) return null;
+
+        const { onPageChange, limit = 20 } = options;
+
+        // 内部渲染方法
+        const render = (total, currentPage) => {
+            const totalPages = Math.ceil(total / limit) || 1;
+            
+            // 修复：即便只有一页，也显示分页信息，只是禁用按钮
+            container.style.display = 'flex';
+            container.innerHTML = `
+                <button class="btn-page" id="${containerId}-prev" ${currentPage <= 1 ? 'disabled' : ''}>上一页</button>
+                <span class="page-info">第 ${currentPage} / ${totalPages} 页 (共 ${total} 条)</span>
+                <button class="btn-page" id="${containerId}-next" ${currentPage >= totalPages ? 'disabled' : ''}>下一页</button>
+            `;
+
+            container.querySelector(`#${containerId}-prev`).onclick = () => {
+                if (currentPage > 1) onPageChange(currentPage - 1);
+            };
+            container.querySelector(`#${containerId}-next`).onclick = () => {
+                if (currentPage < totalPages) onPageChange(currentPage + 1);
+            };
+        };
+
+        return {
+            update: (total, currentPage) => render(total, currentPage)
+        };
     }
 };

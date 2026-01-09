@@ -1,15 +1,16 @@
+import os
 from dataclasses import asdict
 
 from flask import Blueprint, request, send_file
-import os
-from backend.common.response import success_response, error_response
-from backend.common.log_utils import LogUtils
+
 from backend.common.auth_middleware import token_required
+from backend.common.log_utils import LogUtils
 from backend.common.progress_manager import ProgressStatus
+from backend.common.response import success_response, error_response
 from backend.common.utils import Utils
-from backend.file_repository.scan_service import ScanService
 from backend.file_repository.duplicate_check.duplicate_service import DuplicateService
 from backend.file_repository.file_service import FileService
+from backend.file_repository.scan_service import ScanService
 from backend.file_repository.thumbnail.thumbnail_service import ThumbnailService
 
 # 创建文件仓库模块的蓝图
@@ -230,36 +231,21 @@ def get_duplicate_progress():
     return success_response("获取进度成功", data=status_info)
 
 
-@file_repo_bp.route('/duplicate/delete', methods=['POST'])
+@file_repo_bp.route('/duplicate/list', methods=['GET'])
 @token_required
-def delete_duplicate_file():
+def list_duplicate_results():
     """
-    用途说明：删除指定的重复文件（包含物理文件和索引记录）
-    入参说明：JSON 包含 file_path 或 group_md5
-    返回值说明：JSON 格式响应
+    用途说明：分页获取重复文件组数据列表
+    入参说明：
+        page (int): 当前页码，默认 1
+        limit (int): 每页记录数，默认 100
+    返回值说明：JSON 格式响应，data 字段包含 PaginationResult 结构
     """
-    data = request.json
-    file_path = data.get('file_path')
-    group_md5 = data.get('group_md5')
-
-    if file_path:
-        LogUtils.info(f"用户 {_get_current_user()} 请求删除文件: {file_path}")
-        success, msg = FileService.delete_file(file_path)
-        if success:
-            return success_response("文件删除成功")
-        else:
-            return error_response(f"文件删除失败: {msg}", 500)
-
-    if group_md5:
-        LogUtils.info(f"用户 {_get_current_user()} 请求删除重复组: {group_md5}")
-        count, failed = DuplicateService.delete_group(group_md5)
-        if not failed:
-            return success_response(f"成功删除组内 {count} 个文件")
-        else:
-            return error_response(f"部分文件删除失败({len(failed)}个): {', '.join(failed[:3])}...",
-                                  500)
-
-    return error_response("无效的请求参数", 400)
+    page = request.args.get('page', default=1, type=int)
+    limit = request.args.get('limit', default=100, type=int)
+    
+    data = DuplicateService.get_all_duplicate_results(page, limit)
+    return success_response("获取重复文件列表成功", data=asdict(data))
 
 
 # --- 缩略图相关路由 ---

@@ -1,21 +1,41 @@
 /**
- * 用途说明：查重页面 logic 处理，负责触发查重任务、进度监控以及查重结果的展示与交互。
+ * 用途说明：查重页面 logic 处理，负责触发查重任务、进度监控以及查重结果的分页展示与交互。
  */
 
 // --- 状态管理 ---
 const CheckState = {
     results: [],
+    page: 1,
+    limit: 100,
+    total: 0,
     lastCheckTime: '--',
     pollingInterval: null,
     settings: null, // 存储系统设置
+    paginationController: null, // 分页控制器实例
+    previousExpandedStates: null, // 用途说明：存储上一页结果的展开/收起状态，用于刷新后保留状态
 
     /**
-     * 用途说明：更新结果列表并更新最后检查时间
-     * 入参说明：newResults (Array) - 新的结果列表
+     * 用途说明：更新结果列表及分页信息
+     * 入参说明：data (Object) - 后端返回的 PaginationResult 结构
+     * 入参说明：expandedStatesMap (Object|null) - 存储分组ID到isExpanded状态的映射，用于恢复分组的展开状态
      * 返回值说明：无
      */
-    setResults(newResults) {
-        this.results = newResults || [];
+    setPaginationData(data, expandedStatesMap = null) {
+        this.results = data.list || [];
+        this.total = data.total || 0;
+        this.page = data.page || 1;
+        this.limit = data.limit || 100;
+
+        // 恢复分组的展开状态
+        this.results.forEach(group => {
+            if (expandedStatesMap && expandedStatesMap[group.id] !== undefined) {
+                group.isExpanded = expandedStatesMap[group.id];
+            } else {
+                // 默认为展开状态
+                group.isExpanded = true;
+            }
+        });
+
         this.updateLastCheckTime();
     },
 
@@ -58,6 +78,22 @@ const UIController = {
             floatingBar: document.getElementById('floating-action-bar'),
             globalDeleteBtn: document.getElementById('btn-delete-selected-global')
         };
+        
+        // 初始化公用分页组件
+        CheckState.paginationController = UIComponents.initPagination('pagination-container', {
+            limit: CheckState.limit,
+            onPageChange: (newPage) => App.changePage(newPage)
+        });
+
+        // 绑定全局删除按钮
+        this.elements.globalDeleteBtn.onclick = () => {
+            const checkedCbs = document.querySelectorAll('.file-checkbox:checked');
+            const paths = Array.from(checkedCbs).map(cb => cb.getAttribute('data-path'));
+            if (paths.length > 0) {
+                App.deleteFiles(paths, `确定要删除选中的 ${paths.length} 个文件吗？\n(删除后若组内文件少于2个，该组将自动解散)`);
+            }
+        };
+
         this.renderHeader(ProgressStatus.IDLE);
     },
 
@@ -89,19 +125,16 @@ const UIController = {
             scanningContainer.style.display = 'flex';
             resultsGroup.style.display = 'none';
             emptyHint.style.display = 'none';
-            // 使用封装的公共进度条组件，初始消息由 updateProgress 很快覆盖
             UIComponents.showProgressBar('#scanning-container', '正在准备分析文件...');
         } else {
             this.renderHeader(ProgressStatus.IDLE);
             scanningContainer.style.display = 'none';
             UIComponents.hideProgressBar('#scanning-container');
 
-            // 核心修复逻辑：如果是查重完成状态，或者当前内存中已有结果数据，则必须显示结果区域
             if (status === ProgressStatus.COMPLETED || (CheckState.results && CheckState.results.length > 0)) {
                 resultsGroup.style.display = 'flex';
                 emptyHint.style.display = 'none';
             } else {
-                // 只有在空闲且无数据时才显示引导提示
                 resultsGroup.style.display = 'none';
                 emptyHint.style.display = (status === ProgressStatus.IDLE) ? 'block' : 'none';
             }
@@ -127,50 +160,53 @@ const UIController = {
         wrapper.innerHTML = '';
 
         const results = CheckState.results;
-        // 如果查重完成 but 没有发现重复文件
         if (!results || results.length === 0) {
             summaryBar.style.display = 'none';
             wrapper.innerHTML = '<div style="text-align: center; color: #9aa0a6; padding-top: 100px;">未发现重复文件</div>';
+            if (CheckState.paginationController) CheckState.paginationController.update(0, 1);
             this.updateFloatingBar();
             return;
         }
 
-        // 更新统计栏信息
         summaryBar.style.display = 'block';
-        summaryGroups.textContent = `分组: ${results.length}`;
-        const totalFiles = results.reduce((acc, g) => acc + (g.files ? g.files.length : 0), 0);
-        summaryFiles.textContent = `文件: ${totalFiles}`;
-        summaryTime.textContent = `查重时间: ${CheckState.lastCheckTime}`;
+        summaryGroups.textContent = `重复组总数: ${CheckState.total}`;
+        const totalFiles = results.reduce((acc, g) => acc + (g.file_ids ? g.file_ids.length : 0), 0);
+        summaryFiles.textContent = `当前页文件: ${totalFiles}`;
+        summaryTime.textContent = `刷新时间: ${CheckState.lastCheckTime}`;
 
-        // 遍历并渲染每一个重复组
         results.forEach(group => {
             const groupEl = this.createGroupElement(group);
             wrapper.appendChild(groupEl);
         });
+
+        // 更新公用分页组件
+        if (CheckState.paginationController) {
+            CheckState.paginationController.update(CheckState.total, CheckState.page);
+        }
 
         this.updateFloatingBar();
     },
 
     /**
      * 用途说明：创建一个重复分组的 DOM 元素
-     * 入参说明：group (Object) - 分组数据
+     * 入参说明：group (Object) - 分组数据 (DuplicateGroupResult)
      * 返回值说明：HTMLElement - 分组节点
      */
     createGroupElement(group) {
         const groupEl = document.createElement('div');
         groupEl.className = `duplicate-group ${group.isExpanded ? 'expanded' : ''}`;
-        groupEl.setAttribute('data-group-id', group.group_id);
+        groupEl.setAttribute('data-group-id', group.id);
 
-        // 注意：后端数据类 DuplicateGroupDBModule 包含 files 数组
-        const fileCount = group.files ? group.files.length : 0;
-        const groupType = group.checker_type === 'video_similarity' ? '视频相似组' : '重复组';
+        const files = group.file_ids || [];
+        const fileCount = files.length;
+        const groupType = group.group_name || '重复组';
 
         groupEl.innerHTML = `
             <div class="group-header">
                 <div class="group-info">
                     <span class="group-title">${groupType}</span>
                     <span class="group-count">${fileCount} 个文件</span>
-                    <span class="group-md5">ID: ${group.group_id}</span>
+                    <span class="group-md5">ID: ${group.id}</span>
                 </div>
                 <div class="group-actions">
                     <span class="expand-icon">▶</span>
@@ -188,11 +224,11 @@ const UIController = {
                         </tr>
                     </thead>
                     <tbody>
-                        ${group.files.map(f => {
-                            const extra = f.extra_info && f.extra_info.duration ? ` [${f.extra_info.duration}s]` : '';
+                        ${files.map(f => {
+                            const fileName = f.file_path.split(/[\/]/).pop();
                             return `
                                 <tr class="clickable-row" data-thumbnail="${f.thumbnail_path || ''}">
-                                    <td style="width: 25%;" title="${f.file_name}">${f.file_name}${extra}</td>
+                                    <td style="width: 25%;" title="${fileName}">${fileName}</td>
                                     <td style="width: 70%;" class="file-path" title="${f.file_path}">${f.file_path}</td>
                                     <td style="width: 30px; text-align: center;">
                                         <input type="checkbox" class="file-checkbox" data-path="${f.file_path}">
@@ -205,14 +241,19 @@ const UIController = {
             </div>
         `;
 
-        // 绑定折叠/展开事件
-        groupEl.querySelector('.group-header').addEventListener('click', (e) => {
+        const header = groupEl.querySelector('.group-header');
+
+        header.addEventListener('click', (e) => {
             if (e.target.type === 'checkbox') return;
-            const isExpanded = groupEl.classList.toggle('expanded');
-            group.isExpanded = isExpanded;
+            groupEl.classList.toggle('expanded');
+            // 用途说明：更新状态管理中的分组展开状态
+            const groupId = groupEl.getAttribute('data-group-id');
+            const targetGroup = CheckState.results.find(g => String(g.id) === groupId);
+            if (targetGroup) {
+                targetGroup.isExpanded = groupEl.classList.contains('expanded');
+            }
         });
 
-        // 绑定组内全选事件
         const selectAllCheckbox = groupEl.querySelector('.select-all-in-group');
         const fileCheckboxes = groupEl.querySelectorAll('.file-checkbox');
         selectAllCheckbox.onchange = (e) => {
@@ -226,34 +267,30 @@ const UIController = {
             this.updateFloatingBar();
         };
 
-        // 绑定行点击选择事件 (符合 AGENTS.md 规范)
         groupEl.querySelectorAll('.clickable-row').forEach(tr => {
             tr.addEventListener('click', (e) => {
                 const cb = tr.querySelector('.file-checkbox');
-                let isChecked;
                 if (e.target !== cb) {
                     cb.checked = !cb.checked;
+                    // 手动触发 change 事件或直接调用逻辑
+                    if (cb.checked) tr.classList.add('selected-row');
+                    else tr.classList.remove('selected-row');
+                    if (!cb.checked) selectAllCheckbox.checked = false;
+                    this.updateFloatingBar();
                 }
-                isChecked = cb.checked;
-
-                // 更新行背景
-                if (isChecked) tr.classList.add('selected-row');
-                else tr.classList.remove('selected-row');
-
-                // 如果取消选中，同步取消组全选框的状态
-                if (!isChecked) {
-                    selectAllCheckbox.checked = false;
-                }
-
-                this.updateFloatingBar();
             });
 
-            // 绑定悬停预览事件 (使用通用 UI 组件)
+            const checkbox = tr.querySelector('.file-checkbox');
+            checkbox.onclick = (e) => {
+                e.stopPropagation();
+                if (checkbox.checked) tr.classList.add('selected-row');
+                else tr.classList.remove('selected-row');
+                if (!checkbox.checked) selectAllCheckbox.checked = false;
+                this.updateFloatingBar();
+            };
+
             if (CheckState.settings && CheckState.settings.file_repository.quick_view_thumbnail) {
-                tr.addEventListener('mouseenter', (e) => {
-                    const thumbPath = tr.getAttribute('data-thumbnail');
-                    UIComponents.showQuickPreview(e, thumbPath);
-                });
+                tr.addEventListener('mouseenter', (e) => UIComponents.showQuickPreview(e, tr.getAttribute('data-thumbnail')));
                 tr.addEventListener('mousemove', (e) => UIComponents.moveQuickPreview(e));
                 tr.addEventListener('mouseleave', () => UIComponents.hideQuickPreview());
             }
@@ -303,7 +340,7 @@ const DuplicateCheckAPI = {
     },
 
     /**
-     * 用途说明：向后端发送请求停止正在进行的查重任务
+     * 用途说明：向后端发送请求停止查重任务
      * 入参说明：无
      * 返回值说明：无
      */
@@ -311,25 +348,21 @@ const DuplicateCheckAPI = {
         if (!confirm('确定要终止当前的查重任务吗？')) return;
         try {
             const response = await Request.post('/api/file_repository/duplicate/stop', {}, {}, true);
-            if (response.status === 'success') {
-                Toast.show('正在停止任务...');
-            }
+            if (response.status === 'success') Toast.show('正在停止任务...');
         } catch (error) {
             Toast.show('请求停止失败');
         }
     },
 
     /**
-     * 用途说明：向后端轮询查重任务的最新进度和结果
+     * 用途说明：向后端轮询查重任务的最新进度
      * 入参说明：无
-     * 返回值说明：Object - 后端返回的数据对象
+     * 返回值说明：Object - 包含 status 和 progress
      */
     async fetchProgress() {
         try {
             const response = await Request.get('/api/file_repository/duplicate/progress', {}, false);
-            if (response.status === 'success') {
-                return response.data;
-            }
+            if (response.status === 'success') return response.data;
         } catch (error) {
             console.error('获取查重进度失败:', error);
         }
@@ -337,66 +370,130 @@ const DuplicateCheckAPI = {
     },
 
     /**
-     * 用途说明：向后端发送请求删除指定的物理文件
-     * 入参说明：path (String) - 文件绝对路径
-     * 返回值说明：Object - 请求响应结果
+     * 用途说明：分页获取查重结果数据
+     * 入参说明：page (int), limit (int)
+     * 返回值说明：Object - PaginationResult
      */
-    async deleteFile(path) {
-        return await Request.post('/api/file_repository/duplicate/delete', { file_path: path }, {}, true);
+    async fetchList(page, limit) {
+        try {
+            const response = await Request.get('/api/file_repository/duplicate/list', { page, limit }, false);
+            if (response.status === 'success') return response.data;
+        } catch (error) {
+            console.error('获取结果列表失败:', error);
+        }
+        return null;
+    },
+
+    /**
+     * 用途说明：调用通用删除 API 批量删除文件
+     * 入参说明：paths (Array) - 文件路径列表
+     * 返回值说明：Object - 后端响应结果
+     */
+    async deleteFiles(paths) {
+        try {
+            return await Request.post('/api/file_repository/delete', { file_paths: paths }, {}, true);
+        } catch (error) {
+            console.error('删除文件请求失败:', error);
+            return { status: 'error', message: '请求失败' };
+        }
     }
 };
 
-// --- 应用逻辑主入口 ---
+// --- 应用入口 ---
 const App = {
     /**
-     * 用途说明：应用初始化，设置 UI 并检查初始任务状态
+     * 用途说明：应用启动入口
      * 入参说明：无
      * 返回值说明：无
      */
     async init() {
         UIController.init();
 
-        // 绑定底部批量删除按钮逻辑
-        if (UIController.elements.globalDeleteBtn) {
-            UIController.elements.globalDeleteBtn.onclick = () => this.handleBatchDelete();
-        }
-
-        await this.loadSettings();
-
-        // 检查页面进入时的初始状态
-        this.checkInitialStatus();
-    },
-
-    /**
-     * 用途说明：从后端加载设置
-     * 入参说明：无
-     * 返回值说明：无
-     */
-    async loadSettings() {
+        // 获取系统配置
         try {
-            const response = await Request.get('/api/setting/get');
-            if (response.status === 'success') {
-                CheckState.settings = response.data;
-            }
-        } catch (error) {
-            console.error('加载设置失败:', error);
-        }
-    },
+            const configResp = await Request.get('/api/setting/get');
+            if (configResp.status === 'success') CheckState.settings = configResp.data;
+        } catch (e) {}
 
-    /**
-     * 用途说明：首次进入页面时获取一次任务状态
-     * 入参说明：无
-     * 返回值说明：无
-     */
-    async checkInitialStatus() {
+        // 初始化时检查一次进度
         const data = await DuplicateCheckAPI.fetchProgress();
         if (data) {
-            this.processStatusUpdate(data);
+            if (data.status === ProgressStatus.PROCESSING) {
+                UIController.toggleView(ProgressStatus.PROCESSING);
+                this.startPolling();
+            } else if (data.status === ProgressStatus.COMPLETED) {
+                // 用途说明：初次加载或任务完成时，无需恢复展开状态
+                this.loadResults(1);
+            } else {
+                UIController.toggleView(ProgressStatus.IDLE);
+            }
         }
     },
 
     /**
-     * 用途说明：启动定时轮询
+     * 用途说明：加载指定页码的结果数据
+     * 入参说明：page (int) - 目标页码
+     * 返回值说明：无
+     */
+    async loadResults(page) {
+        const data = await DuplicateCheckAPI.fetchList(page, CheckState.limit);
+        if (data) {
+            // 用途说明：传递之前缓存的展开状态，并在处理后清除
+            CheckState.setPaginationData(data, CheckState.previousExpandedStates);
+            CheckState.previousExpandedStates = null; // 清除缓存的状态
+            UIController.toggleView(ProgressStatus.COMPLETED);
+            UIController.renderResults();
+        }
+    },
+
+    /**
+     * 用途说明：切换页码逻辑
+     * 入参说明：page (int)
+     * 返回值说明：无
+     */
+    async changePage(page) {
+        if (page < 1) return;
+        // 用途说明：页面切换时，记录当前所有分组的展开状态
+        const expandedStatesMap = {};
+        CheckState.results.forEach(group => {
+            expandedStatesMap[group.id] = group.isExpanded;
+        });
+        CheckState.previousExpandedStates = expandedStatesMap; // 缓存状态
+        await this.loadResults(page);
+        window.scrollTo(0, 0);
+    },
+
+    /**
+     * 用途说明：批量删除文件并刷新列表
+     * 入参说明：paths (Array) - 路径列表, confirmMsg (String) - 确认提示词
+     * 返回值说明：无
+     */
+    async deleteFiles(paths, confirmMsg) {
+        if (!paths || paths.length === 0) return;
+
+        UIComponents.showConfirmModal({
+            message: confirmMsg,
+            confirmText: '确定删除',
+            onConfirm: async () => {
+                const response = await DuplicateCheckAPI.deleteFiles(paths);
+                if (response.status === 'success') {
+                    Toast.show(response.message || '删除成功');
+                    // 用途说明：在刷新结果前，保存当前页所有分组的展开状态
+                    const expandedStatesMap = {};
+                    CheckState.results.forEach(group => {
+                        expandedStatesMap[group.id] = group.isExpanded;
+                    });
+                    CheckState.previousExpandedStates = expandedStatesMap; // 缓存状态
+                    this.loadResults(CheckState.page);
+                } else {
+                    Toast.show(response.message || '删除失败');
+                }
+            }
+        });
+    },
+
+    /**
+     * 用途说明：开启定时轮询任务状态
      * 入参说明：无
      * 返回值说明：无
      */
@@ -404,14 +501,25 @@ const App = {
         if (CheckState.pollingInterval) return;
         CheckState.pollingInterval = setInterval(async () => {
             const data = await DuplicateCheckAPI.fetchProgress();
-            if (data) {
-                this.processStatusUpdate(data);
+            if (!data) return;
+
+            if (data.status === ProgressStatus.PROCESSING) {
+                UIController.updateProgress(data.progress);
+            } else {
+                this.stopPolling();
+                if (data.status === ProgressStatus.COMPLETED) {
+                    Toast.show('查重已完成');
+                    // 用途说明：任务完成后，无需恢复展开状态
+                    this.loadResults(1);
+                } else {
+                    UIController.toggleView(data.status);
+                }
             }
-        }, 1000);
+        }, 1500);
     },
 
     /**
-     * 用途说明：停止定时轮询
+     * 用途说明：停止轮询
      * 入参说明：无
      * 返回值说明：无
      */
@@ -420,81 +528,8 @@ const App = {
             clearInterval(CheckState.pollingInterval);
             CheckState.pollingInterval = null;
         }
-    },
-
-    /**
-     * 用途说明：处理 API 返回的状态和数据更新 UI
-     * 入参说明：data (Object) - 包含 status, progress, results 的数据包
-     * 返回值说明：无
-     */
-    processStatusUpdate(data) {
-        const { status, progress, results } = data;
-
-        if (status === ProgressStatus.PROCESSING) {
-            this.startPolling();
-            UIController.toggleView(ProgressStatus.PROCESSING);
-            UIController.updateProgress(progress);
-        } else {
-            this.stopPolling();
-
-            // 查重已完成或空闲状态时的逻辑
-            if (status === ProgressStatus.COMPLETED && results !== undefined) {
-                CheckState.setResults(results);
-                UIController.renderResults();
-            }
-
-            // 更新视图显示状态
-            UIController.toggleView(status);
-        }
-    },
-
-    /**
-     * 用途说明：处理选中的重复文件批量删除逻辑
-     * 入参说明：无
-     * 返回值说明：无
-     */
-    async handleBatchDelete() {
-        const checkedBoxes = document.querySelectorAll('.file-checkbox:checked');
-        if (checkedBoxes.length === 0) return;
-
-        if (!confirm(`确定要删除选中的 ${checkedBoxes.length} 个文件吗？此操作不可撤销！`)) return;
-
-        const paths = Array.from(checkedBoxes).map(cb => cb.getAttribute('data-path'));
-        let successCount = 0;
-
-        // 串行执行删除，保证前端状态更新的准确性
-        for (const path of paths) {
-            try {
-                const response = await DuplicateCheckAPI.deleteFile(path);
-                if (response.status === 'success') {
-                    successCount++;
-                    this.removeFileFromState(path);
-                }
-            } catch (error) {
-                console.error('删除文件失败:', path, error);
-            }
-        }
-
-        if (successCount > 0) {
-            Toast.show(`成功删除 ${successCount} 个文件`);
-            UIController.renderResults();
-        } else {
-            Toast.show('删除操作未成功');
-        }
-    },
-
-    /**
-     * 用途说明：在前端内存中移除已删除的文件，并自动过滤掉空分组
-     * 入参说明：path (String) - 已删除的文件路径
-     * 返回值说明：无
-     */
-    removeFileFromState(path) {
-        CheckState.results = CheckState.results.map(group => {
-            const newFiles = group.files.filter(f => f.file_path !== path);
-            return { ...group, files: newFiles };
-        }).filter(group => group.files.length > 0);
     }
 };
 
-// 页面加载完成后启动应用
+// 页面加载完成后启动
 document.addEventListener('DOMContentLoaded', () => App.init());

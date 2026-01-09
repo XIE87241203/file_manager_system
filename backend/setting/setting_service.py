@@ -1,12 +1,14 @@
+import hashlib
 import json
 import os
 import sys
-import hashlib
 from dataclasses import asdict, fields
-from typing import Any, Dict, Optional
-from backend.common.utils import Utils
+from typing import Any, Dict
+
 from backend.common.log_utils import LogUtils
-from backend.setting.setting_models import AppConfig, UserData, FileRepositorySettings, DuplicateCheckSettings
+from backend.common.utils import Utils
+from backend.setting.setting_models import AppConfig
+
 
 class SettingService:
     """

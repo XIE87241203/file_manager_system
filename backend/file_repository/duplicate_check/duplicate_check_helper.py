@@ -1,9 +1,9 @@
-from typing import List
 import os
+from typing import List
 
 from backend.common.utils import Utils
-from backend.file_repository.duplicate_check.checker.md5_checker import MD5Checker
 from backend.file_repository.duplicate_check.checker.image_checker import ImageChecker
+from backend.file_repository.duplicate_check.checker.md5_checker import MD5Checker
 from backend.file_repository.duplicate_check.checker.video.video_checker import VideoChecker
 from backend.model.db.duplicate_group_db_model import DuplicateGroupDBModule
 from backend.model.db.file_index_db_model import FileIndexDBModel
@@ -26,15 +26,15 @@ class DuplicateCheckHelper:
         
         # 初始化视频检查器
         video_checker = VideoChecker(
-            frame_similar_distance=dup_config.get("video_frame_similar_distance", 5),
-            frame_similarity_rate=dup_config.get("video_frame_similarity_rate", 0.7),
-            interval_seconds=dup_config.get("video_interval_seconds", 30),
-            max_duration_diff_ratio=dup_config.get("video_max_duration_diff_ratio", 0.6)
+            frame_similar_distance=dup_config.video_frame_similar_distance,
+            frame_similarity_rate=dup_config.video_frame_similarity_rate,
+            interval_seconds=dup_config.video_interval_seconds,
+            max_duration_diff_ratio=dup_config.video_max_duration_diff_ratio
         )
         
         # 初始化图片检查器
         image_checker = ImageChecker(
-            threshold=dup_config.get("image_threshold", 8)
+            threshold=dup_config.image_threshold
         )
         
         # 维护一个检查器列表，注意顺序：专用检查器在前，兜底检查器在后

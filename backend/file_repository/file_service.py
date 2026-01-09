@@ -1,17 +1,15 @@
-import os
-from typing import List, Tuple, Dict, Any, Optional
+from typing import Tuple
 
-from backend.common.utils import Utils
-from backend.db.db_operations import DBOperations
-from backend.db.db_manager import DBManager
 from backend.common.log_utils import LogUtils
+from backend.db.db_operations import DBOperations
+from backend.file_repository.base_file_service import BaseFileService
+from backend.file_repository.thumbnail.thumbnail_service import ThumbnailService
 from backend.model.db.file_index_db_model import FileIndexDBModel
 from backend.model.db.history_file_index_db_model import HistoryFileIndexDBModule
 from backend.model.pagination_result import PaginationResult
-from backend.file_repository.thumbnail.thumbnail_service import ThumbnailService
-from backend.setting.setting_service import settingService
 
-class FileService:
+
+class FileService(BaseFileService):
     """
     用途：文件仓库业务服务类，封装文件列表查询、删除、清理等核心操作。
     """
@@ -27,7 +25,10 @@ class FileService:
 
     @staticmethod
     def delete_file(file_path: str) -> Tuple[bool, str]:
-        return Utils.delete_file(file_path)
+        """
+        用途：删除文件。直接调用基类提供的删除逻辑。
+        """
+        return BaseFileService.delete_file(file_path)
 
     @staticmethod
     def clear_repository(clear_history: bool) -> bool:

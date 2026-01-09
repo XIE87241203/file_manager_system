@@ -1,6 +1,6 @@
-import sqlite3
 from typing import Optional, List
 
+from backend.db.db_constants import DBConstants
 from backend.db.processor.base_db_processor import BaseDBProcessor
 from backend.model.db.file_index_db_model import FileIndexDBModel
 from backend.model.pagination_result import PaginationResult
@@ -8,48 +8,15 @@ from backend.model.pagination_result import PaginationResult
 
 class FileIndexProcessor(BaseDBProcessor):
     """
-    用途：文件索引数据库处理器，负责 file_index 表的结构维护及相关操作
+    用途：文件索引数据库处理器，负责 file_index 表的相关操作
     """
-
-    # 表名
-    TABLE_NAME = 'file_index'
-
-    # 列名常量
-    COL_ID = 'id'
-    COL_FILE_PATH = 'file_path'
-    COL_FILE_MD5 = 'file_md5'
-    COL_FILE_SIZE = 'file_size'
-    COL_IS_IN_RECYCLE_BIN = 'is_in_recycle_bin'
-    COL_THUMBNAIL_PATH = 'thumbnail_path'
-    COL_SCAN_TIME = 'scan_time'
-
-    def create_table(self, conn: sqlite3.Connection) -> None:
-        """
-        用途：创建文件索引表，用于记录文件仓库下的所有文件的文件信息
-        入参说明：
-            conn: sqlite3.Connection 数据库连接对象
-        返回值说明：无
-        """
-        cursor = conn.cursor()
-        cursor.execute(f'''
-            CREATE TABLE IF NOT EXISTS {self.TABLE_NAME} (
-                {self.COL_ID} INTEGER PRIMARY KEY AUTOINCREMENT,
-                {self.COL_FILE_PATH} TEXT NOT NULL UNIQUE,
-                {self.COL_FILE_MD5} TEXT NOT NULL UNIQUE,
-                {self.COL_FILE_SIZE} INTEGER DEFAULT 0,
-                {self.COL_SCAN_TIME} DATETIME DEFAULT CURRENT_TIMESTAMP,
-                {self.COL_THUMBNAIL_PATH} TEXT,
-                {self.COL_IS_IN_RECYCLE_BIN} INTEGER DEFAULT 0
-            )
-        ''')
-        conn.commit()
 
     @staticmethod
     def batch_insert_data(data_list: List[FileIndexDBModel]) -> int:
         """
         用途：批量插入或更新文件索引
         入参说明：
-            data_list (List[FileIndex]): 文件索引对象列表
+            data_list (List[FileIndexDBModel]): 文件索引对象列表
         返回值说明：
             int: 成功插入的行数
         """
@@ -57,7 +24,7 @@ class FileIndexProcessor(BaseDBProcessor):
             return 0
         
         # 准备数据，确保元组顺序与 SQL 语句中的列顺序一致
-        data = [
+        data: List[tuple] = [
             (
                 f.file_path,
                 f.file_md5,
@@ -67,15 +34,15 @@ class FileIndexProcessor(BaseDBProcessor):
             for f in data_list
         ]
         
-        # 使用常量列名构建 SQL，防止硬编码错误
-        query = f'''
-            INSERT OR REPLACE INTO {FileIndexProcessor.TABLE_NAME} (
-                {FileIndexProcessor.COL_FILE_PATH},
-                {FileIndexProcessor.COL_FILE_MD5},
-                {FileIndexProcessor.COL_FILE_SIZE},
-                {FileIndexProcessor.COL_THUMBNAIL_PATH},
-                {FileIndexProcessor.COL_IS_IN_RECYCLE_BIN},
-                {FileIndexProcessor.COL_SCAN_TIME}
+        # 使用常量类构建 SQL，防止硬编码错误
+        query: str = f'''
+            INSERT OR REPLACE INTO {DBConstants.FileIndex.TABLE_NAME} (
+                {DBConstants.FileIndex.COL_FILE_PATH},
+                {DBConstants.FileIndex.COL_FILE_MD5},
+                {DBConstants.FileIndex.COL_FILE_SIZE},
+                {DBConstants.FileIndex.COL_THUMBNAIL_PATH},
+                {DBConstants.FileIndex.COL_IS_IN_RECYCLE_BIN},
+                {DBConstants.FileIndex.COL_SCAN_TIME}
             )
             VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
         '''
@@ -89,13 +56,39 @@ class FileIndexProcessor(BaseDBProcessor):
         入参说明：
             file_path (str): 文件绝对路径
         返回值说明：
-            Optional[FileIndex]: 找到的 FileIndex 对象，否则返回 None
+            Optional[FileIndexDBModel]: 找到的 FileIndex 对象，否则返回 None
         """
-        query = f"SELECT * FROM {FileIndexProcessor.TABLE_NAME} WHERE {FileIndexProcessor.COL_FILE_PATH} = ?"
-        result = BaseDBProcessor._execute(query, (file_path,), is_query=True, fetch_one=True)
+        query: str = f"SELECT * FROM {DBConstants.FileIndex.TABLE_NAME} WHERE {DBConstants.FileIndex.COL_FILE_PATH} = ?"
+        result: Optional[dict] = BaseDBProcessor._execute(query, (file_path,), is_query=True, fetch_one=True)
         if result:
             return FileIndexDBModel(**result)
         return None
+
+    @staticmethod
+    def update_thumbnail_path(file_path: str, thumbnail_path: str) -> bool:
+        """
+        用途：更新指定文件的缩略图路径
+        入参说明：
+            file_path (str): 文件绝对路径
+            thumbnail_path (str): 缩略图文件的相对路径或绝对路径
+        返回值说明：
+            bool: 是否更新成功
+        """
+        query: str = f"UPDATE {DBConstants.FileIndex.TABLE_NAME} SET {DBConstants.FileIndex.COL_THUMBNAIL_PATH} = ? WHERE {DBConstants.FileIndex.COL_FILE_PATH} = ?"
+        result: int = BaseDBProcessor._execute(query, (thumbnail_path, file_path))
+        return bool(result and result > 0)
+
+    @staticmethod
+    def clear_all_thumbnails() -> int:
+        """
+        用途：清空所有文件的缩略图路径数据
+        入参说明：无
+        返回值说明：
+            int: 受影响的行数
+        """
+        query: str = f"UPDATE {DBConstants.FileIndex.TABLE_NAME} SET {DBConstants.FileIndex.COL_THUMBNAIL_PATH} = NULL"
+        result: int = BaseDBProcessor._execute(query)
+        return result if result is not None else 0
 
     @staticmethod
     def delete_by_id(file_id: int) -> bool:
@@ -106,14 +99,19 @@ class FileIndexProcessor(BaseDBProcessor):
         返回值说明：
             bool: 是否删除成功（受影响行数 > 0）
         """
-        query = f"DELETE FROM {FileIndexProcessor.TABLE_NAME} WHERE {FileIndexProcessor.COL_ID} = ?"
-        result = BaseDBProcessor._execute(query, (file_id,))
+        query: str = f"DELETE FROM {DBConstants.FileIndex.TABLE_NAME} WHERE {DBConstants.FileIndex.COL_ID} = ?"
+        result: int = BaseDBProcessor._execute(query, (file_id,))
         return bool(result and result > 0)
-
 
     @staticmethod
     def clear_all_table() -> bool:
-        return BaseDBProcessor._clear_table(FileIndexProcessor.TABLE_NAME)
+        """
+        用途：清空文件索引表
+        入参说明：无
+        返回值说明：
+            bool: 是否清空成功
+        """
+        return BaseDBProcessor._clear_table(DBConstants.FileIndex.TABLE_NAME)
 
     @staticmethod
     def get_paged_list(page: int, limit: int, sort_by: str, order: bool, search_query: str) -> PaginationResult[FileIndexDBModel]:
@@ -126,28 +124,28 @@ class FileIndexProcessor(BaseDBProcessor):
             order (bool): 排序方向 (True 为 ASC, False 为 DESC)
             search_query (str): 搜索关键词
         返回值说明：
-            PaginationResult[FileIndex]: 包含 total, list, page, limit 等分页信息的对象
+            PaginationResult[FileIndexDBModel]: 包含 total, list, page, limit 等分页信息的对象
         """
-        allowed_cols = [
-            FileIndexProcessor.COL_ID,
-            FileIndexProcessor.COL_FILE_PATH,
-            FileIndexProcessor.COL_FILE_MD5,
-            FileIndexProcessor.COL_FILE_SIZE,
-            FileIndexProcessor.COL_SCAN_TIME,
-            FileIndexProcessor.COL_IS_IN_RECYCLE_BIN
+        allowed_cols: List[str] = [
+            DBConstants.FileIndex.COL_ID,
+            DBConstants.FileIndex.COL_FILE_PATH,
+            DBConstants.FileIndex.COL_FILE_MD5,
+            DBConstants.FileIndex.COL_FILE_SIZE,
+            DBConstants.FileIndex.COL_SCAN_TIME,
+            DBConstants.FileIndex.COL_IS_IN_RECYCLE_BIN
         ]
         
         return BaseDBProcessor._search_paged_list(
-            table_name=FileIndexProcessor.TABLE_NAME,
+            table_name=DBConstants.FileIndex.TABLE_NAME,
             model_class=FileIndexDBModel,
             page=page,
             limit=limit,
             sort_by=sort_by,
             order=order,
             search_query=search_query,
-            search_column=FileIndexProcessor.COL_FILE_PATH,
+            search_column=DBConstants.FileIndex.COL_FILE_PATH,
             allowed_sort_columns=allowed_cols,
-            default_sort_column=FileIndexProcessor.COL_SCAN_TIME
+            default_sort_column=DBConstants.FileIndex.COL_SCAN_TIME
         )
 
     @staticmethod
@@ -156,21 +154,24 @@ class FileIndexProcessor(BaseDBProcessor):
         用途：获取文件列表数据，支持分页及缩略图状态过滤
         入参说明：
             offset (int): 查询起始偏移量
-            limit (int): 查询数量限制
+            limit (int): 查询数量限制（如果为 0，则返回从 offset 开始的所有数据）
             only_no_thumbnail (bool): 是否仅查询没有缩略图的文件
         返回值说明：
-            List[FileIndex]: 文件索引模型列表
+            List[FileIndexDBModel]: 文件索引模型列表
         """
-        where_clause = ""
+        where_clause: str = ""
         if only_no_thumbnail:
-            where_clause = f"WHERE ({FileIndexProcessor.COL_THUMBNAIL_PATH} IS NULL OR {FileIndexProcessor.COL_THUMBNAIL_PATH} = '')"
+            where_clause = f"WHERE ({DBConstants.FileIndex.COL_THUMBNAIL_PATH} IS NULL OR {DBConstants.FileIndex.COL_THUMBNAIL_PATH} = '')"
 
-        query = f"""
-            SELECT * FROM {FileIndexProcessor.TABLE_NAME}
+        # 如果 limit 为 0，在 SQLite 中使用 -1 表示不限制数量
+        actual_limit: int = limit if limit > 0 else -1
+
+        query: str = f"""
+            SELECT * FROM {DBConstants.FileIndex.TABLE_NAME}
             {where_clause}
             LIMIT ? OFFSET ?
         """
-        rows = BaseDBProcessor._execute(query, (limit, offset), is_query=True)
+        rows: List[dict] = BaseDBProcessor._execute(query, (actual_limit, offset), is_query=True)
         return [FileIndexDBModel(**row) for row in rows]
 
     @staticmethod
@@ -182,10 +183,12 @@ class FileIndexProcessor(BaseDBProcessor):
         返回值说明：
             int: 满足条件的记录总数
         """
-        where_clause = ""
+        where_clause: str = ""
         if only_no_thumbnail:
-            where_clause = f"WHERE ({FileIndexProcessor.COL_THUMBNAIL_PATH} IS NULL OR {FileIndexProcessor.COL_THUMBNAIL_PATH} = '')"
+            where_clause = f"WHERE ({DBConstants.FileIndex.COL_THUMBNAIL_PATH} IS NULL OR {DBConstants.FileIndex.COL_THUMBNAIL_PATH} = '')"
 
-        query = f"SELECT COUNT(*) as total FROM {FileIndexProcessor.TABLE_NAME} {where_clause}"
-        res = BaseDBProcessor._execute(query, is_query=True, fetch_one=True)
+        query: str = f"SELECT COUNT(*) as total FROM {DBConstants.FileIndex.TABLE_NAME} {where_clause}"
+        res: Optional[dict] = BaseDBProcessor._execute(query, is_query=True, fetch_one=True)
         return res['total'] if res else 0
+
+

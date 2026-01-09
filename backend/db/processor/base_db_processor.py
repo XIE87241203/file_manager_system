@@ -1,9 +1,9 @@
-from abc import ABC, abstractmethod
 import sqlite3
-from typing import List, Any, Type, TypeVar, Generic, Optional
+from abc import ABC
+from typing import List, Any, Type, TypeVar
 
 from backend.common.log_utils import LogUtils
-from backend.db.db_manager import db_manager
+from backend.db.db_manager import DBManager
 from backend.model.pagination_result import PaginationResult
 from backend.setting.setting_service import settingService
 
@@ -13,17 +13,6 @@ class BaseDBProcessor(ABC):
     """
     用途：数据库处理器基类，定义数据库处理的通用接口
     """
-
-    @abstractmethod
-    def create_table(self, conn: sqlite3.Connection) -> None:
-        """
-        用途：创建数据库表（抽象方法，由子类实现具体建表逻辑）
-        入参说明：
-            conn: sqlite3.Connection 数据库连接对象
-        返回值说明：无
-        """
-        pass
-
     # --- 私有辅助方法 ---
     @staticmethod
     def _execute(query: str, params: tuple = (), is_query: bool = False,
@@ -40,7 +29,7 @@ class BaseDBProcessor(ABC):
         """
         conn = None
         try:
-            conn = db_manager.get_connection()
+            conn = DBManager.get_connection()
             conn.row_factory = sqlite3.Row  # 启用字段名访问
             cursor = conn.cursor()
             cursor.execute(query, params)
@@ -74,7 +63,7 @@ class BaseDBProcessor(ABC):
         """
         conn = None
         try:
-            conn = db_manager.get_connection()
+            conn = DBManager.get_connection()
             cursor = conn.cursor()
             cursor.executemany(query, data)
             conn.commit()
