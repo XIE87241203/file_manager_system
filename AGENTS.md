@@ -55,6 +55,7 @@
 ### 4.1 操作原则
 - **物理删除**: 删除文件时同步清理 `file_index` 和 `duplicate_files`，禁止操作 `history_file_index`。
 - **解耦**: `video_features` 和 `history_file_index` 与 `file_index` 无物理关联。
+- **核心标识**: `history_file_index` 以文件内容为核心，`file_md5` 必须具备唯一性（UNIQUE），用于追溯仓库中曾出现过的唯一文件。
 
 ### 4.2 表结构摘要
 - **`file_index`**: 当前有效文件索引（路径、MD5、缩略图等）。

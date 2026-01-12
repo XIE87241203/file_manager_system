@@ -1,16 +1,18 @@
 import os
-import cv2
-import hashlib
 import threading
 from collections import deque
 from typing import List, Optional, Tuple, Set, Deque
+
+import cv2
 from PIL import Image
 
-from backend.common.utils import Utils
 from backend.common.log_utils import LogUtils
 from backend.common.thread_pool import ThreadPoolManager
+from backend.common.utils import Utils
 from backend.db.db_operations import DBOperations
+from backend.model.db.file_index_db_model import FileIndexDBModel
 from backend.setting.setting_service import settingService
+
 
 class ThumbnailGenerator:
     """
@@ -22,8 +24,8 @@ class ThumbnailGenerator:
     """
     _instance = None
     _lock = threading.Lock()
-    _queue: Deque[str] = deque()  # 任务队列，保证 FIFO 顺序
-    _queue_set: Set[str] = set()    # 去重集合，保证入队原子性和唯一性
+    _queue: Deque[FileIndexDBModel] = deque()  # 任务队列，存储模型对象
+    _queue_set: Set[str] = set()    # 去重集合，存储文件路径
     _is_processing: bool = False
     _THUMBNAIL_DIR = os.path.join(Utils.get_runtime_path(), "cache", "thumbnail")
 
@@ -40,19 +42,19 @@ class ThumbnailGenerator:
                     os.makedirs(cls._THUMBNAIL_DIR, exist_ok=True)
             return cls._instance
 
-    def add_tasks(self, file_paths: List[str]) -> None:
+    def add_tasks(self, tasks: List[FileIndexDBModel]) -> None:
         """
         用途：向待处理队列中原子性地添加任务并启动生成工作。
         入参说明：
-            file_paths (List[str]): 待处理的文件绝对路径列表。
+            tasks (List[FileIndexDBModel]): 待处理的文件索引模型列表。
         返回值说明：无。
         """
         with self._lock:
             added_count = 0
-            for path in file_paths:
-                if path not in self._queue_set:
-                    self._queue.append(path)
-                    self._queue_set.add(path)
+            for task in tasks:
+                if task.file_path not in self._queue_set:
+                    self._queue.append(task)
+                    self._queue_set.add(task.file_path)
                     added_count += 1
             
             if added_count > 0:
@@ -88,7 +90,7 @@ class ThumbnailGenerator:
         入参说明：无。
         返回值说明：无。
         """
-        file_path: Optional[str] = None
+        file_info: Optional[FileIndexDBModel] = None
         
         # 1. 提取任务（临界区：轻量级操作）
         with self._lock:
@@ -98,39 +100,44 @@ class ThumbnailGenerator:
                 LogUtils.info("缩略图生成队列处理完毕")
                 return
             
-            file_path = self._queue.popleft()
-            if file_path in self._queue_set:
-                self._queue_set.remove(file_path)
+            file_info = self._queue.popleft()
+            if file_info.file_path in self._queue_set:
+                self._queue_set.remove(file_info.file_path)
 
         # 2. 锁外执行耗时任务（磁盘IO与图像处理，预防死锁）
-        if file_path:
+        if file_info:
             try:
                 thumb_size = settingService.get_config().file_repository.thumbnail_size
-                actual_path, thumb_path = self._generate_single_thumbnail(file_path, thumb_size)
+                actual_path, thumb_path = self._generate_single_thumbnail(file_info, thumb_size)
                 if thumb_path:
                     DBOperations.update_thumbnail_path(actual_path, thumb_path)
             except Exception as e:
-                LogUtils.error(f"处理缩略图失败: {file_path}, 错误: {e}")
+                LogUtils.error(f"处理缩略图失败: {file_info.file_path}, 错误: {e}")
         
         # 3. 异步提交下一次循环，实现非阻塞的串行处理
         ThreadPoolManager.submit(self._worker)
 
-    def _generate_single_thumbnail(self, file_path: str, size: int) -> Tuple[str, Optional[str]]:
+    def _generate_single_thumbnail(self, file_info: FileIndexDBModel, size: int) -> Tuple[str, Optional[str]]:
         """
         用途：为单个文件生成缩略图（支持常见图片和视频格式）。
         入参说明：
-            file_path (str): 文件物理路径。
+            file_info (FileIndexDBModel): 文件索引模型。
             size (int): 缩略图最大边长（保持纵横比）。
         返回值说明：
             Tuple[str, Optional[str]]: (原始文件路径, 缩略图生成后的物理路径或None)。
         """
+        file_path = file_info.file_path
         if not os.path.exists(file_path):
             return file_path, None
 
         ext = os.path.splitext(file_path)[1].lower()
-        # 使用路径的 MD5 作为文件名确保唯一性且符合系统命名规范
-        thumb_name = hashlib.md5(file_path.encode()).hexdigest() + ".jpg"
+        # 使用源文件的 MD5 作为文件名确保唯一性，且同内容文件可复用缩略图
+        thumb_name = file_info.file_md5 + ".jpg"
         thumb_path = os.path.join(self._THUMBNAIL_DIR, thumb_name)
+
+        # 如果缩略图已存在（MD5 碰撞/同内容文件），直接返回路径
+        if os.path.exists(thumb_path):
+            return file_path, thumb_path
 
         try:
             # 图片处理

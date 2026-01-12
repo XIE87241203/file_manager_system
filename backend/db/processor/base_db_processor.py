@@ -1,6 +1,6 @@
 import sqlite3
 from abc import ABC
-from typing import List, Any, Type, TypeVar
+from typing import List, Any, Type, TypeVar, Optional
 
 from backend.common.log_utils import LogUtils
 from backend.db.db_manager import DBManager
@@ -13,24 +13,20 @@ class BaseDBProcessor(ABC):
     """
     用途：数据库处理器基类，定义数据库处理的通用接口
     """
-    # --- 私有辅助方法 ---
+    
     @staticmethod
     def _execute(query: str, params: tuple = (), is_query: bool = False,
-                 fetch_one: bool = False) -> Any:
+                 fetch_one: bool = False, conn: Optional[sqlite3.Connection] = None) -> Any:
         """
         用途：通用的执行 SQL 语句方法
-        入参说明：
-            query (str): SQL 语句
-            params (tuple): 参数元组
-            is_query (bool): 是否为查询操作
-            fetch_one (bool): 是否仅获取单条记录
-        返回值说明：
-            Any: 查询结果（列表或字典）或受影响的行数
         """
-        conn = None
-        try:
+        local_conn: bool = False
+        if conn is None:
             conn = DBManager.get_connection()
-            conn.row_factory = sqlite3.Row  # 启用字段名访问
+            local_conn = True
+            
+        try:
+            conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             cursor.execute(query, params)
 
@@ -42,47 +38,49 @@ class BaseDBProcessor(ABC):
                     rows = cursor.fetchall()
                     return [dict(r) for r in rows]
             else:
-                conn.commit()
+                if local_conn:
+                    conn.commit()
                 return cursor.rowcount
         except Exception as e:
             LogUtils.error(f"SQL 执行失败: {query}, 错误: {e}")
-            return [] if is_query and not fetch_one else (None if fetch_one else 0)
+            if local_conn and conn:
+                conn.rollback()
+            # 优化：重新抛出异常，让上层业务及 API 能够感知错误并返回 500
+            raise e
         finally:
-            if conn:
+            if local_conn and conn:
                 conn.close()
 
     @staticmethod
-    def _execute_batch(query: str, data: List[tuple]) -> int:
+    def _execute_batch(query: str, data: List[tuple], conn: Optional[sqlite3.Connection] = None) -> int:
         """
-        用途：批量执行 SQL 语句（用于高效插入）
-        入参说明：
-            query (str): SQL 语句
-            data (List[tuple]): 待插入的数据元组列表
-        返回值说明：
-            int: 受影响的总行数
+        用途：批量执行 SQL 语句
         """
-        conn = None
-        try:
+        local_conn: bool = False
+        if conn is None:
             conn = DBManager.get_connection()
+            local_conn = True
+            
+        try:
             cursor = conn.cursor()
             cursor.executemany(query, data)
-            conn.commit()
+            if local_conn:
+                conn.commit()
             return cursor.rowcount
         except Exception as e:
             LogUtils.error(f"批量执行失败: {query}, 错误: {e}")
-            return 0
+            if local_conn and conn:
+                conn.rollback()
+            # 优化：重新抛出异常
+            raise e
         finally:
-            if conn:
+            if local_conn and conn:
                 conn.close()
 
     @staticmethod
     def _clear_table(table_name: str) -> bool:
         """
         用途：清空指定表并重置其自增主键序列
-        入参说明：
-            table_name (str): 表名
-        返回值说明：
-            bool: 是否成功
         """
         BaseDBProcessor._execute(f'DELETE FROM {table_name}')
         BaseDBProcessor._execute("DELETE FROM sqlite_sequence WHERE name=?", (table_name,))
@@ -104,47 +102,34 @@ class BaseDBProcessor(ABC):
     ) -> PaginationResult[T]:
         """
         用途：通用的分页查询逻辑封装
-        入参说明：
-            table_name (str): 表名
-            model_class (Type[T]): 结果转换的目标类
-            page (int): 当前页码
-            limit (int): 每页大小
-            sort_by (str): 排序字段
-            order (bool): 排序方向 (True 为 ASC)
-            search_query (str): 搜索文本
-            search_column (str): 搜索匹配的列
-            allowed_sort_columns (List[str]): 允许排序的列列表
-            default_sort_column (str): 默认排序字段
-        返回值说明：
-            PaginationResult[T]: 分页结果对象
         """
         # 1. 处理搜索关键词
         search_replace_chars = settingService.get_config().file_repository.search_replace_chars
-        processed_query = search_query
+        processed_query: str = search_query
         if processed_query:
             for char in search_replace_chars:
                 if char:
                     processed_query = processed_query.replace(char, '%')
-            sql_search_param = f"%{processed_query}%"
+            sql_search_param: str = f"%{processed_query}%"
         else:
-            sql_search_param = "%"
+            sql_search_param: str = "%"
 
         # 2. 校验排序字段
         if sort_by not in allowed_sort_columns:
             sort_by = default_sort_column
         
-        order_str = "ASC" if order else "DESC"
+        order_str: str = "ASC" if order else "DESC"
 
         # 3. 分页计算
-        offset = max(0, (page - 1) * limit)
+        offset: int = max(0, (page - 1) * limit)
 
         # 4. 总数查询
-        count_query = f"SELECT COUNT(*) as total FROM {table_name} WHERE {search_column} LIKE ?"
+        count_query: str = f"SELECT COUNT(*) as total FROM {table_name} WHERE {search_column} LIKE ?"
         total_res = BaseDBProcessor._execute(count_query, (sql_search_param,), is_query=True, fetch_one=True)
-        total = total_res['total'] if total_res else 0
+        total: int = total_res['total'] if total_res else 0
 
         # 5. 列表查询
-        list_query = f"""
+        list_query: str = f"""
             SELECT * FROM {table_name}
             WHERE {search_column} LIKE ?
             ORDER BY {sort_by} {order_str}
@@ -152,7 +137,7 @@ class BaseDBProcessor(ABC):
         """
         rows = BaseDBProcessor._execute(list_query, (sql_search_param, limit, offset), is_query=True)
         
-        data_list = [model_class(**row) for row in rows]
+        data_list: List[T] = [model_class(**row) for row in rows]
 
         return PaginationResult(
             total=total,

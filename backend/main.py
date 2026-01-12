@@ -1,9 +1,10 @@
+import logging
 import os
 import sys
-import logging
+import traceback
 from typing import Any
 
-# 确保项目根目录在 sys.path 中，以便正常导入 config 和 backend 模块
+# 确保项目根目录在 sys.path 中
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if project_root not in sys.path:
     sys.path.append(project_root)
@@ -21,19 +22,17 @@ from config import GlobalConfig
 # 初始化日志
 LogUtils.init(level=logging.DEBUG)
 
-# 初始化 Flask，配置静态文件目录为根目录下的 frontend 文件夹
+# 初始化 Flask
 frontend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../frontend'))
 app = Flask(__name__, static_folder=frontend_dir, static_url_path='')
 
-# 允许跨域请求（主要针对开发环境或跨域工具调用）
+# 允许跨域
 CORS(app, resources={r"/api/*": {"origins": "*"}}, allow_headers=["Content-Type", "Authorization"])
 
 @app.before_request
 def log_request_info() -> None:
     """
-    用途说明：Flask 钩子函数，在每个请求处理前自动记录 API 请求信息。
-    入参说明：无
-    返回值说明：无
+    用途：记录接口请求信息
     """
     if request.path.startswith('/api'):
         token = request.headers.get('Authorization')
@@ -51,57 +50,44 @@ def log_request_info() -> None:
 @app.route('/')
 def index() -> Any:
     """
-    用途说明：根路由处理，默认返回登录页面。
-    入参说明：无
-    返回值说明：登录页面的 HTML 内容。
+    用途：默认返回登录页面
     """
     return send_from_directory(app.static_folder, 'login/login.html')
 
+# --- 异常处理句柄 ---
+
 @app.errorhandler(400)
 def bad_request(e: Any) -> Response:
-    """
-    用途说明：全局处理 400 错误，返回 JSON 格式。
-    入参说明：e (错误对象)
-    返回值说明：JSON 格式的错误响应。
-    """
     return error_response("请求参数错误或格式非法", 400)
 
 @app.errorhandler(404)
 def page_not_found(e: Any) -> Any:
-    """
-    用途说明：全局处理 404 错误。如果是 API 请求返回 JSON，否则返回 404 提示。
-    入参说明：e (错误对象)
-    返回值说明：JSON 响应或错误信息字符串。
-    """
     if request.path.startswith('/api'):
         return error_response("请求的接口不存在", 404)
     return "404 Not Found", 404
 
-@app.errorhandler(500)
-def server_error(e: Any) -> Response:
+@app.errorhandler(Exception)
+def handle_global_exception(e: Exception) -> Response:
     """
-    用途说明：全局处理 500 错误，记录日志并返回 JSON。
-    入参说明：e (错误对象)
-    返回值说明：JSON 格式的错误响应。
+    用途：【API层统一捕获】拦截所有未处理的异常，记录堆栈日志并返回 500
+    入参说明：e (Exception): 异常对象
+    返回值说明：Response: 统一格式的错误响应
     """
-    LogUtils.error(f"服务器内部错误: {str(e)}")
-    return error_response("服务器内部错误", 500)
+    # 1. 记录详细的错误堆栈到日志文件，方便排查
+    error_stack: str = traceback.format_exc()
+    LogUtils.error(f"系统触发未捕获异常 -> 路径: {request.path}\n{error_stack}")
+    
+    # 2. 返回标准错误格式
+    return error_response(f"服务器内部错误: {str(e)}", 500)
 
-# 注册功能模块蓝图
+# 注册蓝图
 app.register_blueprint(auth_bp, url_prefix='/api')
 app.register_blueprint(setting_bp, url_prefix='/api/setting')
 app.register_blueprint(file_repo_bp, url_prefix='/api/file_repository')
 
 def start_server() -> None:
-    """
-    用途说明：启动全栈服务（托管前端静态文件 + 后端 API）。
-    入参说明：无
-    返回值说明：无
-    """
     LogUtils.info(f"系统服务正在启动 (Port: {GlobalConfig.SYSTEM_PORT})...")
     LogUtils.info(f"访问地址: http://localhost:{GlobalConfig.SYSTEM_PORT}")
-    
-    # 使用 Waitress 作为生产级服务器
     serve(app, host='0.0.0.0', port=GlobalConfig.SYSTEM_PORT, threads=8)
 
 if __name__ == '__main__':

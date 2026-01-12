@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Dict, Optional
 
 from backend.common.log_utils import LogUtils
 from backend.db.db_constants import DBConstants
@@ -143,7 +143,7 @@ class DuplicateGroupDBModuleProcessor(BaseDBProcessor):
             limit: int
     ) -> PaginationResult[DuplicateGroupResult]:
         """
-        用途：分页获取重复文件分组数据，并关联查询每组包含的文件详细索引信息。
+        用途：分页获取重复文件分组数据（已优化：通过批量查询避免 N+1 问题）
         入参说明：
             page (int): 当前页码
             limit (int): 每页展示的分组条数
@@ -151,42 +151,52 @@ class DuplicateGroupDBModuleProcessor(BaseDBProcessor):
             PaginationResult[DuplicateGroupResult]: 包含分组及其文件列表的分页结果对象
         """
         # 1. 查询总分组数
-        count_query: str = f"SELECT COUNT(*) as total FROM {DBConstants.DuplicateGroup.TABLE_GROUPS}"
-        count_res: Optional[dict] = BaseDBProcessor._execute(count_query, (), is_query=True, fetch_one=True)
-        total: int = count_res['total'] if count_res else 0
+        total: int = DuplicateGroupDBModuleProcessor.get_group_count()
+
+        if total == 0:
+            return PaginationResult(total=0, list=[], page=page, limit=limit, sort_by="", order="ASC")
 
         # 2. 分页查询分组列表
         offset: int = max(0, (page - 1) * limit)
+        print(f"offset {offset}")
         group_query: str = f"""
             SELECT * FROM {DBConstants.DuplicateGroup.TABLE_GROUPS}
             LIMIT ? OFFSET ?
         """
         group_rows: List[dict] = BaseDBProcessor._execute(group_query, (limit, offset), is_query=True)
+        
+        if not group_rows:
+            return PaginationResult(total=total, list=[], page=page, limit=limit, sort_by="", order="ASC")
 
+        # 3. 提取所有组 ID，并批量查询这些组关联的所有文件
+        group_ids: List[int] = [row[DBConstants.DuplicateGroup.COL_GRP_ID_PK] for row in group_rows]
+        placeholders: str = ','.join(['?'] * len(group_ids))
+        
+        file_query: str = f"""
+            SELECT df.{DBConstants.DuplicateFile.COL_FILE_GROUP_ID}, fi.* 
+            FROM {DBConstants.FileIndex.TABLE_NAME} fi
+            JOIN {DBConstants.DuplicateFile.TABLE_FILES} df 
+            ON fi.{DBConstants.FileIndex.COL_ID} = df.{DBConstants.DuplicateFile.COL_FILE_ID}
+            WHERE df.{DBConstants.DuplicateFile.COL_FILE_GROUP_ID} IN ({placeholders})
+        """
+        all_file_rows: List[dict] = BaseDBProcessor._execute(file_query, tuple(group_ids), is_query=True)
+
+        # 4. 按 group_id 组织文件数据
+        group_files_map: Dict[int, List[FileIndexDBModel]] = {}
+        for f_row in all_file_rows:
+            gid: int = f_row.pop(DBConstants.DuplicateFile.COL_FILE_GROUP_ID)
+            if gid not in group_files_map:
+                group_files_map[gid] = []
+            group_files_map[gid].append(FileIndexDBModel(**f_row))
+
+        # 5. 封装结果
         results: List[DuplicateGroupResult] = []
-
-        # 3. 遍历分组，获取每个分组下的所有文件详情
         for g_row in group_rows:
             group_id: int = g_row[DBConstants.DuplicateGroup.COL_GRP_ID_PK]
-            group_name: str = g_row[DBConstants.DuplicateGroup.COL_GRP_GROUP_NAME]
-
-            # 联合查询 duplicate_files 和 file_index 获取文件详情
-            file_query: str = f"""
-                SELECT fi.* FROM {DBConstants.FileIndex.TABLE_NAME} fi
-                JOIN {DBConstants.DuplicateFile.TABLE_FILES} df 
-                ON fi.{DBConstants.FileIndex.COL_ID} = df.{DBConstants.DuplicateFile.COL_FILE_ID}
-                WHERE df.{DBConstants.DuplicateFile.COL_FILE_GROUP_ID} = ?
-            """
-            file_rows: List[dict] = BaseDBProcessor._execute(file_query, (group_id,), is_query=True)
-
-            # 将查询结果转换为 FileIndexDBModel 对象列表
-            file_models: List[FileIndexDBModel] = [FileIndexDBModel(**f_row) for f_row in file_rows]
-
-            # 封装进 DuplicateGroupResult
             results.append(DuplicateGroupResult(
                 id=group_id,
-                group_name=group_name,
-                file_ids=file_models
+                group_name=g_row[DBConstants.DuplicateGroup.COL_GRP_GROUP_NAME],
+                file_ids=group_files_map.get(group_id, [])
             ))
 
         return PaginationResult(
@@ -197,3 +207,13 @@ class DuplicateGroupDBModuleProcessor(BaseDBProcessor):
             sort_by="",
             order="ASC"
         )
+
+    @staticmethod
+    def get_group_count() -> int:
+        """
+        用途：获取重复分组总数
+        返回值说明：int: 重复分组总数
+        """
+        count_query: str = f"SELECT COUNT(*) as total FROM {DBConstants.DuplicateGroup.TABLE_GROUPS}"
+        count_res: Optional[dict] = BaseDBProcessor._execute(count_query, (), is_query=True, fetch_one=True)
+        return count_res['total'] if count_res else 0

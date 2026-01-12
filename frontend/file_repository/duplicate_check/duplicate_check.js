@@ -75,7 +75,6 @@ const UIController = {
             summaryGroups: document.getElementById('summary-groups'),
             summaryFiles: document.getElementById('summary-files'),
             summaryTime: document.getElementById('summary-time'),
-            floatingBar: document.getElementById('floating-action-bar'),
             globalDeleteBtn: document.getElementById('btn-delete-selected-global')
         };
         
@@ -300,18 +299,18 @@ const UIController = {
     },
 
     /**
-     * 用途说明：更新底部浮动操作栏的显示状态及选中计数
+     * 用途说明：更新底部操作按钮的显示状态及选中计数
      * 入参说明：无
      * 返回值说明：无
      */
     updateFloatingBar() {
         const checkedCount = document.querySelectorAll('.file-checkbox:checked').length;
-        const { floatingBar, globalDeleteBtn } = this.elements;
+        const { globalDeleteBtn } = this.elements;
         if (checkedCount > 0) {
-            floatingBar.style.display = 'flex';
-            globalDeleteBtn.textContent = `删除选中的 ${checkedCount} 个文件`;
+            globalDeleteBtn.style.display = 'block';
+            globalDeleteBtn.textContent = `删除选中 (${checkedCount})`;
         } else {
-            floatingBar.style.display = 'none';
+            globalDeleteBtn.style.display = 'none';
         }
     }
 };
@@ -409,11 +408,6 @@ const App = {
     async init() {
         UIController.init();
 
-        // 获取系统配置
-        try {
-            const configResp = await Request.get('/api/setting/get');
-            if (configResp.status === 'success') CheckState.settings = configResp.data;
-        } catch (e) {}
 
         // 初始化时检查一次进度
         const data = await DuplicateCheckAPI.fetchProgress();

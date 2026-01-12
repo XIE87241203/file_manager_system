@@ -10,7 +10,7 @@ from backend.common.response import success_response, error_response
 from backend.common.utils import Utils
 from backend.file_repository.duplicate_check.duplicate_service import DuplicateService
 from backend.file_repository.file_service import FileService
-from backend.file_repository.scan_service import ScanService
+from backend.file_repository.scan_service import ScanService, ScanMode
 from backend.file_repository.thumbnail.thumbnail_service import ThumbnailService
 
 # 创建文件仓库模块的蓝图
@@ -30,25 +30,27 @@ def _get_current_user() -> str:
 @token_required
 def start_scan():
     """
-    用途说明：异步触发文件仓库扫描任务
-    入参说明：无
+    用途说明：异步触发文件仓库扫描任务，支持增量或全量扫描。
+    入参说明：JSON 包含 full_scan (bool)
     返回值说明：JSON 格式响应
     """
     LogUtils.info(f"用户 {_get_current_user()} 触发了文件仓库扫描")
 
-    # 修复点 1：先检查扫描状态，避免正在运行中被 clear 破坏数据
+    # 1. 解析请求参数
+    data = request.json or {}
+    full_scan = data.get('full_scan', False)
+    scan_mode = ScanMode.FULL_SCAN if full_scan else ScanMode.INDEX_SCAN
+
+    # 2. 先检查扫描状态，避免正在运行中被破坏数据
     status_info = ScanService.get_status()
     if status_info.get("status") == ProgressStatus.PROCESSING:
         return error_response("扫描任务已在运行中", 400)
 
-    # 确认没在运行后，再进行清空操作
-    if not FileService.clear_repository(False):
-        return error_response("清空仓库失败", 500)
-
-    if ScanService.start_async_scan():
-        return success_response("扫描任务已启动")
+    # 3. 启动异步扫描
+    if ScanService.start_async_scan(scan_mode):
+        return success_response(f"{'全量' if full_scan else '增量'}扫描任务已启动")
     else:
-        return error_response("扫描任务已在运行中", 400)
+        return error_response("扫描任务启动失败，可能已在运行中", 400)
 
 
 @file_repo_bp.route('/stop', methods=['POST'])
@@ -325,8 +327,7 @@ def view_thumbnail():
     requested_path = os.path.abspath(path)
 
     if not requested_path.startswith(thumbnail_dir):
-        LogUtils.error(f"非法路径请求尝试: {path}")
-        return error_response("非法路径请求", 403)
+        return error_response(f"非法路径请求: {path}", 403)
 
     if not os.path.exists(requested_path):
         return error_response("缩略图文件不存在", 404)

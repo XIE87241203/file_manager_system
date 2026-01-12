@@ -250,11 +250,11 @@ const RepositoryAPI = {
 
     /**
      * 用途说明：启动扫描任务
-     * 入参说明：无
+     * 入参说明：fullScan (Boolean) - 是否全量扫描
      * 返回值说明：Promise - 请求响应结果
      */
-    async startScan() {
-        return await Request.post('/api/file_repository/scan', {}, {}, true);
+    async startScan(fullScan = false) {
+        return await Request.post('/api/file_repository/scan', { full_scan: fullScan }, {}, true);
     },
 
     /**
@@ -370,7 +370,7 @@ const App = {
         // 索引任务逻辑
         if (scanBtn) {
             scanBtn.onclick = () => {
-                if (scanBtn.textContent === '建立索引') this.handleStartScan();
+                if (scanBtn.textContent === '建立索引') this.confirmStartScan();
                 else this.handleStopScan();
             };
         }
@@ -488,12 +488,29 @@ const App = {
     },
 
     /**
-     * 用途说明：处理启动扫描
+     * 用途说明：弹出二次确认并启动扫描
      * 入参说明：无
      * 返回值说明：无
      */
-    async handleStartScan() {
-        const response = await RepositoryAPI.startScan();
+    confirmStartScan() {
+        UIComponents.showConfirmModal({
+            title: '建立索引',
+            message: '是否开始建立文件索引？不选中“重新扫描全部索引”将仅扫描新增文件。',
+            checkbox: { label: '重新扫描全部索引', checked: false },
+            confirmText: '开始扫描',
+            onConfirm: (fullScan) => {
+                this.handleStartScan(fullScan);
+            }
+        });
+    },
+
+    /**
+     * 用途说明：实际执行启动扫描
+     * 入参说明：fullScan (Boolean) - 是否全量扫描
+     * 返回值说明：无
+     */
+    async handleStartScan(fullScan = false) {
+        const response = await RepositoryAPI.startScan(fullScan);
         if (response.status === 'success') {
             Toast.show('扫描任务已启动');
             UIController.toggleScanUI(true);

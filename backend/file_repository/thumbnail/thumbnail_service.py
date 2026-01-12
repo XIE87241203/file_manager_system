@@ -1,12 +1,11 @@
 import os
 import shutil
-from typing import List, Dict, Any, Optional
+from typing import Dict, Any
 
-from backend.db.db_operations import DBOperations
-from backend.db.db_manager import DBManager
-from backend.common.utils import Utils
 from backend.common.log_utils import LogUtils
 from backend.common.progress_manager import ProgressManager, ProgressStatus
+from backend.common.utils import Utils
+from backend.db.db_operations import DBOperations
 from backend.file_repository.thumbnail.thumbnail_generator import ThumbnailGenerator
 
 
@@ -82,7 +81,7 @@ class ThumbnailService:
             message="正在分批将任务加入队列..."
         )
 
-        # 2. 分批获取文件路径并添加到生成队列
+        # 2. 分批获取文件记录并添加到生成队列
         batch_size = 1000
         offset = 0
         total_added = 0
@@ -99,12 +98,11 @@ class ThumbnailService:
 
             if not batch:
                 break
-                
-            paths = [f.file_path for f in batch]
-            # 批量添加到生成器的任务队列中
-            ThumbnailGenerator().add_tasks(paths)
             
-            total_added += len(paths)
+            # 批量添加到生成器的任务队列中 (现在直接传递 model 对象)
+            ThumbnailGenerator().add_tasks(batch)
+            
+            total_added += len(batch)
             offset += batch_size
             
             if len(batch) < batch_size:
@@ -134,3 +132,42 @@ class ThumbnailService:
         except Exception as e:
             LogUtils.error(f"清除缩略图失败: {e}")
             return False
+
+    @staticmethod
+    def sync_thumbnails() -> int:
+        """
+        用途：同步文件索引和缩略图文件，删除不在文件索引表内的缩略图。
+        策略：通过逐一查询数据库检查 MD5 是否存在，避免加载全量 MD5 导致内存溢出。
+        入参说明：无
+        返回值说明：
+            int: 成功删除的孤儿缩略图文件数量
+        """
+        if not os.path.exists(ThumbnailService._THUMBNAIL_DIR):
+            return 0
+
+        delete_count: int = 0
+        try:
+            # 遍历缩略图目录下的所有文件
+            for filename in os.listdir(ThumbnailService._THUMBNAIL_DIR):
+                # 缩略图文件名格式通常为 {md5}.jpg
+                # 提取 MD5 部分
+                name_without_ext: str = os.path.splitext(filename)[0]
+                
+                # 如果文件名不是 32 位 MD5（排除可能的其他杂文件），或者在数据库中查不到
+                # 这里可以根据实际情况微调校验逻辑
+                if len(name_without_ext) != 32:
+                    continue
+
+                # 逐一向数据库发起查询（利用索引，速度尚可，且内存占用极低）
+                if not DBOperations.check_file_md5_exists(name_without_ext):
+                    file_path = os.path.join(ThumbnailService._THUMBNAIL_DIR, filename)
+                    if os.path.isfile(file_path):
+                        os.remove(file_path)
+                        delete_count += 1
+            
+            if delete_count > 0:
+                LogUtils.info(f"缩略图同步完成，共删除 {delete_count} 个过期缩略图")
+        except Exception as e:
+            LogUtils.error(f"同步缩略图时发生异常: {e}")
+            
+        return delete_count

@@ -22,6 +22,26 @@ class DuplicateService(BaseFileService):
     _progress_manager: ProgressManager = ProgressManager()
 
     @staticmethod
+    def init_service() -> None:
+        """
+        用途：初始化服务状态，检测数据库中是否已存在查重数据。
+        如果存在，则将进度管理器初始化为“已完成”状态。
+        """
+        try:
+            count: int = DBOperations.get_duplicate_group_count()
+            if count > 0:
+                DuplicateService._progress_manager.set_status(ProgressStatus.COMPLETED)
+                # 初始化为已完成状态，current/total 设为 1/1
+                DuplicateService._progress_manager.update_progress(
+                    current=1,
+                    total=1,
+                    message=f"查重完成，共发现 {count} 组重复文件"
+                )
+                LogUtils.info(f"查重服务初始化：检测到已有 {count} 组重复记录，已自动恢复进度状态")
+        except Exception as e:
+            LogUtils.error(f"查重服务初始化失败: {e}")
+
+    @staticmethod
     def get_status() -> Dict[str, Any]:
         """
         用途：获取当前查重任务的状态及进度。
@@ -203,3 +223,7 @@ class DuplicateService(BaseFileService):
             PaginationResult[DuplicateGroupResult]: 包含分页信息和结果列表的对象。
         """
         return DBOperations.get_all_duplicate_results(page, limit)
+
+
+# 在模块加载时执行初始化
+DuplicateService.init_service()

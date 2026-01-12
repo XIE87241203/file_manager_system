@@ -31,17 +31,18 @@
         <!-- 结果显示区域 -->
         <div id="results-wrapper" class="results-wrapper"></div>
 
-        <!-- 分页控制栏 (模仿文件仓库样式) -->
-        <div id="pagination-container" class="pagination-bar" style="display: none;">
-            <button id="btn-prev-page" class="btn-page">上一页</button>
-            <span id="page-info" class="page-info">第 1 / 1 页 (共 0 条)</span>
-            <button id="btn-next-page" class="btn-page">下一页</button>
-        </div>
-
-        <!-- 底部浮动操作栏 -->
-        <div id="floating-action-bar" class="floating-action-bar" style="display: none;">
-            <button id="btn-delete-selected-global" class="btn-danger-large">删除选中的重复文件</button>
-        </div>
+        <!-- 底部导航与操作区 (参考 file_repository.html 统一布局) -->
+        <footer class="footer-bar">
+            <div class="footer-left"></div>
+            <div class="footer-center">
+                <div id="pagination-container" class="pagination-container">
+                    <!-- 由 UIComponents.initPagination 动态生成 -->
+                </div>
+            </div>
+            <div class="footer-right">
+                <button id="btn-delete-selected-global" class="btn-danger-large" style="display: none;">删除选中</button>
+            </div>
+        </footer>
     </div>
 
     <!-- 初始引导提示 -->
