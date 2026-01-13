@@ -98,10 +98,15 @@ class BaseDBProcessor(ABC):
             search_query: str,
             search_column: str,
             allowed_sort_columns: List[str],
-            default_sort_column: str
+            default_sort_column: str,
+            extra_where: str = "",
+            extra_params: tuple = ()
     ) -> PaginationResult[T]:
         """
         用途：通用的分页查询逻辑封装
+        入参说明：
+            extra_where: 额外的过滤条件 (例如 "AND status = ?")
+            extra_params: 额外过滤条件的参数
         """
         # 1. 处理搜索关键词
         search_replace_chars = settingService.get_config().file_repository.search_replace_chars
@@ -124,18 +129,18 @@ class BaseDBProcessor(ABC):
         offset: int = max(0, (page - 1) * limit)
 
         # 4. 总数查询
-        count_query: str = f"SELECT COUNT(*) as total FROM {table_name} WHERE {search_column} LIKE ?"
-        total_res = BaseDBProcessor._execute(count_query, (sql_search_param,), is_query=True, fetch_one=True)
+        count_query: str = f"SELECT COUNT(*) as total FROM {table_name} WHERE {search_column} LIKE ? {extra_where}"
+        total_res = BaseDBProcessor._execute(count_query, (sql_search_param,) + extra_params, is_query=True, fetch_one=True)
         total: int = total_res['total'] if total_res else 0
 
         # 5. 列表查询
         list_query: str = f"""
             SELECT * FROM {table_name}
-            WHERE {search_column} LIKE ?
+            WHERE {search_column} LIKE ? {extra_where}
             ORDER BY {sort_by} {order_str}
             LIMIT ? OFFSET ?
         """
-        rows = BaseDBProcessor._execute(list_query, (sql_search_param, limit, offset), is_query=True)
+        rows = BaseDBProcessor._execute(list_query, (sql_search_param,) + extra_params + (limit, offset), is_query=True)
         
         data_list: List[T] = [model_class(**row) for row in rows]
 

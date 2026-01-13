@@ -9,24 +9,15 @@ const ProgressStatus = {
 };
 
 /**
- * 用途说明：通用 UI 组件库，封装可复用的页面元素
+ * 用途说明：通用 UI 组件库，封装可复用的页面元素及交互逻辑
  */
 const UIComponents = {
     _previewPopover: null,
 
     /**
      * 用途说明：初始化并渲染公用顶部工具栏，并自动处理页面内容避让
-     * 入参说明：
-     *   - title (str): 工具栏显示的标题文字
-     *   - showBack (bool): 是否显示返回按钮，默认为 true
-     *   - backUrl (str): 返回按钮跳转的自定义地址，若不传则默认执行 window.history.back()
-     *   - rightBtnText (str): 右侧按钮显示的文字，如果不传则不显示
-     *   - rightBtnCallback (func): 右侧按钮点击的回调函数
-     *   - rightBtnClass (str): 右侧按钮的自定义 CSS 类名，默认为 'right-btn'
-     * 返回值说明：无
      */
     initHeader(title, showBack = true, backUrl = null, rightBtnText = null, rightBtnCallback = null, rightBtnClass = 'right-btn') {
-        // 1. 查找或创建 header 容器
         let header = document.querySelector('header.top-bar');
         if (!header) {
             header = document.createElement('header');
@@ -34,7 +25,6 @@ const UIComponents = {
             document.body.prepend(header);
         }
 
-        // 2. 渲染内部 HTML 结构 (适配 common.css 中的左、中、右三段式布局)
         header.innerHTML = `
             <div class="top-bar-left">
                 <button id="nav-back-btn" class="back-btn" style="${showBack ? '' : 'visibility: hidden;'}">
@@ -47,69 +37,133 @@ const UIComponents = {
             </div>
         `;
 
-        // 3. 避开头部高度：通过 JS 动态设置 body 的 paddingTop，确保内容不被固定定位的 header 遮挡
-        // 统一处理高度为 60px，不再依赖 CSS 中的各类 margin-top 避让
         document.body.style.paddingTop = this.getToolbarHeight() + 'px';
         document.body.style.boxSizing = 'border-box';
 
-        // 4. 绑定返回按钮逻辑
         if (showBack) {
             const backBtn = document.getElementById('nav-back-btn');
             if (backBtn) {
                 backBtn.onclick = () => {
-                    if (backUrl) {
-                        window.location.href = backUrl;
-                    } else {
-                        window.history.back();
-                    }
+                    if (backUrl) window.location.href = backUrl;
+                    else window.history.back();
                 };
             }
         }
 
-        // 5. 绑定右侧按钮逻辑
         if (rightBtnText && rightBtnCallback) {
             const rightBtn = document.getElementById('nav-right-btn');
-            if (rightBtn) {
-                rightBtn.onclick = rightBtnCallback;
-            }
+            if (rightBtn) rightBtn.onclick = rightBtnCallback;
         }
     },
 
-    /**
-     * 用途说明：获取顶部工具栏的高度
-     * 入参说明：无
-     * 返回值说明：Number - 工具栏高度（像素）
-     */
     getToolbarHeight() {
         const header = document.querySelector('header.top-bar');
-        // 如果 header 存在则返回其高度，否则返回预设特 60px
         return header ? header.offsetHeight || 60 : 60;
     },
 
     /**
-     * 用途说明：从文件路径中截取文件名（带后缀）
-     * 入参说明：path (str): 文件完整路径
-     * 返回值说明：str - 文件名
+     * 用途说明：将 Date 对象格式化为 YYYY-MM-DD HH:mm:ss 字符串
+     * 入参说明：date (Date): 需要格式化的日期对象，默认为当前时间
+     * 返回值说明：str - 格式化后的字符串
      */
+    formatDate(date = new Date()) {
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, '0');
+        const d = String(date.getDate()).padStart(2, '0');
+        const hh = String(date.getHours()).padStart(2, '0');
+        const mm = String(date.getMinutes()).padStart(2, '0');
+        const ss = String(date.getSeconds()).padStart(2, '0');
+        return `${y}-${m}-${d} ${hh}:${mm}:${ss}`;
+    },
+
     getFileName(path) {
         if (!path) return '';
-        // 兼容 Windows (\) 和 Unix (/) 路径分隔符
         const parts = path.split(/[/\\]/);
         return parts.pop() || '';
     },
 
     /**
-     * 用途说明：显示并初始化进度条组件（如果已存在则重置状态）
+     * 用途说明：更新表头排序状态的 UI
      * 入参说明：
-     *   - parentSelector (str): 进度条挂载的父容器选择器
-     *   - initialText (str): 初始显示的文本内容
-     * 返回值说明：无
+     *   - headers (NodeList): 表头元素集合
+     *   - field (str): 当前排序字段
+     *   - order (str): 'ASC' 或 'DESC'
      */
+    updateSortUI(headers, field, order) {
+        headers.forEach(th => {
+            th.classList.remove('sort-asc', 'sort-desc');
+            if (th.getAttribute('data-field') === field) {
+                th.classList.add(order === 'ASC' ? 'sort-asc' : 'sort-desc');
+            }
+        });
+    },
+
+    /**
+     * 用途说明：封装通用的表格行选中及全选逻辑
+     * 入参说明：
+     *   - config (object): {
+     *       tableBody: HTMLElement,
+     *       selectAllCheckbox: HTMLElement,
+     *       selectedSet: Set, // 存储选中项 ID/Path 的集合
+     *       onSelectionChange: (func) 选中项发生变化时的回调
+     *     }
+     */
+    bindTableSelection(config) {
+        const { tableBody, selectAllCheckbox, selectedSet, onSelectionChange } = config;
+        if (!tableBody) return;
+
+        // 1. 处理全选
+        if (selectAllCheckbox) {
+            selectAllCheckbox.onchange = (e) => {
+                const isChecked = e.target.checked;
+                const checkboxes = tableBody.querySelectorAll('.file-checkbox');
+                checkboxes.forEach(cb => {
+                    cb.checked = isChecked;
+                    const id = cb.getAttribute('data-path') || cb.getAttribute('data-id');
+                    const tr = cb.closest('tr');
+                    if (isChecked) {
+                        selectedSet.add(id);
+                        if (tr) tr.classList.add('selected-row');
+                    } else {
+                        selectedSet.delete(id);
+                        if (tr) tr.classList.remove('selected-row');
+                    }
+                });
+                if (onSelectionChange) onSelectionChange(selectedSet.size);
+            };
+        }
+
+        // 2. 处理行点击委托
+        tableBody.onclick = (e) => {
+            const tr = e.target.closest('tr');
+            if (!tr) return;
+            const checkbox = tr.querySelector('.file-checkbox');
+            if (!checkbox) return;
+
+            const id = checkbox.getAttribute('data-path') || checkbox.getAttribute('data-id');
+
+            // 如果点击的不是 checkbox 本身，则切换它的状态
+            if (e.target !== checkbox) {
+                checkbox.checked = !checkbox.checked;
+            }
+
+            if (checkbox.checked) {
+                selectedSet.add(id);
+                tr.classList.add('selected-row');
+            } else {
+                selectedSet.delete(id);
+                tr.classList.remove('selected-row');
+                if (selectAllCheckbox) selectAllCheckbox.checked = false;
+            }
+
+            if (onSelectionChange) onSelectionChange(selectedSet.size);
+        };
+    },
+
     showProgressBar(parentSelector, initialText = '正在处理...') {
         let parent = document.querySelector(parentSelector);
         if (!parent) return;
 
-        // 检查是否已存在，如果不存在则创建
         let overlay = parent.querySelector('.common-progress-overlay');
         if (!overlay) {
             overlay = document.createElement('div');
@@ -125,86 +179,39 @@ const UIComponents = {
             `;
             parent.appendChild(overlay);
         } else {
-            // 如果已存在，重置进度 and 文本
             this.updateProgressBar(parentSelector, 0, initialText);
         }
         overlay.style.display = 'flex';
     },
 
-    /**
-     * 用途说明：封装通用的进度更新逻辑，从后端进度对象中计算百分比并更新 UI
-     * 入参说明：
-     *   - parentSelector (str): 进度条所在的父容器选择器
-     *   - progress (object): 后端返回的进度对象 (包含 current, total, message)
-     * 返回值说明：无
-     */
     renderProgress(parentSelector, progress) {
         if (!progress) return;
         const current = progress.current || 0;
         const total = progress.total || 0;
         const percent = total > 0 ? Math.round((current / total) * 100) : 0;
         const message = progress.message || '';
-        
-        // 统一进度文本格式
         const text = `进度: ${percent}% (${current}/${total}) - ${message}`;
-
-        // 调用基础更新方法
         this.updateProgressBar(parentSelector, percent, text);
     },
 
-    /**
-     * 用途说明：更新进度条进度 and 文本
-     * 入参说明：
-     *   - parentSelector (str): 进度条所在的父容器选择器
-     *   - percent (number): 进度百分比 (0-100)
-     *   - text (str): 更新的文本内容
-     * 返回值说明：无
-     */
     updateProgressBar(parentSelector, percent, text) {
         let parent = document.querySelector(parentSelector);
         if (!parent) return;
-
         let fill = parent.querySelector('.common-progress-bar-fill');
         let textEl = parent.querySelector('.common-progress-text');
-        
         if (fill) fill.style.width = percent + '%';
         if (textEl && text) textEl.textContent = text;
     },
 
-    /**
-     * 用途说明：隐藏进度条组件
-     * 入参说明：
-     *   - parentSelector (str): 进度条所在的父容器选择器
-     * 返回值说明：无
-     */
     hideProgressBar(parentSelector) {
         let parent = document.querySelector(parentSelector);
         if (!parent) return;
-
         let overlay = parent.querySelector('.common-progress-overlay');
-        if (overlay) {
-            overlay.style.display = 'none';
-        }
+        if (overlay) overlay.style.display = 'none';
     },
 
-    /**
-     * 用途说明：显示通用二次确认弹窗
-     * 入参说明：
-     *   - options (object): {
-     *       title: (str) 标题,
-     *       message: (str) 正文信息,
-     *       confirmText: (str) 确认按钮文字,
-     *       cancelText: (str) 取消按钮文字,
-     *       checkbox: { label: (str), checked: (bool) } 可选复选框配置,
-     *       onConfirm: (func) 点击确认的回调，入参为 checkbox 的状态,
-     *       onCancel: (func) 点击取消的回调
-     *     }
-     * 返回值说明：无
-     */
     showConfirmModal(options) {
         const { title = '确认操作', message, confirmText = '确定', cancelText = '取消', checkbox, onConfirm, onCancel } = options;
-        
-        // 查找或创建 modal 容器
         let modal = document.getElementById('common-confirm-modal');
         if (!modal) {
             modal = document.createElement('div');
@@ -233,28 +240,19 @@ const UIComponents = {
         `;
 
         modal.classList.remove('hidden');
-
-        // 绑定事件
-        const confirmBtn = document.getElementById('common-modal-confirm-btn');
-        const cancelBtn = document.getElementById('common-modal-cancel-btn');
         const checkboxInput = document.getElementById('common-modal-checkbox');
 
-        confirmBtn.onclick = () => {
+        document.getElementById('common-modal-confirm-btn').onclick = () => {
             modal.classList.add('hidden');
             if (onConfirm) onConfirm(checkboxInput ? checkboxInput.checked : false);
         };
 
-        cancelBtn.onclick = () => {
+        document.getElementById('common-modal-cancel-btn').onclick = () => {
             modal.classList.add('hidden');
             if (onCancel) onCancel();
         };
     },
 
-    /**
-     * 用途说明：初始化快速预览组件
-     * 入参说明：无
-     * 返回值说明：无
-     */
     initQuickPreview() {
         if (this._previewPopover) return;
         this._previewPopover = document.createElement('div');
@@ -262,57 +260,29 @@ const UIComponents = {
         document.body.appendChild(this._previewPopover);
     },
 
-    /**
-     * 用途说明：显示快速预览缩略图
-     * 入参说明：
-     *   - e (Event): 鼠标事件对象
-     *   - thumbPath (str): 缩略图在服务端的物理路径
-     * 返回值说明：无
-     */
     showQuickPreview(e, thumbPath) {
         if (!thumbPath) return;
         this.initQuickPreview();
-        
         const apiBase = Request.baseUrl;
         const token = Request.getCookie('token');
         const imgUrl = `${apiBase}/api/file_repository/thumbnail/view?path=${encodeURIComponent(thumbPath)}&token=${token}`;
-        
         this._previewPopover.innerHTML = `<img src="${imgUrl}" alt="预览图">`;
         this._previewPopover.style.display = 'block';
         this.moveQuickPreview(e);
     },
 
-    /**
-     * 用途说明：随着鼠标移动更新预览窗口位置
-     * 入参说明：
-     *   - e (Event): 鼠标事件对象
-     * 返回值说明：无
-     */
     moveQuickPreview(e) {
         if (!this._previewPopover || this._previewPopover.style.display === 'none') return;
-        
         const offset = 20;
         let x = e.clientX + offset;
         let y = e.clientY + offset;
-        
-        // 边界检查：防止预览窗超出屏幕
         const popoverRect = this._previewPopover.getBoundingClientRect();
-        if (x + popoverRect.width > window.innerWidth) {
-            x = e.clientX - popoverRect.width - offset;
-        }
-        if (y + popoverRect.height > window.innerHeight) {
-            y = e.clientY - popoverRect.height - offset;
-        }
-        
+        if (x + popoverRect.width > window.innerWidth) x = e.clientX - popoverRect.width - offset;
+        if (y + popoverRect.height > window.innerHeight) y = e.clientY - popoverRect.height - offset;
         this._previewPopover.style.left = `${x}px`;
         this._previewPopover.style.top = `${y}px`;
     },
 
-    /**
-     * 用途说明：隐藏快速预览窗口
-     * 入参说明：无
-     * 返回值说明：无
-     */
     hideQuickPreview() {
         if (this._previewPopover) {
             this._previewPopover.style.display = 'none';
@@ -320,27 +290,13 @@ const UIComponents = {
         }
     },
 
-    /**
-     * 用途说明：初始化并绑定通用分页组件的逻辑
-     * 入参说明：
-     *   - containerId (str): 分页容器的 ID
-     *   - options (object): {
-     *       onPageChange: (func) 页码切换回调，入参为新页码,
-     *       limit: (number) 每页限制数
-     *     }
-     * 返回值说明：Object - 包含 update 方法的控制器
-     */
     initPagination(containerId, options) {
         const container = document.getElementById(containerId);
         if (!container) return null;
-
         const { onPageChange, limit = 20 } = options;
 
-        // 内部渲染方法
         const render = (total, currentPage) => {
             const totalPages = Math.ceil(total / limit) || 1;
-            
-            // 修复：即便只有一页，也显示分页信息，只是禁用按钮
             container.style.display = 'flex';
             container.innerHTML = `
                 <button class="btn-page" id="${containerId}-prev" ${currentPage <= 1 ? 'disabled' : ''}>上一页</button>
@@ -356,8 +312,6 @@ const UIComponents = {
             };
         };
 
-        return {
-            update: (total, currentPage) => render(total, currentPage)
-        };
+        return { update: (total, currentPage) => render(total, currentPage) };
     }
 };

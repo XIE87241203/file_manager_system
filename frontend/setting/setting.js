@@ -35,16 +35,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // 绑定查重配置保存按钮
     document.getElementById('save-dup-check-btn').addEventListener('click', saveDuplicateCheckSettings);
 
-    // 绑定清空数据库按钮
-    const clearDbBtn = document.getElementById('clear-db-btn');
-    if (clearDbBtn) {
-        clearDbBtn.addEventListener('click', () => showClearModal('db'));
-    }
-
     // 绑定清空视频特征库按钮
     const clearVideoBtn = document.getElementById('clear-video-btn');
     if (clearVideoBtn) {
-        clearVideoBtn.addEventListener('click', () => showClearModal('video'));
+        clearVideoBtn.addEventListener('click', () => showClearVideoFeaturesModal());
     }
 
     // 绑定修改密码保存按钮
@@ -305,32 +299,17 @@ async function saveDuplicateCheckSettings() {
 }
 
 /**
- * 用途说明：显示清空确认弹窗
- * 入参说明：type - 'db' (文件数据库) 或 'video' (视频特征库)
+ * 用途说明：显示确认清空视频特征库弹窗
  * 返回值说明：无
  */
-function showClearModal(type) {
-    if (type === 'db') {
-        UIComponents.showConfirmModal({
-            title: '确认清空数据库',
-            message: '警告：此操作将清空所有已扫描的文件索引数据，且不可恢复！确定要继续吗？',
-            checkbox: {
-                label: '同时清空历史文件数据库',
-                checked: false
-            },
-            onConfirm: (clearHistory) => {
-                clearFileRepositoryDatabase(clearHistory);
-            }
-        });
-    } else {
-        UIComponents.showConfirmModal({
-            title: '确认清空视频特征库',
-            message: '警告：此操作将清空所有视频特征指纹库（用于视频查重），确定要继续吗？',
-            onConfirm: () => {
-                clearVideoFeaturesDatabase();
-            }
-        });
-    }
+function showClearVideoFeaturesModal() {
+    UIComponents.showConfirmModal({
+                title: '确认清空视频特征库',
+                message: '警告：此操作将清空所有视频特征指纹库（用于视频查重），确定要继续吗？',
+                onConfirm: () => {
+                    clearVideoFeaturesDatabase();
+                }
+            });
 }
 
 /**

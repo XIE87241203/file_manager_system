@@ -18,8 +18,8 @@ class Utils:
         入参说明：无
         返回值说明：str - 返回项目根目录下的 data 目录的绝对路径
         """
-        base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-        data_path = os.path.join(base_path, "data")
+        base_path: str = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        data_path: str = os.path.join(base_path, "data")
 
         if not os.path.exists(data_path):
             os.makedirs(data_path, exist_ok=True)
@@ -63,7 +63,7 @@ class Utils:
             ignore_paths_case_insensitive (bool): 路径忽略是否忽略大小写
         返回值说明：bool - True 表示应忽略，False 表示不忽略
         """
-        filename = os.path.basename(file_path)
+        filename: str = os.path.basename(file_path)
         
         # 1. 检查文件名忽略规则
         for pattern in ignore_filenames:
@@ -77,7 +77,7 @@ class Utils:
         # 2. 检查路径忽略规则
         for pattern in ignore_paths:
             # 如果模式中不包含通配符，则默认为包含匹配，即前后加 *
-            search_pattern = pattern if ('*' in pattern or '?' in pattern) else f"*{pattern}*"
+            search_pattern: str = pattern if ('*' in pattern or '?' in pattern) else f"*{pattern}*"
             
             if ignore_paths_case_insensitive:
                 if fnmatch.fnmatch(file_path.lower(), search_pattern.lower()):
@@ -102,13 +102,15 @@ class Utils:
         """
         用途：删除操作系统层面的物理文件。
         入参说明：file_path (str) - 文件的绝对路径。
-        返回值说明：bool - 删除成功返回 True，文件不存在或删除失败返回 False。
+        返回值说明：bool - 删除成功返回 True，文件不存在返回 False。若删除失败则抛出异常。
         """
-        if os.path.exists(file_path):
-            try:
-                os.remove(file_path)
-                LogUtils.info(f"文件已删除: {file_path}")
-                return True
-            except Exception as e:
-                LogUtils.error(f"删除文件失败: {file_path}, 错误: {e}")
-        return False
+        if not os.path.exists(file_path):
+            return False
+            
+        try:
+            os.remove(file_path)
+            LogUtils.info(f"文件已删除: {file_path}")
+            return True
+        except Exception as e:
+            LogUtils.error(f"删除文件失败: {file_path}, 错误: {e}")
+            raise e

@@ -1,15 +1,11 @@
 /**
- * 用途说明：文件仓库页面专用样式，实现全屏自适应布局、搜索栏集成、数据表格美化及排序状态展示。
+ * 用途说明：回收站页面专用样式。
+ * 包含数据表格及回收站特有按钮样式。
+ * 依赖于 common.css 中的基础样式。
  */
 
-/* 2. 顶部工具栏自定义 (扩展 common.css 中的 .top-bar) */
-.top-bar {
-    height: 60px;
-    justify-content: space-between; /* 三段式分布 */
-}
-
 .top-bar-left {
-    width: 100px;
+    width: 150px;
     display: flex;
     align-items: center;
 }
@@ -19,40 +15,12 @@
     display: flex;
     justify-content: center;
     align-items: center;
-    gap: 20px;
 }
 
 .top-bar-right {
-    width: 100px;
+    width: 150px;
     display: flex;
     justify-content: flex-end;
-}
-
-.checkbox-label {
-    font-size: 14px;
-    color: #5f6368;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    white-space: nowrap;
-    user-select: none;
-}
-
-.search-history-checkbox {
-    margin-right: 6px;
-    cursor: pointer;
-    width: 16px;
-    height: 16px;
-}
-
-/* 4. 主容器及内容区域 */
-.repo-container {
-    /* margin-top: 60px;  不再在 CSS 中硬编码，改由 JS getToolbarHeight 动态处理 */
-}
-
-/* 文件去重按钮最大宽度限制 */
-.btn-duplicate-check {
-    max-width: 200px;
 }
 
 /* 5. 数据表格样式优化 */
@@ -144,7 +112,7 @@ td {
     white-space: nowrap;
 }
 
-/* 每一行鼠标悬停效果 */
+/* 每一行鼠标悬停及选中效果 */
 tbody tr {
     cursor: pointer;
     transition: background-color 0.15s;
@@ -154,52 +122,6 @@ tbody tr:hover {
     background-color: #f8f9fa;
 }
 
-/* 7. 按钮样式微调 */
-.btn-secondary-small {
-    padding: 6px 12px;
-    background-color: #f1f3f4;
-    color: #3c4043;
-    border: 1px solid transparent;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 12px;
-    transition: all 0.2s;
-}
-
-.btn-secondary-small:hover:not(:disabled) {
-    background-color: #e8eaed;
-}
-
-.btn-secondary-small:disabled {
-    color: #bdc1c6;
-    cursor: not-allowed;
-    background-color: #f8f9fa;
-}
-
-/* 8. 缩略图生成相关 */
-.thumbnail-action-container {
-    display: flex;
-    align-items: center;
+.footer-right {
     gap: 12px;
-}
-
-.progress-text {
-    font-size: 13px;
-    color: #1a73e8;
-    font-weight: 500;
-}
-
-.btn-text-danger-small {
-    padding: 6px 12px;
-    background-color: #fce8e6;
-    color: #d93025;
-    border: 1px solid transparent;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 12px;
-    transition: all 0.2s;
-}
-
-.btn-text-danger-small:hover {
-    background-color: #fad2cf;
 }

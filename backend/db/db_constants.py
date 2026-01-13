@@ -3,6 +3,13 @@ class DBConstants:
     用途：数据库表名及列名常量类，统一管理所有数据库结构相关的硬编码字符串
     """
 
+    DB_VERSION: int = 3  # 当前数据库版本
+
+    class VersionInfo:
+        """用途：version_info 表相关的常量"""
+        TABLE_NAME: str = 'version_info'
+        COL_VERSION: str = 'version'
+
     class FileIndex:
         """用途：file_index 表相关的常量"""
         TABLE_NAME: str = 'file_index'
@@ -10,7 +17,7 @@ class DBConstants:
         COL_FILE_PATH: str = 'file_path'
         COL_FILE_MD5: str = 'file_md5'
         COL_FILE_SIZE: str = 'file_size'
-        COL_IS_IN_RECYCLE_BIN: str = 'is_in_recycle_bin'
+        COL_RECYCLE_BIN_TIME: str = 'recycle_bin_time'
         COL_THUMBNAIL_PATH: str = 'thumbnail_path'
         COL_SCAN_TIME: str = 'scan_time'
 

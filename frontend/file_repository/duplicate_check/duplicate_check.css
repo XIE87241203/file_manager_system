@@ -2,26 +2,6 @@
  * 用途：查重页面专用样式
  */
 
-.repo-body {
-    height: 100vh;
-    width: 100vw;
-    margin: 0;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    background-color: #fff;
-}
-
-.repo-container {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    width: 100%;
-    box-sizing: border-box;
-    position: relative;
-    overflow: hidden;
-}
-
 /* 居中状态容器：用于显示进度条并上下左右居中 */
 .centered-status-container {
     position: absolute;
@@ -192,60 +172,4 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-}
-
-/* 底部工具栏 (参考 file_repository.css) */
-.footer-bar {
-    height: 60px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 16px;
-    background-color: #fff;
-    border-top: 1px solid #dee2e6;
-    flex-shrink: 0;
-}
-
-.footer-left, .footer-right {
-    flex: 1;
-}
-
-.footer-right {
-    display: flex;
-    justify-content: flex-end;
-}
-
-.footer-center {
-    flex: 2;
-    display: flex;
-    justify-content: center;
-}
-
-.pagination-container {
-    display: flex;
-    align-items: center;
-    gap: 20px;
-    font-size: 13px;
-    color: #5f6368;
-}
-
-/* 按钮样式微调 */
-.btn-danger-large {
-    padding: 10px 24px;
-    background-color: #dc3545;
-    color: white;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 14px;
-    font-weight: 500;
-    transition: background-color 0.2s, transform 0.1s;
-}
-
-.btn-danger-large:hover {
-    background-color: #c82333;
-}
-
-.btn-danger-large:active {
-    transform: scale(0.98);
 }

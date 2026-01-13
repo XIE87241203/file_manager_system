@@ -1,3 +1,4 @@
+import sqlite3
 from typing import List, Dict, Optional
 
 from backend.common.log_utils import LogUtils
@@ -16,17 +17,21 @@ class DuplicateGroupDBModuleProcessor(BaseDBProcessor):
     """
 
     @staticmethod
-    def batch_save_duplicate_groups(groups: List[DuplicateGroupDBModule]) -> bool:
+    def batch_save_duplicate_groups(groups: List[DuplicateGroupDBModule], conn: Optional[sqlite3.Connection] = None) -> bool:
         """
         用途：批量存储重复文件分组及其详情
         入参说明：
             groups (List[DuplicateGroupDBModule]): 重复文件分组模型列表
+            conn (Optional[sqlite3.Connection]): 数据库连接对象（可选，用于事务支持）
         返回值说明：
             bool: 是否全部成功存储
         """
-        conn = None
-        try:
+        local_conn: bool = False
+        if conn is None:
             conn = DBManager.get_connection()
+            local_conn = True
+
+        try:
             cursor = conn.cursor()
 
             for group in groups:
@@ -49,29 +54,34 @@ class DuplicateGroupDBModuleProcessor(BaseDBProcessor):
                         files_data
                     )
 
-            conn.commit()
+            if local_conn:
+                conn.commit()
             return True
         except Exception as e:
-            if conn:
+            if local_conn and conn:
                 conn.rollback()
             LogUtils.error(f"批量存储重复分组失败: {e}")
             return False
         finally:
-            if conn:
+            if local_conn and conn:
                 conn.close()
 
     @staticmethod
-    def delete_file_by_id(file_id: int) -> bool:
+    def delete_file_by_id(file_id: int, conn: Optional[sqlite3.Connection] = None) -> bool:
         """
         用途：根据 ID 从重复文件记录中删除，并维护分组完整性
         入参说明：
             file_id (int): 记录的唯一标识 ID
+            conn (Optional[sqlite3.Connection]): 数据库连接对象（可选，用于事务支持）
         返回值说明：
             bool: 是否操作成功
         """
-        conn = None
-        try:
+        local_conn: bool = False
+        if conn is None:
             conn = DBManager.get_connection()
+            local_conn = True
+
+        try:
             cursor = conn.cursor()
 
             # 2. 查询该文件所属的 group_id
@@ -114,15 +124,16 @@ class DuplicateGroupDBModuleProcessor(BaseDBProcessor):
                 )
                 LogUtils.info(f"由于成员不足2个，已自动解散重复分组 ID: {group_id}")
 
-            conn.commit()
+            if local_conn:
+                conn.commit()
             return True
         except Exception as e:
-            if conn:
+            if local_conn and conn:
                 conn.rollback()
             LogUtils.error(f"根据 ID 删除重复记录失败: {e}")
             return False
         finally:
-            if conn:
+            if local_conn and conn:
                 conn.close()
 
     @staticmethod
@@ -158,7 +169,6 @@ class DuplicateGroupDBModuleProcessor(BaseDBProcessor):
 
         # 2. 分页查询分组列表
         offset: int = max(0, (page - 1) * limit)
-        print(f"offset {offset}")
         group_query: str = f"""
             SELECT * FROM {DBConstants.DuplicateGroup.TABLE_GROUPS}
             LIMIT ? OFFSET ?

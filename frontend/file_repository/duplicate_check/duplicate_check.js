@@ -6,7 +6,7 @@
 const CheckState = {
     results: [],
     page: 1,
-    limit: 100,
+    limit: 20,
     total: 0,
     lastCheckTime: '--',
     pollingInterval: null,
@@ -24,7 +24,7 @@ const CheckState = {
         this.results = data.list || [];
         this.total = data.total || 0;
         this.page = data.page || 1;
-        this.limit = data.limit || 100;
+        this.limit = data.limit || 20;
 
         // 恢复分组的展开状态
         this.results.forEach(group => {
@@ -36,23 +36,7 @@ const CheckState = {
             }
         });
 
-        this.updateLastCheckTime();
-    },
-
-    /**
-     * 用途说明：更新最后检查时间的字符串表示（当前时间）
-     * 入参说明：无
-     * 返回值说明：无
-     */
-    updateLastCheckTime() {
-        const now = new Date();
-        const y = now.getFullYear();
-        const m = String(now.getMonth() + 1).padStart(2, '0');
-        const d = String(now.getDate()).padStart(2, '0');
-        const hh = String(now.getHours()).padStart(2, '0');
-        const mm = String(now.getMinutes()).padStart(2, '0');
-        const ss = String(now.getSeconds()).padStart(2, '0');
-        this.lastCheckTime = `${y}-${m}-${d} ${hh}:${mm}:${ss}`;
+        this.lastCheckTime = UIComponents.formatDate();
     }
 };
 
@@ -77,7 +61,7 @@ const UIController = {
             summaryTime: document.getElementById('summary-time'),
             globalDeleteBtn: document.getElementById('btn-delete-selected-global')
         };
-        
+
         // 初始化公用分页组件
         CheckState.paginationController = UIComponents.initPagination('pagination-container', {
             limit: CheckState.limit,
@@ -89,7 +73,7 @@ const UIController = {
             const checkedCbs = document.querySelectorAll('.file-checkbox:checked');
             const paths = Array.from(checkedCbs).map(cb => cb.getAttribute('data-path'));
             if (paths.length > 0) {
-                App.deleteFiles(paths, `确定要删除选中的 ${paths.length} 个文件吗？\n(删除后若组内文件少于2个，该组将自动解散)`);
+                App.moveToRecycleBin(paths, `确定要将选中的 ${paths.length} 个文件移入回收站吗？\n(移入回收站后若组内文件少于2个，该组将自动解散)`);
             }
         };
 
@@ -121,21 +105,25 @@ const UIController = {
         const { scanningContainer, resultsGroup, emptyHint } = this.elements;
         if (status === ProgressStatus.PROCESSING) {
             this.renderHeader(ProgressStatus.PROCESSING);
-            scanningContainer.style.display = 'flex';
-            resultsGroup.style.display = 'none';
-            emptyHint.style.display = 'none';
+            scanningContainer.classList.remove('hidden');
+            resultsGroup.classList.add('hidden');
+            emptyHint.classList.add('hidden');
             UIComponents.showProgressBar('#scanning-container', '正在准备分析文件...');
         } else {
             this.renderHeader(ProgressStatus.IDLE);
-            scanningContainer.style.display = 'none';
+            scanningContainer.classList.add('hidden');
             UIComponents.hideProgressBar('#scanning-container');
 
             if (status === ProgressStatus.COMPLETED || (CheckState.results && CheckState.results.length > 0)) {
-                resultsGroup.style.display = 'flex';
-                emptyHint.style.display = 'none';
+                resultsGroup.classList.remove('hidden');
+                emptyHint.classList.add('hidden');
             } else {
-                resultsGroup.style.display = 'none';
-                emptyHint.style.display = (status === ProgressStatus.IDLE) ? 'block' : 'none';
+                resultsGroup.classList.add('hidden');
+                if (status === ProgressStatus.IDLE) {
+                    emptyHint.classList.remove('hidden');
+                } else {
+                    emptyHint.classList.add('hidden');
+                }
             }
         }
     },
@@ -160,14 +148,14 @@ const UIController = {
 
         const results = CheckState.results;
         if (!results || results.length === 0) {
-            summaryBar.style.display = 'none';
+            summaryBar.classList.add('hidden');
             wrapper.innerHTML = '<div style="text-align: center; color: #9aa0a6; padding-top: 100px;">未发现重复文件</div>';
             if (CheckState.paginationController) CheckState.paginationController.update(0, 1);
             this.updateFloatingBar();
             return;
         }
 
-        summaryBar.style.display = 'block';
+        summaryBar.classList.remove('hidden');
         summaryGroups.textContent = `重复组总数: ${CheckState.total}`;
         const totalFiles = results.reduce((acc, g) => acc + (g.file_ids ? g.file_ids.length : 0), 0);
         summaryFiles.textContent = `当前页文件: ${totalFiles}`;
@@ -218,19 +206,19 @@ const UIController = {
                             <th style="width: 25%;">文件名</th>
                             <th style="width: 70%;">完整路径</th>
                             <th style="width: 30px; text-align: center;">
-                                <input type="checkbox" class="select-all-in-group">
+                                <input type="checkbox" class="file-checkbox select-all-in-group">
                             </th>
                         </tr>
                     </thead>
                     <tbody>
                         ${files.map(f => {
-                            const fileName = f.file_path.split(/[\/]/).pop();
+                            const fileName = UIComponents.getFileName(f.file_path);
                             return `
-                                <tr class="clickable-row" data-thumbnail="${f.thumbnail_path || ''}">
+                                <tr class="clickable-row" data-path="${f.file_path}" data-thumbnail="${f.thumbnail_path || ''}">
                                     <td style="width: 25%;" title="${fileName}">${fileName}</td>
                                     <td style="width: 70%;" class="file-path" title="${f.file_path}">${f.file_path}</td>
                                     <td style="width: 30px; text-align: center;">
-                                        <input type="checkbox" class="file-checkbox" data-path="${f.file_path}">
+                                        <input type="checkbox" class="file-checkbox file-item-checkbox" data-path="${f.file_path}">
                                     </td>
                                 </tr>
                             `;
@@ -241,11 +229,9 @@ const UIController = {
         `;
 
         const header = groupEl.querySelector('.group-header');
-
         header.addEventListener('click', (e) => {
             if (e.target.type === 'checkbox') return;
             groupEl.classList.toggle('expanded');
-            // 用途说明：更新状态管理中的分组展开状态
             const groupId = groupEl.getAttribute('data-group-id');
             const targetGroup = CheckState.results.find(g => String(g.id) === groupId);
             if (targetGroup) {
@@ -253,41 +239,19 @@ const UIController = {
             }
         });
 
-        const selectAllCheckbox = groupEl.querySelector('.select-all-in-group');
-        const fileCheckboxes = groupEl.querySelectorAll('.file-checkbox');
-        selectAllCheckbox.onchange = (e) => {
-            const isChecked = selectAllCheckbox.checked;
-            fileCheckboxes.forEach(cb => {
-                cb.checked = isChecked;
-                const row = cb.closest('tr');
-                if (isChecked) row.classList.add('selected-row');
-                else row.classList.remove('selected-row');
-            });
-            this.updateFloatingBar();
-        };
+        const tbody = groupEl.querySelector('tbody');
+        const selectAllInGroup = groupEl.querySelector('.select-all-in-group');
+        
+        // 使用通用绑定逻辑 (虽然这里是组内全选，稍微变通一下)
+        // 这里的选中不涉及 CheckState 跨页，仅用于当前 UI 反馈
+        UIComponents.bindTableSelection({
+            tableBody: tbody,
+            selectAllCheckbox: selectAllInGroup,
+            selectedSet: new Set(), // 临时用的 Set，实际上我们通过 DOM 查询来更新全局按钮
+            onSelectionChange: () => this.updateFloatingBar()
+        });
 
-        groupEl.querySelectorAll('.clickable-row').forEach(tr => {
-            tr.addEventListener('click', (e) => {
-                const cb = tr.querySelector('.file-checkbox');
-                if (e.target !== cb) {
-                    cb.checked = !cb.checked;
-                    // 手动触发 change 事件或直接调用逻辑
-                    if (cb.checked) tr.classList.add('selected-row');
-                    else tr.classList.remove('selected-row');
-                    if (!cb.checked) selectAllCheckbox.checked = false;
-                    this.updateFloatingBar();
-                }
-            });
-
-            const checkbox = tr.querySelector('.file-checkbox');
-            checkbox.onclick = (e) => {
-                e.stopPropagation();
-                if (checkbox.checked) tr.classList.add('selected-row');
-                else tr.classList.remove('selected-row');
-                if (!checkbox.checked) selectAllCheckbox.checked = false;
-                this.updateFloatingBar();
-            };
-
+        tbody.querySelectorAll('.clickable-row').forEach(tr => {
             if (CheckState.settings && CheckState.settings.file_repository.quick_view_thumbnail) {
                 tr.addEventListener('mouseenter', (e) => UIComponents.showQuickPreview(e, tr.getAttribute('data-thumbnail')));
                 tr.addEventListener('mousemove', (e) => UIComponents.moveQuickPreview(e));
@@ -304,13 +268,13 @@ const UIController = {
      * 返回值说明：无
      */
     updateFloatingBar() {
-        const checkedCount = document.querySelectorAll('.file-checkbox:checked').length;
+        const checkedCount = document.querySelectorAll('.file-item-checkbox:checked').length;
         const { globalDeleteBtn } = this.elements;
         if (checkedCount > 0) {
-            globalDeleteBtn.style.display = 'block';
-            globalDeleteBtn.textContent = `删除选中 (${checkedCount})`;
+            globalDeleteBtn.classList.remove('hidden');
+            globalDeleteBtn.textContent = `移入回收站 (${checkedCount})`;
         } else {
-            globalDeleteBtn.style.display = 'none';
+            globalDeleteBtn.classList.add('hidden');
         }
     }
 };
@@ -375,7 +339,8 @@ const DuplicateCheckAPI = {
      */
     async fetchList(page, limit) {
         try {
-            const response = await Request.get('/api/file_repository/duplicate/list', { page, limit }, false);
+            const query = new URLSearchParams({ page: page, limit: limit }).toString();
+            const response = await Request.get('/api/file_repository/duplicate/list?' + query, {}, true);
             if (response.status === 'success') return response.data;
         } catch (error) {
             console.error('获取结果列表失败:', error);
@@ -384,15 +349,15 @@ const DuplicateCheckAPI = {
     },
 
     /**
-     * 用途说明：调用通用删除 API 批量删除文件
+     * 用途说明：调用通用移入回收站 API 批量文件
      * 入参说明：paths (Array) - 文件路径列表
      * 返回值说明：Object - 后端响应结果
      */
-    async deleteFiles(paths) {
+    async moveToRecycleBin(paths) {
         try {
-            return await Request.post('/api/file_repository/delete', { file_paths: paths }, {}, true);
+            return await Request.post('/api/file_repository/move_to_recycle_bin', { file_paths: paths }, {}, true);
         } catch (error) {
-            console.error('删除文件请求失败:', error);
+            console.error('移入回收站文件请求失败:', error);
             return { status: 'error', message: '请求失败' };
         }
     }
@@ -407,7 +372,7 @@ const App = {
      */
     async init() {
         UIController.init();
-
+        await this.loadSettings();
 
         // 初始化时检查一次进度
         const data = await DuplicateCheckAPI.fetchProgress();
@@ -416,11 +381,21 @@ const App = {
                 UIController.toggleView(ProgressStatus.PROCESSING);
                 this.startPolling();
             } else if (data.status === ProgressStatus.COMPLETED) {
-                // 用途说明：初次加载或任务完成时，无需恢复展开状态
                 this.loadResults(1);
             } else {
                 UIController.toggleView(ProgressStatus.IDLE);
             }
+        }
+    },
+
+    async loadSettings() {
+        try {
+            const response = await Request.get('/api/setting/get');
+            if (response.status === 'success') {
+                CheckState.settings = response.data;
+            }
+        } catch (error) {
+            console.error('加载设置失败:', error);
         }
     },
 
@@ -432,9 +407,8 @@ const App = {
     async loadResults(page) {
         const data = await DuplicateCheckAPI.fetchList(page, CheckState.limit);
         if (data) {
-            // 用途说明：传递之前缓存的展开状态，并在处理后清除
             CheckState.setPaginationData(data, CheckState.previousExpandedStates);
-            CheckState.previousExpandedStates = null; // 清除缓存的状态
+            CheckState.previousExpandedStates = null; 
             UIController.toggleView(ProgressStatus.COMPLETED);
             UIController.renderResults();
         }
@@ -447,40 +421,38 @@ const App = {
      */
     async changePage(page) {
         if (page < 1) return;
-        // 用途说明：页面切换时，记录当前所有分组的展开状态
         const expandedStatesMap = {};
         CheckState.results.forEach(group => {
             expandedStatesMap[group.id] = group.isExpanded;
         });
-        CheckState.previousExpandedStates = expandedStatesMap; // 缓存状态
+        CheckState.previousExpandedStates = expandedStatesMap; 
         await this.loadResults(page);
         window.scrollTo(0, 0);
     },
 
     /**
-     * 用途说明：批量删除文件并刷新列表
+     * 用途说明：批量移入回收站并刷新列表
      * 入参说明：paths (Array) - 路径列表, confirmMsg (String) - 确认提示词
      * 返回值说明：无
      */
-    async deleteFiles(paths, confirmMsg) {
+    async moveToRecycleBin(paths, confirmMsg) {
         if (!paths || paths.length === 0) return;
 
         UIComponents.showConfirmModal({
             message: confirmMsg,
-            confirmText: '确定删除',
+            confirmText: '确定移动',
             onConfirm: async () => {
-                const response = await DuplicateCheckAPI.deleteFiles(paths);
+                const response = await DuplicateCheckAPI.moveToRecycleBin(paths);
                 if (response.status === 'success') {
-                    Toast.show(response.message || '删除成功');
-                    // 用途说明：在刷新结果前，保存当前页所有分组的展开状态
+                    Toast.show(response.message || '已移入回收站');
                     const expandedStatesMap = {};
                     CheckState.results.forEach(group => {
                         expandedStatesMap[group.id] = group.isExpanded;
                     });
-                    CheckState.previousExpandedStates = expandedStatesMap; // 缓存状态
+                    CheckState.previousExpandedStates = expandedStatesMap; 
                     this.loadResults(CheckState.page);
                 } else {
-                    Toast.show(response.message || '删除失败');
+                    Toast.show(response.message || '移入回收站失败');
                 }
             }
         });
@@ -503,7 +475,6 @@ const App = {
                 this.stopPolling();
                 if (data.status === ProgressStatus.COMPLETED) {
                     Toast.show('查重已完成');
-                    // 用途说明：任务完成后，无需恢复展开状态
                     this.loadResults(1);
                 } else {
                     UIController.toggleView(data.status);
@@ -525,5 +496,4 @@ const App = {
     }
 };
 
-// 页面加载完成后启动
 document.addEventListener('DOMContentLoaded', () => App.init());

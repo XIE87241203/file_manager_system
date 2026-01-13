@@ -483,3 +483,168 @@ body {
     display: block;
     border-radius: 4px;
 }
+
+/* --- 仓库页面基础布局 (适用于文件仓库、回收站、查重页) --- */
+
+.repo-body {
+    height: 100vh;
+    width: 100vw;
+    margin: 0;
+    overflow: hidden; /* 防止外层滚动，由内部容器处理 */
+    display: flex;
+    flex-direction: column;
+    background-color: #fff;
+}
+
+.repo-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
+    position: relative;
+}
+
+.repo-content-group {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    overflow: hidden;
+}
+
+/* --- 搜索组件样式 (通用) --- */
+
+.search-container {
+    display: flex;
+    align-items: center;
+    background-color: #f1f3f4;
+    border: 1px solid transparent;
+    border-radius: 24px;
+    padding: 2px 16px;
+    width: 100%;
+    max-width: 500px;
+    transition: all 0.2s ease;
+}
+
+.search-container:focus-within {
+    background-color: #fff;
+    border-color: #80bdff;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+.search-input {
+    flex: 1;
+    border: none;
+    outline: none;
+    background: transparent;
+    padding: 8px 0;
+    font-size: 14px;
+    color: #3c4043;
+}
+
+.search-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #5f6368;
+    display: flex;
+    align-items: center;
+    padding-left: 8px;
+    transition: color 0.2s;
+}
+
+.search-btn:hover {
+    color: #1a73e8;
+}
+
+/* 搜索图标 (使用 mask 技术实现颜色可控的图标) */
+.search-icon {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    background-color: #5f6368;
+    -webkit-mask: url("search_icon.svg") no-repeat center;
+    mask: url("search_icon.svg") no-repeat center;
+    -webkit-mask-size: contain;
+    mask-size: contain;
+}
+
+.search-btn:hover .search-icon {
+    background-color: #1a73e8;
+}
+
+/* --- 底部工具栏与分页布局 --- */
+
+.footer-bar {
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    background-color: #fff;
+    border-top: 1px solid #dee2e6;
+    flex-shrink: 0;
+}
+
+.footer-left, .footer-right {
+    flex: 1;
+}
+
+.footer-right {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.footer-center {
+    flex: 2;
+    display: flex;
+    justify-content: center;
+}
+
+.pagination-container {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    font-size: 13px;
+    color: #5f6368;
+}
+
+/* --- 大尺寸按钮样式 --- */
+
+.btn-primary-large {
+    padding: 10px 24px;
+    background-color: #1a73e8;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: background-color 0.2s, transform 0.1s;
+}
+
+.btn-primary-large:hover {
+    background-color: #1765cc;
+}
+
+.btn-danger-large {
+    padding: 10px 24px;
+    background-color: #dc3545;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: background-color 0.2s, transform 0.1s;
+}
+
+.btn-danger-large:hover {
+    background-color: #c82333;
+}
+
+.btn-danger-large:active, .btn-primary-large:active {
+    transform: scale(0.98);
+}

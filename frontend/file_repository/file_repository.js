@@ -22,7 +22,7 @@ const UIController = {
     elements: {},
 
     /**
-     * 用途说明：初始化 UI 控制器，缓存常用的 DOM 元素，并动态处理页面内容避让
+     * 用途说明：初始化 UI 控制器，缓存常用的 DOM 元素
      * 入参说明：无
      * 返回值说明：无
      */
@@ -51,6 +51,15 @@ const UIController = {
                 window.scrollTo(0, 0);
             }
         });
+
+        // 绑定通用表格选中逻辑
+        UIComponents.bindTableSelection({
+            tableBody: this.elements.tableBody,
+            selectAllCheckbox: this.elements.selectAllCheckbox,
+            selectedSet: State.selectedPaths,
+            onSelectionChange: () => this.updateDeleteButtonVisibility()
+        });
+
         // 动态避开头部高度
         const repoContainer = document.querySelector('.repo-container');
         if (repoContainer) {
@@ -84,7 +93,6 @@ const UIController = {
             tr.setAttribute('data-thumbnail', file.thumbnail_path || '');
             if (isChecked) tr.classList.add('selected-row');
             
-            // 列表的文件名改为通过截取路径获得
             const fileName = UIComponents.getFileName(file.file_path);
             
             let html = `
@@ -133,12 +141,7 @@ const UIController = {
      * 返回值说明：无
      */
     updateSortUI(field, order) {
-        this.elements.sortableHeaders.forEach(th => {
-            th.classList.remove('sort-asc', 'sort-desc');
-            if (th.getAttribute('data-field') === field) {
-                th.classList.add(order === 'ASC' ? 'sort-asc' : 'sort-desc');
-            }
-        });
+        UIComponents.updateSortUI(this.elements.sortableHeaders, field, order);
     },
 
     /**
@@ -182,15 +185,15 @@ const UIController = {
         if (!deleteSelectedBtn) return;
         
         if (State.searchHistory) {
-            deleteSelectedBtn.style.display = 'none';
+            deleteSelectedBtn.classList.add('hidden');
             return;
         }
 
         if (State.selectedPaths.size > 0) {
-            deleteSelectedBtn.style.display = 'block';
-            deleteSelectedBtn.textContent = `删除选中 (${State.selectedPaths.size})`;
+            deleteSelectedBtn.classList.remove('hidden');
+            deleteSelectedBtn.textContent = `移入回收站 (${State.selectedPaths.size})`;
         } else {
-            deleteSelectedBtn.style.display = 'none';
+            deleteSelectedBtn.classList.add('hidden');
         }
     },
 
@@ -206,11 +209,11 @@ const UIController = {
         if (isGenerating) {
             thumbnailBtn.textContent = '停止生成';
             thumbnailBtn.className = 'btn-text-danger-small';
-            thumbnailProgressText.style.display = 'inline';
+            thumbnailProgressText.classList.remove('hidden');
         } else {
             thumbnailBtn.textContent = '生成缩略图';
             thumbnailBtn.className = 'btn-secondary-small';
-            thumbnailProgressText.style.display = 'none';
+            thumbnailProgressText.classList.add('hidden');
         }
     },
 
@@ -236,17 +239,18 @@ const RepositoryAPI = {
      */
     async getFileList(params) {
         const query = new URLSearchParams(params).toString();
-        return await Request.get(`/api/file_repository/list?${query}`, {}, true);
+        return await Request.get('/api/file_repository/list?' + query, {}, true);
     },
 
     /**
-     * 用途说明：批量删除文件
+     * 用途说明：批量移入回收站
      * 入参说明：filePaths (Array) - 文件路径列表
      * 返回值说明：Promise - 请求响应结果
      */
-    async deleteFiles(filePaths) {
-        return await Request.post('/api/file_repository/delete', { file_paths: filePaths }, {}, true);
+    async moveToRecycleBin(filePaths) {
+        return await Request.post('/api/file_repository/move_to_recycle_bin', { file_paths: filePaths }, {}, true);
     },
+
 
     /**
      * 用途说明：启动扫描任务
@@ -344,8 +348,7 @@ const App = {
         const { 
             scanBtn, searchInput, searchBtn, 
             searchHistoryCheckbox, duplicateBtn, sortableHeaders,
-            selectAllCheckbox, tableBody, deleteSelectedBtn, thumbnailBtn,
-            backBtn
+            backBtn, deleteSelectedBtn, thumbnailBtn
         } = UIController.elements;
 
 
@@ -405,60 +408,9 @@ const App = {
             };
         });
 
-        // 全选/取消全选
-        if (selectAllCheckbox) {
-            selectAllCheckbox.onchange = (e) => {
-                const checkboxes = tableBody.querySelectorAll('.file-checkbox');
-                checkboxes.forEach(cb => {
-                    cb.checked = e.target.checked;
-                    const path = cb.getAttribute('data-path');
-                    const tr = cb.closest('tr');
-                    if (e.target.checked) {
-                        State.selectedPaths.add(path);
-                        tr.classList.add('selected-row');
-                    } else {
-                        State.selectedPaths.delete(path);
-                        tr.classList.remove('selected-row');
-                    }
-                });
-                UIController.updateDeleteButtonVisibility();
-            };
-        }
-
-        // 行点击/复选框点击
-        tableBody.onclick = (e) => {
-            const tr = e.target.closest('tr');
-            if (!tr) return;
-            const path = tr.getAttribute('data-path');
-            const checkbox = tr.querySelector('.file-checkbox');
-            if (!checkbox) return;
-
-            if (e.target === checkbox) {
-                if (checkbox.checked) {
-                    State.selectedPaths.add(path);
-                    tr.classList.add('selected-row');
-                } else {
-                    State.selectedPaths.delete(path);
-                    tr.classList.remove('selected-row');
-                    if (selectAllCheckbox) selectAllCheckbox.checked = false;
-                }
-            } else {
-                checkbox.checked = !checkbox.checked;
-                if (checkbox.checked) {
-                    State.selectedPaths.add(path);
-                    tr.classList.add('selected-row');
-                } else {
-                    State.selectedPaths.delete(path);
-                    tr.classList.remove('selected-row');
-                    if (selectAllCheckbox) selectAllCheckbox.checked = false;
-                }
-            }
-            UIController.updateDeleteButtonVisibility();
-        };
-
-        // 批量删除
+        // 批量移入回收站
         if (deleteSelectedBtn) {
-            deleteSelectedBtn.onclick = () => this.handleDeleteSelected();
+            deleteSelectedBtn.onclick = () => this.handleMoveToRecycleBin();
         }
     },
 
@@ -591,21 +543,21 @@ const App = {
     },
 
     /**
-     * 用途说明：处理批量删除
+     * 用途说明：处理批量移入回收站
      * 入参说明：无
      * 返回值说明：无
      */
-    async handleDeleteSelected() {
+    async handleMoveToRecycleBin() {
         if (State.selectedPaths.size === 0) return;
         
         UIComponents.showConfirmModal({
-            title: '批量删除',
-            message: `确定要物理删除选中的 ${State.selectedPaths.size} 个文件吗？此操作不可撤销！`,
-            confirmText: '立即删除',
+            title: '移入回收站',
+            message: `确定要将选中的 ${State.selectedPaths.size} 个文件移入回收站吗？`,
+            confirmText: '确定移动',
             onConfirm: async () => {
-                const response = await RepositoryAPI.deleteFiles(Array.from(State.selectedPaths));
+                const response = await RepositoryAPI.moveToRecycleBin(Array.from(State.selectedPaths));
                 if (response.status === 'success') {
-                    Toast.show('删除成功');
+                    Toast.show('已移入回收站');
                     State.selectedPaths.clear();
                     this.loadFileList();
                 } else {

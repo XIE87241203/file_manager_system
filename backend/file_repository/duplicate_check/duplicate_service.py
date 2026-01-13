@@ -1,4 +1,4 @@
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any, List
 
 from backend.common.log_utils import LogUtils
 from backend.common.progress_manager import ProgressManager, ProgressInfo, ProgressStatus
@@ -185,32 +185,6 @@ class DuplicateService(BaseFileService):
         DuplicateService._progress_manager.update_progress(message="任务已由用户停止")
         LogUtils.info("查重任务已手动终止并重置状态")
 
-    @staticmethod
-    def delete_group(md5: str) -> Tuple[int, List[str]]:
-        """
-        用途：删除指定 MD5 对应的所有重复物理文件及其索引记录。
-        入参说明：
-            md5 (str): 目标文件的 MD5 哈希值。
-        返回值说明：
-            Tuple[int, List[str]]: (成功删除的文件数量, 删除失败的文件路径列表)。
-        """
-        # 注意：此处假设 DBOperations 已实现 get_paths_by_md5，
-        # 如果未实现，应改为通过 get_all_duplicate_results 逻辑获取路径。
-        results: List[str] = DBOperations.get_paths_by_md5(md5)
-
-        success_count: int = 0
-        failed_files: List[str] = []
-
-        for path in results:
-            # 调用基类 BaseFileService 的删除逻辑
-            success, _ = BaseFileService.delete_file(path)
-            if success:
-                success_count += 1
-            else:
-                failed_files.append(path)
-
-        LogUtils.info(f"批量删除完成: MD5={md5}, 成功={success_count}, 失败={len(failed_files)}")
-        return success_count, failed_files
 
     @staticmethod
     def get_all_duplicate_results(page: int, limit: int) -> PaginationResult[DuplicateGroupResult]:

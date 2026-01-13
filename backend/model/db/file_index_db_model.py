@@ -10,6 +10,6 @@ class FileIndexDBModel:
     file_path: str = ""
     file_md5: str = ""
     file_size: int = 0
-    is_in_recycle_bin: int = 0
+    recycle_bin_time: Optional[str] = None
     thumbnail_path: Optional[str] = None
     scan_time: Optional[str] = None

@@ -1,6 +1,5 @@
 from typing import Tuple
 
-from backend.common.log_utils import LogUtils
 from backend.common.utils import Utils
 from backend.db.db_operations import DBOperations
 
@@ -36,5 +35,4 @@ class BaseFileService:
 
             return True, "文件及其关联索引、缩略图已成功删除"
         except Exception as e:
-            LogUtils.error(f"BaseFileService 删除文件失败: {file_path}, 错误: {e}")
-            return False, f"删除失败: {str(e)}"
+            raise e

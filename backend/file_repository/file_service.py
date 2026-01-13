@@ -1,5 +1,3 @@
-from typing import Tuple
-
 from backend.common.log_utils import LogUtils
 from backend.db.db_operations import DBOperations
 from backend.file_repository.base_file_service import BaseFileService
@@ -11,24 +9,17 @@ from backend.model.pagination_result import PaginationResult
 
 class FileService(BaseFileService):
     """
-    用途：文件仓库业务服务类，封装文件列表查询、删除、清理等核心操作。
+    用途：文件仓库业务服务类，封装文件列表查询、清理等核心操作。
     """
 
     @staticmethod
-    def search_file_index_list(page: int, limit: int, sort_by: str, order: bool, search_query: str) -> PaginationResult[FileIndexDBModel]:
-        return DBOperations.search_file_index_list(page, limit, sort_by, order, search_query)
+    def search_file_index_list(page: int, limit: int, sort_by: str, order: bool, search_query: str, is_in_recycle_bin: bool = False) -> PaginationResult[FileIndexDBModel]:
+        return DBOperations.search_file_index_list(page, limit, sort_by, order, search_query, is_in_recycle_bin)
 
 
     @staticmethod
     def search_history_file_index_list(page: int, limit: int, sort_by: str, order: bool, search_query: str) -> PaginationResult[HistoryFileIndexDBModule]:
         return DBOperations.search_history_file_index_list(page, limit, sort_by, order, search_query)
-
-    @staticmethod
-    def delete_file(file_path: str) -> Tuple[bool, str]:
-        """
-        用途：删除文件。直接调用基类提供的删除逻辑。
-        """
-        return BaseFileService.delete_file(file_path)
 
     @staticmethod
     def clear_repository(clear_history: bool) -> bool:

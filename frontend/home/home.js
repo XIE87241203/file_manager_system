@@ -17,6 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // 3. 绑定功能菜单跳转
     bindMenuAction('menu-file-repository', '../file_repository/file_repository.html');
     bindMenuAction('menu-duplicate-check', '../file_repository/duplicate_check/duplicate_check.html');
+    bindMenuAction('menu-recycle-bin', '../file_repository/recycle_bin/recycle_bin.html');
     bindMenuAction('menu-setting', '../setting/setting.html');
     
     // 4. 绑定特殊功能或提示

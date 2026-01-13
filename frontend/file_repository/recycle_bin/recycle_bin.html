@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>文件仓库 - 文件管理系统</title>
+    <title>回收站 - 文件管理系统</title>
     <!-- 引入公用样式 -->
-    <link rel="stylesheet" href="../common/common.css">
-    <!-- 引入页面私有样式 -->
-    <link rel="stylesheet" href="file_repository.css">
+    <link rel="stylesheet" href="../../common/common.css">
+    <!-- 引入同名样式文件 -->
+    <link rel="stylesheet" href="recycle_bin.css">
 </head>
 <body class="repo-body">
-    <!-- 顶部工具栏：包含搜索、状态切换及返回 -->
+    <!-- 顶部工具栏：仅包含搜索和返回 -->
     <header class="top-bar">
         <div class="top-bar-left">
             <button id="nav-back-btn" class="back-btn" title="返回上一页">
@@ -25,20 +25,14 @@
                     <i class="search-icon"></i>
                 </button>
             </div>
-            <div class="search-section">
-                <label class="checkbox-label">
-                    <input type="checkbox" id="search-history-checkbox" class="search-history-checkbox"> 搜索历史库
-                </label>
-            </div>
         </div>
         
         <div class="top-bar-right">
-            <button id="btn-scan" class="right-btn">建立索引</button>
+            <!-- 回收站页面不提供索引按钮 -->
         </div>
     </header>
 
     <main class="repo-container">
-        <!-- 主内容区域：在扫描时会整体隐藏 -->
         <div id="repo-main-content" class="repo-content-group">
             <!-- 数据展示区：自适应表格 -->
             <div class="table-wrapper">
@@ -54,8 +48,8 @@
                             <th class="sortable col-md5" data-field="file_md5">
                                 MD5 哈希值 <span class="sort-icon"></span>
                             </th>
-                            <th class="sortable col-time" data-field="scan_time">
-                                扫描时间 <span class="sort-icon"></span>
+                            <th class="sortable col-time" data-field="recycle_bin_time">
+                                回收时间 <span class="sort-icon"></span>
                             </th>
                             <th class="col-check">
                                 <input type="checkbox" id="select-all-checkbox" class="select-all-checkbox">
@@ -71,29 +65,26 @@
             <!-- 底部导航区：分页控制 -->
             <footer class="footer-bar">
                 <div class="footer-left">
-                    <div class="thumbnail-action-container">
-                        <button id="btn-thumbnail" class="btn-secondary-small">生成缩略图</button>
-                        <span id="thumbnail-progress-text" class="progress-text hidden"></span>
-                    </div>
+                    <!-- 回收站页面提供清空回收站按钮，默认隐藏 -->
+                    <button id="btn-clear-recycle-bin" class="btn-danger-large hidden">清空回收站</button>
                 </div>
                 <div class="footer-center">
                     <div id="pagination-container" class="pagination-container">
-                        <button id="btn-prev-page" class="btn-secondary-small" disabled>上一页</button>
-                        <span id="page-info">第 1 / 1 页 (共 0 条)</span>
-                        <button id="btn-next-page" class="btn-secondary-small" disabled>下一页</button>
+                        <!-- 分页组件由 ui_components.js 动态初始化 -->
                     </div>
                 </div>
                 <div class="footer-right">
-                    <button id="btn-delete-selected" class="btn-danger-large hidden">移入回收站</button>
+                    <button id="btn-restore-selected" class="btn-primary-large hidden">移出回收站</button>
+                    <button id="btn-delete-selected" class="btn-danger-large hidden">彻底删除选中</button>
                 </div>
             </footer>
         </div>
     </main>
 
     <!-- 脚本加载 -->
-    <script src="../common/ui_components.js"></script>
-    <script src="../common/request.js"></script>
-    <script src="../common/toast.js"></script>
-    <script src="file_repository.js"></script>
+    <script src="../../common/ui_components.js"></script>
+    <script src="../../common/request.js"></script>
+    <script src="../../common/toast.js"></script>
+    <script src="recycle_bin.js"></script>
 </body>
 </html>

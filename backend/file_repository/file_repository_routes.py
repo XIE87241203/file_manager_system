@@ -10,6 +10,7 @@ from backend.common.response import success_response, error_response
 from backend.common.utils import Utils
 from backend.file_repository.duplicate_check.duplicate_service import DuplicateService
 from backend.file_repository.file_service import FileService
+from backend.file_repository.recycle_bin_service import RecycleBinService
 from backend.file_repository.scan_service import ScanService, ScanMode
 from backend.file_repository.thumbnail.thumbnail_service import ThumbnailService
 
@@ -84,6 +85,43 @@ def clear_repository():
         return error_response("清空仓库失败", 500)
 
 
+@file_repo_bp.route('/clear_recycle_bin', methods=['POST'])
+@token_required
+def clear_recycle_bin():
+    """
+    用途说明：批量彻底删除文件（物理删除及索引清理）。
+    如果不传 file_paths，则默认执行“清空回收站”逻辑。
+    入参说明：JSON 包含 file_paths (list, 可选)
+    返回值说明：JSON 格式响应，包含操作结果
+    """
+    data = request.json or {}
+    file_paths = data.get('file_paths')
+
+    if file_paths:
+        LogUtils.info(f"用户 {_get_current_user()} 请求批量删除指定文件，数量: {len(file_paths)}")
+        msg = "已启动批量删除任务"
+    else:
+        LogUtils.info(f"用户 {_get_current_user()} 请求清空回收站")
+        msg = "已启动清空任务"
+
+    if RecycleBinService.start_async_delete(file_paths):
+        return success_response(msg)
+    else:
+        return error_response("启动删除任务失败", 500)
+
+
+@file_repo_bp.route('/clear_recycle_bin/progress', methods=['GET'])
+@token_required
+def get_clear_recycle_bin_progress():
+    """
+    用途说明：获取当前清空/删除任务的状态和进度信息
+    入参说明：无
+    返回值说明：包含 status 和 progress 详情的 JSON 响应
+    """
+    status_info = RecycleBinService.get_status()
+    return success_response("获取进度成功", data=status_info)
+
+
 @file_repo_bp.route('/clear_video_features', methods=['POST'])
 @token_required
 def clear_video_features():
@@ -115,7 +153,7 @@ def get_scan_progress():
 @token_required
 def list_files():
     """
-    用途说明：分页获取文件列表，支持搜索和历史查询。
+    用途说明：分页获取文件列表，支持搜索、历史查询以及回收站筛选。
     入参说明：
         page (int): 当前页码，默认 1。
         limit (int): 每页记录数，默认 100。
@@ -123,6 +161,7 @@ def list_files():
         order_asc (bool): 是否正序排序，默认 false (即倒序)。
         search (str): 搜索关键词。
         search_history (bool): 是否查询历史记录，默认 false。
+        is_in_recycle_bin (bool): 是否只查询回收站中的数据（recycle_bin_time 不为空），默认 false。仅在 search_history 为 false 时有效。
     返回值说明：
         JSON 格式响应，data 字段包含分页结果 (PaginationResult):
         {
@@ -135,7 +174,7 @@ def list_files():
                 {
                     # 当 search_history 为 false 时，为 FileIndex 结构:
                     "id": int, "file_path": str, "file_md5": str, "file_size": int,
-                    "is_in_recycle_bin": int, "thumbnail_path": str, "scan_time": str
+                    "recycle_bin_time": str, "thumbnail_path": str, "scan_time": str
                     
                     # 当 search_history 为 true 时，为 HistoryFileIndex 结构:
                     "id": int, "file_path": str, "file_md5": str, "file_size": int,
@@ -150,21 +189,26 @@ def list_files():
     order_asc = request.args.get('order_asc', default='false').lower() == 'true'
     search_query = request.args.get('search', default='').strip()
     search_history = request.args.get('search_history', default='false').lower() == 'true'
+    is_in_recycle_bin = request.args.get('is_in_recycle_bin', default='false').lower() == 'true'
+
     if search_history:
         data = FileService.search_history_file_index_list(page, limit, sort_by, order_asc,
                                                           search_query)
         return success_response("获取文件列表成功", data=asdict(data))
     else:
-        data = FileService.search_file_index_list(page, limit, sort_by, order_asc,
-                                                  search_query)
+        if is_in_recycle_bin:
+            data = RecycleBinService.get_recycle_bin_list(page, limit, sort_by, order_asc, search_query)
+        else:
+            data = FileService.search_file_index_list(page, limit, sort_by, order_asc,
+                                                  search_query, is_in_recycle_bin)
         return success_response("获取文件列表成功", data=asdict(data))
 
 
-@file_repo_bp.route('/delete', methods=['POST'])
+@file_repo_bp.route('/move_to_recycle_bin', methods=['POST'])
 @token_required
-def delete_files():
+def move_to_recycle_bin():
     """
-    用途说明：批量删除文件（物理文件及索引记录）
+    用途说明：批量将指定文件移入回收站标记状态。
     入参说明：JSON 包含 file_paths (list)
     返回值说明：JSON 格式响应
     """
@@ -172,25 +216,36 @@ def delete_files():
     file_paths = data.get('file_paths', [])
 
     if not file_paths:
-        return error_response("未选择要删除的文件", 400)
+        return error_response("未选择要移动的文件", 400)
 
-    LogUtils.info(f"用户 {_get_current_user()} 请求批量删除文件，数量: {len(file_paths)}")
+    LogUtils.info(f"用户 {_get_current_user()} 请求批量移入回收站，数量: {len(file_paths)}")
 
-    success_count = 0
-    failed_paths = []
-
-    for path in file_paths:
-        success, msg = FileService.delete_file(path)
-        if success:
-            success_count += 1
-        else:
-            failed_paths.append(path)
-
-    if success_count == len(file_paths):
-        return success_response(f"成功删除 {success_count} 个文件")
+    if RecycleBinService.batch_move_to_recycle_bin(file_paths):
+        return success_response(f"已成功将 {len(file_paths)} 个文件移入回收站")
     else:
-        return success_response(f"删除完成。成功: {success_count}, 失败: {len(failed_paths)}",
-                                data={"failed": failed_paths})
+        return error_response("移入回收站失败", 500)
+
+
+@file_repo_bp.route('/restore_from_recycle_bin', methods=['POST'])
+@token_required
+def restore_from_recycle_bin():
+    """
+    用途说明：批量将指定文件从回收站移出。
+    入参说明：JSON 包含 file_paths (list)
+    返回值说明：JSON 格式响应
+    """
+    data = request.json or {}
+    file_paths = data.get('file_paths', [])
+
+    if not file_paths:
+        return error_response("未选择要恢复的文件", 400)
+
+    LogUtils.info(f"用户 {_get_current_user()} 请求批量移出回收站，数量: {len(file_paths)}")
+
+    if RecycleBinService.batch_restore_from_recycle_bin(file_paths):
+        return success_response(f"已成功将 {len(file_paths)} 个文件移出回收站")
+    else:
+        return error_response("移出回收站失败", 500)
 
 
 @file_repo_bp.route('/duplicate/check', methods=['POST'])
@@ -245,7 +300,6 @@ def list_duplicate_results():
     """
     page = request.args.get('page', default=1, type=int)
     limit = request.args.get('limit', default=100, type=int)
-    
     data = DuplicateService.get_all_duplicate_results(page, limit)
     return success_response("获取重复文件列表成功", data=asdict(data))
 
@@ -316,7 +370,7 @@ def view_thumbnail():
     """
     用途说明：获取并返回缩略图文件的二进制流
     入参说明：query 参数 path (缩略图物理路径)
-    返回值说明：图片文件流或错误响应
+    返回值说明：图片文件流 or 错误响应
     """
     path = request.args.get('path')
     if not path:

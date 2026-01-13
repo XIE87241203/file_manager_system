@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import List, Optional
 
 from backend.db.db_manager import DBManager
@@ -95,8 +96,8 @@ class DBOperations:
 
     @staticmethod
     def search_file_index_list(page: int, limit: int, sort_by: str, order: bool,
-                               search_query: str) -> PaginationResult[FileIndexDBModel]:
-        return processor_manager.file_index_processor.get_paged_list(page, limit, sort_by, order, search_query)
+                               search_query: str, is_in_recycle_bin: bool = False) -> PaginationResult[FileIndexDBModel]:
+        return processor_manager.file_index_processor.get_paged_list(page, limit, sort_by, order, search_query, is_in_recycle_bin)
 
     @staticmethod
     def search_history_file_index_list(page: int, limit: int, sort_by: str, order: bool,
@@ -119,6 +120,39 @@ class DBOperations:
     @staticmethod
     def check_file_path_exists(file_path: str) -> bool:
         return processor_manager.file_index_processor.check_path_exists(file_path)
+
+    @staticmethod
+    def batch_move_to_recycle_bin(file_paths: List[str]) -> bool:
+        """
+        用途：批量将文件移入回收站，并同步从重复文件记录中删除（已优化：使用事务确保原子性）
+        入参说明：file_paths (List[str]): 文件路径列表
+        返回值说明：bool: 是否操作成功
+        """
+        recycle_time: str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        try:
+            with DBManager.transaction() as conn:
+                # 1. 获取对应的文件 ID 列表
+                file_ids: List[int] = processor_manager.file_index_processor.get_ids_by_paths(file_paths, conn=conn)
+                
+                # 2. 标记移入回收站
+                res1: int = processor_manager.file_index_processor.move_to_recycle_bin(file_paths, recycle_time, conn=conn)
+                
+                # 3. 循环调用删除重复记录逻辑（DuplicateGroupProcessor 已有单条删除逻辑且包含解散分组检查）
+                for f_id in file_ids:
+                    processor_manager.duplicate_group_processor.delete_file_by_id(f_id, conn=conn)
+                
+                return res1 > 0
+        except Exception:
+            return False
+
+    @staticmethod
+    def batch_restore_from_recycle_bin(file_paths: List[str]) -> bool:
+        """
+        用途：批量将文件移出回收站
+        入参说明：file_paths (List[str]): 文件路径列表
+        返回值说明：bool: 是否操作成功
+        """
+        return processor_manager.file_index_processor.restore_from_recycle_bin(file_paths) > 0
 
     # --- 视频特征相关操作 (Video Features) ---
 

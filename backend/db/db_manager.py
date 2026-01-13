@@ -10,7 +10,7 @@ from backend.db.db_constants import DBConstants
 
 class DBManager:
     """
-    用途：数据库管理类，负责数据库的连接、初始化、事务管理和表结构维护
+    用途：数据库管理类，负责数据库的连接、初始化、版本管理、事务管理和表结构维护
     """
     _instance = None
 
@@ -21,7 +21,7 @@ class DBManager:
 
     def __new__(cls):
         """
-        用途：实现单例模式
+        用途说明：实现单例模式，确保全局只有一个数据库管理器实例。
         入参说明：无
         返回值说明：DBManager 实例
         """
@@ -34,9 +34,9 @@ class DBManager:
     @staticmethod
     def get_connection() -> sqlite3.Connection:
         """
-        用途：获取数据库连接，并启用 WAL 模式以优化性能
+        用途说明：获取数据库连接，并启用 WAL 模式及同步设置以优化并发性能。
         入参说明：无
-        返回值说明：sqlite3 连接对象
+        返回值说明：sqlite3.Connection: 数据库连接对象
         """
         conn: sqlite3.Connection = sqlite3.connect(DBManager._db_path)
         # 启用 WAL (Write-Ahead Logging) 模式
@@ -51,13 +51,9 @@ class DBManager:
     @contextmanager
     def transaction() -> Generator[sqlite3.Connection, None, None]:
         """
-        用途：事务上下文管理器，用于确保跨表操作的原子性
+        用途说明：事务上下文管理器，提供自动提交和异常回滚功能，确保跨表操作的原子性。
         入参说明：无
         返回值说明：Generator[sqlite3.Connection, None, None]: 数据库连接
-        用法示例：
-            with DBManager.transaction() as conn:
-                processor.do_a(..., conn=conn)
-                processor.do_b(..., conn=conn)
         """
         conn: sqlite3.Connection = DBManager.get_connection()
         try:
@@ -72,7 +68,7 @@ class DBManager:
 
     def init_db(self) -> None:
         """
-        用途：初始化数据库和数据表（建表逻辑），并建立必要的索引以优化查询性能。
+        用途说明：初始化数据库和数据表，并执行版本检查与升级逻辑。
         入参说明：无
         返回值说明：无
         """
@@ -80,77 +76,145 @@ class DBManager:
             conn: sqlite3.Connection = self.get_connection()
             cursor: sqlite3.Cursor = conn.cursor()
 
-            # 1. 创建 file_index 表
+            # 1. 创建版本信息表
             cursor.execute(f'''
-                CREATE TABLE IF NOT EXISTS {DBConstants.FileIndex.TABLE_NAME} (
-                    {DBConstants.FileIndex.COL_ID} INTEGER PRIMARY KEY AUTOINCREMENT,
-                    {DBConstants.FileIndex.COL_FILE_PATH} TEXT NOT NULL UNIQUE,
-                    {DBConstants.FileIndex.COL_FILE_MD5} TEXT NOT NULL,
-                    {DBConstants.FileIndex.COL_FILE_SIZE} INTEGER DEFAULT 0,
-                    {DBConstants.FileIndex.COL_SCAN_TIME} DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    {DBConstants.FileIndex.COL_THUMBNAIL_PATH} TEXT,
-                    {DBConstants.FileIndex.COL_IS_IN_RECYCLE_BIN} INTEGER DEFAULT 0
-                )
-            ''')
-            
-            cursor.execute(f'''
-                CREATE INDEX IF NOT EXISTS idx_file_index_md5 
-                ON {DBConstants.FileIndex.TABLE_NAME} ({DBConstants.FileIndex.COL_FILE_MD5})
-            ''')
-
-            # 2. 创建 history_file_index 表 (MD5 必须 UNIQUE)
-            cursor.execute(f'''
-                CREATE TABLE IF NOT EXISTS {DBConstants.HistoryFileIndex.TABLE_NAME} (
-                    {DBConstants.HistoryFileIndex.COL_ID} INTEGER PRIMARY KEY AUTOINCREMENT,
-                    {DBConstants.HistoryFileIndex.COL_FILE_PATH} TEXT NOT NULL UNIQUE,
-                    {DBConstants.HistoryFileIndex.COL_FILE_MD5} TEXT NOT NULL UNIQUE,
-                    {DBConstants.HistoryFileIndex.COL_FILE_SIZE} INTEGER DEFAULT 0,
-                    {DBConstants.HistoryFileIndex.COL_SCAN_TIME} DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    {DBConstants.HistoryFileIndex.COL_DELETE_TIME} DATETIME DEFAULT CURRENT_TIMESTAMP
+                CREATE TABLE IF NOT EXISTS {DBConstants.VersionInfo.TABLE_NAME} (
+                    {DBConstants.VersionInfo.COL_VERSION} INTEGER PRIMARY KEY
                 )
             ''')
 
-            # 3. 创建 video_features 表
-            cursor.execute(f'''
-                CREATE TABLE IF NOT EXISTS {DBConstants.VideoFeature.TABLE_NAME} (
-                    {DBConstants.VideoFeature.COL_ID} INTEGER PRIMARY KEY AUTOINCREMENT,
-                    {DBConstants.VideoFeature.COL_FILE_MD5} TEXT NOT NULL UNIQUE,
-                    {DBConstants.VideoFeature.COL_VIDEO_HASHES} TEXT NOT NULL,
-                    {DBConstants.VideoFeature.COL_DURATION} REAL
-                )
-            ''')
+            # 2. 获取当前数据库版本
+            cursor.execute(f"SELECT {DBConstants.VersionInfo.COL_VERSION} FROM {DBConstants.VersionInfo.TABLE_NAME}")
+            row = cursor.fetchone()
+            current_db_version: int = row[0] if row else 0
+            # 3. 创建基础表结构（如果不存在）
+            self._create_tables(cursor)
 
-            # 4. 创建 duplicate_groups 表
-            cursor.execute(f'''
-                CREATE TABLE IF NOT EXISTS {DBConstants.DuplicateGroup.TABLE_GROUPS} (
-                    {DBConstants.DuplicateGroup.COL_GRP_ID_PK} INTEGER PRIMARY KEY AUTOINCREMENT,
-                    {DBConstants.DuplicateGroup.COL_GRP_GROUP_NAME} TEXT NOT NULL
-                )
-            ''')
-
-            # 5. 创建 duplicate_files 表
-            cursor.execute(f'''
-                CREATE TABLE IF NOT EXISTS {DBConstants.DuplicateFile.TABLE_FILES} (
-                    {DBConstants.DuplicateFile.COL_FILE_ID_PK} INTEGER PRIMARY KEY AUTOINCREMENT,
-                    {DBConstants.DuplicateFile.COL_FILE_GROUP_ID} INTEGER NOT NULL,
-                    {DBConstants.DuplicateFile.COL_FILE_ID} INTEGER NOT NULL
-                )
-            ''')
-
-            cursor.execute(f'''
-                CREATE INDEX IF NOT EXISTS idx_duplicate_files_group_id 
-                ON {DBConstants.DuplicateFile.TABLE_FILES} ({DBConstants.DuplicateFile.COL_FILE_GROUP_ID})
-            ''')
-            cursor.execute(f'''
-                CREATE INDEX IF NOT EXISTS idx_duplicate_files_file_id 
-                ON {DBConstants.DuplicateFile.TABLE_FILES} ({DBConstants.DuplicateFile.COL_FILE_ID})
-            ''')
+            # 4. 版本检查与升级
+            target_version: int = DBConstants.DB_VERSION
+            if current_db_version == 0:
+                # 新数据库，直接插入当前版本号
+                cursor.execute(f"INSERT INTO {DBConstants.VersionInfo.TABLE_NAME} ({DBConstants.VersionInfo.COL_VERSION}) VALUES (?)", (target_version,))
+                LogUtils.info(f"数据库初始化成功，版本: {target_version}")
+            elif current_db_version < target_version:
+                # 需要升级
+                LogUtils.info(f"检测到数据库版本更新: {current_db_version} -> {target_version}，开始执行适配...")
+                self.migrate_db_version(current_db_version, target_version, cursor)
+                # 更新版本号
+                cursor.execute(f"UPDATE {DBConstants.VersionInfo.TABLE_NAME} SET {DBConstants.VersionInfo.COL_VERSION} = ?", (target_version,))
+                LogUtils.info("数据库版本适配完成")
 
             conn.commit()
             conn.close()
-            LogUtils.info("数据库初始化及索引创建成功")
         except Exception as e:
-            LogUtils.error(f"数据库初始化失败: {e}")
+            LogUtils.error(f"数据库初始化或升级失败: {e}")
 
+    @staticmethod
+    def _create_tables(cursor: sqlite3.Cursor) -> None:
+        """
+        用途说明：创建所有核心业务表及其索引（内部方法，由 init_db 调用）。
+        入参说明：cursor - 数据库游标对象
+        返回值说明：无
+        """
+        # 1. 创建 file_index 表
+        cursor.execute(f'''
+            CREATE TABLE IF NOT EXISTS {DBConstants.FileIndex.TABLE_NAME} (
+                {DBConstants.FileIndex.COL_ID} INTEGER PRIMARY KEY AUTOINCREMENT,
+                {DBConstants.FileIndex.COL_FILE_PATH} TEXT NOT NULL UNIQUE,
+                {DBConstants.FileIndex.COL_FILE_MD5} TEXT NOT NULL,
+                {DBConstants.FileIndex.COL_FILE_SIZE} INTEGER DEFAULT 0,
+                {DBConstants.FileIndex.COL_SCAN_TIME} DATETIME DEFAULT CURRENT_TIMESTAMP,
+                {DBConstants.FileIndex.COL_THUMBNAIL_PATH} TEXT,
+                {DBConstants.FileIndex.COL_RECYCLE_BIN_TIME} DATETIME
+            )
+        ''')
+        
+        cursor.execute(f'''
+            CREATE INDEX IF NOT EXISTS idx_file_index_md5 
+            ON {DBConstants.FileIndex.TABLE_NAME} ({DBConstants.FileIndex.COL_FILE_MD5})
+        ''')
+
+        # 2. 创建 history_file_index 表
+        cursor.execute(f'''
+            CREATE TABLE IF NOT EXISTS {DBConstants.HistoryFileIndex.TABLE_NAME} (
+                {DBConstants.HistoryFileIndex.COL_ID} INTEGER PRIMARY KEY AUTOINCREMENT,
+                {DBConstants.HistoryFileIndex.COL_FILE_PATH} TEXT NOT NULL UNIQUE,
+                {DBConstants.HistoryFileIndex.COL_FILE_MD5} TEXT NOT NULL UNIQUE,
+                {DBConstants.HistoryFileIndex.COL_FILE_SIZE} INTEGER DEFAULT 0,
+                {DBConstants.HistoryFileIndex.COL_SCAN_TIME} DATETIME DEFAULT CURRENT_TIMESTAMP,
+                {DBConstants.HistoryFileIndex.COL_DELETE_TIME} DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
+        # 3. 创建 video_features 表
+        cursor.execute(f'''
+            CREATE TABLE IF NOT EXISTS {DBConstants.VideoFeature.TABLE_NAME} (
+                {DBConstants.VideoFeature.COL_ID} INTEGER PRIMARY KEY AUTOINCREMENT,
+                {DBConstants.VideoFeature.COL_FILE_MD5} TEXT NOT NULL UNIQUE,
+                {DBConstants.VideoFeature.COL_VIDEO_HASHES} TEXT NOT NULL,
+                {DBConstants.VideoFeature.COL_DURATION} REAL
+            )
+        ''')
+
+        # 4. 创建 duplicate_groups 表
+        cursor.execute(f'''
+            CREATE TABLE IF NOT EXISTS {DBConstants.DuplicateGroup.TABLE_GROUPS} (
+                {DBConstants.DuplicateGroup.COL_GRP_ID_PK} INTEGER PRIMARY KEY AUTOINCREMENT,
+                {DBConstants.DuplicateGroup.COL_GRP_GROUP_NAME} TEXT NOT NULL
+            )
+        ''')
+
+        # 5. 创建 duplicate_files 表
+        cursor.execute(f'''
+            CREATE TABLE IF NOT EXISTS {DBConstants.DuplicateFile.TABLE_FILES} (
+                {DBConstants.DuplicateFile.COL_FILE_ID_PK} INTEGER PRIMARY KEY AUTOINCREMENT,
+                {DBConstants.DuplicateFile.COL_FILE_GROUP_ID} INTEGER NOT NULL,
+                {DBConstants.DuplicateFile.COL_FILE_ID} INTEGER NOT NULL
+            )
+        ''')
+
+        cursor.execute(f'''
+            CREATE INDEX IF NOT EXISTS idx_duplicate_files_group_id 
+            ON {DBConstants.DuplicateFile.TABLE_FILES} ({DBConstants.DuplicateFile.COL_FILE_GROUP_ID})
+        ''')
+        cursor.execute(f'''
+            CREATE INDEX IF NOT EXISTS idx_duplicate_files_file_id 
+            ON {DBConstants.DuplicateFile.TABLE_FILES} ({DBConstants.DuplicateFile.COL_FILE_ID})
+        ''')
+
+    @staticmethod
+    def migrate_db_version(old_version: int, new_version: int, cursor: sqlite3.Cursor) -> None:
+        """
+        用途说明：数据库版本迁移适配逻辑，处理不同版本间的结构差异。
+        入参说明：
+            old_version (int): 当前数据库中的旧版本号
+            new_version (int): 目标新版本号（DBConstants.DB_VERSION）
+            cursor (sqlite3.Cursor): 数据库游标对象，用于执行 SQL
+        返回值说明：无
+        """
+        # 版本 1 到版本 2 的升级逻辑
+        if old_version < 3:
+            table_name: str = DBConstants.FileIndex.TABLE_NAME
+            old_col: str = "is_in_recycle_bin"
+            new_col: str = DBConstants.FileIndex.COL_RECYCLE_BIN_TIME
+            
+            # 获取表结构信息
+            cursor.execute(f"PRAGMA table_info({table_name})")
+            columns: list[str] = [info[1] for info in cursor.fetchall()]
+            
+            if old_col in columns:
+                # 按照需求：1. 清空旧列数据；2. 变更列名
+                try:
+                    LogUtils.info(f"升级 v2: 正在转换 {table_name} 列 {old_col} -> {new_col}")
+                    # 清空旧列数据（设置为 NULL）
+                    cursor.execute(f"UPDATE {table_name} SET {old_col} = NULL")
+                    # 变更列名 (注意：需要 SQLite 3.25.0+ 支持 RENAME COLUMN)
+                    cursor.execute(f"ALTER TABLE {table_name} RENAME COLUMN {old_col} TO {new_col}")
+                    LogUtils.info(f"升级 v2: 列名变更成功")
+                except Exception as e:
+                    LogUtils.error(f"升级 v2 执行失败: {e}")
+        # 后续版本升级逻辑在此继续添加
+        # if old_version < 3:
+        #     ...
 
 db_manager: DBManager = DBManager()
