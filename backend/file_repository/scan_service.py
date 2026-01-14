@@ -181,11 +181,11 @@ class ScanService:
                                 new_count += ScanService._process_md5_futures(md5_futures, all_files_info, current_scan_time, batch_insert_size)
                                 md5_futures = []
 
-                        # 定期更新进度条（仅显示已扫描的数量感官上更连贯）
-                        if (new_count + updated_count) % 100 == 0:
-                            ScanService._progress_manager.update_progress(
-                                message=f"已扫描: {new_count + updated_count} (新增: {new_count})"
-                            )
+                        # 更新进度条
+                        ScanService._progress_manager.update_progress(
+                            message=f"已扫描: {new_count + updated_count} (新增: {new_count})"
+                        )
+
 
         # 处理剩余的更新
         if paths_to_update_time and not ScanService._progress_manager.is_stopped():

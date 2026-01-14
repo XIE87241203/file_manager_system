@@ -192,27 +192,6 @@ class DBManager:
             cursor (sqlite3.Cursor): 数据库游标对象，用于执行 SQL
         返回值说明：无
         """
-        # 版本 1 到版本 2 的升级逻辑
-        if old_version < 3:
-            table_name: str = DBConstants.FileIndex.TABLE_NAME
-            old_col: str = "is_in_recycle_bin"
-            new_col: str = DBConstants.FileIndex.COL_RECYCLE_BIN_TIME
-            
-            # 获取表结构信息
-            cursor.execute(f"PRAGMA table_info({table_name})")
-            columns: list[str] = [info[1] for info in cursor.fetchall()]
-            
-            if old_col in columns:
-                # 按照需求：1. 清空旧列数据；2. 变更列名
-                try:
-                    LogUtils.info(f"升级 v2: 正在转换 {table_name} 列 {old_col} -> {new_col}")
-                    # 清空旧列数据（设置为 NULL）
-                    cursor.execute(f"UPDATE {table_name} SET {old_col} = NULL")
-                    # 变更列名 (注意：需要 SQLite 3.25.0+ 支持 RENAME COLUMN)
-                    cursor.execute(f"ALTER TABLE {table_name} RENAME COLUMN {old_col} TO {new_col}")
-                    LogUtils.info(f"升级 v2: 列名变更成功")
-                except Exception as e:
-                    LogUtils.error(f"升级 v2 执行失败: {e}")
         # 后续版本升级逻辑在此继续添加
         # if old_version < 3:
         #     ...

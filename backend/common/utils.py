@@ -57,6 +57,7 @@ class Utils:
             sample_size (int): 每个采样块的大小（字节），默认 8KB
         返回值说明：Tuple[str, str] - (文件绝对路径, 采样 MD5 十六进制字符串)
         """
+        LogUtils.debug(f"正在计算MD5: {file_path}")
         try:
             if not os.path.exists(file_path):
                 LogUtils.error(f"文件不存在，无法计算快速 MD5: {file_path}")
