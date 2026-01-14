@@ -29,7 +29,7 @@ class Utils:
     @staticmethod
     def calculate_md5(file_path: str) -> Tuple[str, str]:
         """
-        用途：计算指定文件的 MD5 哈希值，并返回路径与哈希的元组。
+        用途：计算指定文件的完整 MD5 哈希值。适用于需要保证绝对唯一性的场景。
         入参说明：file_path (str) - 文件的绝对路径
         返回值说明：Tuple[str, str] - (文件绝对路径, MD5 十六进制字符串)；失败则 MD5 为空字符串
         """
@@ -39,12 +39,56 @@ class Utils:
                 LogUtils.error(f"文件不存在，无法计算 MD5: {file_path}")
                 return file_path, ""
                 
+            # 优化：使用 64KB 的缓冲区提高大文件读取速度
             with open(file_path, "rb") as f:
-                for chunk in iter(lambda: f.read(4096), b""):
+                for chunk in iter(lambda: f.read(65536), b""):
                     hash_md5.update(chunk)
             return file_path, hash_md5.hexdigest()
         except Exception as e:
             LogUtils.error(f"计算文件 MD5 失败: {file_path}, 错误: {e}")
+            return file_path, ""
+
+    @staticmethod
+    def calculate_fast_md5(file_path: str, sample_size: int = 8192) -> Tuple[str, str]:
+        """
+        用途：通过文件采样（头、中、尾）和文件大小快速计算 MD5，极大地优化大文件的计算速度。
+        入参说明：
+            file_path (str): 文件的绝对路径
+            sample_size (int): 每个采样块的大小（字节），默认 8KB
+        返回值说明：Tuple[str, str] - (文件绝对路径, 采样 MD5 十六进制字符串)
+        """
+        try:
+            if not os.path.exists(file_path):
+                LogUtils.error(f"文件不存在，无法计算快速 MD5: {file_path}")
+                return file_path, ""
+
+            file_size: int = os.path.getsize(file_path)
+            hash_md5 = hashlib.md5()
+            
+            # 将文件大小混合进哈希，增加区分度
+            hash_md5.update(str(file_size).encode('utf-8'))
+
+            if file_size <= sample_size * 3:
+                # 文件较小，直接全量读取
+                with open(file_path, "rb") as f:
+                    hash_md5.update(f.read())
+            else:
+                # 大文件进行切片采样（头、中、尾）
+                with open(file_path, "rb") as f:
+                    # 1. 头部采样
+                    hash_md5.update(f.read(sample_size))
+                    
+                    # 2. 中部采样
+                    f.seek(file_size // 2 - sample_size // 2)
+                    hash_md5.update(f.read(sample_size))
+                    
+                    # 3. 尾部采样
+                    f.seek(-sample_size, os.SEEK_END)
+                    hash_md5.update(f.read(sample_size))
+                    
+            return file_path, hash_md5.hexdigest()
+        except Exception as e:
+            LogUtils.error(f"计算文件快速 MD5 失败: {file_path}, 错误: {e}")
             return file_path, ""
 
     @staticmethod

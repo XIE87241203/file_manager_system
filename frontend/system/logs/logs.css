@@ -1,0 +1,110 @@
+/**
+ * 用途说明：运行日志页面专用样式
+ */
+
+.log-controls {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 16px 24px;
+    background-color: #fff;
+    border-bottom: 1px solid #dee2e6;
+    flex-wrap: wrap;
+}
+
+.control-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    color: #3c4043;
+}
+
+/* 刷新间隔输入框：移自内联样式 */
+#refresh-interval {
+    width: 50px;
+    padding: 4px 8px;
+    border: 1px solid #dadce0;
+    border-radius: 4px;
+    outline: none;
+}
+
+/* 关键词搜索框容器：移自内联样式 */
+.keyword-container {
+    flex: 1;
+    min-width: 200px;
+}
+
+/* 关键词搜索框：移自内联样式 */
+#log-keyword {
+    padding: 4px 10px;
+    font-size: 13px;
+    width: 100%; /* 填满父容器 */
+}
+
+.control-item select {
+    padding: 4px 8px;
+    border: 1px solid #dadce0;
+    border-radius: 4px;
+    outline: none;
+}
+
+.status-text {
+    font-size: 13px;
+    color: #1a73e8;
+    margin-left: auto;
+    font-weight: 500;
+}
+
+.log-viewer {
+    flex: 1;
+    background-color: #1e1e1e; /* 深色背景，更有终端感 */
+    margin: 16px;
+    border-radius: 8px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.log-content {
+    flex: 1;
+    padding: 16px;
+    overflow-y: auto;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 13px;
+    line-height: 1.6;
+    color: #d4d4d4;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+/* 不同级别的日志颜色 */
+.log-line {
+    display: block;
+    margin-bottom: 2px;
+}
+
+.log-info { color: #9cdcfe; }
+.log-debug { color: #6a9955; }
+.log-error { color: #f44747; font-weight: bold; }
+.log-warn { color: #ce9178; }
+.log-time { color: #808080; margin-right: 8px; }
+
+/* 滚动条美化 */
+.log-content::-webkit-scrollbar {
+    width: 10px;
+}
+
+.log-content::-webkit-scrollbar-track {
+    background: #252526;
+}
+
+.log-content::-webkit-scrollbar-thumb {
+    background: #424242;
+    border-radius: 5px;
+}
+
+.log-content::-webkit-scrollbar-thumb:hover {
+    background: #4f4f4f;
+}

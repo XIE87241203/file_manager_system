@@ -41,6 +41,12 @@ document.addEventListener('DOMContentLoaded', () => {
         clearVideoBtn.addEventListener('click', () => showClearVideoFeaturesModal());
     }
 
+    // 绑定清空历史库按钮
+    const clearHistoryBtn = document.getElementById('clear-history-btn');
+    if (clearHistoryBtn) {
+        clearHistoryBtn.addEventListener('click', () => showClearHistoryModal());
+    }
+
     // 绑定修改密码保存按钮
     document.getElementById('save-pwd-btn').addEventListener('click', savePasswordSettings);
 });
@@ -313,6 +319,20 @@ function showClearVideoFeaturesModal() {
 }
 
 /**
+ * 用途说明：显示确认清空历史库弹窗
+ * 返回值说明：无
+ */
+function showClearHistoryModal() {
+    UIComponents.showConfirmModal({
+        title: '确认清空历史库',
+        message: '警告：此操作将永久清空所有历史索引记录（history_file_index），确定要继续吗？',
+        onConfirm: () => {
+            clearHistoryRepositoryDatabase();
+        }
+    });
+}
+
+/**
  * 用途说明：向后端发起请求清空文件索引数据库
  * 入参说明：clearHistory (bool) - 是否同时清空历史记录
  * 返回值说明：无
@@ -329,6 +349,25 @@ async function clearFileRepositoryDatabase(clearHistory) {
         }
     } catch (error) {
         console.error('清空数据库出错:', error);
+        Toast.show('网络请求失败');
+    }
+}
+
+/**
+ * 用途说明：向后端发起请求清空历史记录库
+ * 入参说明：无
+ * 返回值说明：无
+ */
+async function clearHistoryRepositoryDatabase() {
+    try {
+        const response = await Request.post('/api/file_repository/clear_history');
+        if (response.status === 'success') {
+            Toast.show(response.message || '历史记录库已成功清空');
+        } else {
+            Toast.show('清空失败: ' + response.message);
+        }
+    } catch (error) {
+        console.error('清空历史记录库出错:', error);
         Toast.show('网络请求失败');
     }
 }

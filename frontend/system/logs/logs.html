@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>运行日志 - 文件管理系统</title>
+    <link rel="stylesheet" href="../../common/common.css">
+    <link rel="stylesheet" href="logs.css">
+</head>
+<body class="repo-body">
+    <!-- 顶部工具栏由 UIComponents 动态初始化 -->
+    <header class="top-bar"></header>
+
+    <main class="repo-container">
+        <!-- 日志控制栏 -->
+        <div class="log-controls">
+            <div class="control-item">
+                <label for="refresh-interval">刷新 (s):</label>
+                <input type="number" id="refresh-interval" value="3" min="1" max="60">
+            </div>
+            <div class="control-item">
+                <label for="log-lines">行数:</label>
+                <select id="log-lines">
+                    <option value="100">100</option>
+                    <option value="200" selected>200</option>
+                    <option value="500">500</option>
+                    <option value="1000">1000</option>
+                </select>
+            </div>
+            <div class="control-item">
+                <label for="log-level">等级:</label>
+                <select id="log-level">
+                    <option value="ALL">全部</option>
+                    <option value="DEBUG">DEBUG</option>
+                    <option value="INFO">INFO</option>
+                    <option value="ERROR">ERROR</option>
+                </select>
+            </div>
+            <div class="control-item">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="exclude-api" checked> 过滤API日志
+                </label>
+            </div>
+            <div class="control-item keyword-container">
+                <input type="text" id="log-keyword" class="input-field" placeholder="关键词筛选 (支持 * 通配符)">
+            </div>
+            <div class="control-item">
+                <button id="btn-toggle-auto" class="right-btn">停止自动刷新</button>
+                <button id="btn-manual-refresh" class="right-btn">立即刷新</button>
+            </div>
+            <div id="status-text" class="status-text">正在监控日志...</div>
+        </div>
+
+        <!-- 日志内容展示区 -->
+        <div id="log-viewer" class="log-viewer">
+            <div class="log-content" id="log-content">
+                <!-- 日志行将通过 JS 动态插入 -->
+            </div>
+        </div>
+    </main>
+
+    <!-- 引入公用工具 -->
+    <script src="../../common/ui_components.js"></script>
+    <script src="../../common/request.js"></script>
+    <script src="../../common/toast.js"></script>
+    <script src="logs.js"></script>
+</body>
+</html>

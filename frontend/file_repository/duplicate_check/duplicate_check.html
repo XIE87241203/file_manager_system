@@ -4,56 +4,60 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>文件查重 - 文件管理系统</title>
+    <!-- 引入公用样式 -->
     <link rel="stylesheet" href="../../common/common.css">
+    <!-- 引入页面私有样式 -->
     <link rel="stylesheet" href="duplicate_check.css">
 </head>
 <body class="repo-body">
-<!-- 公用顶部工具栏 -->
-<header class="top-bar"></header>
+    <!-- 公用顶部工具栏 -->
+    <header class="top-bar"></header>
 
-<main class="repo-container">
-    <!-- 查重状态容器 -->
-    <div id="scanning-container" class="centered-status-container hidden"></div>
+    <main class="repo-container">
+        <!-- 查重状态容器 -->
+        <div id="scanning-container" class="centered-status-container hidden"></div>
 
-    <!-- 结果区域组 -->
-    <div id="results-group" class="results-group hidden">
-        <!-- 结果统计标题栏 -->
-        <div id="results-summary-bar" class="summary-bar hidden">
-            <div class="summary-content">
-                <span id="summary-groups">分组: 0</span>
-                <span class="summary-divider">|</span>
-                <span id="summary-files">文件: 0</span>
-                <span class="summary-divider">|</span>
-                <span id="summary-time">查重时间: --</span>
-            </div>
-        </div>
-
-        <!-- 结果显示区域 -->
-        <div id="results-wrapper" class="results-wrapper"></div>
-
-        <!-- 底部导航与操作区 (参考 file_repository.html 统一布局) -->
-        <footer class="footer-bar">
-            <div class="footer-left"></div>
-            <div class="footer-center">
-                <div id="pagination-container" class="pagination-container">
-                    <!-- 由 UIComponents.initPagination 动态生成 -->
+        <!-- 结果区域组 -->
+        <div id="results-group" class="results-group hidden">
+            <!-- 结果统计标题栏 -->
+            <div id="results-summary-bar" class="summary-bar hidden">
+                <div class="summary-content">
+                    <span id="summary-groups">分组: 0</span>
+                    <span class="summary-divider">|</span>
+                    <span id="summary-files">文件: 0</span>
+                    <span class="summary-divider">|</span>
+                    <span id="summary-time">查重时间: --</span>
                 </div>
             </div>
-            <div class="footer-right">
-                <button id="btn-delete-selected-global" class="btn-danger-large hidden">删除选中</button>
-            </div>
-        </footer>
-    </div>
 
-    <!-- 初始引导提示 -->
-    <div id="empty-hint" class="empty-hint">
-        点击右上角“开始查重”分析重复文件
-    </div>
-</main>
+            <!-- 结果显示区域 -->
+            <div id="results-wrapper" class="results-wrapper"></div>
 
-<script src="../../common/ui_components.js"></script>
-<script src="../../common/request.js"></script>
-<script src="../../common/toast.js"></script>
-<script src="duplicate_check.js"></script>
+            <!-- 底部导航与操作区 (参考 file_repository.html 统一布局) -->
+            <footer class="footer-bar">
+                <div class="footer-left"></div>
+                <div class="footer-center">
+                    <div id="pagination-container" class="pagination-container">
+                        <!-- 由 UIComponents.initPagination 动态生成 -->
+                    </div>
+                </div>
+                <div class="footer-right">
+                    <!-- 统一按钮文案为“移入回收站” -->
+                    <button id="btn-delete-selected-global" class="btn-danger-large hidden">移入回收站 (0)</button>
+                </div>
+            </footer>
+        </div>
+
+        <!-- 初始引导提示 -->
+        <div id="empty-hint" class="empty-hint">
+            点击右上角“开始查重”分析重复文件
+        </div>
+    </main>
+
+    <!-- 脚本加载 -->
+    <script src="../../common/ui_components.js"></script>
+    <script src="../../common/request.js"></script>
+    <script src="../../common/toast.js"></script>
+    <script src="duplicate_check.js"></script>
 </body>
 </html>

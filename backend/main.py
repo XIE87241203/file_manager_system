@@ -2,7 +2,7 @@ import logging
 import os
 import sys
 import traceback
-from typing import Any
+from typing import Any, Tuple
 
 # 确保项目根目录在 sys.path 中
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -10,12 +10,13 @@ if project_root not in sys.path:
     sys.path.append(project_root)
 
 from backend.common.log_utils import LogUtils
-from flask import Flask, request, Response, send_from_directory
+from flask import Flask, request, send_from_directory
 from flask_cors import CORS
 from waitress import serve
 from backend.auth.auth_routes import auth_bp
 from backend.setting.setting_routes import setting_bp
 from backend.file_repository.file_repository_routes import file_repo_bp
+from backend.system.system_routes import system_bp
 from backend.common.response import error_response
 from config import GlobalConfig
 
@@ -45,7 +46,7 @@ def log_request_info() -> None:
             data = dict(request.form)
         elif request.args:
             data = dict(request.args)
-        LogUtils.debug(f"接口请求 -> 方法: {request.method}, 路径: {request.path}, Token: {token}, 参数: {data}")
+        LogUtils.api(f"方法: {request.method}, 路径: {request.path}, Token: {token}, 参数: {data}")
 
 @app.route('/')
 def index() -> Any:
@@ -57,7 +58,7 @@ def index() -> Any:
 # --- 异常处理句柄 ---
 
 @app.errorhandler(400)
-def bad_request(e: Any) -> Response:
+def bad_request(e: Any) -> Tuple[Any, int]:
     return error_response("请求参数错误或格式非法", 400)
 
 @app.errorhandler(404)
@@ -67,7 +68,7 @@ def page_not_found(e: Any) -> Any:
     return "404 Not Found", 404
 
 @app.errorhandler(Exception)
-def handle_global_exception(e: Exception) -> Response:
+def handle_global_exception(e: Exception) -> Tuple[Any, int]:
     """
     用途：【API层统一捕获】拦截所有未处理的异常，记录堆栈日志并返回 500
     入参说明：e (Exception): 异常对象
@@ -84,6 +85,7 @@ def handle_global_exception(e: Exception) -> Response:
 app.register_blueprint(auth_bp, url_prefix='/api')
 app.register_blueprint(setting_bp, url_prefix='/api/setting')
 app.register_blueprint(file_repo_bp, url_prefix='/api/file_repository')
+app.register_blueprint(system_bp, url_prefix='/api/system')
 
 def start_server() -> None:
     LogUtils.info(f"系统服务正在启动 (Port: {GlobalConfig.SYSTEM_PORT})...")

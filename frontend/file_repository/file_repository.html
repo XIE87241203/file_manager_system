@@ -6,6 +6,7 @@
     <title>文件仓库 - 文件管理系统</title>
     <!-- 引入公用样式 -->
     <link rel="stylesheet" href="../common/common.css">
+    <link rel="stylesheet" href="../common/table.css">
     <!-- 引入页面私有样式 -->
     <link rel="stylesheet" href="file_repository.css">
 </head>
@@ -78,13 +79,11 @@
                 </div>
                 <div class="footer-center">
                     <div id="pagination-container" class="pagination-container">
-                        <button id="btn-prev-page" class="btn-secondary-small" disabled>上一页</button>
-                        <span id="page-info">第 1 / 1 页 (共 0 条)</span>
-                        <button id="btn-next-page" class="btn-secondary-small" disabled>下一页</button>
+                        <!-- 由 UIComponents.initPagination 自动生成 -->
                     </div>
                 </div>
                 <div class="footer-right">
-                    <button id="btn-delete-selected" class="btn-danger-large hidden">移入回收站</button>
+                    <button id="btn-delete-selected" class="btn-danger-large hidden">移入回收站 (0)</button>
                 </div>
             </footer>
         </div>

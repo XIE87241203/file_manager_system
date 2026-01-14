@@ -50,6 +50,21 @@ class FileService(BaseFileService):
             return False
 
     @staticmethod
+    def clear_history_repository() -> bool:
+        """
+        用途说明：仅清空历史文件索引库 (history_file_index)
+        返回值说明：bool: 是否成功
+        """
+        try:
+            if DBOperations.clear_history_index():
+                LogUtils.info("历史文件索引库已清空")
+                return True
+            return False
+        except Exception as e:
+            LogUtils.error(f"清空历史仓库失败: {e}")
+            return False
+
+    @staticmethod
     def clear_video_features() -> bool:
         """
         用途：清空视频特征指纹库。

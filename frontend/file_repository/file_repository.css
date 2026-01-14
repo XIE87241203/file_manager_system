@@ -5,7 +5,7 @@
 /* 2. 顶部工具栏自定义 (扩展 common.css 中的 .top-bar) */
 .top-bar {
     height: 60px;
-    justify-content: space-between; /* 三段式分布 */
+    justify-content: space-between;
 }
 
 .top-bar-left {
@@ -47,111 +47,11 @@
 
 /* 4. 主容器及内容区域 */
 .repo-container {
-    /* margin-top: 60px;  不再在 CSS 中硬编码，改由 JS getToolbarHeight 动态处理 */
 }
 
 /* 文件去重按钮最大宽度限制 */
 .btn-duplicate-check {
     max-width: 200px;
-}
-
-/* 5. 数据表格样式优化 */
-.table-wrapper {
-    flex: 1;
-    overflow: auto;
-    width: 100%;
-    background-color: #fff;
-}
-
-.file-table {
-    width: 100%;
-    min-width: 900px;
-    border-collapse: collapse;
-}
-
-th {
-    position: sticky;
-    top: 0;
-    background-color: #f8f9fa;
-    z-index: 10;
-    box-shadow: inset 0 -1px 0 #dee2e6;
-    text-align: left;
-    padding: 12px 15px;
-    font-size: 13px;
-    font-weight: 500;
-    color: #5f6368;
-}
-
-/* 列宽度控制 */
-.col-name { width: 25%; }
-.col-path { width: 40%; }
-.col-md5 { width: 20%; }
-.col-time { width: 15%; }
-.col-check { width: 30px; text-align: center; }
-
-/* 排序表头交互 */
-th.sortable {
-    cursor: pointer;
-    user-select: none;
-    transition: background-color 0.2s;
-}
-
-th.sortable:hover {
-    background-color: #f1f3f4;
-}
-
-.sort-icon {
-    display: inline-block;
-    margin-left: 5px;
-    width: 12px;
-    height: 12px;
-    vertical-align: middle;
-    position: relative;
-    color: #bdc1c6;
-}
-
-.sort-icon::before {
-    content: "▲";
-    position: absolute;
-    top: -4px;
-    font-size: 8px;
-}
-
-.sort-icon::after {
-    content: "▼";
-    position: absolute;
-    bottom: -4px;
-    font-size: 8px;
-}
-
-/* 排序激活状态 */
-th.sort-asc .sort-icon { color: #1a73e8; }
-th.sort-asc .sort-icon::after { display: none; }
-th.sort-asc .sort-icon::before { top: 0; font-size: 10px; }
-
-th.sort-desc .sort-icon { color: #1a73e8; }
-th.sort-desc .sort-icon::before { display: none; }
-th.sort-desc .sort-icon::after { bottom: 0; font-size: 10px; }
-
-td {
-    padding: 10px 15px;
-    border-bottom: 1px solid #f1f3f4;
-    font-size: 13px;
-    color: #3c4043;
-    max-width: 400px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-/* 每一行鼠标悬停效果 */
-tbody tr {
-    cursor: pointer;
-    transition: background-color 0.15s;
-}
-
-tbody tr:hover {
-    background-color: #f8f9fa;
 }
 
 /* 7. 按钮样式微调 */

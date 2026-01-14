@@ -10,7 +10,10 @@ body {
     flex-direction: column;
     align-items: center;
     min-height: 100vh;
+    min-width: 600px; /* 设置最小宽度，防止内容被过度压缩 */
     background-color: #f0f2f5;
+    overflow-x: auto; /* 当屏幕小于最小宽度时，显示横向滚动条 */
+    overflow-y: hidden; /* 防止外层滚动，由内部容器处理 */
     margin: 0;
 }
 
@@ -490,7 +493,6 @@ body {
     height: 100vh;
     width: 100vw;
     margin: 0;
-    overflow: hidden; /* 防止外层滚动，由内部容器处理 */
     display: flex;
     flex-direction: column;
     background-color: #fff;
@@ -565,8 +567,13 @@ body {
     width: 20px;
     height: 20px;
     background-color: #5f6368;
-    -webkit-mask: url("search_icon.svg") no-repeat center;
-    mask: url("search_icon.svg") no-repeat center;
+    /* 修复点：路径相对于 CSS 文件，确保路径准确，并增加兼容性前缀 */
+    -webkit-mask-image: url("search_icon.svg");
+    mask-image: url("search_icon.svg");
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-position: center;
+    mask-position: center;
     -webkit-mask-size: contain;
     mask-size: contain;
 }
@@ -634,7 +641,7 @@ body {
     background-color: #dc3545;
     color: white;
     border: none;
-    border-radius: 6px;
+    border-radius: 4px;
     cursor: pointer;
     font-size: 14px;
     font-weight: 500;

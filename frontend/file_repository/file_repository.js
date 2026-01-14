@@ -78,7 +78,9 @@ const UIController = {
         
         if (selectAllCheckbox) {
             selectAllCheckbox.checked = false;
-            selectAllCheckbox.parentElement.style.display = State.searchHistory ? 'none' : 'table-cell';
+            // 隐藏表头复选框列，如果是在历史库模式
+            const checkHeader = document.querySelector('.col-check');
+            if (checkHeader) checkHeader.style.display = State.searchHistory ? 'none' : 'table-cell';
         }
 
         if (!list || list.length === 0) {
@@ -96,15 +98,15 @@ const UIController = {
             const fileName = UIComponents.getFileName(file.file_path);
             
             let html = `
-                <td title="${fileName}">${fileName}</td>
-                <td title="${file.file_path}">${file.file_path}</td>
-                <td><code>${file.file_md5}</code></td>
-                <td>${file.scan_time}</td>
+                <td class="col-name" title="${fileName}">${fileName}</td>
+                <td class="col-path" title="${file.file_path}">${file.file_path}</td>
+                <td class="col-md5"><code>${file.file_md5}</code></td>
+                <td class="col-time">${file.scan_time || file.delete_time}</td>
             `;
 
             if (!State.searchHistory) {
                 html += `
-                    <td style="text-align: center;">
+                    <td class="col-check">
                         <input type="checkbox" class="file-checkbox" data-path="${file.file_path}" ${isChecked ? 'checked' : ''}>
                     </td>
                 `;

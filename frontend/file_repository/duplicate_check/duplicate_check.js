@@ -203,9 +203,9 @@ const UIController = {
                 <table class="file-item-table">
                     <thead>
                         <tr>
-                            <th style="width: 25%;">文件名</th>
-                            <th style="width: 70%;">完整路径</th>
-                            <th style="width: 30px; text-align: center;">
+                            <th class="col-dup-name">文件名</th>
+                            <th class="col-dup-path">完整路径</th>
+                            <th class="col-dup-check">
                                 <input type="checkbox" class="file-checkbox select-all-in-group">
                             </th>
                         </tr>
@@ -215,9 +215,9 @@ const UIController = {
                             const fileName = UIComponents.getFileName(f.file_path);
                             return `
                                 <tr class="clickable-row" data-path="${f.file_path}" data-thumbnail="${f.thumbnail_path || ''}">
-                                    <td style="width: 25%;" title="${fileName}">${fileName}</td>
-                                    <td style="width: 70%;" class="file-path" title="${f.file_path}">${f.file_path}</td>
-                                    <td style="width: 30px; text-align: center;">
+                                    <td class="col-dup-name" title="${fileName}">${fileName}</td>
+                                    <td class="col-dup-path file-path" title="${f.file_path}">${f.file_path}</td>
+                                    <td class="col-dup-check">
                                         <input type="checkbox" class="file-checkbox file-item-checkbox" data-path="${f.file_path}">
                                     </td>
                                 </tr>

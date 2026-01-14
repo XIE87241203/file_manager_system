@@ -1,5 +1,5 @@
 import os
-from concurrent.futures import as_completed
+from concurrent.futures import as_completed, Future
 from datetime import datetime
 from enum import Enum
 from typing import List, Dict, Any
@@ -72,7 +72,7 @@ class ScanService:
     @staticmethod
     def _internal_scan(scan_mode: ScanMode) -> None:
         """
-        用途说明：扫描任务调度核心逻辑。
+        用途说明：扫描任务调度核心逻辑。已优化为单次遍历完成发现与提取。
         入参说明：
             scan_mode (ScanMode): 扫描模式。
         返回值说明：无
@@ -87,14 +87,9 @@ class ScanService:
             else:
                 LogUtils.info("增量扫描模式：开始文件扫描...")
 
-            # 第一阶段：文件发现 (改为数据库实时校验，不加载全量路径到内存)
-            new_file_list: List[str] = ScanService._phase_discovery(scan_mode, current_scan_time)
-            if ScanService._progress_manager.is_stopped():
-                ScanService._handle_stopped()
-                return
-
-            # 第二阶段：特征提取
-            processed_count: int = ScanService._phase_extraction(new_file_list, current_scan_time)
+            # 执行合并后的扫描与特征提取阶段
+            new_count, updated_count = ScanService._combined_scan_logic(scan_mode, current_scan_time)
+            
             if ScanService._progress_manager.is_stopped():
                 ScanService._handle_stopped()
                 return
@@ -104,7 +99,7 @@ class ScanService:
 
             # 完成
             ScanService._progress_manager.set_status(ProgressStatus.COMPLETED)
-            msg: str = f"扫描任务完成。新增: {processed_count}, 清理失效: {deleted_count}"
+            msg: str = f"扫描任务完成。新增: {new_count}, 更新: {updated_count}, 清理失效: {deleted_count}"
             ScanService._progress_manager.update_progress(message=msg)
             LogUtils.info(msg)
 
@@ -114,38 +109,49 @@ class ScanService:
             ScanService._progress_manager.update_progress(message=f"内部异常: {str(e)}")
 
     @staticmethod
-    def _phase_discovery(scan_mode: ScanMode, current_scan_time: str) -> List[str]:
+    def _combined_scan_logic(scan_mode: ScanMode, current_scan_time: str) -> (int, int):
         """
-        用途说明：第一阶段 - 文件发现。遍历配置目录，识别新增文件，并更新已有文件的扫描时间。
-        策略说明：通过逐一查询数据库检查路径是否存在，避免全量加载路径导致内存溢出。
+        用途说明：合并阶段 - 在一次目录遍历中完成文件发现、存在校验与特征提取。
         入参说明：
             scan_mode (ScanMode): 扫描模式。
             current_scan_time (str): 本次扫描的时间戳。
         返回值说明：
-            List[str]: 发现的新增文件路径列表。
+            (int, int): (新增文件数, 更新扫描时间的文件数)
         """
-        LogUtils.info("进入第一阶段：文件发现...")
-        ScanService._progress_manager.update_progress(message="正在扫描文件目录...")
-        
+        LogUtils.info("进入综合扫描阶段...")
+        ScanService._progress_manager.update_progress(message="正在遍历目录并提取特征...")
+
         repo_config = settingService.get_config().file_repository
         directories: List[str] = repo_config.directories
         suffixes: List[str] = [s.replace('.', '').lower() for s in repo_config.scan_suffixes]
         scan_all: bool = "*" in suffixes
+
+        new_count: int = 0
+        updated_count: int = 0
         
-        new_file_list: List[str] = []
+        # 用于分批更新扫描时间的列表
         paths_to_update_time: List[str] = []
-        
+        # 用于并发处理计算MD5的任务列表
+        md5_futures: List[Future] = []
+        # 用于待入库的对象列表
+        all_files_info: List[FileIndexDBModel] = []
+
+        batch_update_size: int = 500
+        batch_insert_size: int = 100
+        max_concurrent_tasks: int = 20 # 限制并发计算MD5的数量，避免IO压力过大
+
         for repo_path in directories:
             if ScanService._progress_manager.is_stopped(): break
             if not os.path.exists(repo_path):
                 LogUtils.error(f"扫描路径不存在: {repo_path}")
                 continue
-            
+
             for root, _, files in os.walk(repo_path):
                 if ScanService._progress_manager.is_stopped(): break
                 for file in files:
-                    full_path: str = os.path.join(root, file)
+                    if ScanService._progress_manager.is_stopped(): break
                     
+                    full_path: str = os.path.join(root, file)
                     if Utils.should_ignore(full_path, 
                                            repo_config.ignore_filenames, 
                                            repo_config.ignore_paths, 
@@ -155,81 +161,83 @@ class ScanService:
 
                     file_ext: str = os.path.splitext(file)[1].replace('.', '').lower()
                     if scan_all or file_ext in suffixes:
-                        # 全量扫描模式下，所有发现的文件都是“新增”的（因为索引已在初始化阶段清空）
-                        # 增量扫描模式下，需要逐一检查数据库
-                        is_existing = False
+                        # 检查数据库中是否存在
+                        is_existing: bool = False
                         if scan_mode == ScanMode.INDEX_SCAN:
                             is_existing = DBOperations.check_file_path_exists(full_path)
                         
                         if is_existing:
                             paths_to_update_time.append(full_path)
-                            if len(paths_to_update_time) >= 500:
+                            updated_count += 1
+                            if len(paths_to_update_time) >= batch_update_size:
                                 DBOperations.batch_update_files_scan_time(paths_to_update_time, current_scan_time)
                                 paths_to_update_time = []
                         else:
-                            new_file_list.append(full_path)
+                            # 新文件，提交MD5计算任务
+                            md5_futures.append(ThreadPoolManager.submit(Utils.calculate_fast_md5, full_path))
+                            
+                            # 当并发任务积累到一定量或遍历结束，处理结果
+                            if len(md5_futures) >= max_concurrent_tasks:
+                                new_count += ScanService._process_md5_futures(md5_futures, all_files_info, current_scan_time, batch_insert_size)
+                                md5_futures = []
 
+                        # 定期更新进度条（仅显示已扫描的数量感官上更连贯）
+                        if (new_count + updated_count) % 100 == 0:
+                            ScanService._progress_manager.update_progress(
+                                message=f"已扫描: {new_count + updated_count} (新增: {new_count})"
+                            )
+
+        # 处理剩余的更新
         if paths_to_update_time and not ScanService._progress_manager.is_stopped():
             DBOperations.batch_update_files_scan_time(paths_to_update_time, current_scan_time)
-            
-        return new_file_list
-
-    @staticmethod
-    def _phase_extraction(new_file_list: List[str], current_scan_time: str) -> int:
-        """
-        用途说明：第二阶段 - 特征提取。对新增文件并行计算 MD5，并分批写入数据库。
-        入参说明：
-            new_file_list (List[str]): 发现的新增文件路径列表。
-            current_scan_time (str): 本次扫描的时间戳。
-        返回值说明：
-            int: 成功入库的新增文件数量。
-        """
-        total_new_count: int = len(new_file_list)
-        if total_new_count == 0:
-            return 0
-            
-        LogUtils.info(f"进入第二阶段：特征提取 (总计 {total_new_count} 个文件)...")
-        ScanService._progress_manager.update_progress(total=total_new_count, message="开始提取新增文件特征...")
         
-        all_files_info: List[FileIndexDBModel] = []
-        processed_count: int = 0
-        batch_size: int = 1000
+        # 处理剩余的MD5计算任务
+        if md5_futures and not ScanService._progress_manager.is_stopped():
+            new_count += ScanService._process_md5_futures(md5_futures, all_files_info, current_scan_time, batch_insert_size)
         
-        for i in range(0, total_new_count, batch_size):
-            if ScanService._progress_manager.is_stopped(): break
-                
-            batch_paths: List[str] = new_file_list[i : i + batch_size]
-            futures = [ThreadPoolManager.submit(Utils.calculate_md5, path) for path in batch_paths]
-            
-            for future in as_completed(futures):
-                if ScanService._progress_manager.is_stopped(): break
-                try:
-                    f_path, f_md5 = future.result()
-                    if f_md5:
-                        f_size: int = os.path.getsize(f_path)
-                        all_files_info.append(
-                            FileIndexDBModel(
-                                file_path=f_path, 
-                                file_md5=f_md5,
-                                file_size=f_size,
-                                scan_time=current_scan_time
-                            )
-                        )
-                except Exception as e:
-                    LogUtils.error(f"MD5 计算任务异常: {e}")
-
-                processed_count += 1
-                if len(all_files_info) >= 100:
-                    DBOperations.batch_insert_files_index(all_files_info)
-                    all_files_info = []
-                
-                if processed_count % 50 == 0 or processed_count == total_new_count:
-                    ScanService._progress_manager.update_progress(current=processed_count, message="正在建立新增文件索引")
-
+        # 处理最后剩余的入库对象
         if all_files_info and not ScanService._progress_manager.is_stopped():
             DBOperations.batch_insert_files_index(all_files_info)
-            
-        return processed_count
+
+        return new_count, updated_count
+
+    @staticmethod
+    def _process_md5_futures(futures: List[Future], info_list: List[FileIndexDBModel], 
+                             current_scan_time: str, batch_size: int) -> int:
+        """
+        用途说明：内部辅助方法，处理已完成的MD5计算任务并准备入库。
+        入参说明：
+            futures (List[Future]): 线程池返回的任务列表。
+            info_list (List[FileIndexDBModel]): 外部维护的待入库对象列表。
+            current_scan_time (str): 本次扫描时间戳。
+            batch_size (int): 分批入库的阈值。
+        返回值说明：
+            int: 本次处理成功的文件数量。
+        """
+        success_count: int = 0
+        for future in as_completed(futures):
+            if ScanService._progress_manager.is_stopped(): break
+            try:
+                f_path, f_md5 = future.result()
+                if f_md5:
+                    f_size: int = os.path.getsize(f_path)
+                    info_list.append(
+                        FileIndexDBModel(
+                            file_path=f_path, 
+                            file_md5=f_md5,
+                            file_size=f_size,
+                            scan_time=current_scan_time
+                        )
+                    )
+                    success_count += 1
+            except Exception as e:
+                LogUtils.error(f"MD5 计算任务异常: {e}")
+
+            if len(info_list) >= batch_size:
+                DBOperations.batch_insert_files_index(info_list)
+                info_list.clear()
+        
+        return success_count
 
     @staticmethod
     def _phase_cleanup(current_scan_time: str) -> int:

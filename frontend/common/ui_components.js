@@ -184,13 +184,26 @@ const UIComponents = {
         overlay.style.display = 'flex';
     },
 
+    /**
+     * 用途说明：渲染进度条信息
+     * 入参说明：
+     *   - parentSelector (str): 父容器的选择器
+     *   - progress (object): 进度对象，包含 current, total, message
+     * 返回值说明：无
+     */
     renderProgress(parentSelector, progress) {
         if (!progress) return;
         const current = progress.current || 0;
         const total = progress.total || 0;
         const percent = total > 0 ? Math.round((current / total) * 100) : 0;
         const message = progress.message || '';
-        const text = `进度: ${percent}% (${current}/${total}) - ${message}`;
+        
+        // 优化逻辑：如果总数为0，不显示具体的百分比和数值，只显示消息内容
+        let text = message;
+        if (total > 0) {
+            text = `进度: ${percent}% (${current}/${total}) - ${message}`;
+        }
+        
         this.updateProgressBar(parentSelector, percent, text);
     },
 

@@ -85,6 +85,21 @@ def clear_repository():
         return error_response("清空仓库失败", 500)
 
 
+@file_repo_bp.route('/clear_history', methods=['POST'])
+@token_required
+def clear_history_repository():
+    """
+    用途说明：专门清空历史文件索引表 (history_file_index)
+    入参说明：无
+    返回值说明：JSON 格式响应，包含操作结果
+    """
+    LogUtils.info(f"用户 {_get_current_user()} 请求清空历史文件数据库")
+    if FileService.clear_history_repository():
+        return success_response("历史文件索引库已成功清空")
+    else:
+        return error_response("清空历史仓库失败", 500)
+
+
 @file_repo_bp.route('/clear_recycle_bin', methods=['POST'])
 @token_required
 def clear_recycle_bin():
