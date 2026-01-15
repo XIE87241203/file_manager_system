@@ -52,9 +52,6 @@ body {
     background-color: #ffffff; /* 内部也保持纯白 */
 }
 
-/* 移除不再需要的 card-container 相关样式 */
-/* .card-container 相关的样式已删除，内容现在直接排列在 main-content 中 */
-
 /* 响应式网格布局 */
 .settings-grid {
     display: grid;
@@ -68,10 +65,22 @@ body {
     grid-column: 1 / -1;
 }
 
+/* 章节头部样式：用于标题和按钮右对齐 */
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.section-header h3 {
+    margin: 0;
+}
+
 /* 仓库列表样式 */
 .repo-list {
     margin-bottom: 1.5rem;
-    max-height: 500px;
+    max-height: 200px; /* 限制高度约为3行，超过则显示滚动条 */
     overflow-y: auto;
     border: 1px solid #f0f0f0;
     border-radius: 8px;
@@ -87,6 +96,10 @@ body {
     border-radius: 6px;
     margin-bottom: 10px;
     transition: border-color 0.2s;
+}
+
+.repo-item:last-child {
+    margin-bottom: 0; /* 最后一个条目去掉下边距，防止撑开列表高度 */
 }
 
 .repo-item:hover {
@@ -117,25 +130,14 @@ body {
     text-decoration: underline;
 }
 
-/* 调整添加仓库表单布局 */
-.add-repo-form {
-    display: flex;
-    gap: 15px;
-    margin-top: 20px;
-    margin-bottom: 30px;
-    align-items: flex-start;
-}
-
-.add-repo-form .input-field {
-    flex: 1;
-    margin-bottom: 0;
-}
-
-.btn-add {
+/* 调整添加仓库按钮样式（小型化且限制宽度） */
+.btn-add-small {
     white-space: nowrap;
+    padding: 6px 16px !important;
+    font-size: 0.9rem;
+    height: auto !important;
+    max-width: 120px; /* 限制最大宽度，防止拉伸 */
     width: auto !important;
-    padding: 0 24px !important;
-    height: 44px;
 }
 
 /* 复选框组容器 */
@@ -182,12 +184,58 @@ body {
     margin: 0;
 }
 
-/* 页面特定边距与布局调整 */
+/* 数据维护项样式 */
+.maintenance-item {
+    display: flex;
+    flex-direction: column; /* 纵向排列：按钮排在文字下方 */
+    align-items: flex-start;
+    gap: 12px;
+    padding: 18px 20px;
+    background: #fff;
+    border: 1px solid #eee;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+}
+
+.maintenance-item:hover {
+    background-color: #fff9f9;
+    border-color: #ffdada;
+}
+
+.maintenance-info {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.maintenance-title {
+    font-weight: 600;
+    color: #333;
+    font-size: 1.05rem;
+}
+
+.maintenance-desc {
+    font-size: 0.85rem;
+    color: #666;
+    line-height: 1.4;
+}
+
+/* 辅助布局类 */
 .mt-30 { margin-top: 30px; }
 .mt-20 { margin-top: 20px; }
 .mt-15 { margin-top: 15px; }
 .mt-10 { margin-top: 10px; }
 .mt-0 { margin-top: 0 !important; }
+.mb-20 { margin-bottom: 20px; }
+
+.flex-column {
+    display: flex;
+    flex-direction: column;
+}
+
+.gap-15 {
+    gap: 15px;
+}
 
 .button-group {
     display: flex;

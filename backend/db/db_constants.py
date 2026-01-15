@@ -3,7 +3,7 @@ class DBConstants:
     用途：数据库表名及列名常量类，统一管理所有数据库结构相关的硬编码字符串
     """
 
-    DB_VERSION: int = 3  # 当前数据库版本
+    DB_VERSION: int = 4  # 当前数据库版本
 
     class VersionInfo:
         """用途：version_info 表相关的常量"""
@@ -51,3 +51,10 @@ class DBConstants:
         COL_FILE_ID_PK: str = 'id'
         COL_FILE_GROUP_ID: str = 'group_id'
         COL_FILE_ID: str = 'file_id'
+
+    class IgnoreFile:
+        """用途：ignore_file 表相关的常量"""
+        TABLE_NAME: str = 'ignore_file'
+        COL_ID: str = 'id'
+        COL_FILE_NAME: str = 'file_name'
+        COL_ADD_TIME: str = 'add_time'

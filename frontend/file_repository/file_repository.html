@@ -11,32 +11,8 @@
     <link rel="stylesheet" href="file_repository.css">
 </head>
 <body class="repo-body">
-    <!-- 顶部工具栏：包含搜索、状态切换及返回 -->
-    <header class="top-bar">
-        <div class="top-bar-left">
-            <button id="nav-back-btn" class="back-btn" title="返回上一页">
-                <span>&lt; 返回</span>
-            </button>
-        </div>
-        
-        <div class="top-bar-center">
-            <div class="search-container">
-                <input type="text" id="search-input" class="search-input" placeholder="搜索文件名 (正则模糊匹配)..." autocomplete="off">
-                <button id="search-btn" class="search-btn" title="点击搜索">
-                    <i class="search-icon"></i>
-                </button>
-            </div>
-            <div class="search-section">
-                <label class="checkbox-label">
-                    <input type="checkbox" id="search-history-checkbox" class="search-history-checkbox"> 搜索历史库
-                </label>
-            </div>
-        </div>
-        
-        <div class="top-bar-right">
-            <button id="btn-scan" class="right-btn">建立索引</button>
-        </div>
-    </header>
+    <!-- 顶部工具栏：由 UIComponents.initRepoHeader 动态初始化 -->
+    <header class="top-bar"></header>
 
     <main class="repo-container">
         <!-- 主内容区域：在扫描时会整体隐藏 -->

@@ -10,6 +10,7 @@ from backend.common.response import success_response, error_response
 from backend.common.utils import Utils
 from backend.file_repository.duplicate_check.duplicate_service import DuplicateService
 from backend.file_repository.file_service import FileService
+from backend.file_repository.ignore_file_service import IgnoreFileService
 from backend.file_repository.recycle_bin_service import RecycleBinService
 from backend.file_repository.scan_service import ScanService, ScanMode
 from backend.file_repository.thumbnail.thumbnail_service import ThumbnailService
@@ -169,34 +170,6 @@ def get_scan_progress():
 def list_files():
     """
     用途说明：分页获取文件列表，支持搜索、历史查询以及回收站筛选。
-    入参说明：
-        page (int): 当前页码，默认 1。
-        limit (int): 每页记录数，默认 100。
-        sort_by (str): 排序字段，默认 'scan_time'。
-        order_asc (bool): 是否正序排序，默认 false (即倒序)。
-        search (str): 搜索关键词。
-        search_history (bool): 是否查询历史记录，默认 false。
-        is_in_recycle_bin (bool): 是否只查询回收站中的数据（recycle_bin_time 不为空），默认 false。仅在 search_history 为 false 时有效。
-    返回值说明：
-        JSON 格式响应，data 字段包含分页结果 (PaginationResult):
-        {
-            "total": int,           # 总记录数
-            "page": int,            # 当前页码
-            "limit": int,           # 每页限制数
-            "sort_by": str,         # 排序字段
-            "order": str,           # 排序方向 (ASC/DESC)
-            "list": [               # 数据对象列表
-                {
-                    # 当 search_history 为 false 时，为 FileIndex 结构:
-                    "id": int, "file_path": str, "file_md5": str, "file_size": int,
-                    "recycle_bin_time": str, "thumbnail_path": str, "scan_time": str
-                    
-                    # 当 search_history 为 true 时，为 HistoryFileIndex 结构:
-                    "id": int, "file_path": str, "file_md5": str, "file_size": int,
-                    "scan_time": str, "delete_time": str
-                }, ...
-            ]
-        }
     """
     page = request.args.get('page', default=1, type=int)
     limit = request.args.get('limit', default=100, type=int)
@@ -402,3 +375,84 @@ def view_thumbnail():
         return error_response("缩略图文件不存在", 404)
 
     return send_file(requested_path, mimetype='image/jpeg')
+
+
+# --- 忽略文件库相关路由 ---
+
+@file_repo_bp.route('/ignore/list', methods=['GET'])
+@token_required
+def list_ignore_files():
+    """
+    用途说明：分页获取忽略文件列表。
+    入参说明：
+        page (int): 当前页码
+        limit (int): 每页记录数
+        sort_by (str): 排序字段
+        order_asc (bool): 是否正序
+        search (str): 搜索关键词
+    返回值说明：JSON 格式响应，包含分页数据
+    """
+    page = request.args.get('page', default=1, type=int)
+    limit = request.args.get('limit', default=100, type=int)
+    sort_by = request.args.get('sort_by', default='add_time')
+    order_asc = request.args.get('order_asc', default='false').lower() == 'true'
+    search_query = request.args.get('search', default='').strip()
+
+    data = IgnoreFileService.search_ignore_file_list(page, limit, sort_by, order_asc, search_query)
+    return success_response("获取忽略文件列表成功", data=asdict(data))
+
+
+@file_repo_bp.route('/ignore/add', methods=['POST'])
+@token_required
+def add_ignore_files():
+    """
+    用途说明：批量添加忽略文件名。
+    入参说明：JSON 包含 file_names (list)
+    返回值说明：JSON 格式响应
+    """
+    data = request.json or {}
+    file_names = data.get('file_names', [])
+
+    if not file_names:
+        return error_response("未提供文件名", 400)
+
+    LogUtils.info(f"用户 {_get_current_user()} 请求添加忽略文件: {file_names}")
+    if IgnoreFileService.add_ignore_files(file_names):
+        return success_response("添加成功")
+    else:
+        return error_response("添加失败", 500)
+
+@file_repo_bp.route('/ignore/batch_delete', methods=['POST'])
+@token_required
+def batch_delete_ignore_files():
+    """
+    用途说明：批量删除指定的忽略文件记录。
+    入参说明：JSON 包含 ids (list)
+    返回值说明：JSON 格式响应
+    """
+    data = request.json or {}
+    file_ids = data.get('ids', [])
+
+    if not file_ids:
+        return error_response("未选择要删除的记录", 400)
+
+    LogUtils.info(f"用户 {_get_current_user()} 请求批量删除忽略记录，数量: {len(file_ids)}")
+    count: int = IgnoreFileService.batch_delete_ignore_files(file_ids)
+    if count > 0:
+        return success_response(f"已成功删除 {count} 条记录")
+    else:
+        return error_response("批量删除失败", 500)
+
+
+@file_repo_bp.route('/ignore/clear', methods=['POST'])
+@token_required
+def clear_ignore_repository():
+    """
+    用途说明：清空忽略文件库。
+    返回值说明：JSON 格式响应
+    """
+    LogUtils.info(f"用户 {_get_current_user()} 请求清空忽略文件库")
+    if IgnoreFileService.clear_ignore_repository():
+        return success_response("清空成功")
+    else:
+        return error_response("清空失败", 500)

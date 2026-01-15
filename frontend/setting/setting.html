@@ -16,6 +16,7 @@
         <div class="tabs">
             <button id="tab-repo" class="tab-btn active">文件仓库</button>
             <button id="tab-dup-check" class="tab-btn">查重设置</button>
+            <button id="tab-maintenance" class="tab-btn">数据维护</button>
             <button id="tab-password" class="tab-btn">修改密码</button>
         </div>
 
@@ -23,13 +24,12 @@
         <div id="content-repo" class="tab-content active">
             <div class="settings-grid">
                 <div class="full-width">
-                    <h3 class="mt-0">仓库目录</h3>
+                    <div class="section-header mt-0">
+                        <h3>仓库目录</h3>
+                        <button id="add-repo-btn" class="btn-primary btn-add-small">添加仓库</button>
+                    </div>
                     <div class="repo-list" id="repo-list">
                         <!-- 动态生成仓库列表 -->
-                    </div>
-                    <div class="add-repo-form">
-                        <input type="text" id="new-repo-path" class="input-field" placeholder="输入文件仓库路径" autocomplete="off">
-                        <button id="add-repo-btn" class="btn-primary btn-add">添加仓库</button>
                     </div>
                 </div>
 
@@ -80,15 +80,6 @@
                     <input type="text" id="search-replace-chars" class="input-field" placeholder="例如: -, _ (逗号分隔)" autocomplete="off">
                     <small class="form-hint">提示：搜索前会将这些字符替换为 .*</small>
                 </div>
-
-                <div class="full-width button-group mt-30">
-                    <button id="save-repo-btn" class="btn-primary">保存仓库配置</button>
-                    <div class="flex-gap-5">
-                        <!-- 清空历史库按钮 -->
-                        <button id="clear-history-btn" class="btn-danger">清空历史库</button>
-                        <button id="clear-video-btn" class="btn-danger">清空视频特征库</button>
-                    </div>
-                </div>
             </div>
         </div>
 
@@ -134,9 +125,43 @@
                     <input type="number" id="video-max-duration-diff-ratio" class="input-field" step="0.1" placeholder="默认: 0.6">
                     <small class="form-hint">说明：短视频时长至少是长视频的 60%。</small>
                 </div>
+            </div>
+        </div>
 
-                <div class="full-width button-group mt-30">
-                    <button id="save-dup-check-btn" class="btn-primary">保存查重配置</button>
+        <!-- 数据维护分页 -->
+        <div id="content-maintenance" class="tab-content">
+            <div class="settings-grid">
+                <div class="full-width">
+                    <h3 class="mt-0">危险操作</h3>
+                    <p class="form-hint mb-20">注意：以下操作将清空对应的数据库记录，请谨慎操作。</p>
+                </div>
+                
+                <div class="full-width button-group">
+                    <div class="flex-column gap-15">
+                        <div class="maintenance-item">
+                            <div class="maintenance-info">
+                                <span class="maintenance-title">忽略库</span>
+                                <span class="maintenance-desc">清空所有已设置的忽略文件名。</span>
+                            </div>
+                            <button id="clear-ignore-btn" class="btn-danger">清空忽略库</button>
+                        </div>
+                        
+                        <div class="maintenance-item">
+                            <div class="maintenance-info">
+                                <span class="maintenance-title">历史库</span>
+                                <span class="maintenance-desc">清空所有文件历史索引记录（不影响物理文件）。</span>
+                            </div>
+                            <button id="clear-history-btn" class="btn-danger">清空历史库</button>
+                        </div>
+                        
+                        <div class="maintenance-item">
+                            <div class="maintenance-info">
+                                <span class="maintenance-title">视频特征库</span>
+                                <span class="maintenance-desc">清空所有已提取的视频指纹特征，下次扫描将重新提取。</span>
+                            </div>
+                            <button id="clear-video-btn" class="btn-danger">清空视频特征库</button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -156,9 +181,6 @@
                     <label class="label-text" for="confirm-password">确认新密码</label>
                     <input type="password" id="confirm-password" class="input-field" placeholder="请再次输入新密码" autocomplete="new-password">
                     <small class="form-hint">提示：修改密码后需重新登录</small>
-                </div>
-                <div class="full-width button-group">
-                    <button id="save-pwd-btn" class="btn-primary">修改密码</button>
                 </div>
             </div>
         </div>

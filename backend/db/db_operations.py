@@ -6,6 +6,7 @@ from backend.db.processor_manager import processor_manager
 from backend.model.db.duplicate_group_db_model import DuplicateGroupDBModule
 from backend.model.db.file_index_db_model import FileIndexDBModel
 from backend.model.db.history_file_index_db_model import HistoryFileIndexDBModule
+from backend.model.db.ignore_file_db_model import IgnoreFileDBModel
 from backend.model.db.video_feature_db_model import VideoFeatureDBModel
 from backend.model.duplicate_group_result import DuplicateGroupResult
 from backend.model.pagination_result import PaginationResult
@@ -212,3 +213,26 @@ class DBOperations:
     @staticmethod
     def clear_all_thumbnail_records() -> bool:
         return processor_manager.file_index_processor.clear_all_thumbnails()
+
+    # --- 忽略文件库相关操作 ---
+
+    @staticmethod
+    def add_ignore_files(file_names: List[str]) -> bool:
+        """
+        用途：批量添加忽略文件名。
+        """
+        return bool(processor_manager.ignore_file_processor.add_ignore_files(file_names))
+
+    @staticmethod
+    def search_ignore_file_list(page: int, limit: int, sort_by: str, order: bool, search_query: str) -> PaginationResult[IgnoreFileDBModel]:
+        """
+        用途：分页查询忽略文件。
+        """
+        return processor_manager.ignore_file_processor.get_paged_list(page, limit, sort_by, order, search_query)
+
+    @staticmethod
+    def clear_ignore_repository() -> bool:
+        """
+        用途：清空忽略文件库。
+        """
+        return processor_manager.ignore_file_processor.clear_all_table()

@@ -9,11 +9,11 @@ body {
     display: flex;
     flex-direction: column;
     align-items: center;
-    min-height: 100vh;
-    min-width: 600px; /* 设置最小宽度，防止内容被过度压缩 */
+    min-height: 600px;
+    min-width: 600px;
     background-color: #f0f2f5;
-    overflow-x: auto; /* 当屏幕小于最小宽度时，显示横向滚动条 */
-    overflow-y: hidden; /* 防止外层滚动，由内部容器处理 */
+    overflow-x: auto;
+    overflow-y: auto;
     margin: 0;
 }
 
@@ -29,6 +29,7 @@ body {
     background-color: #fff;
     display: flex;
     align-items: center;
+    justify-content: space-between; /* 确保左右区域分布在两端 */
     padding: 0 24px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.08);
     position: fixed;
@@ -42,11 +43,11 @@ body {
 .top-bar-left {
     display: flex;
     align-items: center;
-    flex: 1;
+    width: 120px; /* 固定宽度，保证中间搜索框居中 */
     z-index: 1001;
 }
 
-/* 标题样式：通过绝对定位实现彻底居中 */
+/* 标题样式：简单标题页使用 */
 .top-bar-title {
     position: absolute;
     left: 50%;
@@ -56,18 +57,46 @@ body {
     font-size: 1.2rem;
     font-weight: 600;
     color: #202124;
-    pointer-events: none; /* 防止标题区域遮挡中间可能存在的其他元素 */
+    pointer-events: none;
     white-space: nowrap;
 }
 
+/* 中间区域（搜索框等） */
+.top-bar-center {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 20px;
+    z-index: 1001;
+}
+
 /* 右侧按钮区域 */
-.right-area, .top-bar-right {
-    margin-left: auto;
+.top-bar-right {
     display: flex;
     align-items: center;
     justify-content: flex-end;
-    flex: 1;
+    width: 120px; /* 与左侧对称 */
     z-index: 1001;
+    gap: 10px;
+}
+
+/* 复选框标签样式 */
+.checkbox-label {
+    font-size: 14px;
+    color: #5f6368;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    white-space: nowrap;
+    user-select: none;
+}
+
+.checkbox-input {
+    margin-right: 6px;
+    cursor: pointer;
+    width: 16px;
+    height: 16px;
 }
 
 /* 返回按钮样式优化 */
@@ -90,7 +119,7 @@ body {
     color: #174ea6;
 }
 
-/* 右侧文本按钮样式 */
+/* 右侧按钮基础样式 */
 .right-btn {
     cursor: pointer;
     background: none;
@@ -109,7 +138,7 @@ body {
     border-color: #d2e3fc;
 }
 
-/* 危险操作按钮样式 (如：停止) */
+/* 危险操作文本按钮样式 */
 .btn-text-danger {
     cursor: pointer;
     background: none;
@@ -475,7 +504,7 @@ body {
     border-radius: 8px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.25);
     padding: 8px;
-    pointer-events: none; /* 悬停预览不应干扰鼠标操作 */
+    pointer-events: none;
     display: none;
     max-width: 320px;
 }
@@ -561,13 +590,11 @@ body {
     color: #1a73e8;
 }
 
-/* 搜索图标 (使用 mask 技术实现颜色可控的图标) */
 .search-icon {
     display: inline-block;
     width: 20px;
     height: 20px;
     background-color: #5f6368;
-    /* 修复点：路径相对于 CSS 文件，确保路径准确，并增加兼容性前缀 */
     -webkit-mask-image: url("search_icon.svg");
     mask-image: url("search_icon.svg");
     -webkit-mask-repeat: no-repeat;
@@ -645,13 +672,9 @@ body {
     cursor: pointer;
     font-size: 14px;
     font-weight: 500;
-    transition: background-color 0.2s, transform 0.1s;
+    transition: background-color 0.2s;
 }
 
 .btn-danger-large:hover {
     background-color: #c82333;
-}
-
-.btn-danger-large:active, .btn-primary-large:active {
-    transform: scale(0.98);
 }

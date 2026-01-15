@@ -51,7 +51,7 @@ class DBManager:
     @contextmanager
     def transaction() -> Generator[sqlite3.Connection, None, None]:
         """
-        用途说明：事务上下文管理器，提供自动提交和异常回滚功能，确保跨表操作的原子性。
+        用途说明：事务上下文管理器，提供自动提交 and 异常回滚功能，确保跨表操作的原子性。
         入参说明：无
         返回值说明：Generator[sqlite3.Connection, None, None]: 数据库连接
         """
@@ -182,6 +182,15 @@ class DBManager:
             ON {DBConstants.DuplicateFile.TABLE_FILES} ({DBConstants.DuplicateFile.COL_FILE_ID})
         ''')
 
+        # 6. 创建 ignore_file 表
+        cursor.execute(f'''
+            CREATE TABLE IF NOT EXISTS {DBConstants.IgnoreFile.TABLE_NAME} (
+                {DBConstants.IgnoreFile.COL_ID} INTEGER PRIMARY KEY AUTOINCREMENT,
+                {DBConstants.IgnoreFile.COL_FILE_NAME} TEXT NOT NULL UNIQUE,
+                {DBConstants.IgnoreFile.COL_ADD_TIME} DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
     @staticmethod
     def migrate_db_version(old_version: int, new_version: int, cursor: sqlite3.Cursor) -> None:
         """
@@ -192,8 +201,15 @@ class DBManager:
             cursor (sqlite3.Cursor): 数据库游标对象，用于执行 SQL
         返回值说明：无
         """
-        # 后续版本升级逻辑在此继续添加
-        # if old_version < 3:
-        #     ...
+        if old_version < 4:
+            # 升级到版本 4: 添加 ignore_file 表
+            cursor.execute(f'''
+                CREATE TABLE IF NOT EXISTS {DBConstants.IgnoreFile.TABLE_NAME} (
+                    {DBConstants.IgnoreFile.COL_ID} INTEGER PRIMARY KEY AUTOINCREMENT,
+                    {DBConstants.IgnoreFile.COL_FILE_NAME} TEXT NOT NULL UNIQUE,
+                    {DBConstants.IgnoreFile.COL_ADD_TIME} DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            LogUtils.info("数据库升级到版本 4: 已创建 ignore_file 表")
 
 db_manager: DBManager = DBManager()

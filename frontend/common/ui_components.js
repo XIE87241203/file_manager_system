@@ -56,6 +56,89 @@ const UIComponents = {
         }
     },
 
+    /**
+     * 用途说明：初始化仓库类型页面的顶部工具栏（含搜索框、返回、可选右侧按钮、可选历史库勾选）
+     * 入参说明：
+     *   - config (object): {
+     *       searchPlaceholder: str,
+     *       showHistoryCheckbox: bool,
+     *       rightBtnText: str,
+     *       rightBtnId: str, // 右侧按钮 ID，默认为 btn-right-action
+     *       onSearch: func, // 点击搜索或回车时的回调
+     *       onHistoryChange: func // 历史库勾选变化时的回调
+     *     }
+     */
+    initRepoHeader(config) {
+        const { 
+            searchPlaceholder = '搜索...', 
+            showHistoryCheckbox = false, 
+            rightBtnText = null, 
+            rightBtnId = 'btn-right-action',
+            onSearch = null,
+            onHistoryChange = null
+        } = config;
+
+        let header = document.querySelector('header.top-bar');
+        if (!header) {
+            header = document.createElement('header');
+            header.className = 'top-bar';
+            document.body.prepend(header);
+        }
+
+        const historyHtml = showHistoryCheckbox ? `
+            <div class="search-section">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="search-history-checkbox" class="checkbox-input"> 搜索历史库
+                </label>
+            </div>
+        ` : '';
+
+        const rightBtnHtml = rightBtnText ? `<button id="${rightBtnId}" class="right-btn">${rightBtnText}</button>` : '';
+
+        header.innerHTML = `
+            <div class="top-bar-left">
+                <button id="nav-back-btn" class="back-btn" title="返回上一页">
+                    <span>&lt; 返回</span>
+                </button>
+            </div>
+            <div class="top-bar-center">
+                <div class="search-container">
+                    <input type="text" id="search-input" class="search-input" placeholder="${searchPlaceholder}" autocomplete="off">
+                    <button id="search-btn" class="search-btn" title="点击搜索">
+                        <i class="search-icon"></i>
+                    </button>
+                </div>
+                ${historyHtml}
+            </div>
+            <div class="top-bar-right">
+                ${rightBtnHtml}
+            </div>
+        `;
+
+        // 绑定事件
+        const backBtn = document.getElementById('nav-back-btn');
+        if (backBtn) backBtn.onclick = () => window.history.back();
+
+        const searchInput = document.getElementById('search-input');
+        const searchBtn = document.getElementById('search-btn');
+        if (onSearch) {
+            if (searchBtn) searchBtn.onclick = onSearch;
+            if (searchInput) {
+                searchInput.onkeypress = (e) => {
+                    if (e.key === 'Enter') onSearch();
+                };
+            }
+        }
+
+        if (showHistoryCheckbox && onHistoryChange) {
+            const historyCheckbox = document.getElementById('search-history-checkbox');
+            if (historyCheckbox) historyCheckbox.onchange = onHistoryChange;
+        }
+
+        document.body.style.paddingTop = this.getToolbarHeight() + 'px';
+        document.body.style.boxSizing = 'border-box';
+    },
+
     getToolbarHeight() {
         const header = document.querySelector('header.top-bar');
         return header ? header.offsetHeight || 60 : 60;
@@ -266,6 +349,52 @@ const UIComponents = {
         };
     },
 
+    /**
+     * 用途说明：弹出通用输入框弹窗（如添加忽略文件）
+     * 入参说明：options (object): { title, placeholder, isTextArea, onConfirm }
+     */
+    showInputModal(options) {
+        const { title = '输入内容', placeholder = '', isTextArea = false, onConfirm } = options;
+        let modal = document.getElementById('common-input-modal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'common-input-modal';
+            modal.className = 'modal-mask hidden';
+            document.body.appendChild(modal);
+        }
+
+        const inputHtml = isTextArea 
+            ? `<textarea id="common-modal-input" class="input-field" style="height: 120px;" placeholder="${placeholder}"></textarea>`
+            : `<input type="text" id="common-modal-input" class="input-field" placeholder="${placeholder}">`;
+
+        modal.innerHTML = `
+            <div class="modal-content">
+                <h3 class="title">${title}</h3>
+                <div class="form-group">
+                    ${inputHtml}
+                </div>
+                <div class="flex-gap-5">
+                    <button id="common-modal-input-confirm-btn" class="btn-primary mt-0 flex-1">确定</button>
+                    <button id="common-modal-input-cancel-btn" class="btn-secondary mt-0 flex-1">取消</button>
+                </div>
+            </div>
+        `;
+
+        modal.classList.remove('hidden');
+        const inputEl = document.getElementById('common-modal-input');
+        inputEl.focus();
+
+        document.getElementById('common-modal-input-confirm-btn').onclick = () => {
+            const value = inputEl.value.trim();
+            if (onConfirm) onConfirm(value);
+            modal.classList.add('hidden');
+        };
+
+        document.getElementById('common-modal-input-cancel-btn').onclick = () => {
+            modal.classList.add('hidden');
+        };
+    },
+
     initQuickPreview() {
         if (this._previewPopover) return;
         this._previewPopover = document.createElement('div');
@@ -325,6 +454,8 @@ const UIComponents = {
             };
         };
 
-        return { update: (total, currentPage) => render(total, currentPage) };
+        return {
+            update: (total, currentPage) => render(total, currentPage)
+        };
     }
 };

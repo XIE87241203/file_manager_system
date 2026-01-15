@@ -79,6 +79,9 @@ const App = {
                     case 'menu-duplicate-check':
                         target = '../file_repository/duplicate_check/duplicate_check.html';
                         break;
+                    case 'menu-ignore-file':
+                        target = '../file_repository/ignore_file/ignore_file.html';
+                        break;
                     case 'menu-recycle-bin':
                         target = '../file_repository/recycle_bin/recycle_bin.html';
                         break;
