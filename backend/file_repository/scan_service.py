@@ -2,7 +2,7 @@ import os
 from concurrent.futures import as_completed, Future
 from datetime import datetime
 from enum import Enum
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
 
 from backend.common.log_utils import LogUtils
 from backend.common.progress_manager import ProgressManager, ProgressStatus
@@ -11,6 +11,7 @@ from backend.common.utils import Utils
 from backend.db.db_operations import DBOperations
 from backend.file_repository.file_service import FileService
 from backend.model.db.file_index_db_model import FileIndexDBModel
+from backend.setting.setting_models import FileRepositorySettings
 from backend.setting.setting_service import settingService
 
 
@@ -52,7 +53,7 @@ class ScanService:
     @staticmethod
     def start_async_scan(scan_mode: ScanMode = ScanMode.INDEX_SCAN) -> bool:
         """
-        用途说明：通过全局线程池启动异步扫描任务。
+        用途说明：通过全局线程池启动异步扫描任务。并在启动时锁定当前仓库配置快照。
         入参说明：
             scan_mode (ScanMode): 扫描模式，可选 FULL_SCAN 或 INDEX_SCAN，默认为 INDEX_SCAN。
         返回值说明：bool - 如果成功启动返回 True，如果任务已在运行则返回 False。
@@ -61,20 +62,24 @@ class ScanService:
             LogUtils.error("扫描任务已在运行中，忽略此次请求")
             return False
 
+        # 在任务启动前获取配置快照，防止扫描过程中配置变更
+        repo_config: FileRepositorySettings = settingService.get_config().file_repository
+
         ScanService._progress_manager.set_status(ProgressStatus.PROCESSING)
         ScanService._progress_manager.set_stop_flag(False)
         ScanService._progress_manager.reset_progress(message="正在初始化...")
 
-        ThreadPoolManager.submit(ScanService._internal_scan, scan_mode)
+        ThreadPoolManager.submit(ScanService._internal_scan, scan_mode, repo_config)
         LogUtils.info(f"异步扫描任务已提交，模式为: {scan_mode.value}")
         return True
 
     @staticmethod
-    def _internal_scan(scan_mode: ScanMode) -> None:
+    def _internal_scan(scan_mode: ScanMode, repo_config: FileRepositorySettings) -> None:
         """
         用途说明：扫描任务调度核心逻辑。已优化为单次遍历完成发现与提取。
         入参说明：
             scan_mode (ScanMode): 扫描模式。
+            repo_config (FileRepositorySettings): 任务开始时的配置快照。
         返回值说明：无
         """
         try:
@@ -88,7 +93,7 @@ class ScanService:
                 LogUtils.info("增量扫描模式：开始文件扫描...")
 
             # 执行合并后的扫描与特征提取阶段
-            new_count, updated_count = ScanService._combined_scan_logic(scan_mode, current_scan_time)
+            new_count, updated_count = ScanService._combined_scan_logic(scan_mode, current_scan_time, repo_config)
             
             if ScanService._progress_manager.is_stopped():
                 ScanService._handle_stopped()
@@ -109,19 +114,19 @@ class ScanService:
             ScanService._progress_manager.update_progress(message=f"内部异常: {str(e)}")
 
     @staticmethod
-    def _combined_scan_logic(scan_mode: ScanMode, current_scan_time: str) -> (int, int):
+    def _combined_scan_logic(scan_mode: ScanMode, current_scan_time: str, repo_config: FileRepositorySettings) -> Tuple[int, int]:
         """
         用途说明：合并阶段 - 在一次目录遍历中完成文件发现、存在校验与特征提取。
         入参说明：
             scan_mode (ScanMode): 扫描模式。
             current_scan_time (str): 本次扫描的时间戳。
+            repo_config (FileRepositorySettings): 任务开始时的配置快照。
         返回值说明：
-            (int, int): (新增文件数, 更新扫描时间的文件数)
+            Tuple[int, int]: (新增文件数, 更新扫描时间的文件数)
         """
         LogUtils.info("进入综合扫描阶段...")
         ScanService._progress_manager.update_progress(message="正在遍历目录并提取特征...")
 
-        repo_config = settingService.get_config().file_repository
         directories: List[str] = repo_config.directories
         suffixes: List[str] = [s.replace('.', '').lower() for s in repo_config.scan_suffixes]
         scan_all: bool = "*" in suffixes

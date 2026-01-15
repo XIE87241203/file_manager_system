@@ -108,6 +108,11 @@
                     <h3 class="mt-0">视频查重配置</h3>
                 </div>
                 <div class="form-group">
+                    <label class="label-text" for="video-interval-seconds">采样间隔 (秒)</label>
+                    <input type="number" id="video-interval-seconds" class="input-field" placeholder="默认: 30">
+                    <small class="form-hint">说明：采样间隔越小分析越准但速度越慢。修改此值会清空视频特征库。</small>
+                </div>
+                <div class="form-group">
                     <label class="label-text" for="video-frame-similar-distance">帧相似判定阈值 (汉明距离)</label>
                     <input type="number" id="video-frame-similar-distance" class="input-field" placeholder="默认: 5">
                     <small class="form-hint">说明：判定视频帧是否相似。建议 5-8。</small>
@@ -116,11 +121,6 @@
                     <label class="label-text" for="video-frame-similarity-rate">帧匹配成功占比</label>
                     <input type="number" id="video-frame-similarity-rate" class="input-field" step="0.1" placeholder="默认: 0.7">
                     <small class="form-hint">说明：0.7 表示 70% 的帧相似则视为视频相似。</small>
-                </div>
-                <div class="form-group">
-                    <label class="label-text" for="video-interval-seconds">采样间隔 (秒)</label>
-                    <input type="number" id="video-interval-seconds" class="input-field" placeholder="默认: 30">
-                    <small class="form-hint">说明：采样间隔越小分析越准但速度越慢。</small>
                 </div>
                 <div class="form-group">
                     <label class="label-text" for="video-max-duration-diff-ratio">最大时长比例阈值</label>

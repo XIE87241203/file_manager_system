@@ -291,6 +291,37 @@ async function saveDuplicateCheckSettings() {
         video_max_duration_diff_ratio: videoDurationRatio
     };
 
+    // 检查采样间隔是否被修改
+    if (videoInterval !== currentDuplicateCheck.video_interval_seconds) {
+        UIComponents.showConfirmModal({
+            title: '确认修改采样间隔',
+            message: '修改采样间隔会导致现有的视频特征数据失效，必须清空视频特征库后才能保存。确定要清空并保存吗？',
+            onConfirm: async () => {
+                try {
+                    // 1. 调用清空视频特征库 API
+                    const clearRes = await Request.post('/api/file_repository/clear_video_features');
+                    if (clearRes.status === 'success') {
+                        // 2. 调用保存配置 API
+                        await executeSaveDuplicateCheck(dupConfig);
+                    } else {
+                        Toast.show('清空视频特征库失败，取消保存配置: ' + clearRes.message);
+                    }
+                } catch (error) {
+                    Toast.show('清空视频特征库请求失败: ' + (error.message || '未知错误'));
+                }
+            }
+        });
+    } else {
+        await executeSaveDuplicateCheck(dupConfig);
+    }
+}
+
+/**
+ * 用途说明：实际执行保存查重配置的请求
+ * 入参说明：dupConfig (object) - 查重配置对象
+ * 返回值说明：无
+ */
+async function executeSaveDuplicateCheck(dupConfig) {
     try {
         const response = await Request.post('/api/setting/update', {
             duplicate_check: dupConfig
