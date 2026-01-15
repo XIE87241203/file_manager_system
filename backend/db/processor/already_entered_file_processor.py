@@ -1,5 +1,5 @@
 import sqlite3
-from typing import Optional, List
+from typing import Optional, List, Set, Tuple
 
 from backend.db.db_constants import DBConstants
 from backend.db.processor.base_db_processor import BaseDBProcessor
@@ -78,3 +78,33 @@ class AlreadyEnteredFileProcessor(BaseDBProcessor):
         用途说明：清空曾录入文件名表。
         """
         return BaseDBProcessor._clear_table(DBConstants.AlreadyEnteredFile.TABLE_NAME)
+
+    @staticmethod
+    def check_names_exist_by_patterns(name_patterns: List[Tuple[str, str]], conn: Optional[sqlite3.Connection] = None) -> Set[str]:
+        """
+        用途说明：批量检查文件名是否存在于曾录入库。采用 CTE 批量模糊匹配优化。
+        入参说明：name_patterns (List[Tuple[str, str]]): 包含 (原始文件名, 搜索模式) 的列表。
+        返回值说明：Set[str] - 返回匹配到的原始文件名集合。
+        """
+        if not name_patterns:
+            return set()
+        
+        results: Set[str] = set()
+        chunk_size: int = 200
+        for i in range(0, len(name_patterns), chunk_size):
+            chunk = name_patterns[i:i + chunk_size]
+            placeholders = ",".join(["(?, ?)"] * len(chunk))
+            sql_params = []
+            for name, pattern in chunk:
+                sql_params.extend([name, pattern])
+            
+            query = f"""
+                WITH SearchTerms(original_name, pattern) AS (VALUES {placeholders})
+                SELECT DISTINCT st.original_name
+                FROM SearchTerms st
+                JOIN {DBConstants.AlreadyEnteredFile.TABLE_NAME} ae ON ae.{DBConstants.AlreadyEnteredFile.COL_FILE_NAME} LIKE st.pattern
+            """
+            rows = BaseDBProcessor._execute(query, tuple(sql_params), is_query=True, conn=conn)
+            for row in rows:
+                results.add(row['original_name'])
+        return results

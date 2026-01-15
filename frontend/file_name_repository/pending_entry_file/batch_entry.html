@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>批量录入文件名 - 文件管理系统</title>
+    <!-- 引入公用样式 -->
+    <link rel="stylesheet" href="../../common/common.css">
+    <link rel="stylesheet" href="../../common/table.css">
+    <!-- 引入页面私有样式 -->
+    <link rel="stylesheet" href="batch_entry.css">
+</head>
+<body class="repo-body">
+    <!-- 顶部工具栏：由 UIComponents.initRepoHeader 动态初始化 -->
+    <header class="top-bar"></header>
+
+    <!-- id 用于 JS 绑定，class 用于 CSS 样式 -->
+    <div id="repo-main-content" class="repo-content-group">
+        <!-- 批量输入区 -->
+        <section class="batch-input-section">
+            <div class="section-header">
+                <h3 class="section-header-title"><i class="icon-edit"></i> 批量录入新文件名清单</h3>
+                <span class="section-header-hint">支持使用 换行 或 逗号 间隔多个文件名</span>
+            </div>
+            <textarea id="batch-input-area" class="batch-input-area" placeholder="请在此处粘贴或输入文件名列表..."></textarea>
+            <div class="action-bar">
+                <button id="btn-check-batch" class="btn-primary">开始检测重复</button>
+                <button id="btn-clear-input" class="btn-secondary">清空输入</button>
+            </div>
+        </section>
+
+        <!-- 检测结果展示区 (初始隐藏) -->
+        <section id="check-results-section" class="results-section hidden">
+            <div class="result-summary">
+                <div class="summary-item summary-item-exist">已存在项: <span id="count-exists">0</span></div>
+                <div class="summary-item summary-item-new">新记录项: <span id="count-new">0</span></div>
+            </div>
+
+            <div class="result-columns">
+                <!-- 已存在项列表 (包含路径/状态说明) -->
+                <div class="result-column">
+                    <h4 class="result-column-title">已存在记录 (将跳过)</h4>
+                    <div class="table-wrapper mini-table">
+                        <table class="file-table">
+                            <thead>
+                                <tr>
+                                    <th>文件名</th>
+                                    <th>状态 / 存储路径</th>
+                                </tr>
+                            </thead>
+                            <tbody id="exists-list-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 新增项列表 -->
+                <div class="result-column">
+                    <h4 class="result-column-title">新记录 (准备录入)</h4>
+                    <div class="table-wrapper mini-table">
+                        <table class="file-table">
+                            <thead>
+                                <tr>
+                                    <th>文件名</th>
+                                </tr>
+                            </thead>
+                            <tbody id="new-list-body"></tbody>
+                        </table>
+                    </div>
+                    <div class="column-footer">
+                        <!-- 修改：调整确认录入按钮的样式，统一使用 btn-primary -->
+                        <button id="btn-confirm-save" class="btn-primary hidden">确认录入上述新记录</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- 脚本加载 -->
+    <script src="../../common/ui_components.js"></script>
+    <script src="../../common/request.js"></script>
+    <script src="../../common/toast.js"></script>
+    <script src="batch_entry.js"></script>
+</body>
+</html>

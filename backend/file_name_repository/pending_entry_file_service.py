@@ -1,5 +1,6 @@
-from typing import List
+from typing import List, Dict, Tuple
 
+from backend.common.utils import Utils
 from backend.db.db_operations import DBOperations
 from backend.model.db.pending_entry_file_db_model import PendingEntryFileDBModel
 from backend.model.pagination_result import PaginationResult
@@ -50,3 +51,39 @@ class PendingEntryFileService:
         返回值说明：bool: 是否成功。
         """
         return DBOperations.clear_pending_entry_repository()
+
+    @staticmethod
+    def check_batch_files(file_names: List[str]) -> Dict[str, dict]:
+        """
+        用途说明：全库批量检测文件名是否存在。采用预处理模式匹配，提升批量搜索效率。
+        入参说明：file_names (List[str]): 待检测的文件名列表。
+        返回值说明：Dict[str, dict]: 包含检测结果的字典，格式如 {文件名: {source: 'index'|'history'|'pending'|'new', detail: '...'}}
+        """
+        results: Dict[str, dict] = {}
+        from backend.db.processor_manager import processor_manager
+        
+        # 1. 批量预处理搜索模式
+        name_patterns: List[Tuple[str, str]] = [(name, Utils.process_search_query(name)) for name in file_names]
+        
+        # 2. 调用处理器进行批量搜索
+        # 检测文件索引库 (获取路径)
+        index_matches: Dict[str, str] = processor_manager.file_index_processor.get_paths_by_patterns(name_patterns)
+        
+        # 检测曾录入库
+        history_matches: set = processor_manager.already_entered_file_processor.check_names_exist_by_patterns(name_patterns)
+        
+        # 检测待录入库
+        pending_matches: set = processor_manager.pending_entry_file_processor.check_names_exist_by_patterns(name_patterns)
+        
+        # 3. 汇总结果
+        for name in file_names:
+            if name in index_matches:
+                results[name] = {"source": "index", "detail": index_matches[name]}
+            elif name in history_matches:
+                results[name] = {"source": "history", "detail": "存在于历史记录"}
+            elif name in pending_matches:
+                results[name] = {"source": "pending", "detail": "已在待录入队列"}
+            else:
+                results[name] = {"source": "new", "detail": ""}
+                
+        return results

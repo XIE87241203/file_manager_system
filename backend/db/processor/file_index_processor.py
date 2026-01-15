@@ -1,5 +1,5 @@
 import sqlite3
-from typing import Optional, List
+from typing import Optional, List, Dict, Tuple
 
 from backend.db.db_constants import DBConstants
 from backend.db.processor.base_db_processor import BaseDBProcessor
@@ -290,3 +290,39 @@ class FileIndexProcessor(BaseDBProcessor):
         query: str = f"UPDATE {DBConstants.FileIndex.TABLE_NAME} SET {DBConstants.FileIndex.COL_RECYCLE_BIN_TIME} = NULL WHERE {DBConstants.FileIndex.COL_FILE_PATH} = ?"
         data = [(path,) for path in file_paths]
         return BaseDBProcessor._execute_batch(query, data, conn=conn)
+
+    @staticmethod
+    def get_paths_by_patterns(name_patterns: List[Tuple[str, str]], conn: Optional[sqlite3.Connection] = None) -> Dict[str, str]:
+        """
+        用途说明：根据预处理好的文件名匹配模式批量搜索已存在的文件路径。采用 CTE 批量模糊匹配优化。
+        入参说明：
+            name_patterns (List[Tuple[str, str]]): 包含 (原始文件名, 搜索模式) 的列表。
+            conn (Optional[sqlite3.Connection]): 数据库连接对象。
+        返回值说明：Dict[str, str] - 返回 {原始文件名: 匹配到的文件路径}。
+        """
+        if not name_patterns:
+            return {}
+        
+        results: Dict[str, str] = {}
+        # 为防止超出 SQLite 变量限制，按 200 个一批进行处理
+        chunk_size: int = 200
+        for i in range(0, len(name_patterns), chunk_size):
+            chunk = name_patterns[i:i + chunk_size]
+            placeholders = ",".join(["(?, ?)"] * len(chunk))
+            sql_params = []
+            for name, pattern in chunk:
+                sql_params.extend([name, pattern])
+            
+            # 使用 CTE (WITH) 构造临时搜索项表，并通过 LIKE JOIN 物理表实现批量搜索
+            query = f"""
+                WITH SearchTerms(original_name, pattern) AS (VALUES {placeholders})
+                SELECT st.original_name, fi.{DBConstants.FileIndex.COL_FILE_PATH}
+                FROM SearchTerms st
+                JOIN {DBConstants.FileIndex.TABLE_NAME} fi ON fi.{DBConstants.FileIndex.COL_FILE_PATH} LIKE st.pattern
+                GROUP BY st.original_name
+            """
+            rows = BaseDBProcessor._execute(query, tuple(sql_params), is_query=True, conn=conn)
+            for row in rows:
+                results[row['original_name']] = row[DBConstants.FileIndex.COL_FILE_PATH]
+                
+        return results

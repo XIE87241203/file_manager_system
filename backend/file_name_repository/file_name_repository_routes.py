@@ -179,3 +179,20 @@ def clear_pending_entry_repository():
         return success_response("清空成功")
     else:
         return error_response("清空失败", 500)
+
+
+@file_name_repo_bp.route('/pending_entry/check_batch', methods=['POST'])
+@token_required
+def check_batch_files():
+    """
+    用途说明：批量检测文件名是否存在于全库中。
+    入参说明：JSON 包含 file_names (list)
+    返回值说明：JSON 格式响应，包含每个文件的检测结果。
+    """
+    data: dict = request.json or {}
+    file_names: list = data.get('file_names', [])
+    if not file_names:
+        return error_response("未提供文件名清单", 400)
+    
+    results: dict = PendingEntryFileService.check_batch_files(file_names)
+    return success_response("批量检测完成", data=results)

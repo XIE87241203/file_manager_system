@@ -159,3 +159,23 @@ class Utils:
         except Exception as e:
             LogUtils.error(f"删除文件失败: {file_path}, 错误: {e}")
             raise e
+
+    @staticmethod
+    def process_search_query(search_query: str) -> str:
+        """
+        用途说明：对搜索关键词进行预处理，根据配置替换特殊字符并转义为 SQL LIKE 格式。
+        入参说明：search_query (str): 原始搜索词。
+        返回值说明：str: 处理后可直接用于 LIKE 子句的字符串（如 %keyword%）。
+        """
+        from backend.setting.setting_service import settingService
+        
+        search_replace_chars: List[str] = settingService.get_config().file_repository.search_replace_chars
+        processed_query: str = search_query
+        
+        if processed_query:
+            for char in search_replace_chars:
+                if char:
+                    processed_query = processed_query.replace(char, '%')
+            return f"%{processed_query}%"
+        else:
+            return "%"

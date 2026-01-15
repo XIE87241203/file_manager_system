@@ -25,15 +25,15 @@ const UIController = {
         UIComponents.initRepoHeader({
             searchPlaceholder: '搜索文件名...',
             showHistoryCheckbox: false,
-            rightBtnText: '新增待录入',
-            rightBtnId: 'btn-add-pending',
+            rightBtnText: '批量录入新数据',
+            rightBtnId: 'btn-go-batch',
             onSearch: () => App.handleSearch()
         });
 
         this.elements = {
             tableBody: document.getElementById('pending-entry-list-body'),
             searchInput: document.getElementById('search-input'),
-            addPendingBtn: document.getElementById('btn-add-pending'),
+            goBatchBtn: document.getElementById('btn-go-batch'),
             deleteSelectedBtn: document.getElementById('btn-delete-selected'),
             selectAllCheckbox: document.getElementById('select-all-checkbox'),
             sortableHeaders: document.querySelectorAll('th.sortable')
@@ -115,23 +115,11 @@ const UIController = {
 const PendingEntryAPI = {
     async getList(params) {
         const query = new URLSearchParams(params).toString();
-        // 更新路径：/api/file_name_repository
         return await Request.get('/api/file_name_repository/pending_entry/list?' + query);
     },
 
-    async addPending(fileNames) {
-        // 更新路径：/api/file_name_repository
-        return await Request.post('/api/file_name_repository/pending_entry/add', { file_names: fileNames });
-    },
-
     async batchDeletePending(ids) {
-        // 更新路径：/api/file_name_repository
         return await Request.post('/api/file_name_repository/pending_entry/batch_delete', { ids: ids });
-    },
-
-    async clearPending() {
-        // 更新路径：/api/file_name_repository
-        return await Request.post('/api/file_name_repository/pending_entry/clear', {});
     }
 };
 
@@ -144,26 +132,12 @@ const App = {
     },
 
     bindEvents() {
-        const { addPendingBtn, deleteSelectedBtn, sortableHeaders } = UIController.elements;
+        const { goBatchBtn, deleteSelectedBtn, sortableHeaders } = UIController.elements;
 
-        if (addPendingBtn) {
-            addPendingBtn.onclick = () => {
-                UIComponents.showInputModal({
-                    title: '新增待录入文件名',
-                    placeholder: '请输入文件名（多个请用换行或逗号分隔）',
-                    isTextArea: true,
-                    onConfirm: async (value) => {
-                        const names = value.split(/[\n,，]/).map(n => n.trim()).filter(n => n);
-                        if (names.length === 0) return;
-                        const res = await PendingEntryAPI.addPending(names);
-                        if (res.status === 'success') {
-                            Toast.show('添加成功');
-                            this.loadPendingList();
-                        } else {
-                            Toast.show(res.message);
-                        }
-                    }
-                });
+        // 跳转到新设计的批量录入页面
+        if (goBatchBtn) {
+            goBatchBtn.onclick = () => {
+                window.location.href = 'batch_entry.html';
             };
         }
 
