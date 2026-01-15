@@ -32,7 +32,6 @@ body {
     justify-content: space-between; /* 确保左右区域分布在两端 */
     padding: 0 24px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-    position: fixed;
     top: 0;
     left: 0;
     z-index: 1000;
@@ -112,6 +111,7 @@ body {
     align-items: center;
     transition: background-color 0.2s;
     user-select: none;
+    min-width: 70px;
 }
 
 .back-btn:hover {
@@ -162,7 +162,7 @@ body {
     width: 100%;
     display: flex;
     justify-content: center;
-    padding: 20px;
+    padding: 10px 20px;
     box-sizing: border-box;
 }
 
@@ -454,6 +454,7 @@ body {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     width: 90%;
     max-width: 400px;
+    box-sizing: border-box;
 }
 
 .modal-msg {
@@ -494,6 +495,29 @@ body {
 
 .mt-0 {
     margin-top: 0 !important;
+}
+
+/* 专用输入弹窗样式 */
+.modal-input-content {
+    width: 70vw !important;
+    height: 70vh !important;
+    max-width: none !important;
+    min-width: 500px;
+    min-height: 400px;
+    display: flex;
+    flex-direction: column;
+}
+
+.modal-input-group {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 1.2rem;
+}
+
+.modal-input-textarea {
+    flex: 1;
+    resize: none;
 }
 
 /* 快速预览弹窗样式 */

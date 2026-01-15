@@ -145,6 +145,7 @@ const IgnoreAPI = {
         return await Request.post('/api/file_repository/ignore/add', { file_names: fileNames });
     },
 
+
     /**
      * 用途说明：批量删除忽略文件记录
      * 入参说明：ids (Array) - ID 列表
@@ -152,6 +153,15 @@ const IgnoreAPI = {
      */
     async batchDeleteIgnore(ids) {
         return await Request.post('/api/file_repository/ignore/batch_delete', { ids: ids });
+    },
+
+    /**
+     * 用途说明：清空所有忽略规则
+     * 入参说明：无
+     * 返回值说明：Promise - 操作结果
+     */
+    async clearIgnore() {
+        return await Request.post('/api/file_repository/ignore/clear', {});
     }
 };
 
@@ -246,9 +256,12 @@ const App = {
             search: State.search
         };
         const res = await IgnoreAPI.getList(params);
-        if (res.status === 'success') {
+        if (res.status === 'success' && res.data) {
             UIController.renderTable(res.data.list);
+            // 确保使用后端返回的最新分页信息进行更新
             State.paginationController.update(res.data.total, res.data.page);
+        } else {
+            Toast.show(res.message || '加载列表失败');
         }
     },
 

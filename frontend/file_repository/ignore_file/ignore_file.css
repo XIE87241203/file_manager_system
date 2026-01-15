@@ -28,11 +28,6 @@
     justify-content: flex-end;
 }
 
-/* 4. 主容器及内容区域 */
-.repo-container {
-    padding-top: 10px;
-}
-
 /* 7. 按钮样式微调 */
 .btn-text-danger-small {
     padding: 6px 12px;
@@ -49,10 +44,11 @@
     background-color: #fad2cf;
 }
 
-.col-id { width: 80px; text-align: center; }
-.col-name { flex: 1; }
-.col-time { width: 180px; }
-.col-action { width: 100px; text-align: center; }
+/* 列宽度精细化控制 */
+.col-index { width: 60px; text-align: center; }
+.col-name { width: auto; } /* 文件名自适应剩余空间 */
+.col-time { width: 200px; }
+.col-check { width: 60px; text-align: center; }
 
 .btn-delete-text {
     color: #d93025;

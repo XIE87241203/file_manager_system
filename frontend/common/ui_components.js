@@ -37,7 +37,6 @@ const UIComponents = {
             </div>
         `;
 
-        document.body.style.paddingTop = this.getToolbarHeight() + 'px';
         document.body.style.boxSizing = 'border-box';
 
         if (showBack) {
@@ -135,13 +134,7 @@ const UIComponents = {
             if (historyCheckbox) historyCheckbox.onchange = onHistoryChange;
         }
 
-        document.body.style.paddingTop = this.getToolbarHeight() + 'px';
         document.body.style.boxSizing = 'border-box';
-    },
-
-    getToolbarHeight() {
-        const header = document.querySelector('header.top-bar');
-        return header ? header.offsetHeight || 60 : 60;
     },
 
     /**
@@ -363,14 +356,16 @@ const UIComponents = {
             document.body.appendChild(modal);
         }
 
+        // 使用专门的类名 modal-input-textarea 来替换之前的内联 style，尺寸由 CSS 控制
         const inputHtml = isTextArea 
-            ? `<textarea id="common-modal-input" class="input-field" style="height: 120px;" placeholder="${placeholder}"></textarea>`
+            ? `<textarea id="common-modal-input" class="input-field modal-input-textarea" placeholder="${placeholder}"></textarea>`
             : `<input type="text" id="common-modal-input" class="input-field" placeholder="${placeholder}">`;
 
+        // 为 modal-content 添加了 modal-input-content 类，实现 70% 宽高的动态调整
         modal.innerHTML = `
-            <div class="modal-content">
+            <div class="modal-content modal-input-content">
                 <h3 class="title">${title}</h3>
-                <div class="form-group">
+                <div class="form-group modal-input-group">
                     ${inputHtml}
                 </div>
                 <div class="flex-gap-5">
@@ -432,6 +427,11 @@ const UIComponents = {
         }
     },
 
+    /**
+     * 用途说明：初始化分页组件
+     * 入参说明：containerId (str) - 容器 ID，options (obj) - 配置项 { onPageChange, limit }
+     * 返回值说明：返回包含 update 方法的控制器对象
+     */
     initPagination(containerId, options) {
         const container = document.getElementById(containerId);
         if (!container) return null;
@@ -446,10 +446,13 @@ const UIComponents = {
                 <button class="btn-page" id="${containerId}-next" ${currentPage >= totalPages ? 'disabled' : ''}>下一页</button>
             `;
 
-            container.querySelector(`#${containerId}-prev`).onclick = () => {
+            const prevBtn = container.querySelector(`#${containerId}-prev`);
+            const nextBtn = container.querySelector(`#${containerId}-next`);
+            
+            if (prevBtn) prevBtn.onclick = () => {
                 if (currentPage > 1) onPageChange(currentPage - 1);
             };
-            container.querySelector(`#${containerId}-next`).onclick = () => {
+            if (nextBtn) nextBtn.onclick = () => {
                 if (currentPage < totalPages) onPageChange(currentPage + 1);
             };
         };
