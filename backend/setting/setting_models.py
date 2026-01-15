@@ -34,6 +34,7 @@ class DuplicateCheckSettings:
     video_frame_similarity_rate: float = 0.7
     video_interval_seconds: int = 30
     video_max_duration_diff_ratio: float = 0.6
+    video_backwards: bool = False  # 是否从视频结尾倒序生成特征
 
 @dataclass
 class AppConfig:

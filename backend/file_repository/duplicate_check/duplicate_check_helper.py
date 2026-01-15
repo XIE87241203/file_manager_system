@@ -29,7 +29,8 @@ class DuplicateCheckHelper:
             frame_similar_distance=dup_config.video_frame_similar_distance,
             frame_similarity_rate=dup_config.video_frame_similarity_rate,
             interval_seconds=dup_config.video_interval_seconds,
-            max_duration_diff_ratio=dup_config.video_max_duration_diff_ratio
+            max_duration_diff_ratio=dup_config.video_max_duration_diff_ratio,
+            backwards=dup_config.video_backwards
         )
         
         # 初始化图片检查器

@@ -6,13 +6,14 @@
 from typing import List, Dict
 
 import imagehash
+
 from backend.common.log_utils import LogUtils
 from backend.common.utils import Utils
 from backend.db.db_operations import DBOperations
-from backend.model.video_file_info_result import VideoFileInfoResult
 from backend.file_repository.duplicate_check.checker.video.utils.video_analyzer import VideoAnalyzer
 from backend.file_repository.duplicate_check.checker.video.utils.video_comparison_util import \
     VideoComparisonUtil
+from backend.model.video_file_info_result import VideoFileInfoResult
 
 
 class VideoSimilarityTree:
@@ -22,7 +23,7 @@ class VideoSimilarityTree:
 
     def __init__(self, video_analyzer: VideoAnalyzer, frame_similar_distance: int = 5,
                  frame_similarity_rate: float = 0.7, interval_seconds: int = 30,
-                 max_duration_diff_ratio: float = 0.6):
+                 max_duration_diff_ratio: float = 0.6, backwards: bool = False):
         """
         用途：初始化视频相似性树配置。
 
@@ -32,6 +33,7 @@ class VideoSimilarityTree:
             - frame_similarity_rate (float): 帧匹配成功的占比阈值（0.0-1.0）。
             - interval_seconds (int): 采样间隔（秒）。
             - max_duration_diff_ratio (float): 最大时长比例阈值。
+            - backwards (bool): 是否从视频结尾倒叙生成特征。
         """
         # self.video_groups 存储的是文件路径的列表，每个列表代表一个相似组
         self.video_groups: List[List[str]] = []
@@ -42,6 +44,7 @@ class VideoSimilarityTree:
         self.frame_similarity_rate = frame_similarity_rate
         self.interval_seconds = interval_seconds
         self.max_duration_diff_ratio = max_duration_diff_ratio
+        self.backwards = backwards
         self.video_analyzer = video_analyzer
 
     def add_video(self, video_path: str) -> None:
@@ -52,7 +55,7 @@ class VideoSimilarityTree:
             - video_path (str): 视频文件的磁盘路径。
         """
         # 使用 video_analyzer 确保视频信息已提取并存入数据库，返回 VideoFileInfo 对象
-        video_info = self.video_analyzer.create_video_info(video_path, self.interval_seconds)
+        video_info = self.video_analyzer.create_video_info(video_path, self.interval_seconds, self.backwards)
         if video_info:
             self._compare_video_and_group(video_info)
 

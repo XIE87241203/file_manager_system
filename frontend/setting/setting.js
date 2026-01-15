@@ -18,7 +18,8 @@ let currentDuplicateCheck = {
     video_frame_similar_distance: 5,
     video_frame_similarity_rate: 0.7,
     video_interval_seconds: 30,
-    video_max_duration_diff_ratio: 0.6
+    video_max_duration_diff_ratio: 0.6,
+    video_backwards: false
 }; // 存储查重配置
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -127,6 +128,7 @@ async function loadSettings() {
             document.getElementById('video-frame-similarity-rate').value = currentDuplicateCheck.video_frame_similarity_rate;
             document.getElementById('video-interval-seconds').value = currentDuplicateCheck.video_interval_seconds;
             document.getElementById('video-max-duration-diff-ratio').value = currentDuplicateCheck.video_max_duration_diff_ratio;
+            document.getElementById('video-backwards').checked = currentDuplicateCheck.video_backwards || false;
 
             renderRepositoryList();
         }
@@ -277,6 +279,7 @@ async function saveDuplicateCheckSettings() {
     const videoRate = parseFloat(document.getElementById('video-frame-similarity-rate').value);
     const videoInterval = parseInt(document.getElementById('video-interval-seconds').value);
     const videoDurationRatio = parseFloat(document.getElementById('video-max-duration-diff-ratio').value);
+    const videoBackwards = document.getElementById('video-backwards').checked;
 
     if (isNaN(imageThreshold) || isNaN(videoDist) || isNaN(videoRate) || isNaN(videoInterval) || isNaN(videoDurationRatio)) {
         Toast.show('请确保所有查重参数输入正确且为数字');
@@ -288,14 +291,20 @@ async function saveDuplicateCheckSettings() {
         video_frame_similar_distance: videoDist,
         video_frame_similarity_rate: videoRate,
         video_interval_seconds: videoInterval,
-        video_max_duration_diff_ratio: videoDurationRatio
+        video_max_duration_diff_ratio: videoDurationRatio,
+        video_backwards: videoBackwards
     };
 
-    // 检查采样间隔是否被修改
-    if (videoInterval !== currentDuplicateCheck.video_interval_seconds) {
+    // 检查核心特征配置（采样间隔或生成方向）是否被修改
+    const isIntervalChanged = videoInterval !== currentDuplicateCheck.video_interval_seconds;
+    const isBackwardsChanged = videoBackwards !== currentDuplicateCheck.video_backwards;
+
+    if (isIntervalChanged || isBackwardsChanged) {
+        let confirmMsg = '修改视频特征核心参数会导致现有的视频特征数据失效，必须清空视频特征库后才能保存。确定要继续吗？';
+        
         UIComponents.showConfirmModal({
-            title: '确认修改采样间隔',
-            message: '修改采样间隔会导致现有的视频特征数据失效，必须清空视频特征库后才能保存。确定要清空并保存吗？',
+            title: '确认修改核心参数',
+            message: confirmMsg,
             onConfirm: async () => {
                 try {
                     // 1. 调用清空视频特征库 API

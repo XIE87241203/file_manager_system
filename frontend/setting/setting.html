@@ -113,6 +113,13 @@
                     <small class="form-hint">说明：采样间隔越小分析越准但速度越慢。修改此值会清空视频特征库。</small>
                 </div>
                 <div class="form-group">
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="video-backwards" class="checkbox-field">
+                        <label class="label-text" for="video-backwards">从视频结尾倒序生成特征</label>
+                    </div>
+                    <small class="form-hint">说明：开启后将从视频末尾向前采样。修改此项会清空视频特征库。</small>
+                </div>
+                <div class="form-group">
                     <label class="label-text" for="video-frame-similar-distance">帧相似判定阈值 (汉明距离)</label>
                     <input type="number" id="video-frame-similar-distance" class="input-field" placeholder="默认: 5">
                     <small class="form-hint">说明：判定视频帧是否相似。建议 5-8。</small>

@@ -101,7 +101,7 @@ class VideoAnalyzer:
             return None
 
     def generate_hash_sequence(self, cap: cv2.VideoCapture, video_path: str, interval: int,
-                               duration: float) -> List[imagehash.ImageHash]:
+                               duration: float, backwards: bool = False) -> List[imagehash.ImageHash]:
         """
         用途：按固定时间间隔为视频生成哈希序列（指纹）。
 
@@ -110,12 +110,20 @@ class VideoAnalyzer:
             - video_path (str): 视频文件路径。
             - interval (int): 采样间隔（秒）。
             - duration (float): 视频时长。
+            - backwards (bool): 是否从视频结尾倒序生成特征。
 
         返回值说明：
             - List[imagehash.ImageHash]: 哈希序列。
         """
         hashes = []
-        for timestamp in range(0, int(duration), interval):
+        if backwards:
+            # 倒序采样：从总时长开始，步长为 -interval，直到 0
+            time_range = range(int(duration), -1, -interval)
+        else:
+            # 正序采样：从 0 开始，步长为 interval，直到总时长
+            time_range = range(0, int(duration), interval)
+
+        for timestamp in time_range:
             frame_hash = self.extract_frame_hash(cap, float(timestamp))
             if frame_hash:
                 hashes.append(frame_hash)
@@ -123,13 +131,14 @@ class VideoAnalyzer:
                 LogUtils.info(f"警告: 无法获取 {video_path} 在 {timestamp}s 处的采样哈希。")
         return hashes
 
-    def create_video_info(self, video_path: str, interval_seconds: int) -> Optional[VideoFileInfoResult]:
+    def create_video_info(self, video_path: str, interval_seconds: int, backwards: bool = False) -> Optional[VideoFileInfoResult]:
         """
         用途：根据视频路径生成 VideoInfoCache 对象。
 
         入参说明：
             - video_path (str): 视频文件路径。
             - interval_seconds (int): 哈希采样间隔。
+            - backwards (bool): 是否从视频结尾倒叙生成。
 
         返回值说明：
             - Optional[VideoInfoCache]: 视频信息对象。
@@ -166,9 +175,9 @@ class VideoAnalyzer:
                 if duration is None:
                     return None
 
-                LogUtils.info(f"正在为视频生成哈希序列: {video_path}")
+                LogUtils.info(f"正在为视频生成哈希序列 (倒序: {backwards}): {video_path}")
                 video_hashes_list = self.generate_hash_sequence(cap, video_path, interval_seconds,
-                                                                duration)
+                                                                duration, backwards)
 
                 if not video_hashes_list:
                     LogUtils.info(f"未能为视频 {video_path} 生成任何有效哈希。")

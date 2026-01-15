@@ -21,7 +21,6 @@ class MD5Checker(BaseDuplicateChecker):
             file_info (FileIndex): 文件索引对象。
         """
         md5 = file_info.file_md5
-        print(md5)
         if not md5:
             return
 
