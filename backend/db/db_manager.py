@@ -182,12 +182,21 @@ class DBManager:
             ON {DBConstants.DuplicateFile.TABLE_FILES} ({DBConstants.DuplicateFile.COL_FILE_ID})
         ''')
 
-        # 6. 创建 ignore_file 表
+        # 6. 创建 already_entered_file 表
         cursor.execute(f'''
-            CREATE TABLE IF NOT EXISTS {DBConstants.IgnoreFile.TABLE_NAME} (
-                {DBConstants.IgnoreFile.COL_ID} INTEGER PRIMARY KEY AUTOINCREMENT,
-                {DBConstants.IgnoreFile.COL_FILE_NAME} TEXT NOT NULL UNIQUE,
-                {DBConstants.IgnoreFile.COL_ADD_TIME} DATETIME DEFAULT CURRENT_TIMESTAMP
+            CREATE TABLE IF NOT EXISTS {DBConstants.AlreadyEnteredFile.TABLE_NAME} (
+                {DBConstants.AlreadyEnteredFile.COL_ID} INTEGER PRIMARY KEY AUTOINCREMENT,
+                {DBConstants.AlreadyEnteredFile.COL_FILE_NAME} TEXT NOT NULL UNIQUE,
+                {DBConstants.AlreadyEnteredFile.COL_ADD_TIME} DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
+        # 7. 创建 pending_entry_file 表
+        cursor.execute(f'''
+            CREATE TABLE IF NOT EXISTS {DBConstants.PendingEntryFile.TABLE_NAME} (
+                {DBConstants.PendingEntryFile.COL_ID} INTEGER PRIMARY KEY AUTOINCREMENT,
+                {DBConstants.PendingEntryFile.COL_FILE_NAME} TEXT NOT NULL UNIQUE,
+                {DBConstants.PendingEntryFile.COL_ADD_TIME} DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         ''')
 
@@ -202,14 +211,46 @@ class DBManager:
         返回值说明：无
         """
         if old_version < 4:
-            # 升级到版本 4: 添加 ignore_file 表
+            # 升级到版本 4: 添加 ignore_file 表 (对应旧版名称)
             cursor.execute(f'''
-                CREATE TABLE IF NOT EXISTS {DBConstants.IgnoreFile.TABLE_NAME} (
-                    {DBConstants.IgnoreFile.COL_ID} INTEGER PRIMARY KEY AUTOINCREMENT,
-                    {DBConstants.IgnoreFile.COL_FILE_NAME} TEXT NOT NULL UNIQUE,
-                    {DBConstants.IgnoreFile.COL_ADD_TIME} DATETIME DEFAULT CURRENT_TIMESTAMP
+                CREATE TABLE IF NOT EXISTS ignore_file (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    file_name TEXT NOT NULL UNIQUE,
+                    add_time DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
             ''')
             LogUtils.info("数据库升级到版本 4: 已创建 ignore_file 表")
+        
+        if old_version < 5:
+            # 升级到版本 5: 添加 pending_entry_file 表
+            cursor.execute(f'''
+                CREATE TABLE IF NOT EXISTS {DBConstants.PendingEntryFile.TABLE_NAME} (
+                    {DBConstants.PendingEntryFile.COL_ID} INTEGER PRIMARY KEY AUTOINCREMENT,
+                    {DBConstants.PendingEntryFile.COL_FILE_NAME} TEXT NOT NULL UNIQUE,
+                    {DBConstants.PendingEntryFile.COL_ADD_TIME} DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            LogUtils.info("数据库升级到版本 5: 已创建 pending_entry_file 表")
+
+        if old_version < 6:
+            # 升级到版本 6: 将 ignore_file 重命名为 already_entered_file
+            try:
+                # 检查原表是否存在
+                cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='ignore_file'")
+                if cursor.fetchone():
+                    cursor.execute(f"ALTER TABLE ignore_file RENAME TO {DBConstants.AlreadyEnteredFile.TABLE_NAME}")
+                    LogUtils.info(f"数据库升级到版本 6: 已将 ignore_file 重命名为 {DBConstants.AlreadyEnteredFile.TABLE_NAME}")
+                else:
+                    # 如果原表不存在，则直接创建新表
+                    cursor.execute(f'''
+                        CREATE TABLE IF NOT EXISTS {DBConstants.AlreadyEnteredFile.TABLE_NAME} (
+                            {DBConstants.AlreadyEnteredFile.COL_ID} INTEGER PRIMARY KEY AUTOINCREMENT,
+                            {DBConstants.AlreadyEnteredFile.COL_FILE_NAME} TEXT NOT NULL UNIQUE,
+                            {DBConstants.AlreadyEnteredFile.COL_ADD_TIME} DATETIME DEFAULT CURRENT_TIMESTAMP
+                        )
+                    ''')
+                    LogUtils.info(f"数据库升级到版本 6: 直接创建了 {DBConstants.AlreadyEnteredFile.TABLE_NAME} 表")
+            except Exception as e:
+                LogUtils.error(f"重命名 ignore_file 表失败: {e}")
 
 db_manager: DBManager = DBManager()

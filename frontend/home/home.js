@@ -79,8 +79,11 @@ const App = {
                     case 'menu-duplicate-check':
                         target = '../file_repository/duplicate_check/duplicate_check.html';
                         break;
+                    case 'menu-pending-entry':
+                        target = '../file_name_repository/pending_entry_file/pending_entry_file.html';
+                        break;
                     case 'menu-ignore-file':
-                        target = '../file_repository/ignore_file/ignore_file.html';
+                        target = '../file_name_repository/already_entered_file/already_entered_file.html';
                         break;
                     case 'menu-recycle-bin':
                         target = '../file_repository/recycle_bin/recycle_bin.html';

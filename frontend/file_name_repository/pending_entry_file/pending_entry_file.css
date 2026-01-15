@@ -1,34 +1,7 @@
 /**
- * 用途说明：忽略文件库页面专用样式。
+ * 用途说明：待录入文件库页面专用样式。
  */
 
-/* 2. 顶部工具栏自定义 */
-.top-bar {
-    height: 60px;
-    justify-content: space-between;
-}
-
-.top-bar-left {
-    width: 100px;
-    display: flex;
-    align-items: center;
-}
-
-.top-bar-center {
-    flex: 1;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 20px;
-}
-
-.top-bar-right {
-    width: 120px;
-    display: flex;
-    justify-content: flex-end;
-}
-
-/* 7. 按钮样式微调 */
 .btn-text-danger-small {
     padding: 6px 12px;
     background-color: #fce8e6;

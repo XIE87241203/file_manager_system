@@ -175,6 +175,17 @@ const UIComponents = {
     },
 
     /**
+     * 用途说明：获取表格空数据的占位 HTML
+     * 入参说明：
+     *   - colspan (number): 合并单元格数量
+     *   - message (str): 提示信息
+     * 返回值说明：str - 表格行 HTML 字符串
+     */
+    getEmptyTableHtml(colspan, message = '暂无数据') {
+        return `<tr><td colspan="${colspan}" style="text-align:center; padding: 100px; color: #9aa0a6;">${message}</td></tr>`;
+    },
+
+    /**
      * 用途说明：封装通用的表格行选中及全选逻辑
      * 入参说明：
      *   - config (object): {

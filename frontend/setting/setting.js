@@ -45,11 +45,19 @@ const API = {
     },
 
     /**
-     * 用途说明：清空忽略库记录
+     * 用途说明：清空曾录入文件名库记录
      * 返回值说明：Promise<Object> - 请求结果
      */
-    async clearIgnore() {
-        return await Request.post('/api/file_repository/ignore/clear');
+    async clearAlreadyEntered() {
+        return await Request.post('/api/file_name_repository/already_entered/clear');
+    },
+
+    /**
+     * 用途说明：清空待录入文件名库记录
+     * 返回值说明：Promise<Object> - 请求结果
+     */
+    async clearPendingEntry() {
+        return await Request.post('/api/file_name_repository/pending_entry/clear');
     },
 
     /**
@@ -183,7 +191,8 @@ const App = {
         document.getElementById('add-repo-btn').onclick = () => this.handleAddRepository();
 
         // 危险操作按钮
-        document.getElementById('clear-ignore-btn').onclick = () => this.confirmClear('ignore');
+        document.getElementById('clear-already-entered-btn').onclick = () => this.confirmClear('already_entered');
+        document.getElementById('clear-pending-entry-btn').onclick = () => this.confirmClear('pending_entry');
         document.getElementById('clear-history-btn').onclick = () => this.confirmClear('history');
         document.getElementById('clear-video-btn').onclick = () => this.confirmClear('video');
     },
@@ -344,11 +353,12 @@ const App = {
 
     /**
      * 用途说明：统一处理清空库的二次确认逻辑
-     * 入参说明：type (string) - 类型：ignore, history, video
+     * 入参说明：type (string) - 类型：already_entered, pending_entry, history, video
      */
     confirmClear(type) {
         const config = {
-            ignore: { title: '确认清空忽略库', msg: '确定要清空所有忽略文件名吗？', api: API.clearIgnore },
+            already_entered: { title: '确认清空曾录入文件名库', msg: '确定要清空所有曾录入文件名吗？', api: API.clearAlreadyEntered },
+            pending_entry: { title: '确认清空待录入文件名库', msg: '确定要清空所有待录入文件名吗？', api: API.clearPendingEntry },
             history: { title: '确认清空历史库', msg: '这将永久清空所有历史索引记录，确定吗？', api: API.clearHistory },
             video: { title: '确认清空视频特征库', msg: '这将清空所有视频指纹数据，确定吗？', api: API.clearVideoFeatures }
         };

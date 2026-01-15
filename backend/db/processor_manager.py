@@ -1,7 +1,8 @@
+from backend.db.processor.already_entered_file_processor import AlreadyEnteredFileProcessor
 from backend.db.processor.duplicate_group_processor import DuplicateGroupDBModuleProcessor
 from backend.db.processor.file_index_processor import FileIndexProcessor
 from backend.db.processor.history_file_index_processor import HistoryFileIndexProcessor
-from backend.db.processor.ignore_file_processor import IgnoreFileProcessor
+from backend.db.processor.pending_entry_file_processor import PendingEntryFileProcessor
 from backend.db.processor.video_feature_processor import VideoFeatureProcessor
 
 
@@ -32,7 +33,8 @@ class ProcessorManager:
         self.history_file_index_processor: HistoryFileIndexProcessor = HistoryFileIndexProcessor()
         self.video_feature_processor: VideoFeatureProcessor = VideoFeatureProcessor()
         self.duplicate_group_processor: DuplicateGroupDBModuleProcessor = DuplicateGroupDBModuleProcessor()
-        self.ignore_file_processor: IgnoreFileProcessor = IgnoreFileProcessor()
+        self.already_entered_file_processor: AlreadyEnteredFileProcessor = AlreadyEnteredFileProcessor()
+        self.pending_entry_file_processor: PendingEntryFileProcessor = PendingEntryFileProcessor()
 
 
 processor_manager = ProcessorManager()

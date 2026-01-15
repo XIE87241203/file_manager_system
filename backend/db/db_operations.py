@@ -3,10 +3,11 @@ from typing import List, Optional
 
 from backend.db.db_manager import DBManager
 from backend.db.processor_manager import processor_manager
+from backend.model.db.already_entered_file_db_model import AlreadyEnteredFileDBModel
 from backend.model.db.duplicate_group_db_model import DuplicateGroupDBModule
 from backend.model.db.file_index_db_model import FileIndexDBModel
 from backend.model.db.history_file_index_db_model import HistoryFileIndexDBModule
-from backend.model.db.ignore_file_db_model import IgnoreFileDBModel
+from backend.model.db.pending_entry_file_db_model import PendingEntryFileDBModel
 from backend.model.db.video_feature_db_model import VideoFeatureDBModel
 from backend.model.duplicate_group_result import DuplicateGroupResult
 from backend.model.pagination_result import PaginationResult
@@ -47,8 +48,6 @@ class DBOperations:
         """
         try:
             with DBManager.transaction() as conn:
-                # 注意：此处假设 Processor 的 clear 方法未来也会支持 conn 参数
-                # 目前由于 _clear_table 是直接执行 SQL，我们先保持现状或进一步重构
                 res1: bool = processor_manager.file_index_processor.clear_all_table()
                 res2: bool = processor_manager.duplicate_group_processor.clear_all_table()
                 return res1 and res2
@@ -80,16 +79,10 @@ class DBOperations:
     def delete_file_index_by_file_id(file_id: int) -> bool:
         """
         用途：删除指定文件索引，并同步维护重复文件分组（已优化：使用事务确保原子性）
-        入参说明：
-            file_id (int): 文件 ID
-        返回值说明：
-            bool: 操作是否全部成功
         """
         try:
             with DBManager.transaction() as conn:
-                # 1. 从主索引表删除
                 res1: bool = processor_manager.file_index_processor.delete_by_id(file_id, conn=conn)
-                # 2. 从重复组记录中移除，并处理分组解散逻辑
                 res2: bool = processor_manager.duplicate_group_processor.delete_file_by_id(file_id, conn=conn)
                 return res1 and res2
         except Exception:
@@ -126,22 +119,14 @@ class DBOperations:
     def batch_move_to_recycle_bin(file_paths: List[str]) -> bool:
         """
         用途：批量将文件移入回收站，并同步从重复文件记录中删除（已优化：使用事务确保原子性）
-        入参说明：file_paths (List[str]): 文件路径列表
-        返回值说明：bool: 是否操作成功
         """
         recycle_time: str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         try:
             with DBManager.transaction() as conn:
-                # 1. 获取对应的文件 ID 列表
                 file_ids: List[int] = processor_manager.file_index_processor.get_ids_by_paths(file_paths, conn=conn)
-                
-                # 2. 标记移入回收站
                 res1: int = processor_manager.file_index_processor.move_to_recycle_bin(file_paths, recycle_time, conn=conn)
-                
-                # 3. 循环调用删除重复记录逻辑（DuplicateGroupProcessor 已有单条删除逻辑且包含解散分组检查）
                 for f_id in file_ids:
                     processor_manager.duplicate_group_processor.delete_file_by_id(f_id, conn=conn)
-                
                 return res1 > 0
         except Exception:
             return False
@@ -150,8 +135,6 @@ class DBOperations:
     def batch_restore_from_recycle_bin(file_paths: List[str]) -> bool:
         """
         用途：批量将文件移出回收站
-        入参说明：file_paths (List[str]): 文件路径列表
-        返回值说明：bool: 是否操作成功
         """
         return processor_manager.file_index_processor.restore_from_recycle_bin(file_paths) > 0
 
@@ -195,9 +178,6 @@ class DBOperations:
 
     @staticmethod
     def get_duplicate_group_count() -> int:
-        """
-        用途：获取重复分组总数
-        """
         return processor_manager.duplicate_group_processor.get_group_count()
 
     # --- 缩略图相关操作 ---
@@ -214,25 +194,39 @@ class DBOperations:
     def clear_all_thumbnail_records() -> bool:
         return processor_manager.file_index_processor.clear_all_thumbnails()
 
-    # --- 忽略文件库相关操作 ---
+    # --- 曾录入文件名库相关操作 (原忽略文件库) ---
 
     @staticmethod
-    def add_ignore_files(file_names: List[str]) -> bool:
+    def add_already_entered_files(file_names: List[str]) -> bool:
         """
-        用途：批量添加忽略文件名。
+        用途说明：批量添加曾录入文件名。
         """
-        return bool(processor_manager.ignore_file_processor.add_ignore_files(file_names))
+        return bool(processor_manager.already_entered_file_processor.add_already_entered_files(file_names))
 
     @staticmethod
-    def search_ignore_file_list(page: int, limit: int, sort_by: str, order: bool, search_query: str) -> PaginationResult[IgnoreFileDBModel]:
+    def search_already_entered_file_list(page: int, limit: int, sort_by: str, order: bool, search_query: str) -> PaginationResult[AlreadyEnteredFileDBModel]:
         """
-        用途：分页查询忽略文件。
+        用途说明：分页查询曾录入文件名。
         """
-        return processor_manager.ignore_file_processor.get_paged_list(page, limit, sort_by, order, search_query)
+        return processor_manager.already_entered_file_processor.get_paged_list(page, limit, sort_by, order, search_query)
 
     @staticmethod
-    def clear_ignore_repository() -> bool:
+    def clear_already_entered_repository() -> bool:
         """
-        用途：清空忽略文件库。
+        用途说明：清空曾录入文件名库。
         """
-        return processor_manager.ignore_file_processor.clear_all_table()
+        return processor_manager.already_entered_file_processor.clear_all_table()
+
+    # --- 待录入文件库相关操作 ---
+
+    @staticmethod
+    def add_pending_entry_files(file_names: List[str]) -> bool:
+        return bool(processor_manager.pending_entry_file_processor.add_pending_entry_files(file_names))
+
+    @staticmethod
+    def search_pending_entry_file_list(page: int, limit: int, sort_by: str, order: bool, search_query: str) -> PaginationResult[PendingEntryFileDBModel]:
+        return processor_manager.pending_entry_file_processor.get_paged_list(page, limit, sort_by, order, search_query)
+
+    @staticmethod
+    def clear_pending_entry_repository() -> bool:
+        return processor_manager.pending_entry_file_processor.clear_all_table()

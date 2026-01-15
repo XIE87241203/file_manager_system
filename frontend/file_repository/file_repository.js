@@ -81,7 +81,7 @@ const UIController = {
         }
 
         if (!list || list.length === 0) {
-            tableBody.innerHTML = `<tr><td colspan="${State.searchHistory ? 4 : 5}" style="text-align:center; padding: 100px; color: #9aa0a6;">暂无索引文件</td></tr>`;
+            tableBody.innerHTML = UIComponents.getEmptyTableHtml(State.searchHistory ? 4 : 5, '暂无索引文件');
             return;
         }
 

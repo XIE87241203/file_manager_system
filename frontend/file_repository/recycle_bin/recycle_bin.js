@@ -66,7 +66,7 @@ const UIController = {
         if (selectAllCheckbox) selectAllCheckbox.checked = false;
 
         if (!list || list.length === 0) {
-            tableBody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding: 100px; color: #9aa0a6;">回收站空空如也</td></tr>';
+            tableBody.innerHTML = UIComponents.getEmptyTableHtml(5, '回收站空空如也');
             return;
         }
 

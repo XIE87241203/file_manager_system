@@ -16,6 +16,7 @@ from waitress import serve
 from backend.auth.auth_routes import auth_bp
 from backend.setting.setting_routes import setting_bp
 from backend.file_repository.file_repository_routes import file_repo_bp
+from backend.file_name_repository.file_name_repository_routes import file_name_repo_bp
 from backend.system.system_routes import system_bp
 from backend.common.response import error_response
 from config import GlobalConfig
@@ -85,6 +86,7 @@ def handle_global_exception(e: Exception) -> Tuple[Any, int]:
 app.register_blueprint(auth_bp, url_prefix='/api')
 app.register_blueprint(setting_bp, url_prefix='/api/setting')
 app.register_blueprint(file_repo_bp, url_prefix='/api/file_repository')
+app.register_blueprint(file_name_repo_bp, url_prefix='/api/file_name_repository')
 app.register_blueprint(system_bp, url_prefix='/api/system')
 
 def start_server() -> None:

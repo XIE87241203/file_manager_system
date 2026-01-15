@@ -10,7 +10,6 @@ from backend.common.response import success_response, error_response
 from backend.common.utils import Utils
 from backend.file_repository.duplicate_check.duplicate_service import DuplicateService
 from backend.file_repository.file_service import FileService
-from backend.file_repository.ignore_file_service import IgnoreFileService
 from backend.file_repository.recycle_bin_service import RecycleBinService
 from backend.file_repository.scan_service import ScanService, ScanMode
 from backend.file_repository.thumbnail.thumbnail_service import ThumbnailService
@@ -39,12 +38,12 @@ def start_scan():
     LogUtils.info(f"用户 {_get_current_user()} 触发了文件仓库扫描")
 
     # 1. 解析请求参数
-    data = request.json or {}
-    full_scan = data.get('full_scan', False)
-    scan_mode = ScanMode.FULL_SCAN if full_scan else ScanMode.INDEX_SCAN
+    data: dict = request.json or {}
+    full_scan: bool = data.get('full_scan', False)
+    scan_mode: ScanMode = ScanMode.FULL_SCAN if full_scan else ScanMode.INDEX_SCAN
 
-    # 2. 先检查扫描状态，避免正在运行中被破坏数据
-    status_info = ScanService.get_status()
+    # 2. 先检查扫描状态
+    status_info: dict = ScanService.get_status()
     if status_info.get("status") == ProgressStatus.PROCESSING:
         return error_response("扫描任务已在运行中", 400)
 
@@ -60,8 +59,6 @@ def start_scan():
 def stop_scan():
     """
     用途说明：手动停止正在进行的扫描任务
-    入参说明：无
-    返回值说明：JSON 格式响应
     """
     LogUtils.info(f"用户 {_get_current_user()} 请求停止扫描任务")
     ScanService.stop_scan()
@@ -72,12 +69,10 @@ def stop_scan():
 @token_required
 def clear_repository():
     """
-    用途说明：清空数据库中的文件索引表，同步清理所有缩略图文件及记录，支持选择是否同时清空历史索引表
-    入参说明：JSON 包含 clear_history (bool)
-    返回值说明：JSON 格式响应，包含操作结果
+    用途说明：清空数据库中的文件索引表。
     """
-    data = request.json or {}
-    clear_history = data.get('clear_history', False)
+    data: dict = request.json or {}
+    clear_history: bool = data.get('clear_history', False)
 
     LogUtils.info(f"用户 {_get_current_user()} 请求清空文件数据库 (clear_history={clear_history})")
     if FileService.clear_repository(clear_history):
@@ -90,9 +85,7 @@ def clear_repository():
 @token_required
 def clear_history_repository():
     """
-    用途说明：专门清空历史文件索引表 (history_file_index)
-    入参说明：无
-    返回值说明：JSON 格式响应，包含操作结果
+    用途说明：清空历史文件索引表。
     """
     LogUtils.info(f"用户 {_get_current_user()} 请求清空历史文件数据库")
     if FileService.clear_history_repository():
@@ -106,19 +99,16 @@ def clear_history_repository():
 def clear_recycle_bin():
     """
     用途说明：批量彻底删除文件（物理删除及索引清理）。
-    如果不传 file_paths，则默认执行“清空回收站”逻辑。
-    入参说明：JSON 包含 file_paths (list, 可选)
-    返回值说明：JSON 格式响应，包含操作结果
     """
-    data = request.json or {}
-    file_paths = data.get('file_paths')
+    data: dict = request.json or {}
+    file_paths: list = data.get('file_paths')
 
     if file_paths:
         LogUtils.info(f"用户 {_get_current_user()} 请求批量删除指定文件，数量: {len(file_paths)}")
-        msg = "已启动批量删除任务"
+        msg: str = "已启动批量删除任务"
     else:
         LogUtils.info(f"用户 {_get_current_user()} 请求清空回收站")
-        msg = "已启动清空任务"
+        msg: str = "已启动清空任务"
 
     if RecycleBinService.start_async_delete(file_paths):
         return success_response(msg)
@@ -129,23 +119,13 @@ def clear_recycle_bin():
 @file_repo_bp.route('/clear_recycle_bin/progress', methods=['GET'])
 @token_required
 def get_clear_recycle_bin_progress():
-    """
-    用途说明：获取当前清空/删除任务的状态和进度信息
-    入参说明：无
-    返回值说明：包含 status 和 progress 详情的 JSON 响应
-    """
-    status_info = RecycleBinService.get_status()
+    status_info: dict = RecycleBinService.get_status()
     return success_response("获取进度成功", data=status_info)
 
 
 @file_repo_bp.route('/clear_video_features', methods=['POST'])
 @token_required
 def clear_video_features():
-    """
-    用途说明：清空数据库中的视频特征表
-    入参说明：无
-    返回值说明：JSON 格式响应，包含操作结果
-    """
     LogUtils.info(f"用户 {_get_current_user()} 请求清空视频特征库")
     if FileService.clear_video_features():
         return success_response("视频特征库已成功清空")
@@ -156,52 +136,37 @@ def clear_video_features():
 @file_repo_bp.route('/progress', methods=['GET'])
 @token_required
 def get_scan_progress():
-    """
-    用途说明：获取当前扫描任务的状态和进度信息
-    入参说明：无
-    返回值说明：包含 status 和 progress 详情的 JSON 响应
-    """
-    status_info = ScanService.get_status()
+    status_info: dict = ScanService.get_status()
     return success_response("获取进度成功", data=status_info)
 
 
 @file_repo_bp.route('/list', methods=['GET'])
 @token_required
 def list_files():
-    """
-    用途说明：分页获取文件列表，支持搜索、历史查询以及回收站筛选。
-    """
-    page = request.args.get('page', default=1, type=int)
-    limit = request.args.get('limit', default=100, type=int)
-    sort_by = request.args.get('sort_by', default='scan_time')
-    order_asc = request.args.get('order_asc', default='false').lower() == 'true'
-    search_query = request.args.get('search', default='').strip()
-    search_history = request.args.get('search_history', default='false').lower() == 'true'
-    is_in_recycle_bin = request.args.get('is_in_recycle_bin', default='false').lower() == 'true'
+    page: int = request.args.get('page', default=1, type=int)
+    limit: int = request.args.get('limit', default=100, type=int)
+    sort_by: str = request.args.get('sort_by', default='scan_time')
+    order_asc: bool = request.args.get('order_asc', default='false').lower() == 'true'
+    search_query: str = request.args.get('search', default='').strip()
+    search_history: bool = request.args.get('search_history', default='false').lower() == 'true'
+    is_in_recycle_bin: bool = request.args.get('is_in_recycle_bin', default='false').lower() == 'true'
 
     if search_history:
-        data = FileService.search_history_file_index_list(page, limit, sort_by, order_asc,
-                                                          search_query)
+        data = FileService.search_history_file_index_list(page, limit, sort_by, order_asc, search_query)
         return success_response("获取文件列表成功", data=asdict(data))
     else:
         if is_in_recycle_bin:
             data = RecycleBinService.get_recycle_bin_list(page, limit, sort_by, order_asc, search_query)
         else:
-            data = FileService.search_file_index_list(page, limit, sort_by, order_asc,
-                                                  search_query, is_in_recycle_bin)
+            data = FileService.search_file_index_list(page, limit, sort_by, order_asc, search_query, is_in_recycle_bin)
         return success_response("获取文件列表成功", data=asdict(data))
 
 
 @file_repo_bp.route('/move_to_recycle_bin', methods=['POST'])
 @token_required
 def move_to_recycle_bin():
-    """
-    用途说明：批量将指定文件移入回收站标记状态。
-    入参说明：JSON 包含 file_paths (list)
-    返回值说明：JSON 格式响应
-    """
-    data = request.json or {}
-    file_paths = data.get('file_paths', [])
+    data: dict = request.json or {}
+    file_paths: list = data.get('file_paths', [])
 
     if not file_paths:
         return error_response("未选择要移动的文件", 400)
@@ -217,13 +182,8 @@ def move_to_recycle_bin():
 @file_repo_bp.route('/restore_from_recycle_bin', methods=['POST'])
 @token_required
 def restore_from_recycle_bin():
-    """
-    用途说明：批量将指定文件从回收站移出。
-    入参说明：JSON 包含 file_paths (list)
-    返回值说明：JSON 格式响应
-    """
-    data = request.json or {}
-    file_paths = data.get('file_paths', [])
+    data: dict = request.json or {}
+    file_paths: list = data.get('file_paths', [])
 
     if not file_paths:
         return error_response("未选择要恢复的文件", 400)
@@ -239,11 +199,6 @@ def restore_from_recycle_bin():
 @file_repo_bp.route('/duplicate/check', methods=['POST'])
 @token_required
 def start_duplicate_check():
-    """
-    用途说明：异步触发文件查重任务
-    入参说明：无
-    返回值说明：JSON 格式响应
-    """
     LogUtils.info(f"用户 {_get_current_user()} 触发了文件查重")
     if DuplicateService.start_async_check():
         return success_response("查重任务已启动")
@@ -254,11 +209,6 @@ def start_duplicate_check():
 @file_repo_bp.route('/duplicate/stop', methods=['POST'])
 @token_required
 def stop_duplicate_check():
-    """
-    用途说明：手动停止正在进行的查重任务
-    入参说明：无
-    返回值说明：JSON 格式响应
-    """
     LogUtils.info(f"用户 {_get_current_user()} 请求停止查重任务")
     DuplicateService.stop_check()
     return success_response("已发送停止指令")
@@ -267,27 +217,15 @@ def stop_duplicate_check():
 @file_repo_bp.route('/duplicate/progress', methods=['GET'])
 @token_required
 def get_duplicate_progress():
-    """
-    用途说明：获取当前查重任务的状态、进度和结果信息
-    入参说明：无
-    返回值说明：包含 status, progress 和 results 的 JSON 响应
-    """
-    status_info = DuplicateService.get_status()
+    status_info: dict = DuplicateService.get_status()
     return success_response("获取进度成功", data=status_info)
 
 
 @file_repo_bp.route('/duplicate/list', methods=['GET'])
 @token_required
 def list_duplicate_results():
-    """
-    用途说明：分页获取重复文件组数据列表
-    入参说明：
-        page (int): 当前页码，默认 1
-        limit (int): 每页记录数，默认 100
-    返回值说明：JSON 格式响应，data 字段包含 PaginationResult 结构
-    """
-    page = request.args.get('page', default=1, type=int)
-    limit = request.args.get('limit', default=100, type=int)
+    page: int = request.args.get('page', default=1, type=int)
+    limit: int = request.args.get('limit', default=100, type=int)
     data = DuplicateService.get_all_duplicate_results(page, limit)
     return success_response("获取重复文件列表成功", data=asdict(data))
 
@@ -297,13 +235,8 @@ def list_duplicate_results():
 @file_repo_bp.route('/thumbnail/start', methods=['POST'])
 @token_required
 def start_thumbnail_generation():
-    """
-    用途说明：异步触发缩略图生成任务
-    入参说明：JSON 包含 rebuild_all (bool)
-    返回值说明：JSON 格式响应
-    """
-    data = request.json or {}
-    rebuild_all = data.get('rebuild_all', False)
+    data: dict = request.json or {}
+    rebuild_all: bool = data.get('rebuild_all', False)
 
     LogUtils.info(f"用户 {_get_current_user()} 触发了缩略图生成 (rebuild_all={rebuild_all})")
     if ThumbnailService.start_async_generation(rebuild_all):
@@ -315,11 +248,6 @@ def start_thumbnail_generation():
 @file_repo_bp.route('/thumbnail/stop', methods=['POST'])
 @token_required
 def stop_thumbnail_generation():
-    """
-    用途说明：手动停止正在进行的缩略图生成任务
-    入参说明：无
-    返回值说明：JSON 格式响应
-    """
     LogUtils.info(f"用户 {_get_current_user()} 请求停止缩略图生成任务")
     ThumbnailService.stop_generation()
     return success_response("已发送停止指令")
@@ -328,23 +256,13 @@ def stop_thumbnail_generation():
 @file_repo_bp.route('/thumbnail/progress', methods=['GET'])
 @token_required
 def get_thumbnail_progress():
-    """
-    用途说明：获取当前缩略图生成任务的状态和进度信息
-    入参说明：无
-    返回值说明：包含 status 和 progress 的 JSON 响应
-    """
-    status_info = ThumbnailService.get_status()
+    status_info: dict = ThumbnailService.get_status()
     return success_response("获取进度成功", data=status_info)
 
 
 @file_repo_bp.route('/thumbnail/clear', methods=['POST'])
 @token_required
 def clear_thumbnails():
-    """
-    用途说明：删除所有缩略图文件并清空数据库中的路径记录
-    入参说明：无
-    返回值说明：JSON 格式响应
-    """
     LogUtils.info(f"用户 {_get_current_user()} 请求清空所有缩略图")
     if ThumbnailService.clear_all_thumbnails():
         return success_response("缩略图已成功清空")
@@ -355,18 +273,12 @@ def clear_thumbnails():
 @file_repo_bp.route('/thumbnail/view', methods=['GET'])
 @token_required
 def view_thumbnail():
-    """
-    用途说明：获取并返回缩略图文件的二进制流
-    入参说明：query 参数 path (缩略图物理路径)
-    返回值说明：图片文件流 or 错误响应
-    """
-    path = request.args.get('path')
+    path: str = request.args.get('path')
     if not path:
         return error_response("参数缺失", 400)
 
-    # 修复点 4：强化安全性检查，防止路径穿越攻击
-    thumbnail_dir = os.path.abspath(os.path.join(Utils.get_runtime_path(), "cache", "thumbnail"))
-    requested_path = os.path.abspath(path)
+    thumbnail_dir: str = os.path.abspath(os.path.join(Utils.get_runtime_path(), "cache", "thumbnail"))
+    requested_path: str = os.path.abspath(path)
 
     if not requested_path.startswith(thumbnail_dir):
         return error_response(f"非法路径请求: {path}", 403)
@@ -375,84 +287,3 @@ def view_thumbnail():
         return error_response("缩略图文件不存在", 404)
 
     return send_file(requested_path, mimetype='image/jpeg')
-
-
-# --- 忽略文件库相关路由 ---
-
-@file_repo_bp.route('/ignore/list', methods=['GET'])
-@token_required
-def list_ignore_files():
-    """
-    用途说明：分页获取忽略文件列表。
-    入参说明：
-        page (int): 当前页码
-        limit (int): 每页记录数
-        sort_by (str): 排序字段
-        order_asc (bool): 是否正序
-        search (str): 搜索关键词
-    返回值说明：JSON 格式响应，包含分页数据
-    """
-    page = request.args.get('page', default=1, type=int)
-    limit = request.args.get('limit', default=100, type=int)
-    sort_by = request.args.get('sort_by', default='add_time')
-    order_asc = request.args.get('order_asc', default='false').lower() == 'true'
-    search_query = request.args.get('search', default='').strip()
-
-    data = IgnoreFileService.search_ignore_file_list(page, limit, sort_by, order_asc, search_query)
-    return success_response("获取忽略文件列表成功", data=asdict(data))
-
-
-@file_repo_bp.route('/ignore/add', methods=['POST'])
-@token_required
-def add_ignore_files():
-    """
-    用途说明：批量添加忽略文件名。
-    入参说明：JSON 包含 file_names (list)
-    返回值说明：JSON 格式响应
-    """
-    data = request.json or {}
-    file_names = data.get('file_names', [])
-
-    if not file_names:
-        return error_response("未提供文件名", 400)
-
-    LogUtils.info(f"用户 {_get_current_user()} 请求添加忽略文件: {file_names}")
-    if IgnoreFileService.add_ignore_files(file_names):
-        return success_response("添加成功")
-    else:
-        return error_response("添加失败", 500)
-
-@file_repo_bp.route('/ignore/batch_delete', methods=['POST'])
-@token_required
-def batch_delete_ignore_files():
-    """
-    用途说明：批量删除指定的忽略文件记录。
-    入参说明：JSON 包含 ids (list)
-    返回值说明：JSON 格式响应
-    """
-    data = request.json or {}
-    file_ids = data.get('ids', [])
-
-    if not file_ids:
-        return error_response("未选择要删除的记录", 400)
-
-    LogUtils.info(f"用户 {_get_current_user()} 请求批量删除忽略记录，数量: {len(file_ids)}")
-    count: int = IgnoreFileService.batch_delete_ignore_files(file_ids)
-    if count > 0:
-        return success_response(f"已成功删除 {count} 条记录")
-    else:
-        return error_response("批量删除失败", 500)
-
-
-@file_repo_bp.route('/ignore/clear', methods=['POST'])
-@token_required
-def clear_ignore_repository():
-    """
-    用途说明：清空忽略文件库。
-    返回值说明：JSON 格式响应
-    """
-    LogUtils.info(f"用户 {_get_current_user()} 请求清空忽略文件库")
-    if IgnoreFileService.clear_ignore_repository():
-        return success_response("清空成功")
-    else:
-        return error_response("清空失败", 500)

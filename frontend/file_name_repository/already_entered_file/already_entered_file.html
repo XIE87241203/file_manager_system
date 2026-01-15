@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>忽略文件库 - 文件管理系统</title>
+    <title>曾录入文件名库 - 文件管理系统</title>
     <!-- 引入公用样式 -->
     <link rel="stylesheet" href="../../common/common.css">
     <link rel="stylesheet" href="../../common/table.css">
     <!-- 引入页面私有样式 -->
-    <link rel="stylesheet" href="ignore_file.css">
+    <link rel="stylesheet" href="already_entered_file.css">
 </head>
 <body class="repo-body">
     <!-- 顶部工具栏：由 UIComponents.initRepoHeader 动态初始化 -->
@@ -17,12 +17,12 @@
     <div id="repo-main-content" class="repo-content-group">
             <!-- 数据展示区 -->
             <div class="table-wrapper">
-                <table id="ignore-table" class="file-table">
+                <table id="already-entered-table" class="file-table">
                     <thead>
                         <tr>
                             <th class="col-index">序号</th>
                             <th class="sortable col-name" data-field="file_name">
-                                忽略文件名 <span class="sort-icon"></span>
+                                曾录入文件名 <span class="sort-icon"></span>
                             </th>
                             <th class="sortable col-time" data-field="add_time">
                                 添加时间 <span class="sort-icon"></span>
@@ -32,7 +32,7 @@
                             </th>
                         </tr>
                     </thead>
-                    <tbody id="ignore-list-body">
+                    <tbody id="already-entered-list-body">
                         <!-- 数据行由 JS 动态生成 -->
                     </tbody>
                 </table>
@@ -41,7 +41,6 @@
             <!-- 底部导航区 -->
             <footer class="footer-bar">
                 <div class="footer-left">
-                    <!-- 清空按钮已挪至设置页面 -->
                 </div>
                 <div class="footer-center">
                     <div id="pagination-container" class="pagination-container"></div>
@@ -56,6 +55,6 @@
     <script src="../../common/ui_components.js"></script>
     <script src="../../common/request.js"></script>
     <script src="../../common/toast.js"></script>
-    <script src="ignore_file.js"></script>
+    <script src="already_entered_file.js"></script>
 </body>
 </html>
