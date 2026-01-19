@@ -24,11 +24,6 @@ const UIController = {
         UIComponents.initRepoHeader({
             title: '批量录入新数据',
             showSearch: false, // 本页面不需要搜索框
-            rightBtnText: '返回列表',
-            rightBtnId: 'btn-back',
-            onRightBtnClick: () => {
-                window.location.href = 'pending_entry_file.html';
-            }
         });
 
         this.elements = {

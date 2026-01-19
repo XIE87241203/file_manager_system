@@ -10,7 +10,8 @@ const State = {
     order: 'DESC',
     search: '',
     selectedIds: new Set(),
-    paginationController: null
+    paginationController: null,
+    linkPrefix: '' // 文件名跳转前缀
 };
 
 // --- UI 控制模块 ---
@@ -80,9 +81,14 @@ const UIController = {
             tr.setAttribute('data-id', item.id);
             if (isChecked) tr.classList.add('selected-row');
 
+            // 根据是否有前缀决定文件名渲染方式
+            const nameDisplay = State.linkPrefix 
+                ? `<a href="${State.linkPrefix}${encodeURIComponent(item.file_name)}" target="_blank" class="file-link">${item.file_name}</a>`
+                : item.file_name;
+
             tr.innerHTML = `
                 <td class="col-index">${startVisibleIndex + index}</td>
-                <td class="col-name">${item.file_name}</td>
+                <td class="col-name">${nameDisplay}</td>
                 <td class="col-time">${item.add_time}</td>
                 <td class="col-check">
                     <input type="checkbox" class="file-checkbox" data-id="${item.id}" ${isChecked ? 'checked' : ''}>
@@ -131,15 +137,38 @@ const AlreadyEnteredAPI = {
     async clear() {
         // 更新路径：/api/file_name_repository
         return await Request.post('/api/file_name_repository/already_entered/clear', {});
+    },
+
+    /**
+     * 用途说明：获取系统配置
+     * 返回值说明：Promise<Object> - 配置数据
+     */
+    async getSettings() {
+        return await Request.get('/api/setting/get');
     }
 };
 
 // --- 应用逻辑主入口 ---
 const App = {
-    init() {
+    async init() {
         UIController.init();
         this.bindEvents();
+        await this.loadConfig(); // 先加载配置
         this.loadList();
+    },
+
+    /**
+     * 用途说明：加载系统配置以获取链接前缀
+     */
+    async loadConfig() {
+        try {
+            const res = await AlreadyEnteredAPI.getSettings();
+            if (res.status === 'success' && res.data && res.data.file_name_entry) {
+                State.linkPrefix = res.data.file_name_entry.file_name_link_prefix || '';
+            }
+        } catch (e) {
+            console.error('加载配置失败:', e);
+        }
     },
 
     bindEvents() {

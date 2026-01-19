@@ -32,3 +32,19 @@
 .btn-delete-text:hover {
     text-decoration: underline;
 }
+
+/* 文件名链接样式 */
+.file-link {
+    color: #1a73e8;
+    text-decoration: none;
+    word-break: break-all;
+}
+
+.file-link:hover {
+    text-decoration: underline;
+}
+
+/* 底部操作按钮间距 */
+#btn-open-and-move {
+    margin-right: 12px;
+}

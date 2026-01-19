@@ -37,6 +37,13 @@ class DuplicateCheckSettings:
     video_backwards: bool = False  # 是否从视频结尾倒序生成特征
 
 @dataclass
+class FileNameEntrySettings:
+    """
+    用途：文件录入管理相关配置数据类
+    """
+    file_name_link_prefix: str = ""
+
+@dataclass
 class AppConfig:
     """
     用途：系统全局配置汇总数据类
@@ -44,3 +51,4 @@ class AppConfig:
     user_data: UserData = field(default_factory=UserData)
     file_repository: FileRepositorySettings = field(default_factory=FileRepositorySettings)
     duplicate_check: DuplicateCheckSettings = field(default_factory=DuplicateCheckSettings)
+    file_name_entry: FileNameEntrySettings = field(default_factory=FileNameEntrySettings)

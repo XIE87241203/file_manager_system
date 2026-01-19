@@ -16,10 +16,13 @@ WORKDIR /app
 
 # 用途说明：安装后端运行所需的系统依赖
 # libmagic1: 用于文件类型检测
-# libglib2.0-0 & gcc: 用于 OpenCV 等图像处理库的编译或运行
+# libglib2.0-0, libxcb1, libgl1: 用于 OpenCV 等图像处理库的运行环境
+# gcc, python3-dev: 用于部分 Python 库的编译
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libmagic1 \
     libglib2.0-0 \
+    libxcb1 \
+    libgl1 \
     gcc \
     python3-dev \
     && rm -rf /var/lib/apt/lists/* \

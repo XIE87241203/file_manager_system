@@ -676,7 +676,7 @@ body {
     background-color: #1a73e8;
     color: white;
     border: none;
-    border-radius: 6px;
+    border-radius: 4px; /* 修改为 4px */
     cursor: pointer;
     font-size: 14px;
     font-weight: 500;
@@ -701,4 +701,34 @@ body {
 
 .btn-danger-large:hover {
     background-color: #c82333;
+}
+
+.btn-secondary-large {
+    padding: 10px 24px;
+    background-color: #6c757d;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: background-color 0.2s;
+}
+
+.btn-secondary-large:hover {
+    background-color: #5a6268;
+}
+
+a.file-link {
+    color: #1a73e8;
+    text-decoration: none;
+    word-break: break-all;
+}
+
+a.file-link:hover {
+    text-decoration: underline;
+}
+
+a.file-link:visited {
+    color: #551A8B;
 }

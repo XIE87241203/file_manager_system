@@ -19,7 +19,8 @@ class SettingService:
     _SECTION_MAPPING = {
         "USER_DATA": "user_data",
         "FILE_REPOSITORY": "file_repository",
-        "DUPLICATE_CHECK": "duplicate_check"
+        "DUPLICATE_CHECK": "duplicate_check",
+        "FILE_NAME_ENTRY": "file_name_entry"
     }
 
     def __init__(self) -> None:

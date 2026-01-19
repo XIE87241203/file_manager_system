@@ -15,6 +15,7 @@
         <!-- 选项卡导航 -->
         <div class="tabs">
             <button id="tab-repo" class="tab-btn active">文件仓库</button>
+            <button id="tab-file-entry" class="tab-btn">文件录入管理</button>
             <button id="tab-dup-check" class="tab-btn">查重设置</button>
             <button id="tab-maintenance" class="tab-btn">数据维护</button>
             <button id="tab-password" class="tab-btn">修改密码</button>
@@ -79,6 +80,20 @@
                     <label class="label-text" for="search-replace-chars">搜索替换字符</label>
                     <input type="text" id="search-replace-chars" class="input-field" placeholder="例如: -, _ (逗号分隔)" autocomplete="off">
                     <small class="form-hint">提示：搜索前会将这些字符替换为 .*</small>
+                </div>
+            </div>
+        </div>
+
+        <!-- 文件录入管理分页 -->
+        <div id="content-file-entry" class="tab-content">
+            <div class="settings-grid">
+                <div class="full-width">
+                    <h3 class="mt-0">录入相关配置</h3>
+                </div>
+                <div class="form-group">
+                    <label class="label-text" for="file-name-link-prefix">文件名链接前缀</label>
+                    <input type="text" id="file-name-link-prefix" class="input-field" placeholder="例如: https://example.com/search?q=" autocomplete="off">
+                    <small class="form-hint">说明：在文件名库中点击文件名将跳转至：前缀 + 文件名。若留空则不开启跳转。</small>
                 </div>
             </div>
         </div>

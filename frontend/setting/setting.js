@@ -22,6 +22,9 @@ const State = {
         video_interval_seconds: 30,
         video_max_duration_diff_ratio: 0.6,
         video_backwards: false
+    },
+    fileNameEntry: {
+        file_name_link_prefix: ""
     }
 };
 
@@ -85,6 +88,7 @@ const UIController = {
     initTabs() {
         const tabs = [
             { btn: 'tab-repo', content: 'content-repo' },
+            { btn: 'tab-file-entry', content: 'content-file-entry' },
             { btn: 'tab-dup-check', content: 'content-dup-check' },
             { btn: 'tab-maintenance', content: 'content-maintenance' },
             { btn: 'tab-password', content: 'content-password' }
@@ -129,6 +133,10 @@ const UIController = {
         document.getElementById('ignore-paths').value = (fr.ignore_paths || []).join(', ');
         document.getElementById('ignore-paths-case-insensitive').checked = fr.ignore_paths_case_insensitive;
         document.getElementById('search-replace-chars').value = (fr.search_replace_chars || []).join(', ');
+
+        // 文件录入配置同步到 State
+        State.fileNameEntry = data.file_name_entry || State.fileNameEntry;
+        document.getElementById('file-name-link-prefix').value = State.fileNameEntry.file_name_link_prefix || '';
 
         // 查重配置同步到 State
         State.duplicateCheck = data.duplicate_check || State.duplicateCheck;
@@ -278,7 +286,12 @@ const App = {
             video_backwards: document.getElementById('video-backwards').checked
         };
 
-        // 3. 采集用户信息数据
+        // 3. 采集文件录入配置数据
+        const fe = {
+            file_name_link_prefix: document.getElementById('file-name-link-prefix').value.trim()
+        };
+
+        // 4. 采集用户信息数据
         const username = document.getElementById('username').value.trim();
         const password = document.getElementById('password').value;
         const confirmPassword = document.getElementById('confirm-password').value;
@@ -302,10 +315,11 @@ const App = {
         const updateData = {
             file_repository: fr,
             duplicate_check: dc,
+            file_name_entry: fe,
             user_data: userData
         };
 
-        // 4. 查重核心参数变更检查
+        // 5. 查重核心参数变更检查
         const isIntervalChanged = dc.video_interval_seconds !== State.duplicateCheck.video_interval_seconds;
         const isBackwardsChanged = dc.video_backwards !== State.duplicateCheck.video_backwards;
 
