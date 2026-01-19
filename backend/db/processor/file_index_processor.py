@@ -326,3 +326,20 @@ class FileIndexProcessor(BaseDBProcessor):
                 results[row['original_name']] = row[DBConstants.FileIndex.COL_FILE_PATH]
                 
         return results
+
+    @staticmethod
+    def get_total_stats() -> Tuple[int, int]:
+        """
+        用途说明：统计 file_index 表中所有文件（非回收站）的总数和总大小。
+        返回值说明：Tuple[int, int] - (总文件数, 总大小字节数)
+        """
+        col_recycle = DBConstants.FileIndex.COL_RECYCLE_BIN_TIME
+        query = f'''
+            SELECT COUNT(*), SUM({DBConstants.FileIndex.COL_FILE_SIZE}) 
+            FROM {DBConstants.FileIndex.TABLE_NAME}
+            WHERE ({col_recycle} IS NULL OR {col_recycle} = '')
+        '''
+        res = BaseDBProcessor._execute(query, is_query=True, fetch_one=True)
+        if res:
+            return res['COUNT(*)'] or 0, res[f'SUM({DBConstants.FileIndex.COL_FILE_SIZE})'] or 0
+        return 0, 0

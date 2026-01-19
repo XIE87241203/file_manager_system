@@ -1,0 +1,105 @@
+/**
+ * 用途说明：批量录入检测结果页专用样式。
+ * 模仿回收站布局，适配 common.css 和 table.css。
+ * 包含：百分比布局、状态标签样式、固定表头样式。
+ */
+
+/* 顶部工具栏适配 */
+.top-bar-left {
+    width: 150px;
+    display: flex;
+    align-items: center;
+}
+
+.top-bar-center {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.top-bar-right {
+    width: 150px;
+    display: flex;
+    justify-content: flex-end;
+}
+
+/* 结果页特有的工具条 */
+.results-header-toolbar {
+    padding: 10px 20px;
+    background: #fdfdfd;
+    border-bottom: 1px solid #eee;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    min-height: 50px;
+}
+
+.stat-info {
+    font-size: 13px;
+    color: #666;
+}
+
+.text-new {
+    color: #27ae60;
+    font-weight: bold;
+}
+
+/* 状态标签样式 */
+.status-tag {
+    font-size: 11px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    margin-right: 5px;
+    display: inline-block;
+}
+
+.tag-new { background: #e8f5e9; color: #2e7d32; border: 1px solid #c8e6c9; }
+.tag-index { background: #fff3e0; color: #ef6c00; border: 1px solid #ffe0b2; }
+.tag-history { background: #f5f5f5; color: #616161; border: 1px solid #e0e0e0; }
+.tag-pending { background: #e3f2fd; color: #1976d2; border: 1px solid #bbdefb; }
+
+/* 列表列宽调整：使用百分比布局 */
+.col-index { width: 5%; text-align: center; }
+.col-name { width: 30%; }
+.col-status { width: 60%; }
+.col-check { width: 5%; text-align: center; }
+
+/* 核心修复：固定所有表头单元格 */
+#file-table thead th {
+    position: sticky;
+    top: 0;
+    background: #f8f9fa; /* 必须设置背景色以遮盖滚动内容 */
+    z-index: 20; /* 确保在 body 之上 */
+    box-shadow: 0 1px 0 #eee; /* 模拟底部边框，防止滚动时视觉断层 */
+}
+
+/* 底部栏间距 */
+.footer-right {
+    gap: 12px;
+}
+
+/* 选中行背景 */
+.selected-row {
+    background-color: #f0f7ff !important;
+}
+
+/* 排序表头样式增强 */
+th.sortable {
+    cursor: pointer;
+    user-select: none;
+    position: relative;
+    transition: background-color 0.2s;
+}
+
+th.sortable:hover {
+    background-color: #f5f5f5;
+}
+
+.sort-icon {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    margin-left: 4px;
+    vertical-align: middle;
+}

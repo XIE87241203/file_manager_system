@@ -3,7 +3,7 @@ class DBConstants:
     用途：数据库表名及列名常量类，统一管理所有数据库结构相关的硬编码字符串
     """
 
-    DB_VERSION: int = 6  # 当前数据库版本，自增以触发更新（升级至 6 以支持表重命名逻辑）
+    DB_VERSION: int = 8  # 当前数据库版本，升级至 8 以支持重复文件相似度记录
 
     class VersionInfo:
         """用途：version_info 表相关的常量"""
@@ -51,6 +51,8 @@ class DBConstants:
         COL_FILE_ID_PK: str = 'id'
         COL_FILE_GROUP_ID: str = 'group_id'
         COL_FILE_ID: str = 'file_id'
+        COL_SIMILARITY_TYPE: str = 'similarity_type' # 相似类型：md5, hash
+        COL_SIMILARITY_RATE: str = 'similarity_rate' # 相似率：0.0-1.0
 
     class AlreadyEnteredFile:
         """用途：already_entered_file 表相关的常量（原 ignore_file）"""
@@ -65,3 +67,11 @@ class DBConstants:
         COL_ID: str = 'id'
         COL_FILE_NAME: str = 'file_name'
         COL_ADD_TIME: str = 'add_time'
+
+    class FileRepoDetail:
+        """用途：file_repo_detail 表相关的常量 (文件仓库详情)"""
+        TABLE_NAME: str = 'file_repo_detail'
+        COL_ID: str = 'id'
+        COL_TOTAL_COUNT: str = 'total_count'
+        COL_TOTAL_SIZE: str = 'total_size'
+        COL_UPDATE_TIME: str = 'update_time'

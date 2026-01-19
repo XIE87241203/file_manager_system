@@ -1,5 +1,5 @@
 import sqlite3
-from typing import Optional, List, Set, Tuple
+from typing import Optional, List, Tuple, Dict
 
 from backend.db.db_constants import DBConstants
 from backend.db.processor.base_db_processor import BaseDBProcessor
@@ -80,16 +80,16 @@ class PendingEntryFileProcessor(BaseDBProcessor):
         return BaseDBProcessor._clear_table(DBConstants.PendingEntryFile.TABLE_NAME)
 
     @staticmethod
-    def check_names_exist_by_patterns(name_patterns: List[Tuple[str, str]], conn: Optional[sqlite3.Connection] = None) -> Set[str]:
+    def check_names_exist_by_patterns(name_patterns: List[Tuple[str, str]], conn: Optional[sqlite3.Connection] = None) -> Dict[str, str]:
         """
         用途说明：批量检查文件名是否存在于待录入库。采用 CTE 批量模糊匹配优化。
         入参说明：name_patterns (List[Tuple[str, str]]): 包含 (原始文件名, 搜索模式) 的列表。
-        返回值说明：Set[str] - 返回匹配到的原始文件名集合。
+        返回值说明：Dict[str, str] - 返回匹配到的字典，Key 为原始文件名，Value 为库中匹配到的文件名。
         """
         if not name_patterns:
-            return set()
+            return {}
         
-        results: Set[str] = set()
+        results: Dict[str, str] = {}
         chunk_size: int = 200
         for i in range(0, len(name_patterns), chunk_size):
             chunk = name_patterns[i:i + chunk_size]
@@ -100,11 +100,11 @@ class PendingEntryFileProcessor(BaseDBProcessor):
             
             query = f"""
                 WITH SearchTerms(original_name, pattern) AS (VALUES {placeholders})
-                SELECT DISTINCT st.original_name
+                SELECT st.original_name, pe.{DBConstants.PendingEntryFile.COL_FILE_NAME} AS matched_name
                 FROM SearchTerms st
                 JOIN {DBConstants.PendingEntryFile.TABLE_NAME} pe ON pe.{DBConstants.PendingEntryFile.COL_FILE_NAME} LIKE st.pattern
             """
             rows = BaseDBProcessor._execute(query, tuple(sql_params), is_query=True, conn=conn)
             for row in rows:
-                results.add(row['original_name'])
+                results[row['original_name']] = row['matched_name']
         return results

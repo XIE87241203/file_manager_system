@@ -1,7 +1,7 @@
 from typing import List, Dict
 
 from backend.file_repository.duplicate_check.checker.base_checker import BaseDuplicateChecker
-from backend.model.db.duplicate_group_db_model import DuplicateGroupDBModule
+from backend.model.db.duplicate_group_db_model import DuplicateGroupDBModel, DuplicateFileDBModel
 from backend.model.db.file_index_db_model import FileIndexDBModel
 
 
@@ -18,9 +18,9 @@ class MD5Checker(BaseDuplicateChecker):
         """
         用途：根据 MD5 进行分组录入。
         入参说明：
-            file_info (FileIndex): 文件索引对象。
+            file_info (FileIndexDBModel): 文件索引对象。
         """
-        md5 = file_info.file_md5
+        md5: str = file_info.file_md5
         if not md5:
             return
 
@@ -28,21 +28,26 @@ class MD5Checker(BaseDuplicateChecker):
             self.md5_groups[md5] = []
         self.md5_groups[md5].append(file_info)
 
-    def get_results(self) -> List[DuplicateGroupDBModule]:
+    def get_results(self) -> List[DuplicateGroupDBModel]:
         """
         用途：获取 MD5 重复的分组结果。
         返回值说明：
-            List[DuplicateGroupDBModule]: 重复文件组列表。
+            List[DuplicateGroupDBModel]: 重复文件组列表。
         """
-        results = []
+        results: List[DuplicateGroupDBModel] = []
         for md5, files in self.md5_groups.items():
             if len(files) > 1:
-                duplicate_files = [
-                    f.id for f in files
+                # 构造 DuplicateFileDBModel 列表
+                duplicate_files: List[DuplicateFileDBModel] = [
+                    DuplicateFileDBModel(
+                        file_id=f.id,
+                        similarity_type="md5",
+                        similarity_rate=1.0
+                    ) for f in files
                 ]
-                group = DuplicateGroupDBModule(
+                group: DuplicateGroupDBModel = DuplicateGroupDBModel(
                     group_name=md5,
-                    file_ids=duplicate_files
+                    files=duplicate_files
                 )
                 results.append(group)
         return results

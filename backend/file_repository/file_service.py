@@ -1,8 +1,11 @@
+from typing import Optional
+
 from backend.common.log_utils import LogUtils
 from backend.db.db_operations import DBOperations
 from backend.file_repository.base_file_service import BaseFileService
 from backend.file_repository.thumbnail.thumbnail_service import ThumbnailService
 from backend.model.db.file_index_db_model import FileIndexDBModel
+from backend.model.db.file_repo_detail_db_model import FileRepoDetailDBModel
 from backend.model.db.history_file_index_db_model import HistoryFileIndexDBModule
 from backend.model.pagination_result import PaginationResult
 
@@ -43,6 +46,9 @@ class FileService(BaseFileService):
                 if not DBOperations.clear_history_index():
                     return False
             
+            # 4. 同步更新详情统计
+            FileService.calculate_repo_detail()
+
             LogUtils.info(f"文件仓库已清空 (包含历史记录: {clear_history})")
             return True
         except Exception as e:
@@ -72,3 +78,17 @@ class FileService(BaseFileService):
             bool: 是否成功
         """
         return DBOperations.clear_video_features()
+
+    @staticmethod
+    def get_repo_detail() -> Optional[FileRepoDetailDBModel]:
+        """
+        用途说明：获取文件仓库详情。
+        """
+        return DBOperations.get_repo_detail()
+
+    @staticmethod
+    def calculate_repo_detail() -> Optional[FileRepoDetailDBModel]:
+        """
+        用途说明：计算并保存文件仓库详情。
+        """
+        return DBOperations.calculate_and_save_repo_detail()

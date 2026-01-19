@@ -5,7 +5,6 @@ from typing import Generator
 
 from backend.common.log_utils import LogUtils
 from backend.common.utils import Utils
-from backend.db.db_constants import DBConstants
 
 
 class DBManager:
@@ -72,6 +71,7 @@ class DBManager:
         入参说明：无
         返回值说明：无
         """
+        from backend.db.db_constants import DBConstants
         try:
             conn: sqlite3.Connection = self.get_connection()
             cursor: sqlite3.Cursor = conn.cursor()
@@ -116,6 +116,7 @@ class DBManager:
         入参说明：cursor - 数据库游标对象
         返回值说明：无
         """
+        from backend.db.db_constants import DBConstants
         # 1. 创建 file_index 表
         cursor.execute(f'''
             CREATE TABLE IF NOT EXISTS {DBConstants.FileIndex.TABLE_NAME} (
@@ -169,7 +170,9 @@ class DBManager:
             CREATE TABLE IF NOT EXISTS {DBConstants.DuplicateFile.TABLE_FILES} (
                 {DBConstants.DuplicateFile.COL_FILE_ID_PK} INTEGER PRIMARY KEY AUTOINCREMENT,
                 {DBConstants.DuplicateFile.COL_FILE_GROUP_ID} INTEGER NOT NULL,
-                {DBConstants.DuplicateFile.COL_FILE_ID} INTEGER NOT NULL
+                {DBConstants.DuplicateFile.COL_FILE_ID} INTEGER NOT NULL,
+                {DBConstants.DuplicateFile.COL_SIMILARITY_TYPE} TEXT,
+                {DBConstants.DuplicateFile.COL_SIMILARITY_RATE} REAL DEFAULT 1.0
             )
         ''')
 
@@ -200,6 +203,16 @@ class DBManager:
             )
         ''')
 
+        # 8. 创建 file_repo_detail 表
+        cursor.execute(f'''
+            CREATE TABLE IF NOT EXISTS {DBConstants.FileRepoDetail.TABLE_NAME} (
+                {DBConstants.FileRepoDetail.COL_ID} INTEGER PRIMARY KEY AUTOINCREMENT,
+                {DBConstants.FileRepoDetail.COL_TOTAL_COUNT} INTEGER DEFAULT 0,
+                {DBConstants.FileRepoDetail.COL_TOTAL_SIZE} INTEGER DEFAULT 0,
+                {DBConstants.FileRepoDetail.COL_UPDATE_TIME} DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
     @staticmethod
     def migrate_db_version(old_version: int, new_version: int, cursor: sqlite3.Cursor) -> None:
         """
@@ -210,6 +223,7 @@ class DBManager:
             cursor (sqlite3.Cursor): 数据库游标对象，用于执行 SQL
         返回值说明：无
         """
+        from backend.db.db_constants import DBConstants
         if old_version < 4:
             # 升级到版本 4: 添加 ignore_file 表 (对应旧版名称)
             cursor.execute(f'''
@@ -252,5 +266,26 @@ class DBManager:
                     LogUtils.info(f"数据库升级到版本 6: 直接创建了 {DBConstants.AlreadyEnteredFile.TABLE_NAME} 表")
             except Exception as e:
                 LogUtils.error(f"重命名 ignore_file 表失败: {e}")
+
+        if old_version < 7:
+            # 升级到版本 7: 添加 file_repo_detail 表
+            cursor.execute(f'''
+                CREATE TABLE IF NOT EXISTS {DBConstants.FileRepoDetail.TABLE_NAME} (
+                    {DBConstants.FileRepoDetail.COL_ID} INTEGER PRIMARY KEY AUTOINCREMENT,
+                    {DBConstants.FileRepoDetail.COL_TOTAL_COUNT} INTEGER DEFAULT 0,
+                    {DBConstants.FileRepoDetail.COL_TOTAL_SIZE} INTEGER DEFAULT 0,
+                    {DBConstants.FileRepoDetail.COL_UPDATE_TIME} DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            LogUtils.info(f"数据库升级到版本 7: 已创建 {DBConstants.FileRepoDetail.TABLE_NAME} 表")
+
+        if old_version < 8:
+            # 升级到版本 8: 为 duplicate_files 表添加相似类型和相似率字段
+            try:
+                cursor.execute(f"ALTER TABLE {DBConstants.DuplicateFile.TABLE_FILES} ADD COLUMN {DBConstants.DuplicateFile.COL_SIMILARITY_TYPE} TEXT")
+                cursor.execute(f"ALTER TABLE {DBConstants.DuplicateFile.TABLE_FILES} ADD COLUMN {DBConstants.DuplicateFile.COL_SIMILARITY_RATE} REAL DEFAULT 1.0")
+                LogUtils.info("数据库升级到版本 8: 已为 duplicate_files 表添加相似度相关字段")
+            except Exception as e:
+                LogUtils.error(f"数据库升级到版本 8 失败: {e}")
 
 db_manager: DBManager = DBManager()

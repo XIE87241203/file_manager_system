@@ -102,6 +102,9 @@ class ScanService:
             # 第三阶段：清理失效索引与备份
             deleted_count: int = ScanService._phase_cleanup(current_scan_time)
 
+            # --- 新增：扫描完成后自动重新计算文件仓库统计详情 ---
+            FileService.calculate_repo_detail()
+
             # 完成
             ScanService._progress_manager.set_status(ProgressStatus.COMPLETED)
             msg: str = f"扫描任务完成。新增: {new_count}, 更新: {updated_count}, 清理失效: {deleted_count}"

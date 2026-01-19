@@ -287,3 +287,36 @@ def view_thumbnail():
         return error_response("缩略图文件不存在", 404)
 
     return send_file(requested_path, mimetype='image/jpeg')
+
+
+# --- 文件仓库详情统计相关路由 ---
+
+@file_repo_bp.route('/detail', methods=['GET'])
+@token_required
+def get_repo_detail():
+    """
+    用途说明：获取文件仓库详情统计数据（总文件数、总大小）。
+    """
+    detail = FileService.get_repo_detail()
+    if detail:
+        return success_response("获取仓库详情成功", data=asdict(detail))
+    else:
+        # 如果没有数据，尝试计算一次
+        detail = FileService.calculate_repo_detail()
+        if detail:
+            return success_response("计算仓库详情成功", data=asdict(detail))
+        return error_response("暂无统计数据", 404)
+
+
+@file_repo_bp.route('/detail/calculate', methods=['POST'])
+@token_required
+def calculate_repo_detail():
+    """
+    用途说明：手动触发重新计算文件仓库详情。
+    """
+    LogUtils.info(f"用户 {_get_current_user()} 手动触发了仓库详情计算")
+    detail = FileService.calculate_repo_detail()
+    if detail:
+        return success_response("详情计算完成", data=asdict(detail))
+    else:
+        return error_response("详情计算失败", 500)

@@ -6,7 +6,7 @@ from backend.file_repository.duplicate_check.checker.base_checker import BaseDup
 from backend.file_repository.duplicate_check.checker.video.utils.video_analyzer import VideoAnalyzer
 from backend.file_repository.duplicate_check.checker.video.utils.video_similarity_Tree import \
     VideoSimilarityTree
-from backend.model.db.duplicate_group_db_model import DuplicateGroupDBModule
+from backend.model.db.duplicate_group_db_model import DuplicateGroupDBModel, DuplicateFileDBModel
 from backend.model.db.file_index_db_model import FileIndexDBModel
 from backend.model.video_file_info_result import VideoFileInfoResult
 
@@ -34,10 +34,10 @@ class VideoChecker(BaseDuplicateChecker):
             - backwards (bool): 是否从视频结尾倒序生成特征。
         """
         # 获取 VideoAnalyzer 单例
-        self.analyzer = VideoAnalyzer()
+        self.analyzer: VideoAnalyzer = VideoAnalyzer()
 
         # 初始化相似度树，用于管理视频分组
-        self.tree = VideoSimilarityTree(
+        self.tree: VideoSimilarityTree = VideoSimilarityTree(
             self.analyzer,
             frame_similar_distance=frame_similar_distance,
             frame_similarity_rate=frame_similarity_rate,
@@ -50,7 +50,7 @@ class VideoChecker(BaseDuplicateChecker):
         """
         用途：录入一个视频文件信息进行相似度分析。
         入参说明：
-            file_info (FileIndex): 文件索引对象。
+            file_info (FileIndexDBModel): 文件索引对象。
         返回值说明：
             None
         """
@@ -59,27 +59,31 @@ class VideoChecker(BaseDuplicateChecker):
             # 将视频添加到相似性树中进行分析
             self.tree.add_video(file_info.file_path)
 
-    def get_results(self) -> List[DuplicateGroupDBModule]:
+    def get_results(self) -> List[DuplicateGroupDBModel]:
         """
         用途：获取视频查重分析后的结果。
         入参说明：无
         返回值说明：
-            List[DuplicateGroupDBModule]: 查重结果组列表。每组包含重复文件的详细信息。
+            List[DuplicateGroupDBModel]: 查重结果组列表。每组包含重复文件的详细信息。
         """
         # 获取所有成员数量达到最小规模（默认2个）的相似组
         similar_groups: List[List[VideoFileInfoResult]] = self.tree.get_similar_video_groups()
 
-        results: List[DuplicateGroupDBModule] = []
+        results: List[DuplicateGroupDBModel] = []
         for i, group in enumerate(similar_groups):
-            # 转换 VideoInfo 对象为 DuplicateFile 数据类
-            duplicate_files:List[int] = []
+            # 构造 DuplicateFileDBModel 列表
+            duplicate_files: List[DuplicateFileDBModel] = []
             for video in group:
-                duplicate_files.append(video.file_index.id)
+                duplicate_files.append(DuplicateFileDBModel(
+                    file_id=video.file_index.id,
+                    similarity_type="hash",
+                    similarity_rate=video.similarity_rate
+                ))
 
             # 创建重复组对象
-            group_obj = DuplicateGroupDBModule(
+            group_obj: DuplicateGroupDBModel = DuplicateGroupDBModel(
                 group_name=f"video_sim_{i}",
-                file_ids=duplicate_files
+                files=duplicate_files
             )
             results.append(group_obj)
 

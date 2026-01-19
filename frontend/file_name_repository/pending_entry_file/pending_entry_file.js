@@ -19,6 +19,8 @@ const UIController = {
 
     /**
      * 用途说明：初始化 UI 控制器，并使用公用组件初始化顶部栏
+     * 入参说明：无
+     * 返回值说明：无
      */
     init() {
         // 使用公用组件初始化顶部栏
@@ -61,6 +63,8 @@ const UIController = {
 
     /**
      * 用途说明：渲染表格内容
+     * 入参说明：list: Array - 待录入记录列表数据
+     * 返回值说明：无
      */
     renderTable(list) {
         const { tableBody, selectAllCheckbox } = this.elements;
@@ -73,6 +77,7 @@ const UIController = {
         }
 
         const startVisibleIndex = (State.page - 1) * State.limit + 1;
+        const fragment = document.createDocumentFragment();
 
         list.forEach((item, index) => {
             const isChecked = State.selectedIds.has(String(item.id));
@@ -88,16 +93,27 @@ const UIController = {
                     <input type="checkbox" class="file-checkbox" data-id="${item.id}" ${isChecked ? 'checked' : ''}>
                 </td>
             `;
-            tableBody.appendChild(tr);
+            fragment.appendChild(tr);
         });
+        tableBody.appendChild(fragment);
 
         this.updateActionButtons();
     },
 
+    /**
+     * 用途说明：更新表头排序 UI 状态
+     * 入参说明：field: string - 排序字段名; order: string - 排序方向 ('ASC' 或 'DESC')
+     * 返回值说明：无
+     */
     updateSortUI(field, order) {
         UIComponents.updateSortUI(this.elements.sortableHeaders, field, order);
     },
 
+    /**
+     * 用途说明：更新操作按钮的启用/禁用或可见状态
+     * 入参说明：无
+     * 返回值说明：无
+     */
     updateActionButtons() {
         const { deleteSelectedBtn } = this.elements;
         const count = State.selectedIds.size;
@@ -113,11 +129,21 @@ const UIController = {
 
 // --- API 交互模块 ---
 const PendingEntryAPI = {
+    /**
+     * 用途说明：获取待录入文件名列表
+     * 入参说明：params: Object - 查询参数 (page, limit, sort_by, order_asc, search)
+     * 返回值说明：Promise - 返回包含状态 and 数据的对象
+     */
     async getList(params) {
         const query = new URLSearchParams(params).toString();
         return await Request.get('/api/file_name_repository/pending_entry/list?' + query);
     },
 
+    /**
+     * 用途说明：批量删除待录入记录
+     * 入参说明：ids: Array - 记录 ID 列表
+     * 返回值说明：Promise - 返回操作结果状态
+     */
     async batchDeletePending(ids) {
         return await Request.post('/api/file_name_repository/pending_entry/batch_delete', { ids: ids });
     }
@@ -125,19 +151,28 @@ const PendingEntryAPI = {
 
 // --- 应用逻辑主入口 ---
 const App = {
+    /**
+     * 用途说明：应用初始化入口
+     * 入参说明：无
+     * 返回值说明：无
+     */
     init() {
         UIController.init();
         this.bindEvents();
         this.loadPendingList();
     },
 
+    /**
+     * 用途说明：绑定页面交互事件，并监听页面可见性变化以刷新数据
+     * 入参说明：无
+     * 返回值说明：无
+     */
     bindEvents() {
         const { goBatchBtn, deleteSelectedBtn, sortableHeaders } = UIController.elements;
 
-        // 跳转到新设计的批量录入页面
         if (goBatchBtn) {
             goBatchBtn.onclick = () => {
-                window.location.href = 'batch_entry.html';
+                window.location.href = 'batch_entry/batch_entry.html';
             };
         }
 
@@ -148,18 +183,33 @@ const App = {
         sortableHeaders.forEach(th => {
             th.onclick = () => {
                 const field = th.getAttribute('data-field');
-                if (State.sortBy === field) {
-                    State.order = State.order === 'ASC' ? 'DESC' : 'ASC';
-                } else {
-                    State.sortBy = field;
-                    State.order = 'DESC';
-                }
+                State.order = (State.sortBy === field && State.order === 'ASC') ? 'DESC' : 'ASC';
+                State.sortBy = field;
                 UIController.updateSortUI(State.sortBy, State.order);
                 this.loadPendingList();
             };
         });
+
+        // 监听页面回到前台或从缓存恢复时刷新数据
+        window.addEventListener('pageshow', (event) => {
+            if (event.persisted) {
+                this.loadPendingList();
+            }
+        });
+
+        // 监听页面可见性变化，当用户切回该标签页时刷新
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+                this.loadPendingList();
+            }
+        });
     },
 
+    /**
+     * 用途说明：执行搜索操作
+     * 入参说明：无
+     * 返回值说明：无
+     */
     handleSearch() {
         const { searchInput } = UIController.elements;
         State.search = searchInput.value.trim();
@@ -168,6 +218,11 @@ const App = {
         this.loadPendingList();
     },
 
+    /**
+     * 用途说明：加载并渲染待录入文件名列表
+     * 入参说明：无
+     * 返回值说明：无
+     */
     async loadPendingList() {
         const params = {
             page: State.page,
@@ -185,6 +240,11 @@ const App = {
         }
     },
 
+    /**
+     * 用途说明：处理批量删除选中项的操作
+     * 入参说明：无
+     * 返回值说明：无
+     */
     async handleDeleteSelected() {
         const ids = Array.from(State.selectedIds).map(id => parseInt(id));
         UIComponents.showConfirmModal({

@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import List
-from backend.model.db.duplicate_group_db_model import DuplicateGroupDBModule
+
+from backend.model.db.duplicate_group_db_model import DuplicateGroupDBModel
 from backend.model.db.file_index_db_model import FileIndexDBModel
 
 
@@ -14,19 +15,19 @@ class BaseDuplicateChecker(ABC):
         """
         用途：录入一个文件信息进行查重分析。
         入参说明：
-            file_info (FileIndex): 文件索引对象。
+            file_info (FileIndexDBModel): 文件索引对象。
         返回值说明：
             None
         """
         pass
 
     @abstractmethod
-    def get_results(self) -> List[DuplicateGroupDBModule]:
+    def get_results(self) -> List[DuplicateGroupDBModel]:
         """
         用途：获取查重分析后的结果。
         入参说明：无
         返回值说明：
-            List[DuplicateGroupDBModule]: 查重结果组列表。
+            List[DuplicateGroupDBModel]: 查重结果组列表。
         """
         pass
 

@@ -194,5 +194,5 @@ def check_batch_files():
     if not file_names:
         return error_response("未提供文件名清单", 400)
     
-    results: dict = PendingEntryFileService.check_batch_files(file_names)
-    return success_response("批量检测完成", data=results)
+    results = PendingEntryFileService.check_batch_files(file_names)
+    return success_response("批量检测完成", data=[asdict(r) for r in results])

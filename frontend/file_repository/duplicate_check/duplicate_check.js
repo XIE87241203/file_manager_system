@@ -13,6 +13,7 @@ const CheckState = {
     settings: null, // 存储系统设置
     paginationController: null, // 分页控制器实例
     previousExpandedStates: null, // 用途说明：存储上一页结果的展开/收起状态，用于刷新后保留状态
+    selectedPaths: new Set(), // 存储选中的文件路径，以保持跨页选中状态
 
     /**
      * 用途说明：更新结果列表及分页信息
@@ -70,8 +71,7 @@ const UIController = {
 
         // 绑定全局删除按钮
         this.elements.globalDeleteBtn.onclick = () => {
-            const checkedCbs = document.querySelectorAll('.file-checkbox:checked');
-            const paths = Array.from(checkedCbs).map(cb => cb.getAttribute('data-path'));
+            const paths = Array.from(CheckState.selectedPaths);
             if (paths.length > 0) {
                 App.moveToRecycleBin(paths, `确定要将选中的 ${paths.length} 个文件移入回收站吗？\n(移入回收站后若组内文件少于2个，该组将自动解散)`);
             }
@@ -129,7 +129,7 @@ const UIController = {
     },
 
     /**
-     * 用途说明：更新扫描进度条和状态文字
+     * 用途说明：更新扫描进度条及状态文字
      * 入参说明：progress (Object) - 进度数据
      * 返回值说明：无
      */
@@ -157,7 +157,7 @@ const UIController = {
 
         summaryBar.classList.remove('hidden');
         summaryGroups.textContent = `重复组总数: ${CheckState.total}`;
-        const totalFiles = results.reduce((acc, g) => acc + (g.file_ids ? g.file_ids.length : 0), 0);
+        const totalFiles = results.reduce((acc, g) => acc + (g.files ? g.files.length : 0), 0);
         summaryFiles.textContent = `当前页文件: ${totalFiles}`;
         summaryTime.textContent = `刷新时间: ${CheckState.lastCheckTime}`;
 
@@ -184,7 +184,7 @@ const UIController = {
         groupEl.className = `duplicate-group ${group.isExpanded ? 'expanded' : ''}`;
         groupEl.setAttribute('data-group-id', group.id);
 
-        const files = group.file_ids || [];
+        const files = group.files || [];
         const fileCount = files.length;
         const groupType = group.group_name || '重复组';
 
@@ -202,8 +202,10 @@ const UIController = {
             <div class="group-content">
                 <table class="file-item-table">
                     <thead>
-                        <tr>
+                        <tr class="header-row-clickable">
                             <th class="col-dup-name">文件名</th>
+                            <th class="col-dup-similarity">相似率</th>
+                            <th class="col-dup-size">大小</th>
                             <th class="col-dup-path">完整路径</th>
                             <th class="col-dup-check">
                                 <input type="checkbox" class="file-checkbox select-all-in-group">
@@ -212,13 +214,28 @@ const UIController = {
                     </thead>
                     <tbody>
                         ${files.map(f => {
-                            const fileName = UIComponents.getFileName(f.file_path);
+                            const info = f.file_info;
+                            const isChecked = CheckState.selectedPaths.has(info.file_path);
+                            const fileName = UIComponents.getFileName(info.file_path);
+                            const fileSizeStr = CommonUtils.formatFileSize(info.file_size);
+                            
+                            // 格式化相似率：类型(百分比)
+                            const typeMap = {
+                                'md5': 'MD5',
+                                'video_feature': '视频指纹'
+                            };
+                            const typeStr = typeMap[f.similarity_type] || f.similarity_type;
+                            const rateStr = (f.similarity_rate * 100).toFixed(1) + '%';
+                            const similarityDisplay = `${typeStr}(${rateStr})`;
+
                             return `
-                                <tr class="clickable-row" data-path="${f.file_path}" data-thumbnail="${f.thumbnail_path || ''}">
+                                <tr class="clickable-row ${isChecked ? 'selected-row' : ''}" data-path="${info.file_path}" data-thumbnail="${info.thumbnail_path || ''}">
                                     <td class="col-dup-name" title="${fileName}">${fileName}</td>
-                                    <td class="col-dup-path file-path" title="${f.file_path}">${f.file_path}</td>
+                                    <td class="col-dup-similarity">${similarityDisplay}</td>
+                                    <td class="col-dup-size">${fileSizeStr}</td>
+                                    <td class="col-dup-path file-path" title="${info.file_path}">${info.file_path}</td>
                                     <td class="col-dup-check">
-                                        <input type="checkbox" class="file-checkbox file-item-checkbox" data-path="${f.file_path}">
+                                        <input type="checkbox" class="file-checkbox file-item-checkbox" data-path="${info.file_path}" ${isChecked ? 'checked' : ''}>
                                     </td>
                                 </tr>
                             `;
@@ -241,13 +258,25 @@ const UIController = {
 
         const tbody = groupEl.querySelector('tbody');
         const selectAllInGroup = groupEl.querySelector('.select-all-in-group');
+        const theadRow = groupEl.querySelector('thead tr');
+
+        // 点击表头行整条激活全选
+        if (theadRow && selectAllInGroup) {
+            theadRow.addEventListener('click', (e) => {
+                // 如果直接点击的是复选框本身，则无需额外逻辑，由 bindTableSelection 处理
+                if (e.target === selectAllInGroup) return;
+                
+                selectAllInGroup.checked = !selectAllInGroup.checked;
+                // 手动触发 change 事件以执行 UIComponents.bindTableSelection 中的逻辑
+                selectAllInGroup.dispatchEvent(new Event('change'));
+            });
+        }
         
-        // 使用通用绑定逻辑 (虽然这里是组内全选，稍微变通一下)
-        // 这里的选中不涉及 CheckState 跨页，仅用于当前 UI 反馈
+        // 使用通用绑定逻辑，并传入全局 CheckState.selectedPaths
         UIComponents.bindTableSelection({
             tableBody: tbody,
             selectAllCheckbox: selectAllInGroup,
-            selectedSet: new Set(), // 临时用的 Set，实际上我们通过 DOM 查询来更新全局按钮
+            selectedSet: CheckState.selectedPaths,
             onSelectionChange: () => this.updateFloatingBar()
         });
 
@@ -268,7 +297,7 @@ const UIController = {
      * 返回值说明：无
      */
     updateFloatingBar() {
-        const checkedCount = document.querySelectorAll('.file-item-checkbox:checked').length;
+        const checkedCount = CheckState.selectedPaths.size;
         const { globalDeleteBtn } = this.elements;
         if (checkedCount > 0) {
             globalDeleteBtn.classList.remove('hidden');
@@ -292,6 +321,7 @@ const DuplicateCheckAPI = {
             if (response.status === 'success') {
                 Toast.show('查重任务已启动');
                 CheckState.results = [];
+                CheckState.selectedPaths.clear();
                 UIController.toggleView(ProgressStatus.PROCESSING);
                 App.startPolling();
             } else {
@@ -445,6 +475,7 @@ const App = {
                 const response = await DuplicateCheckAPI.moveToRecycleBin(paths);
                 if (response.status === 'success') {
                     Toast.show(response.message || '已移入回收站');
+                    CheckState.selectedPaths.clear(); // 成功后清除选中
                     const expandedStatesMap = {};
                     CheckState.results.forEach(group => {
                         expandedStatesMap[group.id] = group.isExpanded;

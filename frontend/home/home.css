@@ -8,15 +8,15 @@
     max-width: 800px;
 }
 
-/* 分组标题样式 - 优化为更现代、清爽的风格 */
+/* 分组标题样式 */
 .menu-group-title {
     width: 100%;
     font-size: 1.05rem;
     font-weight: 600;
-    color: #1a73e8; /* 使用更具现代感的品牌蓝 */
+    color: #1a73e8;
     margin: 32px 0 16px 0;
     padding-bottom: 8px;
-    border-bottom: 1px solid #e8eaed; /* 减弱底边线视觉强度 */
+    border-bottom: 1px solid #e8eaed;
     display: flex;
     align-items: center;
     letter-spacing: 0.5px;
@@ -32,9 +32,68 @@
     border-radius: 2px;
 }
 
-/* 第一个分组标题顶边距微调 */
 .menu-group-title:first-child {
     margin-top: 10px;
+}
+
+/* 文件仓库详情统计徽章 */
+.repo-detail-badge {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background-color: #f1f3f4;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    color: #5f6368;
+    font-weight: normal;
+}
+
+.detail-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+}
+
+.detail-value {
+    color: #1a73e8;
+    font-weight: 600;
+    min-width: 30px;
+    display: inline-block;
+    text-align: center;
+}
+
+/* 统计刷新按钮及旋转动画 */
+.btn-calc-stats {
+    background: none;
+    border: none;
+    color: #1a73e8;
+    cursor: pointer;
+    font-size: 1.1rem;
+    padding: 0 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.2s;
+    line-height: 1;
+}
+
+.btn-calc-stats:hover {
+    background-color: rgba(26, 115, 232, 0.1);
+}
+
+.btn-calc-stats.rotating {
+    animation: rotating 1s linear infinite;
+    pointer-events: none;
+    opacity: 0.7;
+}
+
+@keyframes rotating {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
 }
 
 /* 菜单网格布局 */
@@ -71,16 +130,10 @@
 .menu-icon {
     font-size: 2.2rem;
     margin-bottom: 12px;
-    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
 }
 
 .menu-label {
     font-size: 0.95rem;
     font-weight: 500;
     color: #3c4043;
-    transition: color 0.2s;
-}
-
-.menu-item:hover .menu-label {
-    color: #1a73e8;
 }

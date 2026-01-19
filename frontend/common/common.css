@@ -500,7 +500,7 @@ body {
 /* 专用输入弹窗样式 */
 .modal-input-content {
     width: 70vw !important;
-    height: 70vh !important;
+    height: 70dvh !important;
     max-width: none !important;
     min-width: 500px;
     min-height: 400px;
@@ -543,7 +543,7 @@ body {
 /* --- 仓库页面基础布局 (适用于文件仓库、回收站、查重页) --- */
 
 .repo-body {
-    height: 100vh;
+    height: 100dvh;
     width: 100vw;
     margin: 0;
     display: flex;

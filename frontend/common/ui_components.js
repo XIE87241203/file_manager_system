@@ -439,6 +439,24 @@ const UIComponents = {
     },
 
     /**
+     * 用途说明：内部方法：将滚动内容置顶
+     */
+    _scrollToTop() {
+        // 尝试寻找项目常用的滚动容器
+        const scrollContainers = ['.table-wrapper', '.repo-content-group', '#results-wrapper'];
+        let scrolled = false;
+        for (const selector of scrollContainers) {
+            const el = document.querySelector(selector);
+            if (el) {
+                el.scrollTop = 0;
+                scrolled = true;
+            }
+        }
+        // 如果没找到局部容器或为了保险，同时也滚动 window
+        window.scrollTo(0, 0);
+    },
+
+    /**
      * 用途说明：初始化分页组件
      * 入参说明：containerId (str) - 容器 ID，options (obj) - 配置项 { onPageChange, limit }
      * 返回值说明：返回包含 update 方法的控制器对象
@@ -461,10 +479,16 @@ const UIComponents = {
             const nextBtn = container.querySelector(`#${containerId}-next`);
             
             if (prevBtn) prevBtn.onclick = () => {
-                if (currentPage > 1) onPageChange(currentPage - 1);
+                if (currentPage > 1) {
+                    onPageChange(currentPage - 1);
+                    this._scrollToTop();
+                }
             };
             if (nextBtn) nextBtn.onclick = () => {
-                if (currentPage < totalPages) onPageChange(currentPage + 1);
+                if (currentPage < totalPages) {
+                    onPageChange(currentPage + 1);
+                    this._scrollToTop();
+                }
             };
         };
 

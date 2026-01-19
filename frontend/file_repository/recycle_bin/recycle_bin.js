@@ -66,7 +66,7 @@ const UIController = {
         if (selectAllCheckbox) selectAllCheckbox.checked = false;
 
         if (!list || list.length === 0) {
-            tableBody.innerHTML = UIComponents.getEmptyTableHtml(5, '回收站空空如也');
+            tableBody.innerHTML = UIComponents.getEmptyTableHtml(6, '回收站空空如也');
             return;
         }
 
@@ -77,8 +77,11 @@ const UIController = {
             if (isChecked) tr.classList.add('selected-row');
 
             const fileName = UIComponents.getFileName(file.file_path);
+            const fileSizeStr = CommonUtils.formatFileSize(file.file_size);
+
             tr.innerHTML = `
                 <td class="col-name" title="${fileName}">${fileName}</td>
+                <td class="col-size">${fileSizeStr}</td>
                 <td class="col-path" title="${file.file_path}">${file.file_path}</td>
                 <td class="col-md5"><code>${file.file_md5}</code></td>
                 <td class="col-time">${file.recycle_bin_time}</td>
@@ -126,15 +129,18 @@ const RecycleBinAPI = {
     },
 
     async deleteFiles(filePaths) {
-        return await Request.post('/api/file_repository/clear_recycle_bin', { file_paths: filePaths });
+        // 彻底删除进度条开启时，禁用默认 mask
+        return await Request.post('/api/file_repository/clear_recycle_bin', { file_paths: filePaths }, {}, false);
     },
 
     async clearAll() {
-        return await Request.post('/api/file_repository/clear_recycle_bin', {});
+        // 清空进度条开启时，禁用默认 mask
+        return await Request.post('/api/file_repository/clear_recycle_bin', {}, {}, false);
     },
 
     async getDeleteProgress() {
-        return await Request.get('/api/file_repository/clear_recycle_bin/progress');
+        // 轮询进度时一律不显示 mask，防止页面抖动
+        return await Request.get('/api/file_repository/clear_recycle_bin/progress', {}, false);
     }
 };
 
@@ -257,6 +263,9 @@ const App = {
                         this.loadFileList();
                     }
                 }
+            } else {
+                clearInterval(timer);
+                UIComponents.hideProgressBar('.repo-container');
             }
         }, 1000);
     },

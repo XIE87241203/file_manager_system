@@ -81,19 +81,24 @@ const UIController = {
         }
 
         if (!list || list.length === 0) {
-            tableBody.innerHTML = UIComponents.getEmptyTableHtml(State.searchHistory ? 4 : 5, '暂无索引文件');
+            tableBody.innerHTML = UIComponents.getEmptyTableHtml(State.searchHistory ? 5 : 6, '暂无索引文件');
             return;
         }
 
         list.forEach(file => {
+            // 关键修复：从 State.selectedPaths 中读取该文件是否被选中，以保持跨页选中状态
             const isChecked = State.selectedPaths.has(file.file_path);
             const tr = document.createElement('tr');
             tr.setAttribute('data-path', file.file_path);
             if (isChecked) tr.classList.add('selected-row');
             
             const fileName = UIComponents.getFileName(file.file_path);
+            // 使用 CommonUtils.formatFileSize 格式化文件大小
+            const fileSizeStr = CommonUtils.formatFileSize(file.file_size);
+
             let html = `
                 <td class="col-name" title="${fileName}">${fileName}</td>
+                <td class="col-size">${fileSizeStr}</td>
                 <td class="col-path" title="${file.file_path}">${file.file_path}</td>
                 <td class="col-md5"><code>${file.file_md5}</code></td>
                 <td class="col-time">${file.scan_time || file.delete_time}</td>

@@ -53,6 +53,7 @@
     - 请求：必须使用 `frontend/common/request.js`。
     - 提示：必须使用 `Toast.show()`。
     - 进度：长时任务必须调用 `UIComponents.showProgressBar`。
+    - **进度条冲突处理**: 当调用 `UIComponents.showProgressBar` 展示精细进度时，必须将 `Request` 方法中的 `showMask` 参数显式设置为 `false`，或直接不使用 `showProgressBar`。严禁两者同时开启。
 - **UI 交互约定**: 
     - HTML的控件均使用 `id` 绑定 JS 逻辑，`class` 绑定 CSS 样式。
     - 批量删除列表：复选框位于最右侧，支持点击行自动选中。

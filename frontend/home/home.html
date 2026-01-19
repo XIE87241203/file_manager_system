@@ -27,8 +27,18 @@
                     <div class="menu-label">曾录入文件名库</div>
                 </div>
             </div>
+            
             <!-- 文件管理分组 -->
-            <div class="menu-group-title">文件管理</div>
+            <div class="menu-group-title">
+                文件管理
+                <!-- 文件仓库详情徽章 -->
+                <div id="repo-detail-container" class="repo-detail-badge">
+                    <span class="detail-item">文件: <span id="repo-total-count" class="detail-value">--</span></span>
+                    <span class="detail-item">大小: <span id="repo-total-size" class="detail-value">--</span></span>
+                    <span class="detail-item">日期: <span id="repo-update-time" class="detail-value">--</span></span>
+                    <button id="btn-calc-repo-stats" class="btn-calc-stats" title="重新计算统计信息">🔄</button>
+                </div>
+            </div>
             <div class="menu-grid">
                 <!-- 文件仓库入口 -->
                 <div id="menu-file-repository" class="menu-item">
@@ -66,6 +76,7 @@
     </main>
 
     <!-- 引入公用工具 -->
+    <script src="../common/common.js"></script>
     <script src="../common/ui_components.js"></script>
     <script src="../common/request.js"></script>
     <script src="../common/toast.js"></script>

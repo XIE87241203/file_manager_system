@@ -5,23 +5,23 @@ from backend.common.log_utils import LogUtils
 from backend.db.db_constants import DBConstants
 from backend.db.db_manager import DBManager
 from backend.db.processor.base_db_processor import BaseDBProcessor
-from backend.model.db.duplicate_group_db_model import DuplicateGroupDBModule
+from backend.model.db.duplicate_group_db_model import DuplicateGroupDBModel
 from backend.model.db.file_index_db_model import FileIndexDBModel
-from backend.model.duplicate_group_result import DuplicateGroupResult
+from backend.model.duplicate_group_result import DuplicateGroupResult, DuplicateFileResult
 from backend.model.pagination_result import PaginationResult
 
 
-class DuplicateGroupDBModuleProcessor(BaseDBProcessor):
+class DuplicateGroupProcessor(BaseDBProcessor):
     """
     用途：重复文件分组数据库处理器，负责 duplicate_groups 和 duplicate_files 表的相关操作
     """
 
     @staticmethod
-    def batch_save_duplicate_groups(groups: List[DuplicateGroupDBModule], conn: Optional[sqlite3.Connection] = None) -> bool:
+    def batch_save_duplicate_groups(groups: List[DuplicateGroupDBModel], conn: Optional[sqlite3.Connection] = None) -> bool:
         """
-        用途：批量存储重复文件分组及其详情
+        用途：批量存储重复文件分组及其详情，记录相似类型和相似率
         入参说明：
-            groups (List[DuplicateGroupDBModule]): 重复文件分组模型列表
+            groups (List[DuplicateGroupDBModel]): 重复文件分组模型列表
             conn (Optional[sqlite3.Connection]): 数据库连接对象（可选，用于事务支持）
         返回值说明：
             bool: 是否全部成功存储
@@ -43,14 +43,26 @@ class DuplicateGroupDBModuleProcessor(BaseDBProcessor):
                 group_id: int = cursor.lastrowid
 
                 # 2. 准备该组的文件详情数据
-                files_data: List[tuple] = [(group_id, file_id) for file_id in group.file_ids]
+                files_data: List[tuple] = []
+                
+                # 使用 files 列表（包含相似度信息）
+                for f_model in group.files:
+                    files_data.append((
+                        group_id, 
+                        f_model.file_id, 
+                        f_model.similarity_type, 
+                        f_model.similarity_rate
+                    ))
 
                 # 3. 批量插入该组的文件记录
                 if files_data:
                     cursor.executemany(
                         f"INSERT INTO {DBConstants.DuplicateFile.TABLE_FILES} "
-                        f"({DBConstants.DuplicateFile.COL_FILE_GROUP_ID}, {DBConstants.DuplicateFile.COL_FILE_ID}) "
-                        f"VALUES (?, ?)",
+                        f"({DBConstants.DuplicateFile.COL_FILE_GROUP_ID}, "
+                        f"{DBConstants.DuplicateFile.COL_FILE_ID}, "
+                        f"{DBConstants.DuplicateFile.COL_SIMILARITY_TYPE}, "
+                        f"{DBConstants.DuplicateFile.COL_SIMILARITY_RATE}) "
+                        f"VALUES (?, ?, ?, ?)",
                         files_data
                     )
 
@@ -162,7 +174,7 @@ class DuplicateGroupDBModuleProcessor(BaseDBProcessor):
             PaginationResult[DuplicateGroupResult]: 包含分组及其文件列表的分页结果对象
         """
         # 1. 查询总分组数
-        total: int = DuplicateGroupDBModuleProcessor.get_group_count()
+        total: int = DuplicateGroupProcessor.get_group_count()
 
         if total == 0:
             return PaginationResult(total=0, list=[], page=page, limit=limit, sort_by="", order="ASC")
@@ -183,7 +195,10 @@ class DuplicateGroupDBModuleProcessor(BaseDBProcessor):
         placeholders: str = ','.join(['?'] * len(group_ids))
         
         file_query: str = f"""
-            SELECT df.{DBConstants.DuplicateFile.COL_FILE_GROUP_ID}, fi.* 
+            SELECT df.{DBConstants.DuplicateFile.COL_FILE_GROUP_ID}, 
+                   df.{DBConstants.DuplicateFile.COL_SIMILARITY_TYPE},
+                   df.{DBConstants.DuplicateFile.COL_SIMILARITY_RATE},
+                   fi.* 
             FROM {DBConstants.FileIndex.TABLE_NAME} fi
             JOIN {DBConstants.DuplicateFile.TABLE_FILES} df 
             ON fi.{DBConstants.FileIndex.COL_ID} = df.{DBConstants.DuplicateFile.COL_FILE_ID}
@@ -192,12 +207,24 @@ class DuplicateGroupDBModuleProcessor(BaseDBProcessor):
         all_file_rows: List[dict] = BaseDBProcessor._execute(file_query, tuple(group_ids), is_query=True)
 
         # 4. 按 group_id 组织文件数据
-        group_files_map: Dict[int, List[FileIndexDBModel]] = {}
+        group_files_map: Dict[int, List[DuplicateFileResult]] = {}
         for f_row in all_file_rows:
             gid: int = f_row.pop(DBConstants.DuplicateFile.COL_FILE_GROUP_ID)
+            # 获取相似度信息
+            sim_type: str = f_row.pop(DBConstants.DuplicateFile.COL_SIMILARITY_TYPE)
+            sim_rate: float = f_row.pop(DBConstants.DuplicateFile.COL_SIMILARITY_RATE)
+            
+            # 剩余字段构建文件模型
+            file_info: FileIndexDBModel = FileIndexDBModel(**f_row)
+            
             if gid not in group_files_map:
                 group_files_map[gid] = []
-            group_files_map[gid].append(FileIndexDBModel(**f_row))
+            
+            group_files_map[gid].append(DuplicateFileResult(
+                file_info=file_info,
+                similarity_type=sim_type or "md5",
+                similarity_rate=sim_rate if sim_rate is not None else 1.0
+            ))
 
         # 5. 封装结果
         results: List[DuplicateGroupResult] = []
@@ -206,7 +233,7 @@ class DuplicateGroupDBModuleProcessor(BaseDBProcessor):
             results.append(DuplicateGroupResult(
                 id=group_id,
                 group_name=g_row[DBConstants.DuplicateGroup.COL_GRP_GROUP_NAME],
-                file_ids=group_files_map.get(group_id, [])
+                files=group_files_map.get(group_id, [])
             ))
 
         return PaginationResult(

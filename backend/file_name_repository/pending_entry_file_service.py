@@ -2,6 +2,7 @@ from typing import List, Dict, Tuple
 
 from backend.common.utils import Utils
 from backend.db.db_operations import DBOperations
+from backend.model.batch_check_result import BatchCheckItemResult
 from backend.model.db.pending_entry_file_db_model import PendingEntryFileDBModel
 from backend.model.pagination_result import PaginationResult
 
@@ -53,13 +54,13 @@ class PendingEntryFileService:
         return DBOperations.clear_pending_entry_repository()
 
     @staticmethod
-    def check_batch_files(file_names: List[str]) -> Dict[str, dict]:
+    def check_batch_files(file_names: List[str]) -> List[BatchCheckItemResult]:
         """
         用途说明：全库批量检测文件名是否存在。采用预处理模式匹配，提升批量搜索效率。
         入参说明：file_names (List[str]): 待检测的文件名列表。
-        返回值说明：Dict[str, dict]: 包含检测结果的字典，格式如 {文件名: {source: 'index'|'history'|'pending'|'new', detail: '...'}}
+        返回值说明：List[BatchCheckItemResult]: 包含检测结果的数据类列表。
         """
-        results: Dict[str, dict] = {}
+        results: List[BatchCheckItemResult] = []
         from backend.db.processor_manager import processor_manager
         
         # 1. 批量预处理搜索模式
@@ -70,20 +71,20 @@ class PendingEntryFileService:
         index_matches: Dict[str, str] = processor_manager.file_index_processor.get_paths_by_patterns(name_patterns)
         
         # 检测曾录入库
-        history_matches: set = processor_manager.already_entered_file_processor.check_names_exist_by_patterns(name_patterns)
+        history_matches: Dict[str, str] = processor_manager.already_entered_file_processor.check_names_exist_by_patterns(name_patterns)
         
         # 检测待录入库
-        pending_matches: set = processor_manager.pending_entry_file_processor.check_names_exist_by_patterns(name_patterns)
+        pending_matches: Dict[str, str] = processor_manager.pending_entry_file_processor.check_names_exist_by_patterns(name_patterns)
         
         # 3. 汇总结果
         for name in file_names:
             if name in index_matches:
-                results[name] = {"source": "index", "detail": index_matches[name]}
+                results.append(BatchCheckItemResult(name=name, source="index", detail=index_matches[name]))
             elif name in history_matches:
-                results[name] = {"source": "history", "detail": "存在于历史记录"}
+                results.append(BatchCheckItemResult(name=name, source="history", detail=f"匹配到: {history_matches[name]}"))
             elif name in pending_matches:
-                results[name] = {"source": "pending", "detail": "已在待录入队列"}
+                results.append(BatchCheckItemResult(name=name, source="pending", detail=pending_matches[name]))
             else:
-                results[name] = {"source": "new", "detail": ""}
+                results.append(BatchCheckItemResult(name=name, source="new", detail=""))
                 
         return results

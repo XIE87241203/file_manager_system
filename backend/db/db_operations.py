@@ -1,11 +1,12 @@
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from backend.db.db_manager import DBManager
 from backend.db.processor_manager import processor_manager
 from backend.model.db.already_entered_file_db_model import AlreadyEnteredFileDBModel
-from backend.model.db.duplicate_group_db_model import DuplicateGroupDBModule
+from backend.model.db.duplicate_group_db_model import DuplicateGroupDBModel
 from backend.model.db.file_index_db_model import FileIndexDBModel
+from backend.model.db.file_repo_detail_db_model import FileRepoDetailDBModel
 from backend.model.db.history_file_index_db_model import HistoryFileIndexDBModule
 from backend.model.db.pending_entry_file_db_model import PendingEntryFileDBModel
 from backend.model.db.video_feature_db_model import VideoFeatureDBModel
@@ -23,28 +24,38 @@ class DBOperations:
     @staticmethod
     def batch_insert_files_index(data_list: List[FileIndexDBModel]) -> bool:
         """
-        用途：批量插入文件索引
+        用途说明：批量插入文件索引数据。
+        入参说明：data_list (List[FileIndexDBModel]): 待入库的文件索引模型列表。
+        返回值说明：bool: 是否插入成功。
         """
         return bool(processor_manager.file_index_processor.batch_insert_data(data_list))
 
     @staticmethod
     def batch_update_files_scan_time(file_paths: List[str], scan_time: str) -> bool:
         """
-        用途：批量更新文件扫描时间
+        用途说明：批量更新文件的扫描时间戳。
+        入参说明：
+            file_paths (List[str]): 需要更新的文件路径列表。
+            scan_time (str): 新的扫描时间字符串。
+        返回值说明：bool: 是否更新成功。
         """
         return bool(processor_manager.file_index_processor.batch_update_scan_time(file_paths, scan_time))
 
     @staticmethod
     def delete_files_by_not_scan_time(scan_time: str) -> int:
         """
-        用途：删除扫描时间不等于指定时间戳的文件索引
+        用途说明：删除扫描时间不等于指定时间戳的文件索引（用于清理已失效的文件）。
+        入参说明：scan_time (str): 当前有效的扫描时间戳。
+        返回值说明：int: 删除的记录数量。
         """
         return processor_manager.file_index_processor.delete_by_scan_time_not_equal(scan_time)
 
     @staticmethod
     def clear_all_file_index() -> bool:
         """
-        用途：清空文件索引及关联的重复组数据（已优化：使用事务确保原子性）
+        用途说明：清空文件索引及关联的重复组数据（使用事务确保原子性）。
+        入参说明：无
+        返回值说明：bool: 是否清空成功。
         """
         try:
             with DBManager.transaction() as conn:
@@ -57,28 +68,36 @@ class DBOperations:
     @staticmethod
     def clear_history_index() -> bool:
         """
-        用途：清空历史记录表
+        用途说明：清空历史记录表。
+        入参说明：无
+        返回值说明：bool: 是否清空成功。
         """
         return processor_manager.history_file_index_processor.clear_all_table()
 
     @staticmethod
     def copy_file_index_to_history() -> int:
         """
-        用途：将当前所有文件索引数据备份到历史索引表中
+        用途说明：将当前所有文件索引数据备份到历史索引表中。
+        入参说明：无
+        返回值说明：int: 成功备份的记录条数。
         """
         return processor_manager.history_file_index_processor.copy_file_index_to_history()
 
     @staticmethod
     def get_file_by_path(file_path: str) -> Optional[FileIndexDBModel]:
         """
-        用途：通过路径获取文件详情
+        用途说明：通过文件路径获取文件索引详情。
+        入参说明：file_path (str): 文件完整路径。
+        返回值说明：Optional[FileIndexDBModel]: 文件详情模型，不存在则返回 None。
         """
         return processor_manager.file_index_processor.get_file_index_by_path(file_path)
 
     @staticmethod
     def delete_file_index_by_file_id(file_id: int) -> bool:
         """
-        用途：删除指定文件索引，并同步维护重复文件分组（已优化：使用事务确保原子性）
+        用途说明：删除指定文件索引，并同步维护重复文件分组（使用事务确保原子性）。
+        入参说明：file_id (int): 文件 ID。
+        返回值说明：bool: 是否删除成功。
         """
         try:
             with DBManager.transaction() as conn:
@@ -91,34 +110,52 @@ class DBOperations:
     @staticmethod
     def search_file_index_list(page: int, limit: int, sort_by: str, order: bool,
                                search_query: str, is_in_recycle_bin: bool = False) -> PaginationResult[FileIndexDBModel]:
+        """
+        用途说明：分页查询文件索引列表。
+        """
         return processor_manager.file_index_processor.get_paged_list(page, limit, sort_by, order, search_query, is_in_recycle_bin)
 
     @staticmethod
     def search_history_file_index_list(page: int, limit: int, sort_by: str, order: bool,
                                        search_query: str) -> PaginationResult[HistoryFileIndexDBModule]:
+        """
+        用途说明：分页查询历史文件索引列表。
+        """
         return processor_manager.history_file_index_processor.get_paged_list(page, limit, sort_by, order, search_query)
 
     @staticmethod
     def get_file_index_list_by_condition(offset: int, limit: int,
                                          only_no_thumbnail: bool = False) -> List[FileIndexDBModel]:
+        """
+        用途说明：按条件获取文件索引列表。
+        """
         return processor_manager.file_index_processor.get_list_by_condition(offset, limit, only_no_thumbnail)
 
     @staticmethod
     def get_file_index_count(only_no_thumbnail: bool = False) -> int:
+        """
+        用途说明：获取符合条件的文件总数。
+        """
         return processor_manager.file_index_processor.get_count(only_no_thumbnail)
 
     @staticmethod
     def check_file_md5_exists(file_md5: str) -> bool:
+        """
+        用途说明：检查 MD5 是否已存在。
+        """
         return processor_manager.file_index_processor.check_md5_exists(file_md5)
 
     @staticmethod
     def check_file_path_exists(file_path: str) -> bool:
+        """
+        用途说明：检查文件路径是否已存在。
+        """
         return processor_manager.file_index_processor.check_path_exists(file_path)
 
     @staticmethod
     def batch_move_to_recycle_bin(file_paths: List[str]) -> bool:
         """
-        用途：批量将文件移入回收站，并同步从重复文件记录中删除（已优化：使用事务确保原子性）
+        用途说明：批量将文件移入回收站，并同步维护重复分组（使用事务）。
         """
         recycle_time: str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         try:
@@ -134,7 +171,7 @@ class DBOperations:
     @staticmethod
     def batch_restore_from_recycle_bin(file_paths: List[str]) -> bool:
         """
-        用途：批量将文件移出回收站
+        用途说明：批量将文件从回收站恢复。
         """
         return processor_manager.file_index_processor.restore_from_recycle_bin(file_paths) > 0
 
@@ -142,18 +179,30 @@ class DBOperations:
 
     @staticmethod
     def add_video_features(features: VideoFeatureDBModel) -> bool:
+        """
+        用途说明：添加或更新视频特征。
+        """
         return processor_manager.video_feature_processor.add_or_update_feature(features)
 
     @staticmethod
     def get_video_features_by_md5(md5: str) -> Optional[VideoFeatureDBModel]:
+        """
+        用途说明：根据 MD5 获取视频特征。
+        """
         return processor_manager.video_feature_processor.get_feature_by_md5(md5)
 
     @staticmethod
     def clear_video_features() -> bool:
+        """
+        用途说明：清空视频特征库。
+        """
         return processor_manager.video_feature_processor.clear_video_features()
 
     @staticmethod
     def get_video_file_info(file_path: str) -> Optional[VideoFileInfoResult]:
+        """
+        用途说明：获取完整的视频文件详情（包含索引与特征）。
+        """
         file_index: Optional[FileIndexDBModel] = DBOperations.get_file_by_path(file_path)
         if not file_index:
             return None
@@ -166,33 +215,62 @@ class DBOperations:
 
     @staticmethod
     def clear_duplicate_results() -> bool:
+        """
+        用途说明：清空查重结果表。
+        """
         return processor_manager.duplicate_group_processor.clear_all_table()
 
     @staticmethod
-    def save_duplicate_results(results: List[DuplicateGroupDBModule]) -> bool:
+    def save_duplicate_results(results: List[DuplicateGroupDBModel]) -> bool:
+        """
+        用途说明：批量保存查重结果。
+        """
         return processor_manager.duplicate_group_processor.batch_save_duplicate_groups(results)
 
     @staticmethod
     def get_all_duplicate_results(page: int, limit: int) -> PaginationResult[DuplicateGroupResult]:
+        """
+        用途说明：分页获取重复文件分组。
+        """
         return processor_manager.duplicate_group_processor.get_duplicate_groups_paged(page, limit)
 
     @staticmethod
     def get_duplicate_group_count() -> int:
+        """
+        用途说明：获取重复组总数。
+        """
         return processor_manager.duplicate_group_processor.get_group_count()
 
     # --- 缩略图相关操作 ---
 
     @staticmethod
     def update_thumbnail_path(file_path: str, thumbnail_path: str) -> bool:
+        """
+        用途说明：更新指定文件的缩略图路径。
+        入参说明：
+            file_path (str): 文件完整路径。
+            thumbnail_path (str): 缩略图文件路径。
+        返回值说明：bool: 是否更新成功。
+        """
         return processor_manager.file_index_processor.update_thumbnail_path(file_path, thumbnail_path)
 
     @staticmethod
     def get_files_without_thumbnail() -> List[FileIndexDBModel]:
+        """
+        用途说明：获取所有缺失缩略图的文件。
+        入参说明：无
+        返回值说明：List[FileIndexDBModel]: 无缩略图的文件索引模型列表。
+        """
         return processor_manager.file_index_processor.get_list_by_condition(0, 0, True)
 
     @staticmethod
     def clear_all_thumbnail_records() -> bool:
-        return processor_manager.file_index_processor.clear_all_thumbnails()
+        """
+        用途说明：清空数据库中所有文件的缩略图路径记录。
+        入参说明：无
+        返回值说明：bool: 是否成功执行清空操作。
+        """
+        return bool(processor_manager.file_index_processor.clear_all_thumbnails() >= 0)
 
     # --- 曾录入文件名库相关操作 (原忽略文件库) ---
 
@@ -221,12 +299,45 @@ class DBOperations:
 
     @staticmethod
     def add_pending_entry_files(file_names: List[str]) -> bool:
+        """
+        用途说明：批量添加待录入文件名。
+        """
         return bool(processor_manager.pending_entry_file_processor.add_pending_entry_files(file_names))
 
     @staticmethod
     def search_pending_entry_file_list(page: int, limit: int, sort_by: str, order: bool, search_query: str) -> PaginationResult[PendingEntryFileDBModel]:
+        """
+        用途说明：分页查询待录入文件名。
+        """
         return processor_manager.pending_entry_file_processor.get_paged_list(page, limit, sort_by, order, search_query)
 
     @staticmethod
     def clear_pending_entry_repository() -> bool:
+        """
+        用途说明：清空待录入文件名库。
+        """
         return processor_manager.pending_entry_file_processor.clear_all_table()
+
+    # --- 文件仓库详情统计相关操作 ---
+
+    @staticmethod
+    def calculate_and_save_repo_detail() -> Optional[FileRepoDetailDBModel]:
+        """
+        用途说明：从 file_index 表中统计所有文件的总数和总大小，并保存到 file_repo_detail 表中。
+        返回值说明：最新的 FileRepoDetailDBModel 对象，计算失败则返回 None。
+        """
+        stats: Tuple[int, int] = processor_manager.file_index_processor.get_total_stats()
+        total_count, total_size = stats
+        update_time: str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        if processor_manager.file_repo_detail_processor.update_detail(total_count, total_size, update_time):
+            return processor_manager.file_repo_detail_processor.get_detail()
+        return None
+
+    @staticmethod
+    def get_repo_detail() -> Optional[FileRepoDetailDBModel]:
+        """
+        用途说明：从数据库中获取缓存的文件仓库详情。
+        返回值说明：Optional[FileRepoDetailDBModel]: 统计详情模型，不存在则返回 None。
+        """
+        return processor_manager.file_repo_detail_processor.get_detail()

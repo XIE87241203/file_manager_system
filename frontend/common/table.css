@@ -33,8 +33,9 @@ th {
 }
 
 /* 常用列宽度控制 */
-.col-name { width: 22%; }
-.col-path { width: 40%; }
+.col-name { width: 18%; }
+.col-size { width: 10%; }
+.col-path { width: 35%; }
 .col-md5 { width: 22%; }
 .col-time { width: 12%; }
 .col-check { width: 40px; text-align: center; }

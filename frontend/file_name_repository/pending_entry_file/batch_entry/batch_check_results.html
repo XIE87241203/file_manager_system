@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>检测结果 - 文件管理系统</title>
+    <!-- 引入公用样式 -->
+    <link rel="stylesheet" href="../../../common/common.css">
+    <link rel="stylesheet" href="../../../common/table.css">
+    <!-- 引入页面私有样式 -->
+    <link rel="stylesheet" href="batch_check_results.css">
+</head>
+<body class="repo-body">
+    <!-- 顶部工具栏：由 JS 动态初始化 -->
+    <header class="top-bar"></header>
+
+    <main class="repo-container">
+        <div id="repo-main-content" class="repo-content-group">
+            <!-- 结果列表上方的工具栏 -->
+            <div class="results-header-toolbar">
+                <div class="toolbar-left">
+                    <span class="stat-info">
+                        共检测 <span id="total-count">0</span> 项，
+                        其中新记录 <span id="new-count" class="text-new">0</span> 项
+                    </span>
+                </div>
+                <div class="toolbar-right">
+                    <button id="btn-select-all-new" class="btn-primary-large">选中所有未收录</button>
+                </div>
+            </div>
+
+            <!-- 数据展示区：自适应表格 -->
+            <div class="table-wrapper">
+                <table id="file-table" class="file-table">
+                    <thead>
+                        <tr>
+                            <th class="col-index">序号</th>
+                            <th class="sortable col-name" data-field="name">
+                                文件名 <span class="sort-icon"></span>
+                            </th>
+                            <th class="sortable col-status" data-field="source">
+                                状态 / 存储路径 <span class="sort-icon"></span>
+                            </th>
+                            <th class="col-check">
+                                <input type="checkbox" id="select-all-checkbox" class="select-all-checkbox">
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody id="results-list-body">
+                        <!-- 数据行由 JS 动态生成 -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- 底部导航区：分页控制与操作 -->
+            <footer class="footer-bar">
+                <div class="footer-left">
+                    <!-- 占位，保持布局平衡 -->
+                </div>
+                <div class="footer-center">
+                    <div id="pagination-container" class="pagination-container">
+                        <!-- 分页组件由 ui_components.js 动态初始化 -->
+                    </div>
+                </div>
+                <div class="footer-right">
+                    <button id="btn-confirm-import" class="btn-primary-large">录入选中纪录</button>
+                </div>
+            </footer>
+        </div>
+    </main>
+
+    <!-- 脚本加载 -->
+    <script src="../../../common/ui_components.js"></script>
+    <script src="../../../common/request.js"></script>
+    <script src="../../../common/toast.js"></script>
+    <script src="batch_check_results.js"></script>
+</body>
+</html>

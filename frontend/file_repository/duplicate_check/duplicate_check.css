@@ -161,7 +161,9 @@
 
 /* 指定查重页面的列宽 */
 .col-dup-name { width: 25%; }
-.col-dup-path { width: 70%; }
+.col-dup-similarity { width: 15%; } /* 相似率列合并展示类型和比率 */
+.col-dup-size { width: 10%; }
+.col-dup-path { width: 45%; } 
 .col-dup-check { width: 40px; text-align: center; }
 
 .file-item-table tr:last-child td {
