@@ -1,4 +1,4 @@
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 
 from backend.common.log_utils import LogUtils
 from backend.common.progress_manager import ProgressManager, ProgressInfo, ProgressStatus
@@ -187,16 +187,18 @@ class DuplicateService(BaseFileService):
 
 
     @staticmethod
-    def get_all_duplicate_results(page: int, limit: int) -> PaginationResult[DuplicateGroupResult]:
+    def get_all_duplicate_results(page: int, limit: int, similarity_type: Optional[str] = None) -> PaginationResult[DuplicateGroupResult]:
         """
-        用途：分页获取所有查重结果分组。
+        用途：分页获取所有查重结果分组，支持按相似度类型筛选。
         入参说明：
             page (int): 当前页码。
             limit (int): 每页记录数。
+            similarity_type (Optional[str]): 筛选相似度类型 (如 DBConstants.SimilarityType)。
         返回值说明：
             PaginationResult[DuplicateGroupResult]: 包含分页信息和结果列表的对象。
         """
-        return DBOperations.get_all_duplicate_results(page, limit)
+        from backend.db.processor_manager import processor_manager
+        return processor_manager.duplicate_group_processor.get_duplicate_groups_paged(page, limit, similarity_type)
 
 
 # 在模块加载时执行初始化

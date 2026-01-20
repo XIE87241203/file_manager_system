@@ -8,6 +8,7 @@ const CheckState = {
     page: 1,
     limit: 20,
     total: 0,
+    similarityType: '', // 存储当前的筛选类型
     lastCheckTime: '--',
     pollingInterval: null,
     settings: null, // 存储系统设置
@@ -60,7 +61,8 @@ const UIController = {
             summaryGroups: document.getElementById('summary-groups'),
             summaryFiles: document.getElementById('summary-files'),
             summaryTime: document.getElementById('summary-time'),
-            globalDeleteBtn: document.getElementById('btn-delete-selected-global')
+            globalDeleteBtn: document.getElementById('btn-delete-selected-global'),
+            filterSimilarityType: document.getElementById('filter-similarity-type')
         };
 
         // 初始化公用分页组件
@@ -76,6 +78,14 @@ const UIController = {
                 App.moveToRecycleBin(paths, `确定要将选中的 ${paths.length} 个文件移入回收站吗？\n(移入回收站后若组内文件少于2个，该组将自动解散)`);
             }
         };
+
+        // 绑定筛选事件
+        if (this.elements.filterSimilarityType) {
+            this.elements.filterSimilarityType.onchange = () => {
+                CheckState.similarityType = this.elements.filterSimilarityType.value;
+                App.loadResults(1);
+            };
+        }
 
         this.renderHeader(ProgressStatus.IDLE);
     },
@@ -114,7 +124,7 @@ const UIController = {
             scanningContainer.classList.add('hidden');
             UIComponents.hideProgressBar('#scanning-container');
 
-            if (status === ProgressStatus.COMPLETED || (CheckState.results && CheckState.results.length > 0)) {
+            if (status === ProgressStatus.COMPLETED || (CheckState.results && CheckState.results.length > 0) || CheckState.similarityType !== '') {
                 resultsGroup.classList.remove('hidden');
                 emptyHint.classList.add('hidden');
             } else {
@@ -148,7 +158,7 @@ const UIController = {
 
         const results = CheckState.results;
         if (!results || results.length === 0) {
-            summaryBar.classList.add('hidden');
+            summaryBar.classList.remove('hidden');
             wrapper.innerHTML = '<div style="text-align: center; color: #9aa0a6; padding-top: 100px;">未发现重复文件</div>';
             if (CheckState.paginationController) CheckState.paginationController.update(0, 1);
             this.updateFloatingBar();
@@ -222,6 +232,7 @@ const UIController = {
                             // 格式化相似率：类型(百分比)
                             const typeMap = {
                                 'md5': 'MD5',
+                                'hash': '图片指纹',
                                 'video_feature': '视频指纹'
                             };
                             const typeStr = typeMap[f.similarity_type] || f.similarity_type;
@@ -364,12 +375,15 @@ const DuplicateCheckAPI = {
 
     /**
      * 用途说明：分页获取查重结果数据
-     * 入参说明：page (int), limit (int)
+     * 入参说明：page (int), limit (int), similarityType (string)
      * 返回值说明：Object - PaginationResult
      */
-    async fetchList(page, limit) {
+    async fetchList(page, limit, similarityType = '') {
         try {
-            const query = new URLSearchParams({ page: page, limit: limit }).toString();
+            const queryParams = { page: page, limit: limit };
+            if (similarityType) queryParams.similarity_type = similarityType;
+
+            const query = new URLSearchParams(queryParams).toString();
             const response = await Request.get('/api/file_repository/duplicate/list?' + query, {}, true);
             if (response.status === 'success') return response.data;
         } catch (error) {
@@ -435,7 +449,7 @@ const App = {
      * 返回值说明：无
      */
     async loadResults(page) {
-        const data = await DuplicateCheckAPI.fetchList(page, CheckState.limit);
+        const data = await DuplicateCheckAPI.fetchList(page, CheckState.limit, CheckState.similarityType);
         if (data) {
             CheckState.setPaginationData(data, CheckState.previousExpandedStates);
             CheckState.previousExpandedStates = null; 

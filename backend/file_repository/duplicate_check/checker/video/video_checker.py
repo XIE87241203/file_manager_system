@@ -76,7 +76,7 @@ class VideoChecker(BaseDuplicateChecker):
             for video in group:
                 duplicate_files.append(DuplicateFileDBModel(
                     file_id=video.file_index.id,
-                    similarity_type="hash",
+                    similarity_type=video.similarity_type,
                     similarity_rate=video.similarity_rate
                 ))
 

@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from typing import Optional, List
 
+from backend.db.db_constants import DBConstants
 from backend.model.db.file_index_db_model import FileIndexDBModel
 
 
@@ -10,7 +11,7 @@ class DuplicateFileResult:
     用途：用于 API 返回的重复文件详情，包含文件索引信息和相似度信息
     """
     file_info: FileIndexDBModel
-    similarity_type: str = "md5"
+    similarity_type: str = DBConstants.SimilarityType.MD5
     similarity_rate: float = 1.0
 
 

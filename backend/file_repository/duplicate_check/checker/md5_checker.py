@@ -1,5 +1,6 @@
 from typing import List, Dict
 
+from backend.db.db_constants import DBConstants
 from backend.file_repository.duplicate_check.checker.base_checker import BaseDuplicateChecker
 from backend.model.db.duplicate_group_db_model import DuplicateGroupDBModel, DuplicateFileDBModel
 from backend.model.db.file_index_db_model import FileIndexDBModel
@@ -41,7 +42,7 @@ class MD5Checker(BaseDuplicateChecker):
                 duplicate_files: List[DuplicateFileDBModel] = [
                     DuplicateFileDBModel(
                         file_id=f.id,
-                        similarity_type="md5",
+                        similarity_type=DBConstants.SimilarityType.MD5,
                         similarity_rate=1.0
                     ) for f in files
                 ]

@@ -6,6 +6,7 @@ import imagehash
 from PIL import Image
 
 from backend.common.log_utils import LogUtils
+from backend.db.db_constants import DBConstants
 from backend.file_repository.duplicate_check.checker.base_checker import BaseDuplicateChecker
 from backend.model.db.duplicate_group_db_model import DuplicateGroupDBModel, DuplicateFileDBModel
 from backend.model.db.file_index_db_model import FileIndexDBModel
@@ -75,7 +76,7 @@ class ImageChecker(BaseDuplicateChecker):
             # 将当前图片作为代表加入组（相似率 1.0）
             current_group_files.append(DuplicateFileDBModel(
                 file_id=self.image_data[i].info.id,
-                similarity_type="md5",
+                similarity_type=DBConstants.SimilarityType.MD5,
                 similarity_rate=1.0
             ))
             visited[i] = True
@@ -89,7 +90,7 @@ class ImageChecker(BaseDuplicateChecker):
                    self.image_data[i].info.file_md5 == self.image_data[j].info.file_md5:
                     current_group_files.append(DuplicateFileDBModel(
                         file_id=self.image_data[j].info.id,
-                        similarity_type="md5",
+                        similarity_type=DBConstants.SimilarityType.MD5,
                         similarity_rate=1.0
                     ))
                     visited[j] = True
@@ -103,7 +104,7 @@ class ImageChecker(BaseDuplicateChecker):
                     similarity_rate: float = 1.0 - (distance / 64.0)
                     current_group_files.append(DuplicateFileDBModel(
                         file_id=self.image_data[j].info.id,
-                        similarity_type="hash",
+                        similarity_type=DBConstants.SimilarityType.HASH,
                         similarity_rate=similarity_rate
                     ))
                     visited[j] = True

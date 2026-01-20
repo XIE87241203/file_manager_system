@@ -224,9 +224,13 @@ def get_duplicate_progress():
 @file_repo_bp.route('/duplicate/list', methods=['GET'])
 @token_required
 def list_duplicate_results():
+    """
+    用途说明：分页获取查重结果数据，支持相似类型筛选。
+    """
     page: int = request.args.get('page', default=1, type=int)
     limit: int = request.args.get('limit', default=100, type=int)
-    data = DuplicateService.get_all_duplicate_results(page, limit)
+    similarity_type: str = request.args.get('similarity_type', default=None)
+    data = DuplicateService.get_all_duplicate_results(page, limit, similarity_type)
     return success_response("获取重复文件列表成功", data=asdict(data))
 
 

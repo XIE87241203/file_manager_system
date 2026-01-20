@@ -54,6 +54,31 @@
     font-weight: normal;
 }
 
+/* 筛选区域样式 */
+.filter-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: normal;
+    font-size: 14px;
+}
+
+.common-select {
+    padding: 4px 8px;
+    border: 1px solid #dadce0;
+    border-radius: 4px;
+    outline: none;
+    font-size: 13px;
+    color: #3c4043;
+    background-color: #fff;
+    cursor: pointer;
+    transition: border-color 0.2s;
+}
+
+.common-select:focus {
+    border-color: #1a73e8;
+}
+
 /* 查重结果区域 */
 .results-wrapper {
     flex: 1;

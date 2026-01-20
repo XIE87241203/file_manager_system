@@ -223,16 +223,16 @@ class DBOperations:
     @staticmethod
     def save_duplicate_results(results: List[DuplicateGroupDBModel]) -> bool:
         """
-        用途说明：批量保存查重结果。
+        用途说明：批量保存查重结果.
         """
         return processor_manager.duplicate_group_processor.batch_save_duplicate_groups(results)
 
     @staticmethod
-    def get_all_duplicate_results(page: int, limit: int) -> PaginationResult[DuplicateGroupResult]:
+    def get_all_duplicate_results(page: int, limit: int, similarity_type: Optional[str] = None) -> PaginationResult[DuplicateGroupResult]:
         """
-        用途说明：分页获取重复文件分组。
+        用途说明：分页获取重复文件分组，支持相似度类型筛选。
         """
-        return processor_manager.duplicate_group_processor.get_duplicate_groups_paged(page, limit)
+        return processor_manager.duplicate_group_processor.get_duplicate_groups_paged(page, limit, similarity_type)
 
     @staticmethod
     def get_duplicate_group_count() -> int:

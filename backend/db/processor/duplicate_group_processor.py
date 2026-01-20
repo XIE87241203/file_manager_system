@@ -163,29 +163,52 @@ class DuplicateGroupProcessor(BaseDBProcessor):
     @staticmethod
     def get_duplicate_groups_paged(
             page: int,
-            limit: int
+            limit: int,
+            similarity_type: Optional[str] = None
     ) -> PaginationResult[DuplicateGroupResult]:
         """
         用途：分页获取重复文件分组数据（已优化：通过批量查询避免 N+1 问题）
         入参说明：
             page (int): 当前页码
             limit (int): 每页展示的分组条数
+            similarity_type (Optional[str]): 筛选相似度类型 (如 'md5', 'hash', 'video_feature')
         返回值说明：
             PaginationResult[DuplicateGroupResult]: 包含分组及其文件列表的分页结果对象
         """
-        # 1. 查询总分组数
-        total: int = DuplicateGroupProcessor.get_group_count()
+        # 1. 查询总分组数（如果有筛选，需要按筛选条件计数）
+        if similarity_type:
+            count_query: str = f"""
+                SELECT COUNT(DISTINCT {DBConstants.DuplicateFile.COL_FILE_GROUP_ID}) as total 
+                FROM {DBConstants.DuplicateFile.TABLE_FILES}
+                WHERE {DBConstants.DuplicateFile.COL_SIMILARITY_TYPE} = ?
+            """
+            count_res = BaseDBProcessor._execute(count_query, (similarity_type,), is_query=True, fetch_one=True)
+            total: int = count_res['total'] if count_res else 0
+        else:
+            total: int = DuplicateGroupProcessor.get_group_count()
 
         if total == 0:
             return PaginationResult(total=0, list=[], page=page, limit=limit, sort_by="", order="ASC")
 
         # 2. 分页查询分组列表
         offset: int = max(0, (page - 1) * limit)
-        group_query: str = f"""
-            SELECT * FROM {DBConstants.DuplicateGroup.TABLE_GROUPS}
-            LIMIT ? OFFSET ?
-        """
-        group_rows: List[dict] = BaseDBProcessor._execute(group_query, (limit, offset), is_query=True)
+        if similarity_type:
+            group_query: str = f"""
+                SELECT g.* FROM {DBConstants.DuplicateGroup.TABLE_GROUPS} g
+                JOIN (
+                    SELECT DISTINCT {DBConstants.DuplicateFile.COL_FILE_GROUP_ID} 
+                    FROM {DBConstants.DuplicateFile.TABLE_FILES} 
+                    WHERE {DBConstants.DuplicateFile.COL_SIMILARITY_TYPE} = ?
+                ) f ON g.{DBConstants.DuplicateGroup.COL_GRP_ID_PK} = f.{DBConstants.DuplicateFile.COL_FILE_GROUP_ID}
+                LIMIT ? OFFSET ?
+            """
+            group_rows: List[dict] = BaseDBProcessor._execute(group_query, (similarity_type, limit, offset), is_query=True)
+        else:
+            group_query: str = f"""
+                SELECT * FROM {DBConstants.DuplicateGroup.TABLE_GROUPS}
+                LIMIT ? OFFSET ?
+            """
+            group_rows: List[dict] = BaseDBProcessor._execute(group_query, (limit, offset), is_query=True)
         
         if not group_rows:
             return PaginationResult(total=total, list=[], page=page, limit=limit, sort_by="", order="ASC")
@@ -222,7 +245,7 @@ class DuplicateGroupProcessor(BaseDBProcessor):
             
             group_files_map[gid].append(DuplicateFileResult(
                 file_info=file_info,
-                similarity_type=sim_type or "md5",
+                similarity_type=sim_type or DBConstants.SimilarityType.MD5,
                 similarity_rate=sim_rate if sim_rate is not None else 1.0
             ))
 

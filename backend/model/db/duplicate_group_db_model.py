@@ -1,6 +1,8 @@
 from dataclasses import dataclass, field
 from typing import List, Optional
 
+from backend.db.db_constants import DBConstants
+
 
 @dataclass
 class DuplicateFileDBModel:
@@ -16,7 +18,7 @@ class DuplicateFileDBModel:
     id: Optional[int] = None
     group_id: Optional[int] = None
     file_id: int = 0
-    similarity_type: str = "md5"
+    similarity_type: str = DBConstants.SimilarityType.MD5
     similarity_rate: float = 1.0
 
 

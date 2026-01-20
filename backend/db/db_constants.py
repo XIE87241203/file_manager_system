@@ -5,6 +5,12 @@ class DBConstants:
 
     DB_VERSION: int = 8  # 当前数据库版本，升级至 8 以支持重复文件相似度记录
 
+    class SimilarityType:
+        """用途：查重相似度类型常量"""
+        MD5: str = 'md5'
+        HASH: str = 'hash'
+        VIDEO_FEATURE: str = 'video_feature'
+
     class VersionInfo:
         """用途：version_info 表相关的常量"""
         TABLE_NAME: str = 'version_info'

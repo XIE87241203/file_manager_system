@@ -4,12 +4,14 @@ import sys
 import traceback
 from typing import Any, Tuple
 
+from backend.common.log_utils import LogUtils
+
 # 确保项目根目录在 sys.path 中
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if project_root not in sys.path:
     sys.path.append(project_root)
-
-from backend.common.log_utils import LogUtils
+# 初始化日志
+LogUtils.init(level=logging.DEBUG)
 from flask import Flask, request, send_from_directory
 from flask_cors import CORS
 from waitress import serve
@@ -21,8 +23,6 @@ from backend.system.system_routes import system_bp
 from backend.common.response import error_response
 from config import GlobalConfig
 
-# 初始化日志
-LogUtils.init(level=logging.DEBUG)
 
 # 初始化 Flask
 frontend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../frontend'))

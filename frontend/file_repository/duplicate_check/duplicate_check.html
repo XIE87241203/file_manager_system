@@ -27,6 +27,17 @@
                     <span class="summary-divider">|</span>
                     <span id="summary-files">文件: 0</span>
                     <span class="summary-divider">|</span>
+                    <!-- 重复类型筛选 -->
+                    <div class="filter-item">
+                        <label for="filter-similarity-type">类型:</label>
+                        <select id="filter-similarity-type" class="common-select">
+                            <option value="">全部</option>
+                            <option value="md5">MD5完全一致</option>
+                            <option value="hash">图片相似</option>
+                            <option value="video_feature">视频相似</option>
+                        </select>
+                    </div>
+                    <span class="summary-divider">|</span>
                     <span id="summary-time">查重时间: --</span>
                 </div>
             </div>

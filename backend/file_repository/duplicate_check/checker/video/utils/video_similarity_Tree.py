@@ -6,6 +6,7 @@ import imagehash
 
 from backend.common.log_utils import LogUtils
 from backend.common.utils import Utils
+from backend.db.db_constants import DBConstants
 from backend.db.db_operations import DBOperations
 from backend.file_repository.duplicate_check.checker.video.utils.video_analyzer import VideoAnalyzer
 from backend.file_repository.duplicate_check.checker.video.utils.video_comparison_util import \
@@ -19,9 +20,11 @@ class VideoSimilarityNode:
     用途说明：存储视频相似性树中的节点信息，包含文件路径及相对于组代表视频的相似度。
     属性说明：
         path (str): 视频文件的绝对路径。
+        similarity_type (str): 相似类型。
         similarity (float): 与该组代表视频的相似率（0.0-1.0）。
     """
     path: str
+    similarity_type: str
     similarity: float
 
 
@@ -90,9 +93,15 @@ class VideoSimilarityTree:
         """
         current_hashes: List[imagehash.ImageHash] = self._get_or_parse_hashes(video_info)
         current_path: str = video_info.file_index.file_path
+        current_md5: str = video_info.file_index.file_md5
 
         if not current_hashes:
-            self.video_groups.append([VideoSimilarityNode(path=current_path, similarity=1.0)])
+            # 异常情况处理：作为独立组，第一个入组 similarity 默认为 0.0
+            self.video_groups.append([VideoSimilarityNode(
+                path=current_path, 
+                similarity_type=DBConstants.SimilarityType.VIDEO_FEATURE, 
+                similarity=0.0
+            )])
             return
 
         for group in self.video_groups:
@@ -103,7 +112,18 @@ class VideoSimilarityTree:
             if not representative:
                 continue
 
-            # 快速时长过滤
+            # 1. 优先进行 MD5 比对
+            if current_md5 and current_md5 == representative.file_index.file_md5:
+                LogUtils.info(f"视频 MD5 匹配成功：{Utils.get_filename(current_path)}")
+                node: VideoSimilarityNode = VideoSimilarityNode(
+                    path=current_path,
+                    similarity_type=DBConstants.SimilarityType.MD5,
+                    similarity=1.0  # MD5 匹配时，与代表视频完全一致
+                )
+                group.append(node)
+                return
+
+            # 2. 快速时长过滤
             if self.max_duration_diff_ratio > 0:
                 d1: float = video_info.video_feature.duration
                 d2: float = representative.video_feature.duration
@@ -112,7 +132,7 @@ class VideoSimilarityTree:
                     if max_d > 0 and (min_d / max_d) < self.max_duration_diff_ratio:
                         continue
 
-            # 指纹比对
+            # 3. 指纹比对
             rep_hashes: List[imagehash.ImageHash] = self._get_or_parse_hashes(representative)
             similarity: float = VideoComparisonUtil.calculate_max_similarity(
                 current_hashes, rep_hashes, self.frame_similar_distance
@@ -121,23 +141,31 @@ class VideoSimilarityTree:
             if similarity >= self.frame_similarity_rate:
                 video_name: str = Utils.get_filename(current_path)
                 representative_name: str = Utils.get_filename(representative_path)
-                LogUtils.info(f"匹配成功：{video_name} -> 组 {representative_name} (相似度: {similarity:.2%})")
+                LogUtils.info(f"视频指纹匹配成功：{video_name} -> 组 {representative_name} (相似度: {similarity:.2%})")
 
                 # 创建新节点
-                node: VideoSimilarityNode = VideoSimilarityNode(path=current_path, similarity=similarity)
+                node: VideoSimilarityNode = VideoSimilarityNode(
+                    path=current_path, 
+                    similarity_type=DBConstants.SimilarityType.VIDEO_FEATURE,
+                    similarity=similarity
+                )
 
                 # 保持组内第一个视频是时长最长的
                 if video_info.video_feature.duration > representative.video_feature.duration:
                     # 如果当前视频更长，它成为新的代表
+                    # 原代表视频现在相对于新代表视频的相似度为 similarity
                     group[0].similarity = similarity
-                    node.similarity = 1.0
                     group.insert(0, node)
                 else:
                     group.append(node)
                 return
 
-        # 无匹配组，作为新组的代表
-        self.video_groups.append([VideoSimilarityNode(path=current_path, similarity=1.0)])
+        # 无匹配组，作为新组的代表，第一个入组 similarity 默认为 0.0
+        self.video_groups.append([VideoSimilarityNode(
+            path=current_path, 
+            similarity_type=DBConstants.SimilarityType.VIDEO_FEATURE, 
+            similarity=0.0
+        )])
 
     def get_similar_video_groups(self, min_group_size: int = 2) -> List[List[VideoFileInfoResult]]:
         """
@@ -155,6 +183,7 @@ class VideoSimilarityTree:
                     info: VideoFileInfoResult = DBOperations.get_video_file_info(item.path)
                     if info:
                         info.similarity_rate = item.similarity
+                        info.similarity_type = item.similarity_type
                         info_group.append(info)
 
                 if len(info_group) >= min_group_size:
