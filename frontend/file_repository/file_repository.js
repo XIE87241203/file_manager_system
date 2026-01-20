@@ -207,7 +207,7 @@ const RepositoryAPI = {
     },
 
     async getProgress() {
-        return await Request.get('/api/file_repository/progress');
+        return await Request.get('/api/file_repository/progress', {}, false);
     },
 
     async startThumbnailGeneration(rebuildAll = false) {
