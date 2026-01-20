@@ -1,26 +1,16 @@
 /**
- * 用途说明：批量录入检测结果展示页逻辑处理。
- * 模仿回收站页面风格，提供结果合并显示、分页逻辑、全选未收录项、点击表头排序及批量录入功能。
+ * 用途说明：展示批量检测结果。
+ * 已对接异步任务逻辑，支持通过返回按钮触发流程终结、清理任务并利用 history.go(-2) 解决返回冲突。
  */
 
 // --- 状态管理 ---
 const State = {
-    /** @type {Object[]} 原始检测数据列表 [{name, source, detail}, ...] */
-    fullData: [],
-    /** @type {Object[]} 当前页显示的数据 */
-    currentPageData: [],
-    /** @type {Set<string>} 已选中的文件名集合 */
-    selectedNames: new Set(),
-    /** @type {number} 当前页码 */
-    page: 1,
-    /** @type {number} 每页数量 */
-    limit: 20,
-    /** @type {string} 排序字段 */
-    sortBy: 'source',
-    /** @type {string} 排序顺序 ASC/DESC */
-    order: 'ASC',
-    /** @type {Object} 分页控制器实例 */
-    paginationController: null
+    /** @type {Object[]} 原始检测结果列表 */
+    results: [],
+    /** @type {boolean} 是否正在轮询进度 */
+    isPolling: false,
+    /** @type {number|null} 轮询定时器 ID */
+    pollTimer: null
 };
 
 // --- UI 控制模块 ---
@@ -28,280 +18,249 @@ const UIController = {
     elements: {},
 
     /**
-     * 用途说明：初始化 UI 控制器，模仿回收站风格。
+     * 用途说明：初始化 UI 布局，设置头部并接管返回按钮逻辑。
      * 入参说明：无
      * 返回值说明：无
      */
     init() {
-        // 初始化顶部栏
         UIComponents.initRepoHeader({
-            title: '批量录入检测结果',
-            showSearch: false
+            title: '批量检测结果',
+            showSearch: false,
+            // 遵照主人指令，去除了右上角的按钮，保持界面清爽
         });
+
+        // --- 核心逻辑：接管返回按钮并解决历史记录冲突 ---
+        const backBtn = document.getElementById('nav-back-btn');
+        if (backBtn) {
+            backBtn.onclick = (e) => {
+                // 阻止默认的 history.back()，由萌萌接管进行二次确认 and 清理
+                e.preventDefault();
+                App.handleFinishWithConfirm();
+            };
+        }
 
         this.elements = {
             tableBody: document.getElementById('results-list-body'),
             totalCount: document.getElementById('total-count'),
             newCount: document.getElementById('new-count'),
-            selectAllNewBtn: document.getElementById('btn-select-all-new'),
-            selectAllCheckbox: document.getElementById('select-all-checkbox'),
+            btnSelectAllNew: document.getElementById('btn-select-all-new'),
             btnConfirmImport: document.getElementById('btn-confirm-import'),
-            sortableHeaders: document.querySelectorAll('th.sortable')
+            selectAllCheckbox: document.getElementById('select-all-checkbox'),
+            container: document.querySelector('.repo-content-group')
         };
-
-        // 初始化分页组件
-        State.paginationController = UIComponents.initPagination('pagination-container', {
-            limit: State.limit,
-            onPageChange: (newPage) => {
-                State.page = newPage;
-                this.renderTable();
-                window.scrollTo(0, 0);
-            }
-        });
-
-        // 绑定通用表格选择逻辑
-        UIComponents.bindTableSelection({
-            tableBody: this.elements.tableBody,
-            selectAllCheckbox: this.elements.selectAllCheckbox,
-            selectedSet: State.selectedNames,
-            idAttribute: 'data-id', // 这里对应渲染时 checkbox 的 data-id
-            onSelectionChange: () => this.updateActionButtons()
-        });
-
-        // 绑定排序逻辑
-        this.bindSortLogic();
     },
 
     /**
-     * 用途说明：绑定表头排序逻辑。
-     * 入参说明：无
+     * 用途说明：渲染检测结果。
+     * 入参说明：results (Object[]): 结果数据列表。
      * 返回值说明：无
      */
-    bindSortLogic() {
-        const { sortableHeaders } = this.elements;
-        sortableHeaders.forEach(th => {
-            th.onclick = () => {
-                const field = th.getAttribute('data-field');
-                if (State.sortBy === field) {
-                    State.order = State.order === 'ASC' ? 'DESC' : 'ASC';
-                } else {
-                    State.sortBy = field;
-                    State.order = 'ASC';
-                }
-                UIComponents.updateSortUI(sortableHeaders, State.sortBy, State.order);
-                App.sortAndRender();
-            };
-        });
-    },
-
-    /**
-     * 用途说明：渲染表格内容。
-     * 入参说明：无
-     * 返回值说明：无
-     */
-    renderTable() {
-        const { tableBody, totalCount, newCount, selectAllCheckbox } = this.elements;
-        
-        // 分页切片
-        const start = (State.page - 1) * State.limit;
-        const end = start + State.limit;
-        State.currentPageData = State.fullData.slice(start, end);
-
+    renderResults(results) {
+        const { tableBody } = this.elements;
         tableBody.innerHTML = '';
-        if (selectAllCheckbox) selectAllCheckbox.checked = false;
-        
-        if (State.currentPageData.length === 0) {
-            tableBody.innerHTML = UIComponents.getEmptyTableHtml(4, '没有找到检测结果');
-        } else {
-            const fragment = document.createDocumentFragment();
-            State.currentPageData.forEach((item, index) => {
-                const isSelected = State.selectedNames.has(item.name);
-                const tr = document.createElement('tr');
-                tr.setAttribute('data-id', item.name); // 供 bindTableSelection 使用
-                if (isSelected) tr.classList.add('selected-row');
 
-                let statusHtml = '';
-                if (item.source === 'new') {
-                    statusHtml = '<span class="status-tag tag-new">未收录</span>';
-                } else {
-                    const sourceMap = {
-                        'history': { class: 'tag-history', name: '曾录入库' },
-                        'pending': { class: 'tag-pending', name: '待录入库' },
-                        'index': { class: 'tag-index', name: '索引库' }
-                    };
-                    const config = sourceMap[item.source] || { class: 'tag-index', name: '索引库' };
-                    
-                    statusHtml = `
-                        <span class="status-tag ${config.class}">
-                            ${config.name}已存在
-                        </span>${item.detail ? `<span class="status-detail-inline" title="${item.detail}"> (${item.detail})</span>` : ''}
-                    `;
+        results.forEach((item, index) => {
+            const tr = document.createElement('tr');
+            tr.dataset.name = item.name;
+
+            const statusMap = {
+                'index': { text: '库中已存在', class: 'status-exist' },
+                'history': { text: '历史曾录入', class: 'status-history' },
+                'pending': { text: '待录入库中', class: 'status-pending' },
+                'new': { text: '新记录 (未收录)', class: 'status-new' }
+            };
+            const statusInfo = statusMap[item.source] || { text: item.source, class: '' };
+
+            tr.innerHTML = `
+                <td class="col-index">${index + 1}</td>
+                <td class="col-name">${item.name}</td>
+                <td class="col-status">
+                    <div class="status-badge ${statusInfo.class}">${statusInfo.text}</div>
+                    <div class="status-detail">${item.detail || ''}</div>
+                </td>
+                <td class="col-check">
+                    <input type="checkbox" class="row-checkbox" ${item.source === 'new' ? 'checked' : ''}>
+                </td>
+            `;
+
+            tr.onclick = (e) => {
+                if (e.target.type !== 'checkbox') {
+                    const cb = tr.querySelector('.row-checkbox');
+                    cb.checked = !cb.checked;
                 }
+                this.updateRowStyle(tr);
+            };
 
-                tr.innerHTML = `
-                    <td class="col-index">${start + index + 1}</td>
-                    <td class="col-name" title="${item.name}">${item.name}</td>
-                    <td class="col-status">${statusHtml}</td>
-                    <td class="col-check">
-                        <input type="checkbox" class="file-checkbox" data-id="${item.name}" ${isSelected ? 'checked' : ''}>
-                    </td>
-                `;
-                fragment.appendChild(tr);
-            });
-            tableBody.appendChild(fragment);
-        }
+            const checkbox = tr.querySelector('.row-checkbox');
+            checkbox.onchange = () => this.updateRowStyle(tr);
 
-        // 更新统计
-        totalCount.textContent = State.fullData.length.toString();
-        newCount.textContent = State.fullData.filter(i => i.source === 'new').length.toString();
+            this.updateRowStyle(tr);
+            tableBody.appendChild(tr);
+        });
 
-        // 初始同步全选框状态
-        if (State.currentPageData.length > 0 && selectAllCheckbox) {
-            selectAllCheckbox.checked = State.currentPageData.every(item => State.selectedNames.has(item.name));
-        }
-
-        this.updateActionButtons();
-        State.paginationController.update(State.fullData.length, State.page);
+        this.elements.totalCount.textContent = results.length;
+        this.elements.newCount.textContent = results.filter(r => r.source === 'new').length;
     },
 
     /**
-     * 用途说明：更新操作按钮状态
-     * 入参说明：无
-     * 返回值说明：无
+     * 用途说明：更新行选中样式。
      */
-    updateActionButtons() {
-        const { btnConfirmImport } = this.elements;
-        const selectedCount = State.selectedNames.size;
-        btnConfirmImport.disabled = selectedCount === 0;
-        btnConfirmImport.style.opacity = selectedCount === 0 ? '0.5' : '1';
-        btnConfirmImport.textContent = `录入选中纪录 (${selectedCount})`;
+    updateRowStyle(tr) {
+        const checkbox = tr.querySelector('.row-checkbox');
+        if (checkbox && checkbox.checked) tr.classList.add('selected-row');
+        else tr.classList.remove('selected-row');
     }
 };
 
 // --- API 交互模块 ---
-const BatchAPI = {
-    /**
-     * 用途说明：批量录入文件名到待录入库。
-     * 入参说明：fileNames {string[]}: 文件名数组; showMask {boolean}: 是否显示默认遮罩。
-     * 返回值说明：Promise<Object>: 响应结果。
-     */
-    async saveToPendingRepo(fileNames, showMask = true) {
-        return await Request.post('/api/file_name_repository/pending_entry/add', { file_names: fileNames }, {}, showMask);
+const ResultsAPI = {
+    async getStatus() {
+        return await Request.get('/api/file_name_repository/pending_entry/check_status', {}, false);
+    },
+    async getResults() {
+        return await Request.get('/api/file_name_repository/pending_entry/check_results');
+    },
+    async clearTask() {
+        return await Request.post('/api/file_name_repository/pending_entry/check_clear');
+    },
+    async confirmImport(fileNames) {
+        return await Request.post('/api/file_name_repository/pending_entry/add', { file_names: fileNames });
     }
 };
 
 // --- 应用逻辑主入口 ---
 const App = {
-    /**
-     * 用途说明：初始化结果页面。
-     * 入参说明：无
-     * 返回值说明：无
-     */
-    init() {
+    async init() {
         UIController.init();
-        this.loadResultData();
         this.bindEvents();
+        await this.loadData();
+    },
+
+    bindEvents() {
+        const { btnSelectAllNew, btnConfirmImport, selectAllCheckbox } = UIController.elements;
+
+        btnSelectAllNew.onclick = () => {
+            document.querySelectorAll('#results-list-body tr').forEach(tr => {
+                const isNew = tr.querySelector('.status-new');
+                if (isNew) {
+                    tr.querySelector('.row-checkbox').checked = true;
+                    UIController.updateRowStyle(tr);
+                }
+            });
+        };
+
+        selectAllCheckbox.onchange = (e) => {
+            const checked = e.target.checked;
+            document.querySelectorAll('.row-checkbox').forEach(cb => {
+                cb.checked = checked;
+                UIController.updateRowStyle(cb.closest('tr'));
+            });
+        };
+
+        btnConfirmImport.onclick = () => this.handleConfirmImport();
     },
 
     /**
-     * 用途说明：从本地存储加载检测结果并排序显示。
-     * 入参说明：无
-     * 返回值说明：无
+     * 用途说明：数据加载与自检。
      */
-    loadResultData() {
-        const rawData = sessionStorage.getItem('batch_check_results');
-        if (!rawData) return;
+    async loadData() {
         try {
-            const data = JSON.parse(rawData);
-            if (Array.isArray(data)) {
-                State.fullData = data;
-                this.sortAndRender();
-                UIComponents.updateSortUI(UIController.elements.sortableHeaders, State.sortBy, State.order);
+            const response = await ResultsAPI.getStatus();
+            if (response.status !== 'success') return;
+
+            const { status } = response.data;
+            if (status === 'completed') {
+                const res = await ResultsAPI.getResults();
+                if (res.status === 'success') {
+                    State.results = res.data;
+                    UIController.renderResults(State.results);
+                }
+            } else if (status === 'processing') {
+                this.startPolling();
+            } else if (status === 'idle') {
+                Toast.show('任务已结束');
+                setTimeout(() => { window.history.back(); }, 1000);
             }
         } catch (e) {
-            console.error('加载检测结果失败:', e);
-            Toast.show('数据解析异常');
+            console.error('加载异常:', e);
         }
     },
 
-    /**
-     * 用途说明：对全量数据进行排序并触发渲染。
-     * 入参说明：无
-     * 返回值说明：无
-     */
-    sortAndRender() {
-        const { sortBy, order } = State;
-        State.fullData.sort((a, b) => {
-            let valA = a[sortBy] || '';
-            let valB = b[sortBy] || '';
+    startPolling() {
+        if (State.isPolling) return;
+        State.isPolling = true;
+        UIComponents.showProgressBar('.repo-content-group', '正在同步进度...');
 
-            if (sortBy === 'source') {
-                const getPriority = (s) => (s === 'new' ? '0' : '1') + s;
-                valA = getPriority(valA);
-                valB = getPriority(valB);
+        State.pollTimer = setInterval(async () => {
+            const response = await ResultsAPI.getStatus();
+            if (response.status !== 'success') return;
+
+            const { status, progress } = response.data;
+            if (status === 'processing') {
+                const percent = progress.total > 0 ? Math.floor((progress.current / progress.total) * 100) : 0;
+                UIComponents.updateProgressBar('.repo-content-group', percent, progress.message);
+            } else if (status === 'completed') {
+                this.stopPolling();
+                UIComponents.hideProgressBar('.repo-content-group');
+                this.loadData();
             }
-
-            if (valA < valB) return order === 'ASC' ? -1 : 1;
-            if (valA > valB) return order === 'ASC' ? 1 : -1;
-            return 0;
-        });
-        State.page = 1;
-        UIController.renderTable();
+        }, 1000);
     },
 
-    /**
-     * 用途说明：绑定页面交互事件。
-     * 入参说明：无
-     * 返回值说明：无
-     */
-    bindEvents() {
-        const { selectAllNewBtn, btnConfirmImport } = UIController.elements;
-
-        // 选中所有未收录
-        if (selectAllNewBtn) {
-            selectAllNewBtn.onclick = () => {
-                const newNames = State.fullData
-                    .filter(item => item.source === 'new')
-                    .map(item => item.name);
-                newNames.forEach(name => State.selectedNames.add(name));
-                UIController.renderTable();
-                Toast.show(`已选中 ${newNames.length} 个未收录项`);
-            };
-        }
-
-        if (btnConfirmImport) {
-            btnConfirmImport.onclick = () => this.handleBatchImport();
+    stopPolling() {
+        State.isPolling = false;
+        if (State.pollTimer) {
+            clearInterval(State.pollTimer);
+            State.pollTimer = null;
         }
     },
 
     /**
-     * 用途说明：执行批量录入逻辑。
-     * 入参说明：无
-     * 返回值说明：无
+     * 用途说明：处理任务终结并返回。
+     * 解决冲突方案：使用 history.go(-2) 一次性退回两步，绕过输入页，完美解决返回键冲突。
      */
-    async handleBatchImport() {
-        const names = Array.from(State.selectedNames);
-        if (names.length === 0) return;
-
+    handleFinishWithConfirm() {
         UIComponents.showConfirmModal({
-            title: '确认录入',
-            message: `确定要将选中的 ${names.length} 条记录录入“待录入库”吗？`,
+            title: '确认返回？',
+            message: '返回列表将清空本次检测结果并重置状态，确认要继续吗？',
+            confirmText: '确认并返回',
+            cancelText: '取消',
             onConfirm: async () => {
-                UIComponents.showProgressBar('.repo-container', '正在执行录入...');
-                try {
-                    const res = await BatchAPI.saveToPendingRepo(names, false);
-                    if (res.status === 'success') {
-                        Toast.show('录入成功！');
-                        sessionStorage.removeItem('batch_check_results');
-                        setTimeout(() => window.history.back(), 1000);
-                    } else {
-                        Toast.show('录入失败: ' + res.message);
-                    }
-                } finally {
-                    UIComponents.hideProgressBar('.repo-container');
+                // 1. 清理后端缓存
+                const response = await ResultsAPI.clearTask();
+                if (response.status === 'success') {
+                    // 2. --- 核心：利用 history.go(-2) 实现定向“双连跳”返回 ---
+                    // 逻辑说明：List -> Entry -> Results，跳过 Entry 直接回到 List，保持堆栈纯净。
+                    window.history.go(-2);
                 }
             }
         });
+    },
+
+    /**
+     * 用途说明：执行批量录入。
+     */
+    async handleConfirmImport() {
+        const selectedNames = [];
+        document.querySelectorAll('.row-checkbox:checked').forEach(cb => {
+            selectedNames.push(cb.closest('tr').dataset.name);
+        });
+
+        if (selectedNames.length === 0) {
+            Toast.show('请勾选需要录入的文件名~');
+            return;
+        }
+
+        try {
+            const response = await ResultsAPI.confirmImport(selectedNames);
+            if (response.status === 'success') {
+                // 使用后端返回的实际录入数量 count
+                const count = response.data?.count ?? 0;
+                Toast.show(`已成功录入 ${count} 条记录！`);
+            }
+        } catch (e) {
+            console.error('录入请求异常:', e);
+        }
     }
 };
 

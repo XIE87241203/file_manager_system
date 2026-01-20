@@ -1,4 +1,5 @@
 from backend.db.processor.already_entered_file_processor import AlreadyEnteredFileProcessor
+from backend.db.processor.batch_check_processor import BatchCheckProcessor
 from backend.db.processor.duplicate_group_processor import DuplicateGroupProcessor
 from backend.db.processor.file_index_processor import FileIndexProcessor
 from backend.db.processor.file_repo_detail_processor import FileRepoDetailProcessor
@@ -41,6 +42,7 @@ class ProcessorManager:
         self.already_entered_file_processor: AlreadyEnteredFileProcessor = AlreadyEnteredFileProcessor()
         self.pending_entry_file_processor: PendingEntryFileProcessor = PendingEntryFileProcessor()
         self.file_repo_detail_processor: FileRepoDetailProcessor = FileRepoDetailProcessor()
+        self.batch_check_processor: BatchCheckProcessor = BatchCheckProcessor()
 
         self._initialized: bool = True
 

@@ -298,11 +298,13 @@ class DBOperations:
     # --- 待录入文件库相关操作 ---
 
     @staticmethod
-    def add_pending_entry_files(file_names: List[str]) -> bool:
+    def add_pending_entry_files(file_names: List[str]) -> int:
         """
         用途说明：批量添加待录入文件名。
+        入参说明：file_names (List[str]): 文件名列表。
+        返回值说明：int: 成功录入的数量。
         """
-        return bool(processor_manager.pending_entry_file_processor.add_pending_entry_files(file_names))
+        return processor_manager.pending_entry_file_processor.add_pending_entry_files(file_names)
 
     @staticmethod
     def search_pending_entry_file_list(page: int, limit: int, sort_by: str, order: bool, search_query: str) -> PaginationResult[PendingEntryFileDBModel]:
