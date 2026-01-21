@@ -1,7 +1,7 @@
 from typing import Optional
 
 from backend.db.db_constants import DBConstants
-from backend.db.db_manager import DBManager
+from backend.db.db_manager import db_manager
 from backend.model.db.file_repo_detail_db_model import FileRepoDetailDBModel
 
 
@@ -15,7 +15,7 @@ class FileRepoDetailProcessor:
         用途说明：获取当前的文件仓库详情。
         返回值说明：FileRepoDetailDBModel 或 None
         """
-        conn = DBManager.get_connection()
+        conn = db_manager.get_connection()
         try:
             cursor = conn.cursor()
             cursor.execute(f"SELECT * FROM {DBConstants.FileRepoDetail.TABLE_NAME} ORDER BY {DBConstants.FileRepoDetail.COL_ID} DESC LIMIT 1")
@@ -35,7 +35,7 @@ class FileRepoDetailProcessor:
         """
         用途说明：更新或插入文件仓库详情数据（保持单行记录）。
         """
-        conn = DBManager.get_connection()
+        conn = db_manager.get_connection()
         try:
             cursor = conn.cursor()
             # 检查是否已有记录

@@ -4,7 +4,7 @@ from typing import List, Any, Type, TypeVar, Optional
 
 from backend.common.log_utils import LogUtils
 from backend.common.utils import Utils
-from backend.db.db_manager import DBManager
+from backend.db.db_manager import db_manager
 from backend.model.pagination_result import PaginationResult
 
 T = TypeVar('T')
@@ -22,7 +22,7 @@ class BaseDBProcessor(ABC):
         """
         local_conn: bool = False
         if conn is None:
-            conn = DBManager.get_connection()
+            conn = db_manager.get_connection()
             local_conn = True
             
         try:
@@ -58,7 +58,7 @@ class BaseDBProcessor(ABC):
         """
         local_conn: bool = False
         if conn is None:
-            conn = DBManager.get_connection()
+            conn = db_manager.get_connection()
             local_conn = True
             
         try:

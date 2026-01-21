@@ -5,6 +5,7 @@ import traceback
 from typing import Any, Tuple
 
 from backend.common.log_utils import LogUtils
+from backend.db.db_manager import db_manager
 
 # 确保项目根目录在 sys.path 中
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -90,6 +91,7 @@ app.register_blueprint(file_name_repo_bp, url_prefix='/api/file_name_repository'
 app.register_blueprint(system_bp, url_prefix='/api/system')
 
 def start_server() -> None:
+    db_manager.init_db()
     LogUtils.info(f"系统服务正在启动 (Port: {GlobalConfig.SYSTEM_PORT})...")
     LogUtils.info(f"访问地址: http://localhost:{GlobalConfig.SYSTEM_PORT}")
     serve(app, host='0.0.0.0', port=GlobalConfig.SYSTEM_PORT, threads=8)

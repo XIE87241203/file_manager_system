@@ -3,7 +3,7 @@ from typing import List, Dict, Optional
 
 from backend.common.log_utils import LogUtils
 from backend.db.db_constants import DBConstants
-from backend.db.db_manager import DBManager
+from backend.db.db_manager import db_manager
 from backend.db.processor.base_db_processor import BaseDBProcessor
 from backend.model.db.duplicate_group_db_model import DuplicateGroupDBModel
 from backend.model.db.file_index_db_model import FileIndexDBModel
@@ -28,7 +28,7 @@ class DuplicateGroupProcessor(BaseDBProcessor):
         """
         local_conn: bool = False
         if conn is None:
-            conn = DBManager.get_connection()
+            conn = db_manager.get_connection()
             local_conn = True
 
         try:
@@ -90,7 +90,7 @@ class DuplicateGroupProcessor(BaseDBProcessor):
         """
         local_conn: bool = False
         if conn is None:
-            conn = DBManager.get_connection()
+            conn = db_manager.get_connection()
             local_conn = True
 
         try:

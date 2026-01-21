@@ -26,12 +26,9 @@ class DBManager:
         """
         if cls._instance is None:
             cls._instance = super(DBManager, cls).__new__(cls)
-            # 初始化数据库
-            cls._instance.init_db()
         return cls._instance
 
-    @staticmethod
-    def get_connection() -> sqlite3.Connection:
+    def get_connection(self) -> sqlite3.Connection:
         """
         用途说明：获取数据库连接，并启用 WAL 模式及同步设置以优化并发性能。
         入参说明：无
@@ -46,15 +43,14 @@ class DBManager:
             LogUtils.error(f"启用 WAL 模式失败: {e}")
         return conn
 
-    @staticmethod
     @contextmanager
-    def transaction() -> Generator[sqlite3.Connection, None, None]:
+    def transaction(self) -> Generator[sqlite3.Connection, None, None]:
         """
         用途说明：事务上下文管理器，提供自动提交 and 异常回滚功能，确保跨表操作的原子性。
         入参说明：无
         返回值说明：Generator[sqlite3.Connection, None, None]: 数据库连接
         """
-        conn: sqlite3.Connection = DBManager.get_connection()
+        conn: sqlite3.Connection = self.get_connection()
         try:
             yield conn
             conn.commit()
@@ -87,6 +83,8 @@ class DBManager:
             cursor.execute(f"SELECT {DBConstants.VersionInfo.COL_VERSION} FROM {DBConstants.VersionInfo.TABLE_NAME}")
             row = cursor.fetchone()
             current_db_version: int = row[0] if row else 0
+            LogUtils.info(f"读取数据库版本成功，当前版本: {current_db_version}")
+
             # 3. 创建基础表结构（如果不存在）
             self._create_tables(cursor)
 
@@ -109,8 +107,7 @@ class DBManager:
         except Exception as e:
             LogUtils.error(f"数据库初始化或升级失败: {e}")
 
-    @staticmethod
-    def _create_tables(cursor: sqlite3.Cursor) -> None:
+    def _create_tables(self, cursor: sqlite3.Cursor) -> None:
         """
         用途说明：创建所有核心业务表及其索引（内部方法，由 init_db 调用）。
         入参说明：cursor - 数据库游标对象
@@ -223,8 +220,7 @@ class DBManager:
             )
         ''')
 
-    @staticmethod
-    def migrate_db_version(old_version: int, new_version: int, cursor: sqlite3.Cursor) -> None:
+    def migrate_db_version(self, old_version: int, new_version: int, cursor: sqlite3.Cursor) -> None:
         """
         用途说明：数据库版本迁移适配逻辑，处理不同版本间的结构差异。
         入参说明：
@@ -234,60 +230,6 @@ class DBManager:
         返回值说明：无
         """
         from backend.db.db_constants import DBConstants
-        if old_version < 4:
-            # 升级到版本 4: 添加 ignore_file 表 (对应旧版名称)
-            cursor.execute(f'''
-                CREATE TABLE IF NOT EXISTS ignore_file (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    file_name TEXT NOT NULL UNIQUE,
-                    add_time DATETIME DEFAULT CURRENT_TIMESTAMP
-                )
-            ''')
-            LogUtils.info("数据库升级到版本 4: 已创建 ignore_file 表")
-        
-        if old_version < 5:
-            # 升级到版本 5: 添加 pending_entry_file 表
-            cursor.execute(f'''
-                CREATE TABLE IF NOT EXISTS {DBConstants.PendingEntryFile.TABLE_NAME} (
-                    {DBConstants.PendingEntryFile.COL_ID} INTEGER PRIMARY KEY AUTOINCREMENT,
-                    {DBConstants.PendingEntryFile.COL_FILE_NAME} TEXT NOT NULL UNIQUE,
-                    {DBConstants.PendingEntryFile.COL_ADD_TIME} DATETIME DEFAULT CURRENT_TIMESTAMP
-                )
-            ''')
-            LogUtils.info("数据库升级到版本 5: 已创建 pending_entry_file 表")
-
-        if old_version < 6:
-            # 升级到版本 6: 将 ignore_file 重命名为 already_entered_file
-            try:
-                # 检查原表是否存在
-                cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='ignore_file'")
-                if cursor.fetchone():
-                    cursor.execute(f"ALTER TABLE ignore_file RENAME TO {DBConstants.AlreadyEnteredFile.TABLE_NAME}")
-                    LogUtils.info(f"数据库升级到版本 6: 已将 ignore_file 重命名为 {DBConstants.AlreadyEnteredFile.TABLE_NAME}")
-                else:
-                    # 如果原表不存在，则直接创建新表
-                    cursor.execute(f'''
-                        CREATE TABLE IF NOT EXISTS {DBConstants.AlreadyEnteredFile.TABLE_NAME} (
-                            {DBConstants.AlreadyEnteredFile.COL_ID} INTEGER PRIMARY KEY AUTOINCREMENT,
-                            {DBConstants.AlreadyEnteredFile.COL_FILE_NAME} TEXT NOT NULL UNIQUE,
-                            {DBConstants.AlreadyEnteredFile.COL_ADD_TIME} DATETIME DEFAULT CURRENT_TIMESTAMP
-                        )
-                    ''')
-                    LogUtils.info(f"数据库升级到版本 6: 直接创建了 {DBConstants.AlreadyEnteredFile.TABLE_NAME} 表")
-            except Exception as e:
-                LogUtils.error(f"重命名 ignore_file 表失败: {e}")
-
-        if old_version < 7:
-            # 升级到版本 7: 添加 file_repo_detail 表
-            cursor.execute(f'''
-                CREATE TABLE IF NOT EXISTS {DBConstants.FileRepoDetail.TABLE_NAME} (
-                    {DBConstants.FileRepoDetail.COL_ID} INTEGER PRIMARY KEY AUTOINCREMENT,
-                    {DBConstants.FileRepoDetail.COL_TOTAL_COUNT} INTEGER DEFAULT 0,
-                    {DBConstants.FileRepoDetail.COL_TOTAL_SIZE} INTEGER DEFAULT 0,
-                    {DBConstants.FileRepoDetail.COL_UPDATE_TIME} DATETIME DEFAULT CURRENT_TIMESTAMP
-                )
-            ''')
-            LogUtils.info("数据库升级到版本 7: 已创建 file_repo_detail 表")
 
         if old_version < 8:
             # 升级到版本 8: 为 duplicate_files 添加相似度字段
@@ -309,3 +251,7 @@ class DBManager:
                 )
             ''')
             LogUtils.info("数据库升级到版本 9: 已创建 batch_check_results 表")
+
+
+# 创建全局唯一的处理器管理器实例，供外部统一调用
+db_manager: DBManager = DBManager()

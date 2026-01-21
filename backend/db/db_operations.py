@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import List, Optional, Tuple
 
-from backend.db.db_manager import DBManager
+from backend.db.db_manager import db_manager
 from backend.db.processor_manager import processor_manager
 from backend.model.db.already_entered_file_db_model import AlreadyEnteredFileDBModel
 from backend.model.db.duplicate_group_db_model import DuplicateGroupDBModel
@@ -58,7 +58,7 @@ class DBOperations:
         返回值说明：bool: 是否清空成功。
         """
         try:
-            with DBManager.transaction() as conn:
+            with db_manager.transaction() as conn:
                 res1: bool = processor_manager.file_index_processor.clear_all_table()
                 res2: bool = processor_manager.duplicate_group_processor.clear_all_table()
                 return res1 and res2
@@ -100,7 +100,7 @@ class DBOperations:
         返回值说明：bool: 是否删除成功。
         """
         try:
-            with DBManager.transaction() as conn:
+            with db_manager.transaction() as conn:
                 res1: bool = processor_manager.file_index_processor.delete_by_id(file_id, conn=conn)
                 res2: bool = processor_manager.duplicate_group_processor.delete_file_by_id(file_id, conn=conn)
                 return res1 and res2
@@ -159,7 +159,7 @@ class DBOperations:
         """
         recycle_time: str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         try:
-            with DBManager.transaction() as conn:
+            with db_manager.transaction() as conn:
                 file_ids: List[int] = processor_manager.file_index_processor.get_ids_by_paths(file_paths, conn=conn)
                 res1: int = processor_manager.file_index_processor.move_to_recycle_bin(file_paths, recycle_time, conn=conn)
                 for f_id in file_ids:
