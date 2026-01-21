@@ -2,10 +2,11 @@ import os
 from concurrent.futures import as_completed, Future
 from datetime import datetime
 from enum import Enum
-from typing import List, Dict, Any, Tuple
+from typing import List, Any, Tuple
 
+from backend.common.base_async_service import BaseAsyncService
 from backend.common.log_utils import LogUtils
-from backend.common.progress_manager import ProgressManager, ProgressStatus
+from backend.common.progress_manager import ProgressStatus
 from backend.common.thread_pool import ThreadPoolManager
 from backend.common.utils import Utils
 from backend.db.db_operations import DBOperations
@@ -23,64 +24,69 @@ class ScanMode(Enum):
     INDEX_SCAN: str = "index_scan"  # 增量索引模式
 
 
-class ScanService:
+class ScanService(BaseAsyncService):
     """
     用途：文件仓库扫描服务类，支持全量与增量索引逻辑，利用全局线程池进行异步扫描。
     """
 
-    _progress_manager: ProgressManager = ProgressManager()
-
-    @staticmethod
-    def get_status() -> Dict[str, Any]:
+    @classmethod
+    def init_task(cls, params: Any) -> Tuple[ScanMode, FileRepositorySettings]:
         """
-        用途说明：以线程安全的方式获取当前扫描状态和进度信息。
-        入参说明：无
-        返回值说明：Dict[str, Any] - 包含 status (str) 和 progress (dict) 的字典。
+        用途说明：扫描任务启动前的初始化准备工作。校验状态并锁定配置快照。
+        入参说明：
+            params (ScanMode): 传入的扫描模式。
+        返回值说明：Tuple[ScanMode, FileRepositorySettings] - 返回扫描模式和当前配置快照。
         """
-        return ScanService._progress_manager.get_status()
+        if cls._progress_manager.get_raw_status() == ProgressStatus.PROCESSING:
+            LogUtils.error("扫描任务已在运行中，拒绝初始化")
+            raise RuntimeError("扫描任务已在运行中")
 
-    @staticmethod
-    def stop_scan() -> None:
+        scan_mode: ScanMode = params if isinstance(params, ScanMode) else ScanMode.INDEX_SCAN
+        
+        # 获取配置快照
+        repo_config: FileRepositorySettings = settingService.get_config().file_repository
+
+        # 重置进度状态
+        cls._progress_manager.set_status(ProgressStatus.PROCESSING)
+        cls._progress_manager.set_stop_flag(False)
+        cls._progress_manager.reset_progress(message="正在初始化...")
+        
+        return scan_mode, repo_config
+
+    @classmethod
+    def stop_task(cls) -> None:
         """
         用途说明：请求停止当前正在进行的扫描任务。
         入参说明：无
         返回值说明：无
         """
-        if ScanService._progress_manager.get_raw_status() == ProgressStatus.PROCESSING:
-            ScanService._progress_manager.set_stop_flag(True)
+        if cls._progress_manager.get_raw_status() == ProgressStatus.PROCESSING:
+            cls._progress_manager.set_stop_flag(True)
             LogUtils.info("用户请求停止扫描任务，已设置停止标志位")
 
-    @staticmethod
-    def start_async_scan(scan_mode: ScanMode = ScanMode.INDEX_SCAN) -> bool:
+    @classmethod
+    def start_task(cls, scan_mode: ScanMode = ScanMode.INDEX_SCAN) -> bool:
         """
-        用途说明：通过全局线程池启动异步扫描任务。并在启动时锁定当前仓库配置快照。
-        入参说明：
-            scan_mode (ScanMode): 扫描模式，可选 FULL_SCAN 或 INDEX_SCAN，默认为 INDEX_SCAN。
-        返回值说明：bool - 如果成功启动返回 True，如果任务已在运行则返回 False。
-        """
-        if ScanService._progress_manager.get_raw_status() == ProgressStatus.PROCESSING:
-            LogUtils.error("扫描任务已在运行中，忽略此次请求")
-            return False
-
-        # 在任务启动前获取配置快照，防止扫描过程中配置变更
-        repo_config: FileRepositorySettings = settingService.get_config().file_repository
-
-        ScanService._progress_manager.set_status(ProgressStatus.PROCESSING)
-        ScanService._progress_manager.set_stop_flag(False)
-        ScanService._progress_manager.reset_progress(message="正在初始化...")
-
-        ThreadPoolManager.submit(ScanService._internal_scan, scan_mode, repo_config)
-        LogUtils.info(f"异步扫描任务已提交，模式为: {scan_mode.value}")
-        return True
-
-    @staticmethod
-    def _internal_scan(scan_mode: ScanMode, repo_config: FileRepositorySettings) -> None:
-        """
-        用途说明：扫描任务调度核心逻辑。已优化为单次遍历完成发现与提取。
+        用途说明：通过全局线程池启动异步扫描任务。
         入参说明：
             scan_mode (ScanMode): 扫描模式。
-            repo_config (FileRepositorySettings): 任务开始时的配置快照。
-        返回值说明：无
+        返回值说明：bool - 是否成功启动。
+        """
+        try:
+            # 调用初始化方法获取上下文
+            mode, config = cls.init_task(scan_mode)
+            
+            ThreadPoolManager.submit(cls._internal_scan, mode, config)
+            LogUtils.info(f"异步扫描任务已提交，模式为: {mode.value}")
+            return True
+        except Exception as e:
+            LogUtils.error(f"启动扫描任务失败: {e}")
+            return False
+
+    @classmethod
+    def _internal_scan(cls, scan_mode: ScanMode, repo_config: FileRepositorySettings) -> None:
+        """
+        用途说明：扫描任务调度核心逻辑。
         """
         try:
             # 初始化：获取本次扫描的时间戳
@@ -93,42 +99,36 @@ class ScanService:
                 LogUtils.info("增量扫描模式：开始文件扫描...")
 
             # 执行合并后的扫描与特征提取阶段
-            new_count, updated_count = ScanService._combined_scan_logic(scan_mode, current_scan_time, repo_config)
+            new_count, updated_count = cls._combined_scan_logic(scan_mode, current_scan_time, repo_config)
             
-            if ScanService._progress_manager.is_stopped():
-                ScanService._handle_stopped()
+            if cls._progress_manager.is_stopped():
+                cls._handle_stopped()
                 return
 
             # 第三阶段：清理失效索引与备份
-            deleted_count: int = ScanService._phase_cleanup(current_scan_time)
+            deleted_count: int = cls._phase_cleanup(current_scan_time)
 
-            # --- 新增：扫描完成后自动重新计算文件仓库统计详情 ---
+            # 扫描完成后自动重新计算文件仓库统计详情
             FileService.calculate_repo_detail()
 
             # 完成
-            ScanService._progress_manager.set_status(ProgressStatus.COMPLETED)
+            cls._progress_manager.set_status(ProgressStatus.COMPLETED)
             msg: str = f"扫描任务完成。新增: {new_count}, 更新: {updated_count}, 清理失效: {deleted_count}"
-            ScanService._progress_manager.update_progress(message=msg)
+            cls._progress_manager.update_progress(message=msg)
             LogUtils.info(msg)
 
         except Exception as e:
             LogUtils.error(f"扫描服务运行异常: {e}")
-            ScanService._progress_manager.set_status(ProgressStatus.ERROR)
-            ScanService._progress_manager.update_progress(message=f"内部异常: {str(e)}")
+            cls._progress_manager.set_status(ProgressStatus.ERROR)
+            cls._progress_manager.update_progress(message=f"内部异常: {str(e)}")
 
-    @staticmethod
-    def _combined_scan_logic(scan_mode: ScanMode, current_scan_time: str, repo_config: FileRepositorySettings) -> Tuple[int, int]:
+    @classmethod
+    def _combined_scan_logic(cls, scan_mode: ScanMode, current_scan_time: str, repo_config: FileRepositorySettings) -> Tuple[int, int]:
         """
         用途说明：合并阶段 - 在一次目录遍历中完成文件发现、存在校验与特征提取。
-        入参说明：
-            scan_mode (ScanMode): 扫描模式。
-            current_scan_time (str): 本次扫描的时间戳。
-            repo_config (FileRepositorySettings): 任务开始时的配置快照。
-        返回值说明：
-            Tuple[int, int]: (新增文件数, 更新扫描时间的文件数)
         """
         LogUtils.info("进入综合扫描阶段...")
-        ScanService._progress_manager.update_progress(message="正在遍历目录并提取特征...")
+        cls._progress_manager.update_progress(message="正在遍历目录并提取特征...")
 
         directories: List[str] = repo_config.directories
         suffixes: List[str] = [s.replace('.', '').lower() for s in repo_config.scan_suffixes]
@@ -137,27 +137,24 @@ class ScanService:
         new_count: int = 0
         updated_count: int = 0
         
-        # 用于分批更新扫描时间的列表
         paths_to_update_time: List[str] = []
-        # 用于并发处理计算MD5的任务列表
         md5_futures: List[Future] = []
-        # 用于待入库的对象列表
         all_files_info: List[FileIndexDBModel] = []
 
         batch_update_size: int = 500
         batch_insert_size: int = 100
-        max_concurrent_tasks: int = 20 # 限制并发计算MD5的数量，避免IO压力过大
+        max_concurrent_tasks: int = 20
 
         for repo_path in directories:
-            if ScanService._progress_manager.is_stopped(): break
+            if cls._progress_manager.is_stopped(): break
             if not os.path.exists(repo_path):
                 LogUtils.error(f"扫描路径不存在: {repo_path}")
                 continue
 
             for root, _, files in os.walk(repo_path):
-                if ScanService._progress_manager.is_stopped(): break
+                if cls._progress_manager.is_stopped(): break
                 for file in files:
-                    if ScanService._progress_manager.is_stopped(): break
+                    if cls._progress_manager.is_stopped(): break
                     
                     full_path: str = os.path.join(root, file)
                     if Utils.should_ignore(full_path, 
@@ -169,7 +166,6 @@ class ScanService:
 
                     file_ext: str = os.path.splitext(file)[1].replace('.', '').lower()
                     if scan_all or file_ext in suffixes:
-                        # 检查数据库中是否存在
                         is_existing: bool = False
                         if scan_mode == ScanMode.INDEX_SCAN:
                             is_existing = DBOperations.check_file_path_exists(full_path)
@@ -181,50 +177,36 @@ class ScanService:
                                 DBOperations.batch_update_files_scan_time(paths_to_update_time, current_scan_time)
                                 paths_to_update_time = []
                         else:
-                            # 新文件，提交MD5计算任务
                             md5_futures.append(ThreadPoolManager.submit(Utils.calculate_fast_md5, full_path))
                             
-                            # 当并发任务积累到一定量或遍历结束，处理结果
                             if len(md5_futures) >= max_concurrent_tasks:
-                                new_count += ScanService._process_md5_futures(md5_futures, all_files_info, current_scan_time, batch_insert_size)
+                                new_count += cls._process_md5_futures(md5_futures, all_files_info, current_scan_time, batch_insert_size)
                                 md5_futures = []
 
-                        # 更新进度条
-                        ScanService._progress_manager.update_progress(
+                        cls._progress_manager.update_progress(
                             message=f"已扫描: {new_count + updated_count} (新增: {new_count})"
                         )
 
-
-        # 处理剩余的更新
-        if paths_to_update_time and not ScanService._progress_manager.is_stopped():
+        if paths_to_update_time and not cls._progress_manager.is_stopped():
             DBOperations.batch_update_files_scan_time(paths_to_update_time, current_scan_time)
         
-        # 处理剩余的MD5计算任务
-        if md5_futures and not ScanService._progress_manager.is_stopped():
-            new_count += ScanService._process_md5_futures(md5_futures, all_files_info, current_scan_time, batch_insert_size)
+        if md5_futures and not cls._progress_manager.is_stopped():
+            new_count += cls._process_md5_futures(md5_futures, all_files_info, current_scan_time, batch_insert_size)
         
-        # 处理最后剩余的入库对象
-        if all_files_info and not ScanService._progress_manager.is_stopped():
+        if all_files_info and not cls._progress_manager.is_stopped():
             DBOperations.batch_insert_files_index(all_files_info)
 
         return new_count, updated_count
 
-    @staticmethod
-    def _process_md5_futures(futures: List[Future], info_list: List[FileIndexDBModel], 
+    @classmethod
+    def _process_md5_futures(cls, futures: List[Future], info_list: List[FileIndexDBModel], 
                              current_scan_time: str, batch_size: int) -> int:
         """
-        用途说明：内部辅助方法，处理已完成的MD5计算任务并准备入库。
-        入参说明：
-            futures (List[Future]): 线程池返回的任务列表。
-            info_list (List[FileIndexDBModel]): 外部维护的待入库对象列表。
-            current_scan_time (str): 本次扫描时间戳。
-            batch_size (int): 分批入库的阈值。
-        返回值说明：
-            int: 本次处理成功的文件数量。
+        用途说明：处理已完成的MD5计算任务。
         """
         success_count: int = 0
         for future in as_completed(futures):
-            if ScanService._progress_manager.is_stopped(): break
+            if cls._progress_manager.is_stopped(): break
             try:
                 f_path, f_md5 = future.result()
                 if f_md5:
@@ -247,34 +229,23 @@ class ScanService:
         
         return success_count
 
-    @staticmethod
-    def _phase_cleanup(current_scan_time: str) -> int:
+    @classmethod
+    def _phase_cleanup(cls, current_scan_time: str) -> int:
         """
-        用途说明：第三阶段 - 清理与收尾。删除失效记录，并将结果备份至历史表。
-        入参说明：
-            current_scan_time (str): 本次有效扫描的时间戳。
-        返回值说明：
-            int: 已删除的失效索引记录数。
+        用途说明：清理失效索引。
         """
         LogUtils.info("进入第三阶段：清理失效索引...")
-        ScanService._progress_manager.update_progress(message="正在清理失效索引并备份...")
-        
-        # 删除扫描时间不匹配的记录（即磁盘上已不存在的文件）
+        cls._progress_manager.update_progress(message="正在清理失效索引并备份...")
         deleted_count: int = DBOperations.delete_files_by_not_scan_time(current_scan_time)
-        
-        # 同步当前索引至历史表
         DBOperations.copy_file_index_to_history()
-        
         return deleted_count
 
-    @staticmethod
-    def _handle_stopped() -> None:
+    @classmethod
+    def _handle_stopped(cls) -> None:
         """
-        用途说明：处理任务被手动停止时的清理工作。
-        入参说明：无
-        返回值说明：无
+        用途说明：处理任务手动停止。
         """
-        ScanService._progress_manager.set_status(ProgressStatus.IDLE)
-        ScanService._progress_manager.set_stop_flag(False)
-        ScanService._progress_manager.update_progress(message="任务已手动停止")
+        cls._progress_manager.set_status(ProgressStatus.IDLE)
+        cls._progress_manager.set_stop_flag(False)
+        cls._progress_manager.update_progress(message="任务已手动停止")
         LogUtils.info("扫描任务已响应停止指令，重置为待机状态")

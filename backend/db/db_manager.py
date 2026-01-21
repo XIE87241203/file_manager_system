@@ -213,6 +213,16 @@ class DBManager:
             )
         ''')
 
+        # 9. 创建 batch_check_results 表
+        cursor.execute(f'''
+            CREATE TABLE IF NOT EXISTS {DBConstants.BatchCheckResult.TABLE_NAME} (
+                {DBConstants.BatchCheckResult.COL_ID} INTEGER PRIMARY KEY AUTOINCREMENT,
+                {DBConstants.BatchCheckResult.COL_NAME} TEXT NOT NULL,
+                {DBConstants.BatchCheckResult.COL_SOURCE} TEXT NOT NULL,
+                {DBConstants.BatchCheckResult.COL_DETAIL} TEXT
+            )
+        ''')
+
     @staticmethod
     def migrate_db_version(old_version: int, new_version: int, cursor: sqlite3.Cursor) -> None:
         """
@@ -277,15 +287,25 @@ class DBManager:
                     {DBConstants.FileRepoDetail.COL_UPDATE_TIME} DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
             ''')
-            LogUtils.info(f"数据库升级到版本 7: 已创建 {DBConstants.FileRepoDetail.TABLE_NAME} 表")
+            LogUtils.info("数据库升级到版本 7: 已创建 file_repo_detail 表")
 
         if old_version < 8:
-            # 升级到版本 8: 为 duplicate_files 表添加相似类型和相似率字段
+            # 升级到版本 8: 为 duplicate_files 添加相似度字段
             try:
                 cursor.execute(f"ALTER TABLE {DBConstants.DuplicateFile.TABLE_FILES} ADD COLUMN {DBConstants.DuplicateFile.COL_SIMILARITY_TYPE} TEXT")
                 cursor.execute(f"ALTER TABLE {DBConstants.DuplicateFile.TABLE_FILES} ADD COLUMN {DBConstants.DuplicateFile.COL_SIMILARITY_RATE} REAL DEFAULT 1.0")
-                LogUtils.info("数据库升级到版本 8: 已为 duplicate_files 表添加相似度相关字段")
+                LogUtils.info("数据库升级到版本 8: 已为 duplicate_files 添加相似度字段")
             except Exception as e:
-                LogUtils.error(f"数据库升级到版本 8 失败: {e}")
+                LogUtils.error(f"添加相似度字段失败: {e}")
 
-db_manager: DBManager = DBManager()
+        if old_version < 9:
+            # 升级到版本 9: 添加 batch_check_results 表
+            cursor.execute(f'''
+                CREATE TABLE IF NOT EXISTS {DBConstants.BatchCheckResult.TABLE_NAME} (
+                    {DBConstants.BatchCheckResult.COL_ID} INTEGER PRIMARY KEY AUTOINCREMENT,
+                    {DBConstants.BatchCheckResult.COL_NAME} TEXT NOT NULL,
+                    {DBConstants.BatchCheckResult.COL_SOURCE} TEXT NOT NULL,
+                    {DBConstants.BatchCheckResult.COL_DETAIL} TEXT
+                )
+            ''')
+            LogUtils.info("数据库升级到版本 9: 已创建 batch_check_results 表")

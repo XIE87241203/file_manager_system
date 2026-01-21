@@ -44,11 +44,11 @@ def start_scan():
 
     # 2. 先检查扫描状态
     status_info: dict = ScanService.get_status()
-    if status_info.get("status") == ProgressStatus.PROCESSING:
+    if status_info.get("status") == ProgressStatus.PROCESSING.value:
         return error_response("扫描任务已在运行中", 400)
 
     # 3. 启动异步扫描
-    if ScanService.start_async_scan(scan_mode):
+    if ScanService.start_task(scan_mode):
         return success_response(f"{'全量' if full_scan else '增量'}扫描任务已启动")
     else:
         return error_response("扫描任务启动失败，可能已在运行中", 400)
@@ -61,7 +61,7 @@ def stop_scan():
     用途说明：手动停止正在进行的扫描任务
     """
     LogUtils.info(f"用户 {_get_current_user()} 请求停止扫描任务")
-    ScanService.stop_scan()
+    ScanService.stop_task()
     return success_response("已发送停止指令")
 
 
@@ -110,7 +110,7 @@ def clear_recycle_bin():
         LogUtils.info(f"用户 {_get_current_user()} 请求清空回收站")
         msg: str = "已启动清空任务"
 
-    if RecycleBinService.start_async_delete(file_paths):
+    if RecycleBinService.clear_recycle_bin(file_paths):
         return success_response(msg)
     else:
         return error_response("启动删除任务失败", 500)

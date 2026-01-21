@@ -3,7 +3,7 @@ class DBConstants:
     用途：数据库表名及列名常量类，统一管理所有数据库结构相关的硬编码字符串
     """
 
-    DB_VERSION: int = 8  # 当前数据库版本，升级至 8 以支持重复文件相似度记录
+    DB_VERSION: int = 9  # 当前数据库版本，升级至 9 以支持批量检测结果存储
 
     class SimilarityType:
         """用途：查重相似度类型常量"""
@@ -81,3 +81,11 @@ class DBConstants:
         COL_TOTAL_COUNT: str = 'total_count'
         COL_TOTAL_SIZE: str = 'total_size'
         COL_UPDATE_TIME: str = 'update_time'
+
+    class BatchCheckResult:
+        """用途：batch_check_results 表相关的常量 (批量检测结果)"""
+        TABLE_NAME: str = 'batch_check_results'
+        COL_ID: str = 'id'
+        COL_NAME: str = 'name'
+        COL_SOURCE: str = 'source'
+        COL_DETAIL: str = 'detail'

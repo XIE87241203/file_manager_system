@@ -10,7 +10,8 @@ const State = {
     order: 'DESC',
     search: '',
     selectedPaths: new Set(),
-    paginationController: null
+    paginationController: null,
+    lastTaskStatus: null // 用途说明：缓存上一次任务状态，用于判断状态切换
 };
 
 // --- UI 控制模块 ---
@@ -246,26 +247,43 @@ const App = {
         });
     },
 
+    /**
+     * 用途说明：启动进度轮询，并根据状态切换逻辑决定是否刷新列表。
+     */
     startProgressPolling() {
         UIComponents.showProgressBar('.repo-container', '正在删除文件...');
+        // 初始化当前状态，确保能识别后续的 IDLE 切换
+        State.lastTaskStatus = ProgressStatus.PROCESSING;
+
         const timer = setInterval(async () => {
             const res = await RecycleBinAPI.getDeleteProgress();
             if (res.status === 'success') {
-                const data = res.data;
-                if (data.status === ProgressStatus.PROCESSING) {
-                    UIComponents.renderProgress('.repo-container', data.progress);
+                const currentStatus = res.data.status;
+                const progress = res.data.progress;
+
+                if (currentStatus === ProgressStatus.PROCESSING) {
+                    UIComponents.renderProgress('.repo-container', progress);
                 } else {
+                    // 状态不再是 PROCESSING，停止轮询
                     clearInterval(timer);
                     UIComponents.hideProgressBar('.repo-container');
-                    if (data.status === ProgressStatus.COMPLETED) {
+
+                    // 核心逻辑：如果从 PROCESSING 切换到 IDLE，或者变为 COMPLETED，则刷新
+                    const isTaskFinished = (State.lastTaskStatus === ProgressStatus.PROCESSING && currentStatus === ProgressStatus.IDLE)
+                                         || currentStatus === ProgressStatus.COMPLETED;
+
+                    if (isTaskFinished) {
                         Toast.show('处理完成');
                         State.selectedPaths.clear();
                         this.loadFileList();
                     }
                 }
+                // 更新缓存状态
+                State.lastTaskStatus = currentStatus;
             } else {
                 clearInterval(timer);
                 UIComponents.hideProgressBar('.repo-container');
+                State.lastTaskStatus = null;
             }
         }, 1000);
     },
