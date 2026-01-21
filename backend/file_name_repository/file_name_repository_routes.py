@@ -172,7 +172,7 @@ def check_batch_files():
     if not file_names:
         return error_response("未提供文件名清单", 400)
     
-    if BatchCheckService.start_async_check(file_names):
+    if BatchCheckService.start_task(file_names):
         return success_response("批量检测任务已启动")
     else:
         return error_response("任务启动失败，可能已有任务在运行", 409)

@@ -179,10 +179,10 @@ const UIController = {
         }
     },
 
-    updateThumbnailProgress(progress) {
+    updateThumbnailProgress(count) {
         const { thumbnailProgressText } = this.elements;
-        if (thumbnailProgressText && progress) {
-            thumbnailProgressText.textContent = progress.message || '';
+        if (thumbnailProgressText) {
+            thumbnailProgressText.textContent = count > 0 ? `队列剩余: ${count}` : '处理中...';
         }
     }
 };
@@ -218,8 +218,8 @@ const RepositoryAPI = {
         return await Request.post('/api/file_repository/thumbnail/stop', {});
     },
 
-    async getThumbnailProgress() {
-        return await Request.get('/api/file_repository/thumbnail/progress');
+    async getThumbnailQueueCount() {
+        return await Request.get('/api/file_repository/thumbnail/queue_count', {}, false);
     }
 };
 
@@ -425,19 +425,20 @@ const App = {
     startThumbnailPolling() {
         if (State.thumbnailInterval) clearInterval(State.thumbnailInterval);
         State.thumbnailInterval = setInterval(async () => {
-            const response = await RepositoryAPI.getThumbnailProgress();
+            const response = await RepositoryAPI.getThumbnailQueueCount();
             if (response.status === 'success') {
-                const data = response.data;
-                if (data.status === ProgressStatus.PROCESSING) {
-                    UIController.updateThumbnailProgress(data.progress);
+                const count = response.data;
+                if (count > 0) {
+                    UIController.updateThumbnailProgress(count);
                 } else {
                     this.stopThumbnailPolling();
                     UIController.toggleThumbnailUI(false);
-                    if (data.status === ProgressStatus.COMPLETED) {
-                        Toast.show('缩略图生成完成');
-                        this.loadFileList();
-                    }
+                    Toast.show('缩略图生成完成');
+                    this.loadFileList();
                 }
+            } else {
+                this.stopThumbnailPolling();
+                UIController.toggleThumbnailUI(false);
             }
         }, 1500);
     },
@@ -450,8 +451,8 @@ const App = {
     },
 
     async checkThumbnailStatus() {
-        const response = await RepositoryAPI.getThumbnailProgress();
-        if (response.status === 'success' && response.data.status === ProgressStatus.PROCESSING) {
+        const response = await RepositoryAPI.getThumbnailQueueCount();
+        if (response.status === 'success' && response.data > 0) {
             UIController.toggleThumbnailUI(true);
             this.startThumbnailPolling();
         }

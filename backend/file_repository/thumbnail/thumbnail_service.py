@@ -1,173 +1,183 @@
 import os
 import shutil
-from typing import Dict, Any
+from typing import Any, List
 
+from backend.common.base_async_service import BaseAsyncService
 from backend.common.log_utils import LogUtils
-from backend.common.progress_manager import ProgressManager, ProgressStatus
+from backend.common.progress_manager import ProgressStatus
 from backend.common.utils import Utils
 from backend.db.db_operations import DBOperations
 from backend.file_repository.thumbnail.thumbnail_generator import ThumbnailGenerator
 
 
-class ThumbnailService:
+class ThumbnailService(BaseAsyncService):
     """
-    用途：缩略图生成服务类，负责管理生成任务的状态、启动停止及进度查询。
+    用途说明：缩略图服务类。
+    管理职责：
+    1. 派发缩略图生成任务（非耗时操作，直接填充队列）。
+    2. 同步物理文件（耗时操作，利用线程池异步清理孤儿文件）。
+    3. 提供生成队列余量监控。
     """
-    _progress_manager: ProgressManager = ProgressManager()
-    _THUMBNAIL_DIR = os.path.join(Utils.get_runtime_path(), "cache", "thumbnail")
+    _THUMBNAIL_DIR: str = os.path.join(Utils.get_runtime_path(), "cache", "thumbnail")
 
-    @staticmethod
-    def get_status() -> Dict[str, Any]:
+    @classmethod
+    def get_thumbnail_queue_count(cls) -> int:
         """
-        用途：获取当前缩略图生成状态和进度信息。
+        用途说明：获取缩略图生成器队列中剩余的任务数量。
         入参说明：无
-        返回值说明：Dict[str, Any] - 包含状态和进度的字典，包含剩余任务数。
+        返回值说明：int - 队列中剩余待处理的任务总数。
         """
-        status_info = ThumbnailService._progress_manager.get_status()
-        remaining = ThumbnailGenerator().get_remaining_count()
-        
-        # 如果队列中有任务但状态不是 processing，或者队列处理完但状态还是 processing，进行同步
-        raw_status = ThumbnailService._progress_manager.get_raw_status()
-        if remaining > 0 and raw_status != ProgressStatus.PROCESSING:
-            ThumbnailService._progress_manager.set_status(ProgressStatus.PROCESSING)
-            ThumbnailService._progress_manager.update_progress(message=f"剩余任务数:{remaining}" )
-        elif remaining == 0 and raw_status == ProgressStatus.PROCESSING:
-            ThumbnailService._progress_manager.set_status(ProgressStatus.COMPLETED)
-            ThumbnailService._progress_manager.update_progress(message="所有任务处理完成")
+        return ThumbnailGenerator().get_remaining_count()
 
-        status_info["progress"]["remaining"] = remaining
-        return status_info
-
-    @staticmethod
-    def stop_generation() -> None:
+    @classmethod
+    def stop_thumbnail_generation(cls) -> None:
         """
-        用途：请求停止当前正在进行的缩略图生成任务。
+        用途说明：停止缩略图生成任务，清空任务队列并停止物理同步任务。
         入参说明：无
         返回值说明：无
         """
+        LogUtils.info("正在请求停止所有缩略图相关任务...")
         ThumbnailGenerator().clear_queue()
-        ThumbnailService._progress_manager.set_status(ProgressStatus.IDLE)
-        ThumbnailService._progress_manager.update_progress(message="任务已手动停止并清空队列")
-        LogUtils.info("用户请求停止缩略图生成任务，已清空生成器队列")
 
-    @staticmethod
-    def start_async_generation(rebuild_all: bool = False) -> bool:
+    @classmethod
+    def start_thumbnail_sync_task(cls) -> bool:
         """
-        用途：启动异步缩略图生成任务。
+        用途说明：启动异步物理文件同步任务，清理缓存目录下的“孤儿”缩略图。包含环境检查与状态初始化。
         入参说明：
-            rebuild_all (bool): True - 全部重建模式；False - 仅针对无缩略图文件重建。
-        返回值说明：bool - 是否成功启动
-        """
-        if ThumbnailService._progress_manager.get_raw_status() == ProgressStatus.PROCESSING:
-            LogUtils.error("缩略图生成任务已在运行中")
-            return False
-
-        # 1. 确定查询条件
-        only_no_thumb = not rebuild_all
-        
-        # 获取符合条件的文件总数，用于初始化进度条
-        total_count = DBOperations.get_file_index_count(only_no_thumbnail=only_no_thumb)
-        
-        if total_count == 0:
-            ThumbnailService._progress_manager.set_status(ProgressStatus.COMPLETED)
-            ThumbnailService._progress_manager.update_progress(message="没有需要生成缩略图的文件")
-            LogUtils.info("启动缩略图生成：无可处理文件")
-            return True
-
-        # 设置状态为处理中并重置进度信息
-        ThumbnailService._progress_manager.set_status(ProgressStatus.PROCESSING)
-        ThumbnailService._progress_manager.reset_progress(
-            total=total_count, 
-            message="正在分批将任务加入队列..."
-        )
-
-        # 2. 分批获取文件记录并添加到生成队列
-        batch_size = 1000
-        offset = 0
-        total_added = 0
-        
-        LogUtils.info(f"缩略图生成模式：{'全部重建' if rebuild_all else '仅缺失重建'}，预计处理 {total_count} 个文件")
-
-        while offset < total_count:
-            # 分批从数据库查询文件记录
-            batch = DBOperations.get_file_index_list_by_condition(
-                limit=batch_size,
-                offset=offset,
-                only_no_thumbnail= only_no_thumb
-            )
-
-            if not batch:
-                break
-            
-            # 批量添加到生成器的任务队列中 (现在直接传递 model 对象)
-            ThumbnailGenerator().add_tasks(batch)
-            
-            total_added += len(batch)
-            offset += batch_size
-            
-            if len(batch) < batch_size:
-                break
-
-        LogUtils.info(f"成功将 {total_added} 个缩略图生成任务提交后台处理")
-        return True
-
-    @staticmethod
-    def clear_all_thumbnails() -> bool:
-        """
-        用途：删除所有缩略图文件及数据库记录。
-        入参说明：无
-        返回值说明：bool - 是否成功
+            params (Any): 启动参数（预留）。
+        返回值说明：bool - 任务是否成功提交至线程池。
         """
         try:
-            # 停止当前生成任务
-            ThumbnailService.stop_generation()
+            # --- 初始化逻辑开始 ---
+            if cls._progress_manager.get_raw_status() == ProgressStatus.PROCESSING:
+                LogUtils.error("物理同步任务已在运行中，拒绝重复启动")
+                return False
+
+            if not os.path.exists(cls._THUMBNAIL_DIR):
+                os.makedirs(cls._THUMBNAIL_DIR, exist_ok=True)
             
-            # 1. 删除物理文件
-            if os.path.exists(ThumbnailService._THUMBNAIL_DIR):
-                shutil.rmtree(ThumbnailService._THUMBNAIL_DIR)
-                os.makedirs(ThumbnailService._THUMBNAIL_DIR, exist_ok=True)
+            # 重置进度管理器
+            cls._progress_manager.set_status(ProgressStatus.PROCESSING)
+            cls._progress_manager.set_stop_flag(False)
+            cls._progress_manager.reset_progress(message="正在准备同步...")
+            # --- 初始化逻辑结束 ---
             
-            # 2. 清空数据库记录
-            return DBOperations.clear_all_thumbnail_records()
+            # 使用基类的私有方法启动物理同步任务
+            return cls._start_task(cls._internal_sync_logic)
         except Exception as e:
-            LogUtils.error(f"清除缩略图失败: {e}")
+            LogUtils.error(f"启动物理同步任务失败: {e}")
+            cls._progress_manager.set_status(ProgressStatus.ERROR)
             return False
 
-    @staticmethod
-    def sync_thumbnails() -> int:
+    @classmethod
+    def _internal_sync_logic(cls) -> None:
         """
-        用途：同步文件索引和缩略图文件，删除不在文件索引表内的缩略图。
-        策略：通过逐一查询数据库检查 MD5 是否存在，避免加载全量 MD5 导致内存溢出。
+        用途说明：物理同步任务的核心调度逻辑。遍历磁盘文件并校验数据库状态。
         入参说明：无
-        返回值说明：
-            int: 成功删除的孤儿缩略图文件数量
+        返回值说明：无
         """
-        if not os.path.exists(ThumbnailService._THUMBNAIL_DIR):
-            return 0
-
-        delete_count: int = 0
         try:
-            # 遍历缩略图目录下的所有文件
-            for filename in os.listdir(ThumbnailService._THUMBNAIL_DIR):
-                # 缩略图文件名格式通常为 {md5}.jpg
-                # 提取 MD5 部分
+            cls._progress_manager.update_progress(message="正在扫描缩略图缓存目录...")
+            
+            all_files: List[str] = os.listdir(cls._THUMBNAIL_DIR)
+            total_files: int = len(all_files)
+            
+            if total_files == 0:
+                cls._progress_manager.set_status(ProgressStatus.COMPLETED)
+                cls._progress_manager.update_progress(message="缓存目录为空，无需同步")
+                return
+
+            cls._progress_manager.reset_progress(total=total_files, message=f"找到 {total_files} 个物理文件，开始校验...")
+
+            delete_count: int = 0
+            for index, filename in enumerate(all_files):
+                # 检查任务是否被手动停止
+                if cls._progress_manager.is_stopped():
+                    LogUtils.info("物理同步任务被用户手动停止")
+                    return
+
+                # 获取文件名（MD5）
                 name_without_ext: str = os.path.splitext(filename)[0]
                 
-                # 如果文件名不是 32 位 MD5（排除可能的其他杂文件），或者在数据库中查不到
-                # 这里可以根据实际情况微调校验逻辑
-                if len(name_without_ext) != 32:
-                    continue
+                # 仅校验标准的 32 位 MD5 文件名，防止误删非缓存文件
+                if len(name_without_ext) == 32:
+                    # 如果数据库中不存在此 MD5 的记录，则物理文件为无效“孤儿”
+                    if not DBOperations.check_file_md5_exists(name_without_ext):
+                        file_path: str = os.path.join(cls._THUMBNAIL_DIR, filename)
+                        if os.path.isfile(file_path):
+                            os.remove(file_path)
+                            delete_count += 1
+                
+                # 分批更新进度，避免 UI 刷新过频
+                if index % 100 == 0 or index == total_files - 1:
+                    cls._progress_manager.update_progress(
+                        current=index + 1, 
+                        message=f"已扫描: {index + 1}/{total_files}，已清理失效文件: {delete_count}"
+                    )
 
-                # 逐一向数据库发起查询（利用索引，速度尚可，且内存占用极低）
-                if not DBOperations.check_file_md5_exists(name_without_ext):
-                    file_path = os.path.join(ThumbnailService._THUMBNAIL_DIR, filename)
-                    if os.path.isfile(file_path):
-                        os.remove(file_path)
-                        delete_count += 1
+            cls._progress_manager.set_status(ProgressStatus.COMPLETED)
+            cls._progress_manager.update_progress(message=f"同步完成！共清理了 {delete_count} 个无效缩略图")
+            LogUtils.info(f"缩略图物理同步执行完毕，共清理文件: {delete_count}")
             
-            if delete_count > 0:
-                LogUtils.info(f"缩略图同步完成，共删除 {delete_count} 个过期缩略图")
         except Exception as e:
-            LogUtils.error(f"同步缩略图时发生异常: {e}")
+            LogUtils.error(f"执行物理同步任务逻辑异常: {e}")
+            cls._progress_manager.set_status(ProgressStatus.ERROR)
+            cls._progress_manager.update_progress(message=f"同步异常: {str(e)}")
+
+    @classmethod
+    def dispatch_thumbnail_tasks(cls, rebuild_all: bool) -> bool:
+        """
+        用途说明：将缩略图生成任务分派至后台生成器。此操作为轻量级，仅负责批量推送任务。
+        入参说明：
+            rebuild_all (bool): 是否强制重建所有缩略图。
+        返回值说明：bool - 任务是否成功加入生成队列。
+        """
+        only_no_thumb: bool = not rebuild_all
+        total_count: int = DBOperations.get_file_index_count(only_no_thumbnail=only_no_thumb)
+        
+        if total_count == 0:
+            LogUtils.info(f"派发缩略图任务：无可处理文件 (模式: {'全部' if rebuild_all else '仅缺失'})")
+            return True
+
+        batch_size: int = 1000
+        offset: int = 0
+        
+        LogUtils.info(f"开始分派缩略图任务: 预计 {total_count} 个文件")
+
+        try:
+            while offset < total_count:
+                batch: List[Any] = DBOperations.get_file_index_list_by_condition(
+                    limit=batch_size,
+                    offset=offset,
+                    only_no_thumbnail=only_no_thumb
+                )
+                if not batch:
+                    break
+                
+                ThumbnailGenerator().add_tasks(batch)
+                offset += len(batch)
+
+            LogUtils.info(f"缩略图分派完毕，共计 {offset} 个任务已进入后台生成队列")
+            return True
+        except Exception as e:
+            LogUtils.error(f"分派缩略图任务时发生异常: {e}")
+            return False
+
+    @classmethod
+    def clear_all_thumbnails(cls) -> bool:
+        """
+        用途说明：全量清理操作。停止所有任务，清空物理缓存并重置数据库标记。
+        入参说明：无
+        返回值说明：bool - 操作是否全部成功。
+        """
+        try:
+            cls.stop_thumbnail_generation()
             
-        return delete_count
+            if os.path.exists(cls._THUMBNAIL_DIR):
+                shutil.rmtree(cls._THUMBNAIL_DIR)
+                os.makedirs(cls._THUMBNAIL_DIR, exist_ok=True)
+            
+            return DBOperations.clear_all_thumbnail_records()
+        except Exception as e:
+            LogUtils.error(f"全量清除缩略图失败: {e}")
+            return False

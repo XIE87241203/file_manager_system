@@ -3,7 +3,6 @@ from typing import List, Optional
 from backend.common.base_async_service import BaseAsyncService
 from backend.common.log_utils import LogUtils
 from backend.common.progress_manager import ProgressStatus
-from backend.common.thread_pool import ThreadPoolManager
 from backend.db.db_operations import DBOperations
 from backend.file_repository.base_file_service import BaseFileService
 from backend.model.db.file_index_db_model import FileIndexDBModel
@@ -16,48 +15,27 @@ class RecycleBinService(BaseAsyncService):
     """
 
     @classmethod
-    def init_task(cls, params: Optional[List[str]]) -> Optional[List[str]]:
+    def start_batch_delete_task(cls, file_paths: Optional[List[str]] = None) -> bool:
         """
-        用途说明：初始化删除任务。校验运行状态并重置进度条。
-        入参说明：
-            params (Optional[List[str]]): 指定要删除的文件路径列表。None 表示清空回收站。
-        返回值说明：Optional[List[str]] - 传递给后续任务的删除路径列表。
-        """
-        if cls._progress_manager.get_raw_status() == ProgressStatus.PROCESSING:
-            LogUtils.error("批量删除任务已在运行中，拒绝初始化")
-            raise RuntimeError("批量删除任务已在运行中")
-
-        cls._progress_manager.set_status(ProgressStatus.PROCESSING)
-        cls._progress_manager.set_stop_flag(False)
-        msg: str = "正在准备删除任务..." if params else "正在准备清空回收站..."
-        cls._progress_manager.reset_progress(message=msg)
-        
-        return params
-
-    @classmethod
-    def stop_task(cls) -> None:
-        """
-        用途说明：请求停止当前正在进行的删除任务。
-        入参说明：无
-        返回值说明：无
-        """
-        if cls._progress_manager.get_raw_status() == ProgressStatus.PROCESSING:
-            cls._progress_manager.set_stop_flag(True)
-            LogUtils.info("用户请求停止删除任务，已设置停止标志位")
-
-    @classmethod
-    def start_task(cls, file_paths: Optional[List[str]] = None) -> bool:
-        """
-        用途说明：异步启动批量删除任务。
+        用途说明：启动异步批量删除任务（或清空回收站）。包含初始化状态校验、进度重置及提交线程池逻辑。
         入参说明：
             file_paths (Optional[List[str]]): 指定要删除的文件路径列表。None 表示清空回收站。
         返回值说明：bool: 是否成功启动任务。
         """
         try:
-            params = cls.init_task(file_paths)
-            ThreadPoolManager.submit(cls._internal_delete, params)
-            LogUtils.info(f"异步删除任务已提交 (指定路径数: {len(params) if params else 'ALL'})")
-            return True
+            # --- 初始化逻辑开始 ---
+            if cls._progress_manager.get_raw_status() == ProgressStatus.PROCESSING:
+                LogUtils.error("批量删除任务已在运行中，拒绝启动")
+                raise RuntimeError("批量删除任务已在运行中")
+
+            cls._progress_manager.set_status(ProgressStatus.PROCESSING)
+            cls._progress_manager.set_stop_flag(False)
+            msg: str = "正在准备删除任务..." if file_paths else "正在准备清空回收站..."
+            cls._progress_manager.reset_progress(message=msg)
+            # --- 初始化逻辑结束 ---
+
+            # 使用基类的私有方法启动删除任务
+            return cls._start_task(cls._internal_delete, file_paths)
         except Exception as e:
             LogUtils.error(f"启动删除任务失败: {e}")
             return False
@@ -66,13 +44,6 @@ class RecycleBinService(BaseAsyncService):
     def get_recycle_bin_list(page: int, limit: int, sort_by: str, order_asc: bool, search_query: str) -> PaginationResult[FileIndexDBModel]:
         """
         用途说明：分页获取回收站中的文件列表。
-        入参说明：
-            page (int): 当前页码。
-            limit (int): 每页限制数量。
-            sort_by (str): 排序字段。
-            order_asc (bool): 是否升序。
-            search_query (str): 搜索关键词。
-        返回值说明：PaginationResult[FileIndexDBModel] - 分页结果对象。
         """
         return DBOperations.search_file_index_list(page, limit, sort_by, order_asc, search_query, is_in_recycle_bin=True)
 
@@ -80,8 +51,6 @@ class RecycleBinService(BaseAsyncService):
     def batch_move_to_recycle_bin(file_paths: List[str]) -> bool:
         """
         用途说明：批量将指定文件移入回收站标记状态。
-        入参说明：file_paths (List[str]): 文件路径列表。
-        返回值说明：bool: 操作是否成功。
         """
         try:
             return DBOperations.batch_move_to_recycle_bin(file_paths)
@@ -93,8 +62,6 @@ class RecycleBinService(BaseAsyncService):
     def batch_restore_from_recycle_bin(file_paths: List[str]) -> bool:
         """
         用途说明：批量将文件从回收站状态恢复。
-        入参说明：file_paths (List[str]): 文件路径列表。
-        返回值说明：bool: 操作是否成功。
         """
         try:
             return DBOperations.batch_restore_from_recycle_bin(file_paths)
@@ -106,7 +73,6 @@ class RecycleBinService(BaseAsyncService):
     def _internal_delete(cls, file_paths_to_delete: Optional[List[str]] = None) -> None:
         """
         用途说明：执行物理删除的内部实现逻辑，增加了对停止标志位的检测。
-        入参说明：file_paths_to_delete (Optional[List[str]]): 要删除的文件列表。
         """
         try:
             total_deleted: int = 0
@@ -187,10 +153,3 @@ class RecycleBinService(BaseAsyncService):
             cls._progress_manager.set_status(ProgressStatus.ERROR)
             cls._progress_manager.update_progress(message=f"操作失败: {str(e)}")
 
-    @classmethod
-    def clear_recycle_bin(cls, file_paths: Optional[List[str]] = None) -> bool:
-        """
-        用途说明：(旧接口兼容) 彻底清空回收站。
-        返回值说明：bool: 是否成功触发任务。
-        """
-        return cls.start_task(file_paths)

@@ -2,7 +2,7 @@ import os
 from concurrent.futures import as_completed, Future
 from datetime import datetime
 from enum import Enum
-from typing import List, Any, Tuple
+from typing import List, Tuple
 
 from backend.common.base_async_service import BaseAsyncService
 from backend.common.log_utils import LogUtils
@@ -30,55 +30,32 @@ class ScanService(BaseAsyncService):
     """
 
     @classmethod
-    def init_task(cls, params: Any) -> Tuple[ScanMode, FileRepositorySettings]:
+    def start_scan_task(cls, scan_mode: ScanMode = ScanMode.INDEX_SCAN) -> bool:
         """
-        用途说明：扫描任务启动前的初始化准备工作。校验状态并锁定配置快照。
-        入参说明：
-            params (ScanMode): 传入的扫描模式。
-        返回值说明：Tuple[ScanMode, FileRepositorySettings] - 返回扫描模式和当前配置快照。
-        """
-        if cls._progress_manager.get_raw_status() == ProgressStatus.PROCESSING:
-            LogUtils.error("扫描任务已在运行中，拒绝初始化")
-            raise RuntimeError("扫描任务已在运行中")
-
-        scan_mode: ScanMode = params if isinstance(params, ScanMode) else ScanMode.INDEX_SCAN
-        
-        # 获取配置快照
-        repo_config: FileRepositorySettings = settingService.get_config().file_repository
-
-        # 重置进度状态
-        cls._progress_manager.set_status(ProgressStatus.PROCESSING)
-        cls._progress_manager.set_stop_flag(False)
-        cls._progress_manager.reset_progress(message="正在初始化...")
-        
-        return scan_mode, repo_config
-
-    @classmethod
-    def stop_task(cls) -> None:
-        """
-        用途说明：请求停止当前正在进行的扫描任务。
-        入参说明：无
-        返回值说明：无
-        """
-        if cls._progress_manager.get_raw_status() == ProgressStatus.PROCESSING:
-            cls._progress_manager.set_stop_flag(True)
-            LogUtils.info("用户请求停止扫描任务，已设置停止标志位")
-
-    @classmethod
-    def start_task(cls, scan_mode: ScanMode = ScanMode.INDEX_SCAN) -> bool:
-        """
-        用途说明：通过全局线程池启动异步扫描任务。
+        用途说明：启动异步扫描任务。包含初始化逻辑与线程池提交。
         入参说明：
             scan_mode (ScanMode): 扫描模式。
         返回值说明：bool - 是否成功启动。
         """
         try:
-            # 调用初始化方法获取上下文
-            mode, config = cls.init_task(scan_mode)
+            # --- 初始化逻辑开始 ---
+            if cls._progress_manager.get_raw_status() == ProgressStatus.PROCESSING:
+                LogUtils.error("扫描任务已在运行中，拒绝启动")
+                raise RuntimeError("扫描任务已在运行中")
+
+            mode: ScanMode = scan_mode if isinstance(scan_mode, ScanMode) else ScanMode.INDEX_SCAN
             
-            ThreadPoolManager.submit(cls._internal_scan, mode, config)
-            LogUtils.info(f"异步扫描任务已提交，模式为: {mode.value}")
-            return True
+            # 获取配置快照
+            repo_config: FileRepositorySettings = settingService.get_config().file_repository
+
+            # 重置进度状态
+            cls._progress_manager.set_status(ProgressStatus.PROCESSING)
+            cls._progress_manager.set_stop_flag(False)
+            cls._progress_manager.reset_progress(message="正在初始化...")
+            # --- 初始化逻辑结束 ---
+            
+            # 调用基类的私有方法启动任务
+            return cls._start_task(cls._internal_scan, mode, repo_config)
         except Exception as e:
             LogUtils.error(f"启动扫描任务失败: {e}")
             return False

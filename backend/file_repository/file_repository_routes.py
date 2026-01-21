@@ -48,7 +48,7 @@ def start_scan():
         return error_response("扫描任务已在运行中", 400)
 
     # 3. 启动异步扫描
-    if ScanService.start_task(scan_mode):
+    if ScanService.start_scan_task(scan_mode):
         return success_response(f"{'全量' if full_scan else '增量'}扫描任务已启动")
     else:
         return error_response("扫描任务启动失败，可能已在运行中", 400)
@@ -110,7 +110,7 @@ def clear_recycle_bin():
         LogUtils.info(f"用户 {_get_current_user()} 请求清空回收站")
         msg: str = "已启动清空任务"
 
-    if RecycleBinService.clear_recycle_bin(file_paths):
+    if RecycleBinService.start_batch_delete_task(file_paths):
         return success_response(msg)
     else:
         return error_response("启动删除任务失败", 500)
@@ -200,7 +200,7 @@ def restore_from_recycle_bin():
 @token_required
 def start_duplicate_check():
     LogUtils.info(f"用户 {_get_current_user()} 触发了文件查重")
-    if DuplicateService.start_async_check():
+    if DuplicateService.start_duplicate_check_task():
         return success_response("查重任务已启动")
     else:
         return error_response("查重任务已在运行中", 400)
@@ -210,7 +210,7 @@ def start_duplicate_check():
 @token_required
 def stop_duplicate_check():
     LogUtils.info(f"用户 {_get_current_user()} 请求停止查重任务")
-    DuplicateService.stop_check()
+    DuplicateService.stop_task()
     return success_response("已发送停止指令")
 
 
@@ -243,7 +243,7 @@ def start_thumbnail_generation():
     rebuild_all: bool = data.get('rebuild_all', False)
 
     LogUtils.info(f"用户 {_get_current_user()} 触发了缩略图生成 (rebuild_all={rebuild_all})")
-    if ThumbnailService.start_async_generation(rebuild_all):
+    if ThumbnailService.dispatch_thumbnail_tasks(rebuild_all):
         return success_response("缩略图生成任务已启动")
     else:
         return error_response("缩略图生成任务已在运行中", 400)
@@ -253,15 +253,20 @@ def start_thumbnail_generation():
 @token_required
 def stop_thumbnail_generation():
     LogUtils.info(f"用户 {_get_current_user()} 请求停止缩略图生成任务")
-    ThumbnailService.stop_generation()
+    ThumbnailService.stop_thumbnail_generation()
     return success_response("已发送停止指令")
 
 
-@file_repo_bp.route('/thumbnail/progress', methods=['GET'])
+@file_repo_bp.route('/thumbnail/queue_count', methods=['GET'])
 @token_required
-def get_thumbnail_progress():
-    status_info: dict = ThumbnailService.get_status()
-    return success_response("获取进度成功", data=status_info)
+def get_thumbnail_queue_count():
+    """
+    用途说明：获取缩略图生成队列中剩余的任务数量。
+    入参说明：无
+    返回值说明：JSON 格式响应，data 字段为 int 类型。
+    """
+    count: int = ThumbnailService.get_thumbnail_queue_count()
+    return success_response("获取队列数量成功", data=count)
 
 
 @file_repo_bp.route('/thumbnail/clear', methods=['POST'])

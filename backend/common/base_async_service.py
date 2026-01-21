@@ -1,12 +1,14 @@
-from abc import ABC, abstractmethod
-from typing import Any, Dict
+from abc import ABC
+from typing import Any, Dict, Callable
 
-from backend.common.progress_manager import ProgressManager
+from backend.common.log_utils import LogUtils
+from backend.common.progress_manager import ProgressManager, ProgressStatus
+from backend.common.thread_pool import ThreadPoolManager
 
 
 class BaseAsyncService(ABC):
     """
-    用途说明：基础异步任务服务基类，封装了 ProgressManager 并提供任务控制与初始化的抽象接口。
+    用途说明：基础异步任务服务基类，提供统一的任务管理逻辑、进度追踪以及线程池调用接口。
     """
     # 每个子类都会通过 __init_subclass__ 自动获得一个独立的 ProgressManager 实例
     _progress_manager: ProgressManager
@@ -25,33 +27,30 @@ class BaseAsyncService(ABC):
         return cls._progress_manager.get_status()
 
     @classmethod
-    @abstractmethod
-    def start_task(cls, params: Any) -> bool:
-        """
-        用途说明：启动异步任务的抽象接口。
-        入参说明：
-            params (Any): 启动任务所需的参数。
-        返回值说明：bool - 是否成功启动。
-        """
-        pass
-
-    @classmethod
-    @abstractmethod
     def stop_task(cls) -> None:
         """
-        用途说明：停止正在运行的异步任务。
+        用途说明：停止正在运行的异步任务。封装了通用的停止逻辑，将停止标志位置为 True。
         入参说明：无
         返回值说明：无
         """
-        pass
+        if cls._progress_manager.get_raw_status() == ProgressStatus.PROCESSING:
+            cls._progress_manager.set_stop_flag(True)
+            LogUtils.info(f"{cls.__name__}: 用户请求停止任务，已设置停止标志位")
 
     @classmethod
-    @abstractmethod
-    def init_task(cls, params: Any) -> Any:
+    def _start_task(cls, task_callable: Callable, *args: Any, **kwargs: Any) -> bool:
         """
-        用途说明：任务启动前的初始化准备工作（如状态校验、参数预处理、环境准备等）。
+        用途说明：通过全局线程池启动异步任务的内部方法。
         入参说明：
-            params (Any): 初始参数。
-        返回值说明：Any - 返回初始化后的上下文数据或配置。
+            task_callable (Callable): 要在后台执行的目标函数或方法。
+            *args: 传递给目标函数的位置参数。
+            **kwargs: 传递给目标函数的关键字参数。
+        返回值说明：bool - 任务是否成功提交到线程池。
         """
-        pass
+        try:
+            ThreadPoolManager.submit(task_callable, *args, **kwargs)
+            LogUtils.info(f"{cls.__name__}: 异步任务已成功提交至线程池")
+            return True
+        except Exception as e:
+            LogUtils.error(f"{cls.__name__}: 提交异步任务失败: {e}")
+            return False
