@@ -1,4 +1,4 @@
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Optional
 
 from backend.common.base_async_service import BaseAsyncService
 from backend.common.log_utils import LogUtils
@@ -102,12 +102,15 @@ class BatchCheckService(BaseAsyncService):
             cls._progress_manager.update_progress(message=f"内部异常: {str(e)}")
 
     @staticmethod
-    def get_all_results() -> List[BatchCheckDBModel]:
+    def get_all_results(sort_by: Optional[str] = None, order_asc: bool = False) -> List[BatchCheckDBModel]:
         """
-        用途说明：获取所有检测结果。
+        用途说明：获取所有检测结果，支持排序。
+        入参说明：
+            sort_by (Optional[str]): 排序字段。
+            order_asc (bool): 是否升序。
         返回值说明：List[BatchCheckDBModel]: 检测结果列表。
         """
-        return processor_manager.batch_check_processor.get_all_results()
+        return processor_manager.batch_check_processor.get_all_results(sort_by=sort_by, order_asc=order_asc)
 
     @classmethod
     def clear_task(cls) -> bool:

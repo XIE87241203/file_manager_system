@@ -1,4 +1,5 @@
 from dataclasses import asdict
+from typing import Optional
 
 from flask import Blueprint, request
 
@@ -191,9 +192,12 @@ def get_batch_check_status():
 @token_required
 def get_batch_check_results():
     """
-    用途说明：获取已保存的批量检测结果。
+    用途说明：获取已保存的批量检测结果，支持排序。
     """
-    results = BatchCheckService.get_all_results()
+    sort_by: Optional[str] = request.args.get('sort_by')
+    order_asc: bool = request.args.get('order_asc', default='false').lower() == 'true'
+
+    results = BatchCheckService.get_all_results(sort_by=sort_by, order_asc=order_asc)
     return success_response("获取结果成功", data=[asdict(r) for r in results])
 
 

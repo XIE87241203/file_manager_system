@@ -23,7 +23,7 @@ class PendingEntryFileProcessor(BaseDBProcessor):
         """
         if not file_names:
             return 0
-        
+
         query: str = f'''
             INSERT OR IGNORE INTO {DBConstants.PendingEntryFile.TABLE_NAME} (
                 {DBConstants.PendingEntryFile.COL_FILE_NAME}
@@ -32,6 +32,30 @@ class PendingEntryFileProcessor(BaseDBProcessor):
         '''
         data = [(name,) for name in file_names]
         return BaseDBProcessor._execute_batch(query, data, conn=conn)
+
+    @staticmethod
+    def get_existing_names(file_names: List[str], conn: Optional[sqlite3.Connection] = None) -> List[str]:
+        """
+        用途说明：在给定的文件名列表中，找出哪些已经存在于待录入库中。采用分批查询逻辑，防止触发 SQLITE 参数上限。
+        入参说明：
+            file_names (List[str]): 待检查的文件名列表。
+            conn (Optional[sqlite3.Connection]): 数据库连接对象。
+        返回值说明：List[str]: 已存在的文件名列表。
+        """
+        if not file_names:
+            return []
+        
+        existing_names: List[str] = []
+        chunk_size: int = 500  # 设置安全的分批大小，远低于 999 的上限
+        
+        for i in range(0, len(file_names), chunk_size):
+            chunk: List[str] = file_names[i:i + chunk_size]
+            placeholders: str = ",".join(["?"] * len(chunk))
+            query: str = f"SELECT {DBConstants.PendingEntryFile.COL_FILE_NAME} FROM {DBConstants.PendingEntryFile.TABLE_NAME} WHERE {DBConstants.PendingEntryFile.COL_FILE_NAME} IN ({placeholders})"
+            rows: List[dict] = BaseDBProcessor._execute(query, tuple(chunk), is_query=True, conn=conn)
+            existing_names.extend([row[DBConstants.PendingEntryFile.COL_FILE_NAME] for row in rows])
+            
+        return existing_names
 
     @staticmethod
     def batch_delete_pending_entry_files(file_ids: List[int], conn: Optional[sqlite3.Connection] = None) -> int:

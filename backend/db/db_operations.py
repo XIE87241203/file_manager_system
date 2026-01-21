@@ -1,6 +1,7 @@
 from datetime import datetime
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Set
 
+from backend.common.log_utils import LogUtils
 from backend.db.db_manager import db_manager
 from backend.db.processor_manager import processor_manager
 from backend.model.db.already_entered_file_db_model import AlreadyEnteredFileDBModel
@@ -300,11 +301,35 @@ class DBOperations:
     @staticmethod
     def add_pending_entry_files(file_names: List[str]) -> int:
         """
-        用途说明：批量添加待录入文件名。
-        入参说明：file_names (List[str]): 文件名列表。
+        用途说明：批量添加待录入文件名。仅针对真正插入成功的条目清理批量检测结果表。
+        入参说明：file_names (List[str]): 待录入的文件名列表。
         返回值说明：int: 成功录入的数量。
         """
-        return processor_manager.pending_entry_file_processor.add_pending_entry_files(file_names)
+        try:
+            with db_manager.transaction() as conn:
+                # 1. 记录插入前库中已存在的名单 (去重，提高查询效率)
+                unique_names: List[str] = list(set(file_names))
+                pre_existing_names: Set[str] = set(processor_manager.pending_entry_file_processor.get_existing_names(unique_names, conn=conn))
+                
+                # 2. 执行插入 (INSERT OR IGNORE)
+                count: int = processor_manager.pending_entry_file_processor.add_pending_entry_files(file_names, conn=conn)
+                
+                # 3. 如果有新增录入成功，找出这部分名单
+                if count > 0:
+                    # 插入后再次查询这组名单在库中的情况
+                    post_existing_names: Set[str] = set(processor_manager.pending_entry_file_processor.get_existing_names(unique_names, conn=conn))
+                    
+                    # 真正“变身成功”的名单 = 插入后存在的 - 插入前就存在的
+                    newly_added_names: List[str] = list(post_existing_names - pre_existing_names)
+                    
+                    # 4. 仅清理这部分真正新增的检测结果
+                    if newly_added_names:
+                        processor_manager.batch_check_processor.delete_results_by_names(newly_added_names, conn=conn)
+                
+                return count
+        except Exception as e:
+            LogUtils.error(f"批量录入待录入文件并差异清理检测结果失败: {e}")
+            return 0
 
     @staticmethod
     def search_pending_entry_file_list(page: int, limit: int, sort_by: str, order: bool, search_query: str) -> PaginationResult[PendingEntryFileDBModel]:

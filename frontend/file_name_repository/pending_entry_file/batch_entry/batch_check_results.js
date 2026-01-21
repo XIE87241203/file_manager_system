@@ -10,7 +10,11 @@ const State = {
     /** @type {boolean} 是否正在轮询进度 */
     isPolling: false,
     /** @type {number|null} 轮询定时器 ID */
-    pollTimer: null
+    pollTimer: null,
+    /** @type {string|null} 当前排序字段 */
+    sortBy: null,
+    /** @type {string} 排序顺序，'ASC' 或 'DESC' */
+    order: 'DESC'
 };
 
 // --- UI 控制模块 ---
@@ -44,7 +48,9 @@ const UIController = {
             btnSelectAllNew: document.getElementById('btn-select-all-new'),
             btnConfirmImport: document.getElementById('btn-confirm-import'),
             selectAllCheckbox: document.getElementById('select-all-checkbox'),
-            container: document.querySelector('.repo-content-group')
+            container: document.querySelector('.repo-content-group'),
+            /** @type {NodeListOf<HTMLElement>} 所有可排序的表头 */
+            sortableHeaders: document.querySelectorAll('th.sortable')
         };
     },
 
@@ -56,6 +62,11 @@ const UIController = {
     renderResults(results) {
         const { tableBody } = this.elements;
         tableBody.innerHTML = '';
+
+        if (!results || results.length === 0) {
+            tableBody.innerHTML = UIComponents.getEmptyTableHtml(4, '暂无检测结果');
+            return;
+        }
 
         results.forEach((item, index) => {
             const tr = document.createElement('tr');
@@ -81,7 +92,6 @@ const UIController = {
                 </td>
             `;
 
-            // 处理行点击：通过封装后的方法同步更新 UI 和状态
             tr.onclick = (e) => {
                 const checkbox = tr.querySelector('.row-checkbox');
                 if (e.target.type !== 'checkbox') {
@@ -90,18 +100,15 @@ const UIController = {
                 } else {
                     item.checked = e.target.checked;
                 }
-                // 主人看这里：调用统一的刷新方法
                 this.refreshRowSelectionUI(tr, item.checked);
             };
 
-            // 渲染时只应用样式，暂不触发全局计数刷新（在循环外统一刷新）
             this.refreshRowSelectionUI(tr, item.checked, false);
             tableBody.appendChild(tr);
         });
 
         this.elements.totalCount.textContent = results.length;
         this.elements.newCount.textContent = results.filter(r => r.source === 'new').length;
-        // 循环结束后统一刷新一次文案
         this.updateSelectedCount();
     },
 
@@ -132,10 +139,18 @@ const UIController = {
             btn.textContent = selectedCount > 0 ? `录入选中纪录 (${selectedCount})` : '录入选中纪录';
         }
 
-        // 同步顶部“全选”复选框状态
         if (this.elements.selectAllCheckbox) {
             this.elements.selectAllCheckbox.checked = selectedCount > 0 && selectedCount === State.results.length;
         }
+    },
+
+    /**
+     * 用途说明：更新排序 UI，显示当前排序字段和方向。
+     * 入参说明：field (string): 当前排序字段；order (string): 排序顺序 ('ASC' 或 'DESC')。
+     * 返回值说明：无
+     */
+    updateSortUI(field, order) {
+        UIComponents.updateSortUI(this.elements.sortableHeaders, field, order);
     }
 };
 
@@ -150,10 +165,12 @@ const ResultsAPI = {
     },
     /**
      * 用途说明：获取检测结果列表。
+     * 入参说明：params (Object): 包含 sort_by (string) 和 order_asc (boolean) 的排序参数。
      * 返回值说明：Promise<Object>: 包含结果数据数组的后端响应。
      */
-    async getResults() {
-        return await Request.get('/api/file_name_repository/pending_entry/check_results');
+    async getResults(params = {}) {
+        const query = new URLSearchParams(params).toString();
+        return await Request.get('/api/file_name_repository/pending_entry/check_results?' + query);
     },
     /**
      * 用途说明：清理后端任务状态及缓存。
@@ -189,7 +206,7 @@ const App = {
      * 返回值说明：无
      */
     bindEvents() {
-        const { btnSelectAllNew, btnConfirmImport, selectAllCheckbox } = UIController.elements;
+        const { btnSelectAllNew, btnConfirmImport, selectAllCheckbox, sortableHeaders } = UIController.elements;
 
         // 全选所有“新记录”
         btnSelectAllNew.onclick = () => {
@@ -211,6 +228,21 @@ const App = {
         };
 
         btnConfirmImport.onclick = () => this.handleConfirmImport();
+
+        // 绑定排序事件
+        sortableHeaders.forEach(th => {
+            th.onclick = () => {
+                const field = th.getAttribute('data-field');
+                if (State.sortBy === field) {
+                    State.order = State.order === 'ASC' ? 'DESC' : 'ASC';
+                } else {
+                    State.sortBy = field;
+                    State.order = 'DESC';
+                }
+                UIController.updateSortUI(State.sortBy, State.order);
+                this.loadData();
+            };
+        });
     },
 
     /**
@@ -224,14 +256,18 @@ const App = {
 
             const { status } = response.data;
             if (status === 'completed') {
-                const res = await ResultsAPI.getResults();
+                const params = {
+                    sort_by: State.sortBy,
+                    order_asc: State.order === 'ASC'
+                };
+                const res = await ResultsAPI.getResults(params);
                 if (res.status === 'success') {
-                    // 初始化状态：将后端原始数据映射为带 checked 状态的对象，默认勾选新记录
                     State.results = res.data.map(item => ({
                         ...item,
                         checked: item.source === 'new'
                     }));
                     UIController.renderResults(State.results);
+                    UIController.updateSortUI(State.sortBy, State.order);
                 }
             } else if (status === 'processing') {
                 this.startPolling();
@@ -301,11 +337,10 @@ const App = {
     },
 
     /**
-     * 用途说明：执行批量录入，直接从 State.results 中筛选选中的项。
+     * 用途说明：执行批量录入，直接从状态中筛选选中的项。
      * 返回值说明：无
      */
     async handleConfirmImport() {
-        // 核心优化：不再操作 DOM，直接从状态变量中获取数据
         const selectedNames = State.results
             .filter(item => item.checked)
             .map(item => item.name);
@@ -320,7 +355,10 @@ const App = {
             if (response.status === 'success') {
                 const count = response.data?.count ?? 0;
                 Toast.show(`已成功录入 ${count} 条记录！`);
-                // 录入成功后建议主人根据业务需要决定是否跳转或刷新
+                if(count>0){
+                    await this.loadData();
+                }
+
             }
         } catch (e) {
             console.error('录入请求异常:', e);
