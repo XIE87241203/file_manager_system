@@ -5,7 +5,7 @@
 
 // --- 状态管理 ---
 const State = {
-    /** @type {Object[]} 原始检测结果列表 */
+    /** @type {Object[]} 原始检测结果列表，每个项扩展包含 {name: string, source: string, detail: string, checked: boolean} */
     results: [],
     /** @type {boolean} 是否正在轮询进度 */
     isPolling: false,
@@ -26,14 +26,12 @@ const UIController = {
         UIComponents.initRepoHeader({
             title: '批量检测结果',
             showSearch: false,
-            // 遵照主人指令，去除了右上角的按钮，保持界面清爽
         });
 
         // --- 核心逻辑：接管返回按钮并解决历史记录冲突 ---
         const backBtn = document.getElementById('nav-back-btn');
         if (backBtn) {
             backBtn.onclick = (e) => {
-                // 阻止默认的 history.back()，由萌萌接管进行二次确认 and 清理
                 e.preventDefault();
                 App.handleFinishWithConfirm();
             };
@@ -79,50 +77,96 @@ const UIController = {
                     <div class="status-detail">${item.detail || ''}</div>
                 </td>
                 <td class="col-check">
-                    <input type="checkbox" class="row-checkbox" ${item.source === 'new' ? 'checked' : ''}>
+                    <input type="checkbox" class="row-checkbox" ${item.checked ? 'checked' : ''}>
                 </td>
             `;
 
+            // 处理行点击：通过封装后的方法同步更新 UI 和状态
             tr.onclick = (e) => {
+                const checkbox = tr.querySelector('.row-checkbox');
                 if (e.target.type !== 'checkbox') {
-                    const cb = tr.querySelector('.row-checkbox');
-                    cb.checked = !cb.checked;
+                    item.checked = !item.checked;
+                    checkbox.checked = item.checked;
+                } else {
+                    item.checked = e.target.checked;
                 }
-                this.updateRowStyle(tr);
+                // 主人看这里：调用统一的刷新方法
+                this.refreshRowSelectionUI(tr, item.checked);
             };
 
-            const checkbox = tr.querySelector('.row-checkbox');
-            checkbox.onchange = () => this.updateRowStyle(tr);
-
-            this.updateRowStyle(tr);
+            // 渲染时只应用样式，暂不触发全局计数刷新（在循环外统一刷新）
+            this.refreshRowSelectionUI(tr, item.checked, false);
             tableBody.appendChild(tr);
         });
 
         this.elements.totalCount.textContent = results.length;
         this.elements.newCount.textContent = results.filter(r => r.source === 'new').length;
+        // 循环结束后统一刷新一次文案
+        this.updateSelectedCount();
     },
 
     /**
-     * 用途说明：更新行选中样式。
+     * 用途说明：刷新单行的选中 UI（样式及全局计数）。
+     * 入参说明：tr (HTMLElement): 目标行；isChecked (boolean): 是否选中；shouldUpdateTotal (boolean): 是否同步刷新全局计数文案，默认为 true。
+     * 返回值说明：无
      */
-    updateRowStyle(tr) {
-        const checkbox = tr.querySelector('.row-checkbox');
-        if (checkbox && checkbox.checked) tr.classList.add('selected-row');
+    refreshRowSelectionUI(tr, isChecked, shouldUpdateTotal = true) {
+        if (isChecked) tr.classList.add('selected-row');
         else tr.classList.remove('selected-row');
+
+        if (shouldUpdateTotal) {
+            this.updateSelectedCount();
+        }
+    },
+
+    /**
+     * 用途说明：根据状态中的勾选情况更新“录入选中”按钮文案及顶部全选框。
+     * 入参说明：无
+     * 返回值说明：无
+     */
+    updateSelectedCount() {
+        const selectedCount = State.results.filter(r => r.checked).length;
+        const btn = this.elements.btnConfirmImport;
+
+        if (btn) {
+            btn.textContent = selectedCount > 0 ? `录入选中纪录 (${selectedCount})` : '录入选中纪录';
+        }
+
+        // 同步顶部“全选”复选框状态
+        if (this.elements.selectAllCheckbox) {
+            this.elements.selectAllCheckbox.checked = selectedCount > 0 && selectedCount === State.results.length;
+        }
     }
 };
 
 // --- API 交互模块 ---
 const ResultsAPI = {
+    /**
+     * 用途说明：获取当前批量检测任务的状态。
+     * 返回值说明：Promise<Object>: 包含 status 和 progress 的后端响应。
+     */
     async getStatus() {
         return await Request.get('/api/file_name_repository/pending_entry/check_status', {}, false);
     },
+    /**
+     * 用途说明：获取检测结果列表。
+     * 返回值说明：Promise<Object>: 包含结果数据数组的后端响应。
+     */
     async getResults() {
         return await Request.get('/api/file_name_repository/pending_entry/check_results');
     },
+    /**
+     * 用途说明：清理后端任务状态及缓存。
+     * 返回值说明：Promise<Object>: 操作结果状态。
+     */
     async clearTask() {
         return await Request.post('/api/file_name_repository/pending_entry/check_clear');
     },
+    /**
+     * 用途说明：确认录入选中的文件名。
+     * 入参说明：fileNames (string[]): 待录入的文件名数组。
+     * 返回值说明：Promise<Object>: 包含成功录入的数量。
+     */
     async confirmImport(fileNames) {
         return await Request.post('/api/file_name_repository/pending_entry/add', { file_names: fileNames });
     }
@@ -130,38 +174,48 @@ const ResultsAPI = {
 
 // --- 应用逻辑主入口 ---
 const App = {
+    /**
+     * 用途说明：初始化应用。
+     * 返回值说明：无
+     */
     async init() {
         UIController.init();
         this.bindEvents();
         await this.loadData();
     },
 
+    /**
+     * 用途说明：绑定页面事件逻辑。
+     * 返回值说明：无
+     */
     bindEvents() {
         const { btnSelectAllNew, btnConfirmImport, selectAllCheckbox } = UIController.elements;
 
+        // 全选所有“新记录”
         btnSelectAllNew.onclick = () => {
-            document.querySelectorAll('#results-list-body tr').forEach(tr => {
-                const isNew = tr.querySelector('.status-new');
-                if (isNew) {
-                    tr.querySelector('.row-checkbox').checked = true;
-                    UIController.updateRowStyle(tr);
+            State.results.forEach(item => {
+                if (item.source === 'new') {
+                    item.checked = true;
                 }
             });
+            UIController.renderResults(State.results);
         };
 
+        // 顶部全选/取消全选
         selectAllCheckbox.onchange = (e) => {
             const checked = e.target.checked;
-            document.querySelectorAll('.row-checkbox').forEach(cb => {
-                cb.checked = checked;
-                UIController.updateRowStyle(cb.closest('tr'));
+            State.results.forEach(item => {
+                item.checked = checked;
             });
+            UIController.renderResults(State.results);
         };
 
         btnConfirmImport.onclick = () => this.handleConfirmImport();
     },
 
     /**
-     * 用途说明：数据加载与自检。
+     * 用途说明：加载数据并根据后端状态驱动 UI（轮询或渲染）。
+     * 返回值说明：无
      */
     async loadData() {
         try {
@@ -172,7 +226,11 @@ const App = {
             if (status === 'completed') {
                 const res = await ResultsAPI.getResults();
                 if (res.status === 'success') {
-                    State.results = res.data;
+                    // 初始化状态：将后端原始数据映射为带 checked 状态的对象，默认勾选新记录
+                    State.results = res.data.map(item => ({
+                        ...item,
+                        checked: item.source === 'new'
+                    }));
                     UIController.renderResults(State.results);
                 }
             } else if (status === 'processing') {
@@ -186,6 +244,10 @@ const App = {
         }
     },
 
+    /**
+     * 用途说明：启动进度轮询。
+     * 返回值说明：无
+     */
     startPolling() {
         if (State.isPolling) return;
         State.isPolling = true;
@@ -207,6 +269,10 @@ const App = {
         }, 1000);
     },
 
+    /**
+     * 用途说明：停止轮询。
+     * 返回值说明：无
+     */
     stopPolling() {
         State.isPolling = false;
         if (State.pollTimer) {
@@ -216,8 +282,8 @@ const App = {
     },
 
     /**
-     * 用途说明：处理任务终结并返回。
-     * 解决冲突方案：使用 history.go(-2) 一次性退回两步，绕过输入页，完美解决返回键冲突。
+     * 用途说明：处理返回逻辑，确认并清理后端任务。
+     * 返回值说明：无
      */
     handleFinishWithConfirm() {
         UIComponents.showConfirmModal({
@@ -226,11 +292,8 @@ const App = {
             confirmText: '确认并返回',
             cancelText: '取消',
             onConfirm: async () => {
-                // 1. 清理后端缓存
                 const response = await ResultsAPI.clearTask();
                 if (response.status === 'success') {
-                    // 2. --- 核心：利用 history.go(-2) 实现定向“双连跳”返回 ---
-                    // 逻辑说明：List -> Entry -> Results，跳过 Entry 直接回到 List，保持堆栈纯净。
                     window.history.go(-2);
                 }
             }
@@ -238,13 +301,14 @@ const App = {
     },
 
     /**
-     * 用途说明：执行批量录入。
+     * 用途说明：执行批量录入，直接从 State.results 中筛选选中的项。
+     * 返回值说明：无
      */
     async handleConfirmImport() {
-        const selectedNames = [];
-        document.querySelectorAll('.row-checkbox:checked').forEach(cb => {
-            selectedNames.push(cb.closest('tr').dataset.name);
-        });
+        // 核心优化：不再操作 DOM，直接从状态变量中获取数据
+        const selectedNames = State.results
+            .filter(item => item.checked)
+            .map(item => item.name);
 
         if (selectedNames.length === 0) {
             Toast.show('请勾选需要录入的文件名~');
@@ -254,9 +318,9 @@ const App = {
         try {
             const response = await ResultsAPI.confirmImport(selectedNames);
             if (response.status === 'success') {
-                // 使用后端返回的实际录入数量 count
                 const count = response.data?.count ?? 0;
                 Toast.show(`已成功录入 ${count} 条记录！`);
+                // 录入成功后建议主人根据业务需要决定是否跳转或刷新
             }
         } catch (e) {
             console.error('录入请求异常:', e);
