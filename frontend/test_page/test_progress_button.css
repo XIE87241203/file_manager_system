@@ -1,0 +1,60 @@
+/**
+ * 用途说明：ProgressButtonWidget 测试页面的专属样式
+ */
+
+.test-container {
+    width: 100%;
+    max-width: 800px;
+    background: #fff;
+    padding: 2rem;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.test-case {
+    margin-bottom: 2rem;
+    padding-bottom: 2rem;
+    border-bottom: 1px solid #eee;
+}
+
+.test-case:last-child {
+    border-bottom: none;
+}
+
+.test-case-header {
+    margin-bottom: 1rem;
+}
+
+.test-case-title {
+    font-size: 1.1rem;
+    font-weight: bold;
+    color: #333;
+    display: block;
+}
+
+.test-case-desc {
+    font-size: 0.9rem;
+    color: #666;
+    margin: 4px 0 0 0;
+}
+
+.btn-wrapper {
+    width: 200px;
+    margin: 1rem 0;
+}
+
+.test-log {
+    background: #f8f9fa;
+    padding: 10px;
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 0.85rem;
+    color: #444;
+    border-left: 4px solid #007bff;
+}
+
+.test-controls {
+    margin-top: 2rem;
+    display: flex;
+    justify-content: center;
+}

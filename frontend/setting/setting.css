@@ -220,6 +220,11 @@ body {
     line-height: 1.4;
 }
 
+/* 同步按钮容器：使其宽度撑满父容器，与下面的危险按钮对齐 */
+.sync-btn-container {
+    width: 100%;
+}
+
 /* 辅助布局类 */
 .mt-30 { margin-top: 30px; }
 .mt-20 { margin-top: 20px; }

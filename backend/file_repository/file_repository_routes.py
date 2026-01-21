@@ -279,6 +279,40 @@ def clear_thumbnails():
         return error_response("清空缩略图失败", 500)
 
 
+@file_repo_bp.route('/thumbnail/sync/start', methods=['POST'])
+@token_required
+def start_thumbnail_sync():
+    """
+    用途说明：启动缩略图物理同步任务（清理无效文件）
+    """
+    LogUtils.info(f"用户 {_get_current_user()} 触发了缩略图物理同步")
+    if ThumbnailService.start_thumbnail_sync_task():
+        return success_response("缩略图同步任务已启动")
+    else:
+        return error_response("同步任务已在运行中", 400)
+
+
+@file_repo_bp.route('/thumbnail/sync/stop', methods=['POST'])
+@token_required
+def stop_thumbnail_sync():
+    """
+    用途说明：停止正在进行的缩略图物理同步任务
+    """
+    LogUtils.info(f"用户 {_get_current_user()} 请求停止缩略图同步任务")
+    ThumbnailService.stop_task()
+    return success_response("已发送停止指令")
+
+
+@file_repo_bp.route('/thumbnail/sync/progress', methods=['GET'])
+@token_required
+def get_thumbnail_sync_progress():
+    """
+    用途说明：获取缩略图物理同步任务的实时进度
+    """
+    status_info: dict = ThumbnailService.get_status()
+    return success_response("获取同步进度成功", data=status_info)
+
+
 @file_repo_bp.route('/thumbnail/view', methods=['GET'])
 @token_required
 def view_thumbnail():

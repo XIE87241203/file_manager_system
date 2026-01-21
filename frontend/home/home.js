@@ -4,7 +4,7 @@
 
 // --- 状态管理 ---
 const HomeState = {
-    // 预留状态空间
+    titleClickCount: 0 // 用于记录标题点击次数，开启隐藏入口
 };
 
 // --- UI 控制模块 ---
@@ -30,8 +30,16 @@ const UIController = {
             totalCount: document.getElementById('repo-total-count'),
             totalSize: document.getElementById('repo-total-size'),
             updateTime: document.getElementById('repo-update-time'),
-            btnCalc: document.getElementById('btn-calc-repo-stats')
+            btnCalc: document.getElementById('btn-calc-repo-stats'),
+            headerTitle: document.querySelector('.top-bar-title'),
+            testPageMenu: document.getElementById('menu-test-page')
         };
+
+        // 特殊处理：让标题支持点击事件（覆盖 common.css 中的 pointer-events: none）
+        if (this.elements.headerTitle) {
+            this.elements.headerTitle.style.pointerEvents = 'auto';
+            this.elements.headerTitle.style.cursor = 'default';
+        }
     },
 
     /**
@@ -72,6 +80,16 @@ const UIController = {
      */
     clearLoadingState() {
         if (this.elements.btnCalc) this.elements.btnCalc.classList.remove('rotating');
+    },
+
+    /**
+     * 用途说明：显示隐藏的测试入口。
+     */
+    showTestMenu() {
+        if (this.elements.testPageMenu) {
+            this.elements.testPageMenu.classList.remove('hidden');
+            Toast.show('测试模式已开启~');
+        }
     }
 };
 
@@ -174,7 +192,8 @@ const App = {
                     'menu-ignore-file': '../file_name_repository/already_entered_file/already_entered_file.html',
                     'menu-recycle-bin': '../file_repository/recycle_bin/recycle_bin.html',
                     'menu-setting': '../setting/setting.html',
-                    'menu-logs': '../system/logs/logs.html'
+                    'menu-logs': '../system/logs/logs.html',
+                    'menu-test-page': '../test_page/test_progress_button.html'
                 };
                 const target = map[card.id];
                 if (target) window.location.href = target;
@@ -186,6 +205,16 @@ const App = {
             UIController.elements.btnCalc.onclick = (e) => {
                 e.stopPropagation(); // 阻止事件冒泡
                 this.handleCalculateStats();
+            };
+        }
+
+        // 绑定标题点击计数事件
+        if (UIController.elements.headerTitle) {
+            UIController.elements.headerTitle.onclick = () => {
+                HomeState.titleClickCount++;
+                if (HomeState.titleClickCount >= 3) {
+                    UIController.showTestMenu();
+                }
             };
         }
     }

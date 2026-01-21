@@ -5,216 +5,233 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>系统设置 - 文件管理系统</title>
     <link rel="stylesheet" href="../common/common.css">
+    <link rel="stylesheet" href="../common/widget/progress_button.css">
     <link rel="stylesheet" href="setting.css">
 </head>
 <body>
-    <!-- 顶部工具栏容器，由 ui_components.js 动态初始化 -->
-    <header class="top-bar"></header>
+<!-- 顶部工具栏容器，由 ui_components.js 动态初始化 -->
+<header class="top-bar"></header>
 
-    <main class="main-content">
-        <!-- 选项卡导航 -->
-        <div class="tabs">
-            <button id="tab-repo" class="tab-btn active">文件仓库</button>
-            <button id="tab-file-entry" class="tab-btn">文件录入管理</button>
-            <button id="tab-dup-check" class="tab-btn">查重设置</button>
-            <button id="tab-maintenance" class="tab-btn">数据维护</button>
-            <button id="tab-password" class="tab-btn">修改密码</button>
-        </div>
+<main class="main-content">
+    <!-- 选项卡导航 -->
+    <div class="tabs">
+        <button id="tab-repo" class="tab-btn active">文件仓库</button>
+        <button id="tab-file-entry" class="tab-btn">文件录入管理</button>
+        <button id="tab-dup-check" class="tab-btn">查重设置</button>
+        <button id="tab-maintenance" class="tab-btn">数据维护</button>
+        <button id="tab-password" class="tab-btn">修改密码</button>
+    </div>
 
-        <!-- 文件仓库分页 -->
-        <div id="content-repo" class="tab-content active">
-            <div class="settings-grid">
-                <div class="full-width">
-                    <div class="section-header mt-0">
-                        <h3>仓库目录</h3>
-                        <button id="add-repo-btn" class="btn-primary btn-add-small">添加仓库</button>
-                    </div>
-                    <div class="repo-list" id="repo-list">
-                        <!-- 动态生成仓库列表 -->
-                    </div>
+    <!-- 文件仓库分页 -->
+    <div id="content-repo" class="tab-content active">
+        <div class="settings-grid">
+            <div class="full-width">
+                <div class="section-header mt-0">
+                    <h3>仓库目录</h3>
+                    <button id="add-repo-btn" class="btn-primary btn-add-small">添加仓库</button>
                 </div>
-
-                <div class="form-group">
-                    <label class="label-text" for="scan-suffixes">扫描文件后缀</label>
-                    <input type="text" id="scan-suffixes" class="input-field" placeholder="例如: *, .mp4, .txt (逗号分隔)" autocomplete="off">
-                    <small class="form-hint">提示：支持通配符 *，多个后缀请用英文逗号分隔</small>
-                </div>
-
-                <div class="form-group">
-                    <label class="label-text" for="thumbnail-size">缩略图最大尺寸</label>
-                    <input type="number" id="thumbnail-size" class="input-field" placeholder="默认: 256">
-                    <small class="form-hint">提示：生成的缩略图长宽均不会超过此像素值。</small>
-                </div>
-
-                <!-- 功能开关组 -->
-                <div class="full-width checkbox-options-group form-group">
-                    <div class="checkbox-item">
-                        <input type="checkbox" id="quick-view-thumbnail" class="checkbox-field">
-                        <label class="label-text" for="quick-view-thumbnail">快速查看缩略图 (鼠标悬停时展示)</label>
-                    </div>
-
-                    <div class="checkbox-item">
-                        <input type="checkbox" id="ignore-filenames-case-insensitive" class="checkbox-field">
-                        <label class="label-text" for="ignore-filenames-case-insensitive">忽略文件名时忽略大小写</label>
-                    </div>
-
-                    <div class="checkbox-item">
-                        <input type="checkbox" id="ignore-paths-case-insensitive" class="checkbox-field">
-                        <label class="label-text" for="ignore-paths-case-insensitive">忽略路径时忽略大小写</label>
-                    </div>
-                </div>
-
-                <div class="form-group">
-                    <label class="label-text" for="ignore-filenames">忽略文件名</label>
-                    <input type="text" id="ignore-filenames" class="input-field" placeholder="例如: .DS_Store, thumbs.db (逗号分隔)" autocomplete="off">
-                    <small class="form-hint">提示：支持通配符 *，匹配则忽略</small>
-                </div>
-
-                <div class="form-group">
-                    <label class="label-text" for="ignore-paths">忽略路径</label>
-                    <input type="text" id="ignore-paths" class="input-field" placeholder="例如: /temp, /cache (逗号分隔)" autocomplete="off">
-                    <small class="form-hint">提示：支持通配符 *，路径包含则忽略</small>
-                </div>
-
-                <div class="form-group">
-                    <label class="label-text" for="search-replace-chars">搜索替换字符</label>
-                    <input type="text" id="search-replace-chars" class="input-field" placeholder="例如: -, _ (逗号分隔)" autocomplete="off">
-                    <small class="form-hint">提示：搜索前会将这些字符替换为 .*</small>
+                <div class="repo-list" id="repo-list">
+                    <!-- 动态生成仓库列表 -->
                 </div>
             </div>
-        </div>
 
-        <!-- 文件录入管理分页 -->
-        <div id="content-file-entry" class="tab-content">
-            <div class="settings-grid">
-                <div class="full-width">
-                    <h3 class="mt-0">录入相关配置</h3>
+            <div class="form-group">
+                <label class="label-text" for="scan-suffixes">扫描文件后缀</label>
+                <input type="text" id="scan-suffixes" class="input-field" placeholder="例如: *, .mp4, .txt (逗号分隔)" autocomplete="off">
+                <small class="form-hint">提示：支持通配符 *，多个后缀请用英文逗号分隔</small>
+            </div>
+
+            <div class="form-group">
+                <label class="label-text" for="thumbnail-size">缩略图最大尺寸</label>
+                <input type="number" id="thumbnail-size" class="input-field" placeholder="默认: 256">
+                <small class="form-hint">提示：生成的缩略图长宽均不会超过此像素值。</small>
+            </div>
+
+            <!-- 功能开关组 -->
+            <div class="full-width checkbox-options-group form-group">
+                <div class="checkbox-item">
+                    <input type="checkbox" id="quick-view-thumbnail" class="checkbox-field">
+                    <label class="label-text" for="quick-view-thumbnail">快速查看缩略图 (鼠标悬停时展示)</label>
                 </div>
-                <div class="form-group">
-                    <label class="label-text" for="file-name-link-prefix">文件名链接前缀</label>
-                    <input type="text" id="file-name-link-prefix" class="input-field" placeholder="例如: https://example.com/search?q=" autocomplete="off">
-                    <small class="form-hint">说明：在文件名库中点击文件名将跳转至：前缀 + 文件名。若留空则不开启跳转。</small>
+
+                <div class="checkbox-item">
+                    <input type="checkbox" id="ignore-filenames-case-insensitive" class="checkbox-field">
+                    <label class="label-text" for="ignore-filenames-case-insensitive">忽略文件名时忽略大小写</label>
+                </div>
+
+                <div class="checkbox-item">
+                    <input type="checkbox" id="ignore-paths-case-insensitive" class="checkbox-field">
+                    <label class="label-text" for="ignore-paths-case-insensitive">忽略路径时忽略大小写</label>
                 </div>
             </div>
+
+            <div class="form-group">
+                <label class="label-text" for="ignore-filenames">忽略文件名</label>
+                <input type="text" id="ignore-filenames" class="input-field" placeholder="例如: .DS_Store, thumbs.db (逗号分隔)" autocomplete="off">
+                <small class="form-hint">提示：支持通配符 *，匹配则忽略</small>
+            </div>
+
+            <div class="form-group">
+                <label class="label-text" for="ignore-paths">忽略路径</label>
+                <input type="text" id="ignore-paths" class="input-field" placeholder="例如: /temp, /cache (逗号分隔)" autocomplete="off">
+                <small class="form-hint">提示：支持通配符 *，路径包含则忽略</small>
+            </div>
+
+            <div class="form-group">
+                <label class="label-text" for="search-replace-chars">搜索替换字符</label>
+                <input type="text" id="search-replace-chars" class="input-field" placeholder="例如: -, _ (逗号分隔)" autocomplete="off">
+                <small class="form-hint">提示：搜索前会将这些字符替换为 .*</small>
+            </div>
         </div>
+    </div>
 
-        <!-- 查重设置分页 -->
-        <div id="content-dup-check" class="tab-content">
-            <div class="settings-grid">
-                <div class="full-width">
-                    <h3 class="mt-0">图片查重配置</h3>
-                </div>
-                <div class="form-group">
-                    <label class="label-text" for="image-threshold">汉明距离阈值</label>
-                    <input type="number" id="image-threshold" class="input-field" placeholder="默认: 8">
-                    <small class="form-hint">说明：感知哈希相似度判定。通常 8-12 比较合适。</small>
-                </div>
+    <!-- 文件录入管理分页 -->
+    <div id="content-file-entry" class="tab-content">
+        <div class="settings-grid">
+            <div class="full-width">
+                <h3 class="mt-0">录入相关配置</h3>
+            </div>
+            <div class="form-group">
+                <label class="label-text" for="file-name-link-prefix">文件名链接前缀</label>
+                <input type="text" id="file-name-link-prefix" class="input-field" placeholder="例如: https://example.com/search?q=" autocomplete="off">
+                <small class="form-hint">说明：在文件名库中点击文件名将跳转至：前缀 + 文件名。若留空则不开启跳转。</small>
+            </div>
+        </div>
+    </div>
 
-                <div class="full-width">
-                    <h3 class="mt-0">视频查重配置</h3>
+    <!-- 查重设置分页 -->
+    <div id="content-dup-check" class="tab-content">
+        <div class="settings-grid">
+            <div class="full-width">
+                <h3 class="mt-0">图片查重配置</h3>
+            </div>
+            <div class="form-group">
+                <label class="label-text" for="image-threshold">汉明距离阈值</label>
+                <input type="number" id="image-threshold" class="input-field" placeholder="默认: 8">
+                <small class="form-hint">说明：感知哈希相似度判定。通常 8-12 比较合适。</small>
+            </div>
+
+            <div class="full-width">
+                <h3 class="mt-0">视频查重配置</h3>
+            </div>
+            <div class="form-group">
+                <label class="label-text" for="video-interval-seconds">采样间隔 (秒)</label>
+                <input type="number" id="video-interval-seconds" class="input-field" placeholder="默认: 30">
+                <small class="form-hint">说明：采样间隔越小分析越准但速度越慢。修改此值会清空视频特征库。</small>
+            </div>
+            <div class="form-group">
+                <div class="checkbox-item">
+                    <input type="checkbox" id="video-backwards" class="checkbox-field">
+                    <label class="label-text" for="video-backwards">从视频结尾倒序生成特征</label>
                 </div>
-                <div class="form-group">
-                    <label class="label-text" for="video-interval-seconds">采样间隔 (秒)</label>
-                    <input type="number" id="video-interval-seconds" class="input-field" placeholder="默认: 30">
-                    <small class="form-hint">说明：采样间隔越小分析越准但速度越慢。修改此值会清空视频特征库。</small>
-                </div>
-                <div class="form-group">
-                    <div class="checkbox-item">
-                        <input type="checkbox" id="video-backwards" class="checkbox-field">
-                        <label class="label-text" for="video-backwards">从视频结尾倒序生成特征</label>
+                <small class="form-hint">说明：开启后将从视频末尾向前采样。修改此项会清空视频特征库。</small>
+            </div>
+            <div class="form-group">
+                <label class="label-text" for="video-frame-similar-distance">帧相似判定阈值 (汉明距离)</label>
+                <input type="number" id="video-frame-similar-distance" class="input-field" placeholder="默认: 5">
+                <small class="form-hint">说明：判定视频帧是否相似。建议 5-8。</small>
+            </div>
+            <div class="form-group">
+                <label class="label-text" for="video-frame-similarity-rate">帧匹配成功占比</label>
+                <input type="number" id="video-frame-similarity-rate" class="input-field" step="0.1" placeholder="默认: 0.7">
+                <small class="form-hint">说明：0.7 表示 70% 的帧相似则视为视频相似。</small>
+            </div>
+            <div class="form-group">
+                <label class="label-text" for="video-max-duration-diff-ratio">最大时长比例阈值</label>
+                <input type="number" id="video-max-duration-diff-ratio" class="input-field" step="0.1" placeholder="默认: 0.6">
+                <small class="form-hint">说明：短视频时长至少是长视频的 60%。</small>
+            </div>
+        </div>
+    </div>
+
+    <!-- 数据维护分页 -->
+    <div id="content-maintenance" class="tab-content">
+        <div class="settings-grid">
+            <div class="full-width">
+                <h3 class="mt-0">常规同步</h3>
+                <p class="form-hint mb-20">同步物理文件与数据库记录，确保数据一致性。</p>
+            </div>
+
+            <div class="full-width mb-20">
+                <div class="maintenance-item">
+                    <div class="maintenance-info">
+                        <span class="maintenance-title">缩略图物理同步</span>
+                        <span class="maintenance-desc">清理缓存目录下不再属于任何文件记录的无效缩略图。</span>
                     </div>
-                    <small class="form-hint">说明：开启后将从视频末尾向前采样。修改此项会清空视频特征库。</small>
-                </div>
-                <div class="form-group">
-                    <label class="label-text" for="video-frame-similar-distance">帧相似判定阈值 (汉明距离)</label>
-                    <input type="number" id="video-frame-similar-distance" class="input-field" placeholder="默认: 5">
-                    <small class="form-hint">说明：判定视频帧是否相似。建议 5-8。</small>
-                </div>
-                <div class="form-group">
-                    <label class="label-text" for="video-frame-similarity-rate">帧匹配成功占比</label>
-                    <input type="number" id="video-frame-similarity-rate" class="input-field" step="0.1" placeholder="默认: 0.7">
-                    <small class="form-hint">说明：0.7 表示 70% 的帧相似则视为视频相似。</small>
-                </div>
-                <div class="form-group">
-                    <label class="label-text" for="video-max-duration-diff-ratio">最大时长比例阈值</label>
-                    <input type="number" id="video-max-duration-diff-ratio" class="input-field" step="0.1" placeholder="默认: 0.6">
-                    <small class="form-hint">说明：短视频时长至少是长视频的 60%。</small>
+                    <div id="sync-thumbnail-btn-container" class="sync-btn-container"></div>
                 </div>
             </div>
-        </div>
 
-        <!-- 数据维护分页 -->
-        <div id="content-maintenance" class="tab-content">
-            <div class="settings-grid">
-                <div class="full-width">
-                    <h3 class="mt-0">危险操作</h3>
-                    <p class="form-hint mb-20">注意：以下操作将清空对应的数据库记录，请谨慎操作。</p>
-                </div>
-                
-                <div class="full-width button-group">
-                    <div class="flex-column gap-15">
-                        <div class="maintenance-item">
-                            <div class="maintenance-info">
-                                <span class="maintenance-title">曾录入文件名库</span>
-                                <span class="maintenance-desc">清空所有已保存的曾录入文件名。</span>
-                            </div>
-                            <button id="clear-already-entered-btn" class="btn-danger">清空曾录入库</button>
+            <div class="full-width">
+                <h3 class="mt-0">危险操作</h3>
+                <p class="form-hint mb-20">注意：以下操作将清空对应的数据库记录，请谨慎操作。</p>
+            </div>
+
+            <div class="full-width button-group">
+                <div class="flex-column gap-15">
+                    <div class="maintenance-item">
+                        <div class="maintenance-info">
+                            <span class="maintenance-title">曾录入文件名库</span>
+                            <span class="maintenance-desc">清空所有已保存的曾录入文件名。</span>
                         </div>
+                        <button id="clear-already-entered-btn" class="btn-danger">清空曾录入库</button>
+                    </div>
 
-                        <div class="maintenance-item">
-                            <div class="maintenance-info">
-                                <span class="maintenance-title">待录入文件名库</span>
-                                <span class="maintenance-desc">清空所有已保存的待录入文件名。</span>
-                            </div>
-                            <button id="clear-pending-entry-btn" class="btn-danger">清空待录入库</button>
+                    <div class="maintenance-item">
+                        <div class="maintenance-info">
+                            <span class="maintenance-title">待录入文件名库</span>
+                            <span class="maintenance-desc">清空所有已保存的待录入文件名。</span>
                         </div>
-                        
-                        <div class="maintenance-item">
-                            <div class="maintenance-info">
-                                <span class="maintenance-title">历史库</span>
-                                <span class="maintenance-desc">清空所有文件历史索引记录（不影响物理文件）。</span>
-                            </div>
-                            <button id="clear-history-btn" class="btn-danger">清空历史库</button>
+                        <button id="clear-pending-entry-btn" class="btn-danger">清空待录入库</button>
+                    </div>
+
+                    <div class="maintenance-item">
+                        <div class="maintenance-info">
+                            <span class="maintenance-title">历史库</span>
+                            <span class="maintenance-desc">清空所有文件历史索引记录（不影响物理文件）。</span>
                         </div>
-                        
-                        <div class="maintenance-item">
-                            <div class="maintenance-info">
-                                <span class="maintenance-title">视频特征库</span>
-                                <span class="maintenance-desc">清空所有已提取的视频指纹特征，下次扫描将重新提取。</span>
-                            </div>
-                            <button id="clear-video-btn" class="btn-danger">清空视频特征库</button>
+                        <button id="clear-history-btn" class="btn-danger">清空历史库</button>
+                    </div>
+
+                    <div class="maintenance-item">
+                        <div class="maintenance-info">
+                            <span class="maintenance-title">视频特征库</span>
+                            <span class="maintenance-desc">清空所有已提取的视频指纹特征，下次扫描将重新提取。</span>
                         </div>
+                        <button id="clear-video-btn" class="btn-danger">清空视频特征库</button>
                     </div>
                 </div>
             </div>
         </div>
+    </div>
 
-        <!-- 修改密码分页 -->
-        <div id="content-password" class="tab-content">
-            <div id="setting-form" class="settings-grid">
-                <div class="form-group">
-                    <label class="label-text" for="username">管理用户名</label>
-                    <input type="text" id="username" class="input-field" placeholder="请输入用户名" autocomplete="username">
-                </div>
-                <div class="form-group">
-                    <label class="label-text" for="password">新管理密码</label>
-                    <input type="password" id="password" class="input-field" placeholder="若不修改请留空" autocomplete="new-password">
-                </div>
-                <div class="form-group">
-                    <label class="label-text" for="confirm-password">确认新密码</label>
-                    <input type="password" id="confirm-password" class="input-field" placeholder="请再次输入新密码" autocomplete="new-password">
-                    <small class="form-hint">提示：修改密码后需重新登录</small>
-                </div>
+    <!-- 修改密码分页 -->
+    <div id="content-password" class="tab-content">
+        <div id="setting-form" class="settings-grid">
+            <div class="form-group">
+                <label class="label-text" for="username">管理用户名</label>
+                <input type="text" id="username" class="input-field" placeholder="请输入用户名" autocomplete="username">
+            </div>
+            <div class="form-group">
+                <label class="label-text" for="password">新管理密码</label>
+                <input type="password" id="password" class="input-field" placeholder="若不修改请留空" autocomplete="new-password">
+            </div>
+            <div class="form-group">
+                <label class="label-text" for="confirm-password">确认新密码</label>
+                <input type="password" id="confirm-password" class="input-field" placeholder="请再次输入新密码" autocomplete="new-password">
+                <small class="form-hint">提示：修改密码后需重新登录</small>
             </div>
         </div>
-        
-        <div id="message" class="message"></div>
-    </main>
+    </div>
 
-    <!-- 引入公用工具 -->
-    <script src="../common/ui_components.js"></script>
-    <script src="../common/request.js"></script>
-    <script src="../common/toast.js"></script>
-    <script src="setting.js"></script>
+    <div id="message" class="message"></div>
+</main>
+
+<!-- 引入公用工具 -->
+<script src="../common/ui_components.js"></script>
+<script src="../common/request.js"></script>
+<script src="../common/toast.js"></script>
+<script src="../common/widget/progress_button.js"></script>
+<script src="setting.js"></script>
 </body>
 </html>

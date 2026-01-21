@@ -15,7 +15,7 @@ class ThumbnailService(BaseAsyncService):
     用途说明：缩略图服务类。
     管理职责：
     1. 派发缩略图生成任务（非耗时操作，直接填充队列）。
-    2. 同步物理文件（耗时操作，利用线程池异步清理孤儿文件）。
+    2. 同步物理文件（耗时操作，利用线程池异步清理无效文件）。
     3. 提供生成队列余量监控。
     """
     _THUMBNAIL_DIR: str = os.path.join(Utils.get_runtime_path(), "cache", "thumbnail")
@@ -42,9 +42,8 @@ class ThumbnailService(BaseAsyncService):
     @classmethod
     def start_thumbnail_sync_task(cls) -> bool:
         """
-        用途说明：启动异步物理文件同步任务，清理缓存目录下的“孤儿”缩略图。包含环境检查与状态初始化。
-        入参说明：
-            params (Any): 启动参数（预留）。
+        用途说明：启动异步物理文件同步任务，清理缓存目录下的无效缩略图。包含环境检查与状态初始化。
+        入参说明：无
         返回值说明：bool - 任务是否成功提交至线程池。
         """
         try:
@@ -99,14 +98,12 @@ class ThumbnailService(BaseAsyncService):
                 # 获取文件名（MD5）
                 name_without_ext: str = os.path.splitext(filename)[0]
                 
-                # 仅校验标准的 32 位 MD5 文件名，防止误删非缓存文件
-                if len(name_without_ext) == 32:
-                    # 如果数据库中不存在此 MD5 的记录，则物理文件为无效“孤儿”
-                    if not DBOperations.check_file_md5_exists(name_without_ext):
-                        file_path: str = os.path.join(cls._THUMBNAIL_DIR, filename)
-                        if os.path.isfile(file_path):
-                            os.remove(file_path)
-                            delete_count += 1
+                # 如果数据库中不存在此 MD5 的记录，则物理文件为无效
+                if not DBOperations.check_file_md5_exists(name_without_ext):
+                    file_path: str = os.path.join(cls._THUMBNAIL_DIR, filename)
+                    if os.path.isfile(file_path):
+                        os.remove(file_path)
+                        delete_count += 1
                 
                 # 分批更新进度，避免 UI 刷新过频
                 if index % 100 == 0 or index == total_files - 1:

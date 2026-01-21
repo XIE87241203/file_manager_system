@@ -25,6 +25,12 @@ const State = {
     },
     fileNameEntry: {
         file_name_link_prefix: ""
+    },
+    // 缩略图同步任务状态
+    thumbnailSync: {
+        timer: null,
+        widget: null,
+        status: 'idle' // 记录同步任务的内部状态，初始为 idle
     }
 };
 
@@ -77,6 +83,27 @@ const API = {
      */
     async clearVideoFeatures() {
         return await Request.post('/api/file_repository/clear_video_features');
+    },
+
+    /**
+     * 用途说明：启动缩略图同步任务
+     */
+    async startThumbnailSync() {
+        return await Request.post('/api/file_repository/thumbnail/sync/start');
+    },
+
+    /**
+     * 用途说明：停止缩略图同步任务
+     */
+    async stopThumbnailSync() {
+        return await Request.post('/api/file_repository/thumbnail/sync/stop');
+    },
+
+    /**
+     * 用途说明：获取缩略图同步任务进度
+     */
+    async getThumbnailSyncProgress() {
+        return await Request.get('/api/file_repository/thumbnail/sync/progress', {}, false);
     }
 };
 
@@ -177,6 +204,24 @@ const UIController = {
             item.querySelector('.btn-delete').onclick = () => App.handleDeleteRepository(index);
             listContainer.appendChild(item);
         });
+    },
+
+    /**
+     * 用途说明：初始化缩略图同步按钮组件
+     */
+    initThumbnailSyncButton() {
+        const container = document.getElementById('sync-thumbnail-btn-container');
+        if (!container) return;
+
+        State.thumbnailSync.widget = ProgressButtonWidget.create({
+            normalText: '开始同步',
+            stopText: '取消同步',
+            defaultBgColor: '#007bff',
+            onStart: () => App.handleStartThumbnailSync(),
+            onStop: () => App.handleStopThumbnailSync()
+        });
+
+        container.appendChild(State.thumbnailSync.widget.getElement());
     }
 };
 
@@ -188,8 +233,11 @@ const App = {
     init() {
         UIComponents.initHeader('系统设置', true, null, '保存', () => this.handleGlobalSave());
         UIController.initTabs();
+        UIController.initThumbnailSyncButton();
         this.loadSettings();
         this.bindEvents();
+        // 初始化时检查一次同步任务状态
+        this.syncThumbnailProgress();
     },
 
     /**
@@ -349,7 +397,7 @@ const App = {
             const res = await API.updateSettings(updateData);
             if (res.status === 'success') {
                 Toast.show('系统设置已全部保存成功');
-                
+
                 if (isPasswordChanged) {
                     setTimeout(() => {
                         Toast.show('检测到密码已修改，请重新登录');
@@ -387,6 +435,81 @@ const App = {
                 }
             }
         });
+    },
+
+    /**
+     * 用途说明：处理开始缩略图同步
+     */
+    async handleStartThumbnailSync() {
+        try {
+            const res = await API.startThumbnailSync();
+            if (res.status === 'success') {
+                Toast.show('缩略图同步任务已启动');
+                this.syncThumbnailProgress();
+            }
+        } catch (e) {
+            Toast.show('启动失败: ' + e.message);
+        }
+    },
+
+    /**
+     * 用途说明：处理停止缩略图同步
+     */
+    async handleStopThumbnailSync() {
+        try {
+            const res = await API.stopThumbnailSync();
+            if (res.status === 'success') {
+                Toast.show('已发送停止指令');
+            }
+        } catch (e) {
+            Toast.show('操作失败: ' + e.message);
+        }
+    },
+
+    /**
+     * 用途说明：轮询缩略图同步进度
+     * 入参说明：无
+     * 返回值说明：无
+     */
+    async syncThumbnailProgress() {
+        if (State.thumbnailSync.timer) {
+            clearTimeout(State.thumbnailSync.timer);
+            State.thumbnailSync.timer = null;
+        }
+
+        try {
+            const res = await API.getThumbnailSyncProgress();
+            const { status, progress } = res.data;
+            const widget = State.thumbnailSync.widget;
+
+            if (status === ProgressStatus.PROCESSING) {
+                State.thumbnailSync.status = ProgressStatus.PROCESSING;
+                widget.setState('processing');
+                const percent = progress.total > 0 ? Math.round((progress.current / progress.total) * 100) : 0;
+                // 设置进度时同时设置文案，格式为：正在处理：当前/总数
+                widget.setProgress(percent, `正在处理：${progress.current}/${progress.total}`);
+
+                // 继续轮询
+                State.thumbnailSync.timer = setTimeout(() => this.syncThumbnailProgress(), 1000);
+            } else {
+                // 用途说明：仅当之前的任务状态不是 idle 时（即刚从 processing 切换过来），才执行状态重置并弹出结果提示
+                if (State.thumbnailSync.status !== ProgressStatus.IDLE) {
+                    if (status === ProgressStatus.COMPLETED) {
+                        Toast.show(progress.message || '同步任务已完成');
+                    } else if (status === ProgressStatus.ERROR) {
+                        Toast.show('同步任务发生错误: ' + progress.message);
+                    }
+                    State.thumbnailSync.status = ProgressStatus.IDLE;
+                }
+                widget.setState('idle');
+            }
+        } catch (e) {
+            console.error('获取进度失败:', e);
+            if (State.thumbnailSync.widget) {
+                State.thumbnailSync.widget.setState('idle');
+            }
+            State.thumbnailSync.status = ProgressStatus.IDLE;
+        }
     }
 };
 

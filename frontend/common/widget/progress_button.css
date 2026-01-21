@@ -1,0 +1,58 @@
+/**
+ * 进度条按钮样式
+ * 对标 common.css 中的 .btn-danger 风格：4px 圆角、1rem 字体
+ */
+.progress-btn-container {
+    position: relative;
+    width: 100%; /* 宽度自适应容器 */
+    padding: 0.75rem; /* 对标 btn-danger 的 padding */
+    height: auto;
+    min-height: 44px; /* 保证高度一致性 */
+    border: 1px solid transparent;
+    border-radius: 4px; /* 对标 btn-danger 的圆角 */
+    overflow: hidden;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.3s;
+    user-select: none;
+    box-sizing: border-box;
+}
+
+/* 进度填充层 (中间层) */
+.progress-btn-fill {
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 100%;
+    width: 0%;
+    background-color: rgba(255, 255, 255, 0.2); /* 进度条使用半透明白色叠加在红色背景上 */
+    transition: width 0.3s ease;
+    z-index: 1;
+    display: none;
+}
+
+/* 按钮文字层 (顶层) */
+.progress-btn-text {
+    position: relative;
+    z-index: 2;
+    color: white; /* 默认文字颜色为白色，对标 btn-danger */
+    font-size: 1rem; /* 对标 btn-danger 的字体大小 */
+    line-height: 1.5;
+    transition: color 0.3s;
+}
+
+.progress-btn-container.processing .progress-btn-fill {
+    display: block;
+}
+
+/* 鼠标悬停在正在进行的按钮上：取消任务时文字保持清晰 */
+.progress-btn-container.processing:hover .progress-btn-text {
+    color: #ffffff;
+}
+
+/* 隐藏任务进行时的进度条，突出取消文案 */
+.progress-btn-container.processing:hover .progress-btn-fill {
+    opacity: 0;
+}

@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ProgressButtonWidget 测试页面</title>
+    <!-- 引入全局样式 -->
+    <link rel="stylesheet" href="../common/common.css">
+    <!-- 引入组件样式 -->
+    <link rel="stylesheet" href="../common/widget/progress_button.css">
+    <!-- 引入页面专属样式 -->
+    <link rel="stylesheet" href="test_progress_button.css">
+</head>
+<body>
+    <header class="top-bar"></header>
+
+    <main class="main-content">
+        <div class="test-container">
+            <h2 class="title">ProgressButtonWidget 功能测试</h2>
+
+            <!-- 测试用例 1: 基础任务模拟 -->
+            <div class="test-case">
+                <div class="test-case-header">
+                    <span class="test-case-title">用例 1: 模拟异步任务</span>
+                    <p class="test-case-desc">点击开始后模拟 0-100% 进度，支持中途停止。</p>
+                </div>
+                <div id="btn-container-1" class="btn-wrapper"></div>
+                <div class="test-log" id="log-1">等待操作...</div>
+            </div>
+
+            <!-- 测试用例 2: 不同配色与文案 -->
+            <div class="test-case">
+                <div class="test-case-header">
+                    <span class="test-case-title">用例 2: 自定义外观</span>
+                    <p class="test-case-desc">测试不同初始背景色及文字描述。</p>
+                </div>
+                <div id="btn-container-2" class="btn-wrapper"></div>
+                <div class="test-log" id="log-2">等待操作...</div>
+            </div>
+
+            <!-- 快捷控制台 -->
+            <div class="test-controls">
+                <button class="btn-secondary" onclick="location.reload()">刷新页面重置</button>
+            </div>
+        </div>
+    </main>
+
+    <!-- 基础工具库 -->
+    <script src="../common/common.js"></script>
+    <script src="../common/ui_components.js"></script>
+    <script src="../common/toast.js"></script>
+    <!-- 引入待测试组件 -->
+    <script src="../common/widget/progress_button.js"></script>
+    <!-- 引入测试逻辑 -->
+    <script src="test_progress_button.js"></script>
+</body>
+</html>
