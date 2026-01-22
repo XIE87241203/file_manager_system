@@ -119,6 +119,7 @@ class DBManager:
             CREATE TABLE IF NOT EXISTS {DBConstants.FileIndex.TABLE_NAME} (
                 {DBConstants.FileIndex.COL_ID} INTEGER PRIMARY KEY AUTOINCREMENT,
                 {DBConstants.FileIndex.COL_FILE_PATH} TEXT NOT NULL UNIQUE,
+                {DBConstants.FileIndex.COL_FILE_NAME} TEXT,
                 {DBConstants.FileIndex.COL_FILE_MD5} TEXT NOT NULL,
                 {DBConstants.FileIndex.COL_FILE_SIZE} INTEGER DEFAULT 0,
                 {DBConstants.FileIndex.COL_SCAN_TIME} DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -137,6 +138,7 @@ class DBManager:
             CREATE TABLE IF NOT EXISTS {DBConstants.HistoryFileIndex.TABLE_NAME} (
                 {DBConstants.HistoryFileIndex.COL_ID} INTEGER PRIMARY KEY AUTOINCREMENT,
                 {DBConstants.HistoryFileIndex.COL_FILE_PATH} TEXT NOT NULL UNIQUE,
+                {DBConstants.HistoryFileIndex.COL_FILE_NAME} TEXT,
                 {DBConstants.HistoryFileIndex.COL_FILE_MD5} TEXT NOT NULL UNIQUE,
                 {DBConstants.HistoryFileIndex.COL_FILE_SIZE} INTEGER DEFAULT 0,
                 {DBConstants.HistoryFileIndex.COL_SCAN_TIME} DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -251,6 +253,31 @@ class DBManager:
                 )
             ''')
             LogUtils.info("数据库升级到版本 9: 已创建 batch_check_results 表")
+
+        if old_version < 10:
+            # 升级到版本 10: 为 file_index 和 history_file_index 添加 file_name 列
+            try:
+                # 1. 为 file_index 添加列并更新数据
+                cursor.execute(f"ALTER TABLE {DBConstants.FileIndex.TABLE_NAME} ADD COLUMN {DBConstants.FileIndex.COL_FILE_NAME} TEXT")
+                cursor.execute(f"SELECT {DBConstants.FileIndex.COL_ID}, {DBConstants.FileIndex.COL_FILE_PATH} FROM {DBConstants.FileIndex.TABLE_NAME}")
+                rows = cursor.fetchall()
+                for row in rows:
+                    row_id, file_path = row
+                    file_name = os.path.basename(file_path)
+                    cursor.execute(f"UPDATE {DBConstants.FileIndex.TABLE_NAME} SET {DBConstants.FileIndex.COL_FILE_NAME} = ? WHERE {DBConstants.FileIndex.COL_ID} = ?", (file_name, row_id))
+                
+                # 2. 为 history_file_index 添加列并更新数据
+                cursor.execute(f"ALTER TABLE {DBConstants.HistoryFileIndex.TABLE_NAME} ADD COLUMN {DBConstants.HistoryFileIndex.COL_FILE_NAME} TEXT")
+                cursor.execute(f"SELECT {DBConstants.HistoryFileIndex.COL_ID}, {DBConstants.HistoryFileIndex.COL_FILE_PATH} FROM {DBConstants.HistoryFileIndex.TABLE_NAME}")
+                rows = cursor.fetchall()
+                for row in rows:
+                    row_id, file_path = row
+                    file_name = os.path.basename(file_path)
+                    cursor.execute(f"UPDATE {DBConstants.HistoryFileIndex.TABLE_NAME} SET {DBConstants.HistoryFileIndex.COL_FILE_NAME} = ? WHERE {DBConstants.HistoryFileIndex.COL_ID} = ?", (file_name, row_id))
+                
+                LogUtils.info("数据库升级到版本 10: 已为 file_index 和 history_file_index 添加 file_name 列并完成数据迁移")
+            except Exception as e:
+                LogUtils.error(f"升级到版本 10 失败: {e}")
 
 
 # 创建全局唯一的处理器管理器实例，供外部统一调用

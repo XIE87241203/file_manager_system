@@ -16,7 +16,7 @@ class HistoryFileIndexProcessor(BaseDBProcessor):
         """
         用途：批量插入历史文件索引数据
         入参说明：
-            data_list (List[HistoryFileIndexDBModule]): 待插入的历史文件索引对象列表
+            data_list (List[HistoryFileIndexDBModule]): 待插入历史文件索引对象列表
         返回值说明：
             int: 成功插入的行数
         """
@@ -27,6 +27,7 @@ class HistoryFileIndexProcessor(BaseDBProcessor):
         data: List[tuple] = [
             (
                 item.file_path,
+                item.file_name,
                 item.file_md5,
                 item.file_size,
                 item.scan_time,
@@ -37,11 +38,12 @@ class HistoryFileIndexProcessor(BaseDBProcessor):
         query: str = f'''
             INSERT OR IGNORE INTO {DBConstants.HistoryFileIndex.TABLE_NAME} (
                 {DBConstants.HistoryFileIndex.COL_FILE_PATH},
+                {DBConstants.HistoryFileIndex.COL_FILE_NAME},
                 {DBConstants.HistoryFileIndex.COL_FILE_MD5},
                 {DBConstants.HistoryFileIndex.COL_FILE_SIZE},
                 {DBConstants.HistoryFileIndex.COL_SCAN_TIME},
                 {DBConstants.HistoryFileIndex.COL_DELETE_TIME}
-            ) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
         '''
 
         return BaseDBProcessor._execute_batch(query, data)
@@ -57,6 +59,7 @@ class HistoryFileIndexProcessor(BaseDBProcessor):
         query: str = f'''
             INSERT OR IGNORE INTO {DBConstants.HistoryFileIndex.TABLE_NAME} (
                 {DBConstants.HistoryFileIndex.COL_FILE_PATH},
+                {DBConstants.HistoryFileIndex.COL_FILE_NAME},
                 {DBConstants.HistoryFileIndex.COL_FILE_MD5},
                 {DBConstants.HistoryFileIndex.COL_FILE_SIZE},
                 {DBConstants.HistoryFileIndex.COL_SCAN_TIME},
@@ -64,6 +67,7 @@ class HistoryFileIndexProcessor(BaseDBProcessor):
             )
             SELECT 
                 {DBConstants.FileIndex.COL_FILE_PATH},
+                {DBConstants.FileIndex.COL_FILE_NAME},
                 {DBConstants.FileIndex.COL_FILE_MD5},
                 {DBConstants.FileIndex.COL_FILE_SIZE},
                 {DBConstants.FileIndex.COL_SCAN_TIME},
@@ -99,6 +103,7 @@ class HistoryFileIndexProcessor(BaseDBProcessor):
         allowed_cols: List[str] = [
             DBConstants.HistoryFileIndex.COL_ID,
             DBConstants.HistoryFileIndex.COL_FILE_PATH,
+            DBConstants.HistoryFileIndex.COL_FILE_NAME,
             DBConstants.HistoryFileIndex.COL_FILE_MD5,
             DBConstants.HistoryFileIndex.COL_FILE_SIZE,
             DBConstants.HistoryFileIndex.COL_SCAN_TIME,
@@ -113,7 +118,7 @@ class HistoryFileIndexProcessor(BaseDBProcessor):
             sort_by=sort_by,
             order=order,
             search_query=search_query,
-            search_column=DBConstants.HistoryFileIndex.COL_FILE_PATH,
+            search_column=DBConstants.HistoryFileIndex.COL_FILE_NAME, # 改为按文件名搜索
             allowed_sort_columns=allowed_cols,
             default_sort_column=DBConstants.HistoryFileIndex.COL_DELETE_TIME
         )

@@ -3,7 +3,7 @@ class DBConstants:
     用途：数据库表名及列名常量类，统一管理所有数据库结构相关的硬编码字符串
     """
 
-    DB_VERSION: int = 9  # 当前数据库版本，升级至 9 以支持批量检测结果存储
+    DB_VERSION: int = 10  # 当前数据库版本，升级至 10 以支持 file_name 列
 
     class SimilarityType:
         """用途：查重相似度类型常量"""
@@ -21,6 +21,7 @@ class DBConstants:
         TABLE_NAME: str = 'file_index'
         COL_ID: str = 'id'
         COL_FILE_PATH: str = 'file_path'
+        COL_FILE_NAME: str = 'file_name'
         COL_FILE_MD5: str = 'file_md5'
         COL_FILE_SIZE: str = 'file_size'
         COL_RECYCLE_BIN_TIME: str = 'recycle_bin_time'
@@ -32,6 +33,7 @@ class DBConstants:
         TABLE_NAME: str = 'history_file_index'
         COL_ID: str = 'id'
         COL_FILE_PATH: str = 'file_path'
+        COL_FILE_NAME: str = 'file_name'
         COL_FILE_MD5: str = 'file_md5'
         COL_FILE_SIZE: str = 'file_size'
         COL_SCAN_TIME: str = 'scan_time'

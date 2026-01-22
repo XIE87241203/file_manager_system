@@ -28,6 +28,7 @@ class FileIndexProcessor(BaseDBProcessor):
         for f in data_list:
             data.append((
                 f.file_path,
+                f.file_name,
                 f.file_md5,
                 f.file_size,
                 f.thumbnail_path,
@@ -38,13 +39,14 @@ class FileIndexProcessor(BaseDBProcessor):
         query: str = f'''
             INSERT OR REPLACE INTO {DBConstants.FileIndex.TABLE_NAME} (
                 {DBConstants.FileIndex.COL_FILE_PATH},
+                {DBConstants.FileIndex.COL_FILE_NAME},
                 {DBConstants.FileIndex.COL_FILE_MD5},
                 {DBConstants.FileIndex.COL_FILE_SIZE},
                 {DBConstants.FileIndex.COL_THUMBNAIL_PATH},
                 {DBConstants.FileIndex.COL_RECYCLE_BIN_TIME},
                 {DBConstants.FileIndex.COL_SCAN_TIME}
             )
-            VALUES (?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
         '''
 
         return BaseDBProcessor._execute_batch(query, data, conn=conn)
@@ -171,6 +173,7 @@ class FileIndexProcessor(BaseDBProcessor):
         allowed_cols: List[str] = [
             DBConstants.FileIndex.COL_ID,
             DBConstants.FileIndex.COL_FILE_PATH,
+            DBConstants.FileIndex.COL_FILE_NAME,  # 允许按文件名排序
             DBConstants.FileIndex.COL_FILE_MD5,
             DBConstants.FileIndex.COL_FILE_SIZE,
             DBConstants.FileIndex.COL_SCAN_TIME,
@@ -192,7 +195,7 @@ class FileIndexProcessor(BaseDBProcessor):
             sort_by=sort_by,
             order=order,
             search_query=search_query,
-            search_column=DBConstants.FileIndex.COL_FILE_PATH,
+            search_column=DBConstants.FileIndex.COL_FILE_NAME, # 默认改为按文件名搜索，更符合用户习惯
             allowed_sort_columns=allowed_cols,
             default_sort_column=DBConstants.FileIndex.COL_SCAN_TIME,
             extra_where=extra_where
@@ -201,7 +204,7 @@ class FileIndexProcessor(BaseDBProcessor):
     @staticmethod
     def get_list_by_condition(offset: int, limit: int, only_no_thumbnail: bool = False) -> List[FileIndexDBModel]:
         """
-        用途说明：根据指定条件获取文件列表（如仅获取无缩略图的文件）。
+        用途说明：根据指定 condition 获取文件列表（如仅获取无缩略图的文件）。
         入参说明：
             offset (int): 偏移量。
             limit (int): 限制条数。

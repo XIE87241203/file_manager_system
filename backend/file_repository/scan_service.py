@@ -188,9 +188,11 @@ class ScanService(BaseAsyncService):
                 f_path, f_md5 = future.result()
                 if f_md5:
                     f_size: int = os.path.getsize(f_path)
+                    f_name: str = os.path.basename(f_path)  # 摘下文件名~
                     info_list.append(
                         FileIndexDBModel(
                             file_path=f_path, 
+                            file_name=f_name,  # 填入模型
                             file_md5=f_md5,
                             file_size=f_size,
                             scan_time=current_scan_time

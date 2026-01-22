@@ -8,6 +8,7 @@ class FileIndexDBModel:
     """
     id: Optional[int] = None
     file_path: str = ""
+    file_name: str = ""  # 新增：文件名字段
     file_md5: str = ""
     file_size: int = 0
     recycle_bin_time: Optional[str] = None

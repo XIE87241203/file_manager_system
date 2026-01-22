@@ -77,7 +77,8 @@ const UIController = {
             tr.setAttribute('data-path', file.file_path);
             if (isChecked) tr.classList.add('selected-row');
 
-            const fileName = UIComponents.getFileName(file.file_path);
+            // 用途说明：文件名直接从 API 返回的 file_name 字段获取
+            const fileName = file.file_name || '未知文件名';
             const fileSizeStr = CommonUtils.formatFileSize(file.file_size);
 
             tr.innerHTML = `

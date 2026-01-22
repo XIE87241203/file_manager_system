@@ -9,6 +9,7 @@ class HistoryFileIndexDBModule:
     """
     id: Optional[int] = None
     file_path: str = ""
+    file_name: str = ""  # 新增：文件名字段
     file_md5: str = ""
     file_size: int = 0
     scan_time: Optional[str] = None

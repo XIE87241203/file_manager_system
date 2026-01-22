@@ -226,7 +226,8 @@ const UIController = {
                         ${files.map(f => {
                             const info = f.file_info;
                             const isChecked = CheckState.selectedPaths.has(info.file_path);
-                            const fileName = UIComponents.getFileName(info.file_path);
+                            // 用途说明：文件名直接从 API 返回的 file_name 字段获取
+                            const fileName = info.file_name || '未知文件名';
                             const fileSizeStr = CommonUtils.formatFileSize(info.file_size);
                             
                             // 格式化相似率：类型(百分比)
@@ -452,7 +453,7 @@ const App = {
         const data = await DuplicateCheckAPI.fetchList(page, CheckState.limit, CheckState.similarityType);
         if (data) {
             CheckState.setPaginationData(data, CheckState.previousExpandedStates);
-            CheckState.previousExpandedStates = null; 
+            CheckState.previousExpandedStates = null;
             UIController.toggleView(ProgressStatus.COMPLETED);
             UIController.renderResults();
         }
@@ -469,7 +470,7 @@ const App = {
         CheckState.results.forEach(group => {
             expandedStatesMap[group.id] = group.isExpanded;
         });
-        CheckState.previousExpandedStates = expandedStatesMap; 
+        CheckState.previousExpandedStates = expandedStatesMap;
         await this.loadResults(page);
         window.scrollTo(0, 0);
     },
@@ -494,7 +495,7 @@ const App = {
                     CheckState.results.forEach(group => {
                         expandedStatesMap[group.id] = group.isExpanded;
                     });
-                    CheckState.previousExpandedStates = expandedStatesMap; 
+                    CheckState.previousExpandedStates = expandedStatesMap;
                     this.loadResults(CheckState.page);
                 } else {
                     Toast.show(response.message || '移入回收站失败');

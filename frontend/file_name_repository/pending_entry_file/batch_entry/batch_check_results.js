@@ -47,6 +47,7 @@ const UIController = {
             newCount: document.getElementById('new-count'),
             btnSelectAllNew: document.getElementById('btn-select-all-new'),
             btnConfirmImport: document.getElementById('btn-confirm-import'),
+            btnCopySelected: document.getElementById('btn-copy-selected'),
             selectAllCheckbox: document.getElementById('select-all-checkbox'),
             container: document.querySelector('.repo-content-group'),
             /** @type {NodeListOf<HTMLElement>} 所有可排序的表头 */
@@ -134,9 +135,14 @@ const UIController = {
     updateSelectedCount() {
         const selectedCount = State.results.filter(r => r.checked).length;
         const btn = this.elements.btnConfirmImport;
+        const copyBtn = this.elements.btnCopySelected;
 
         if (btn) {
             btn.textContent = selectedCount > 0 ? `录入选中纪录 (${selectedCount})` : '录入选中纪录';
+        }
+
+        if (copyBtn) {
+            copyBtn.textContent = selectedCount > 0 ? `复制选中文件名 (${selectedCount})` : '复制选中文件名';
         }
 
         if (this.elements.selectAllCheckbox) {
@@ -206,7 +212,7 @@ const App = {
      * 返回值说明：无
      */
     bindEvents() {
-        const { btnSelectAllNew, btnConfirmImport, selectAllCheckbox, sortableHeaders } = UIController.elements;
+        const { btnSelectAllNew, btnConfirmImport, btnCopySelected, selectAllCheckbox, sortableHeaders } = UIController.elements;
 
         // 全选所有“新记录”
         btnSelectAllNew.onclick = () => {
@@ -228,6 +234,11 @@ const App = {
         };
 
         btnConfirmImport.onclick = () => this.handleConfirmImport();
+
+        // 复制选中文件名到剪贴板
+        if (btnCopySelected) {
+            btnCopySelected.onclick = () => this.handleCopySelectedNames();
+        }
 
         // 绑定排序事件
         sortableHeaders.forEach(th => {
@@ -333,6 +344,29 @@ const App = {
                     window.history.go(-2);
                 }
             }
+        });
+    },
+
+    /**
+     * 用途说明：复制选中的文件名到剪贴板。
+     * 返回值说明：无
+     */
+    handleCopySelectedNames() {
+        const selectedNames = State.results
+            .filter(item => item.checked)
+            .map(item => item.name);
+
+        if (selectedNames.length === 0) {
+            Toast.show('请勾选需要复制的文件名~');
+            return;
+        }
+
+        const textToCopy = selectedNames.join('\n');
+        navigator.clipboard.writeText(textToCopy).then(() => {
+            Toast.show(`已成功复制 ${selectedNames.length} 条文件名到剪贴板`);
+        }).catch(err => {
+            console.error('复制失败:', err);
+            Toast.show('复制失败，请重试');
         });
     },
 
