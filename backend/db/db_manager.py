@@ -160,7 +160,8 @@ class DBManager:
         cursor.execute(f'''
             CREATE TABLE IF NOT EXISTS {DBConstants.DuplicateGroup.TABLE_GROUPS} (
                 {DBConstants.DuplicateGroup.COL_GRP_ID_PK} INTEGER PRIMARY KEY AUTOINCREMENT,
-                {DBConstants.DuplicateGroup.COL_GRP_GROUP_NAME} TEXT NOT NULL
+                {DBConstants.DuplicateGroup.COL_GRP_GROUP_NAME} TEXT NOT NULL,
+                {DBConstants.DuplicateGroup.COL_GRP_CREATE_TIME} DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         ''')
 
@@ -278,6 +279,46 @@ class DBManager:
                 LogUtils.info("数据库升级到版本 10: 已为 file_index 和 history_file_index 添加 file_name 列并完成数据迁移")
             except Exception as e:
                 LogUtils.error(f"升级到版本 10 失败: {e}")
+
+        if old_version < 12:
+            # 升级到版本 12: 为 duplicate_groups 添加 create_time 列
+            try:
+                # 使用“重建表”的方式避开 SQLite 对 ALTER TABLE ADD COLUMN 非常量默认值的限制
+                temp_table = f"{DBConstants.DuplicateGroup.TABLE_GROUPS}_backup"
+                
+                # 1. 将原表重命名
+                cursor.execute(f"ALTER TABLE {DBConstants.DuplicateGroup.TABLE_GROUPS} RENAME TO {temp_table}")
+                
+                # 2. 创建符合新结构的新表（包含 DEFAULT CURRENT_TIMESTAMP）
+                cursor.execute(f'''
+                    CREATE TABLE {DBConstants.DuplicateGroup.TABLE_GROUPS} (
+                        {DBConstants.DuplicateGroup.COL_GRP_ID_PK} INTEGER PRIMARY KEY AUTOINCREMENT,
+                        {DBConstants.DuplicateGroup.COL_GRP_GROUP_NAME} TEXT NOT NULL,
+                        {DBConstants.DuplicateGroup.COL_GRP_CREATE_TIME} DATETIME DEFAULT CURRENT_TIMESTAMP
+                    )
+                ''')
+                
+                # 3. 迁移数据，将旧数据导入新表，create_time 设为当前时间
+                cursor.execute(f'''
+                    INSERT INTO {DBConstants.DuplicateGroup.TABLE_GROUPS} (
+                        {DBConstants.DuplicateGroup.COL_GRP_ID_PK}, 
+                        {DBConstants.DuplicateGroup.COL_GRP_GROUP_NAME},
+                        {DBConstants.DuplicateGroup.COL_GRP_CREATE_TIME}
+                    )
+                    SELECT 
+                        {DBConstants.DuplicateGroup.COL_GRP_ID_PK}, 
+                        {DBConstants.DuplicateGroup.COL_GRP_GROUP_NAME},
+                        CURRENT_TIMESTAMP
+                    FROM {temp_table}
+                ''')
+                
+                # 4. 删除备份表
+                cursor.execute(f"DROP TABLE {temp_table}")
+                
+                LogUtils.info("数据库升级到版本 12: 已通过重建表方式为 duplicate_groups 添加 create_time 列并完成数据迁移")
+            except Exception as e:
+                LogUtils.error(f"升级到版本 12 失败: {e}")
+                raise e
 
 
 # 创建全局唯一的处理器管理器实例，供外部统一调用

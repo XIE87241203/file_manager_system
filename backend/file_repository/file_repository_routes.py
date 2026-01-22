@@ -234,6 +234,16 @@ def list_duplicate_results():
     return success_response("获取重复文件列表成功", data=asdict(data))
 
 
+@file_repo_bp.route('/duplicate/latest_check_time', methods=['GET'])
+@token_required
+def get_latest_duplicate_check_time():
+    """
+    用途说明：获取最近一次查重的完成时间。
+    """
+    time_str = DuplicateService.get_latest_check_time()
+    return success_response("获取最近查重时间成功", data=time_str)
+
+
 # --- 缩略图相关路由 ---
 
 @file_repo_bp.route('/thumbnail/start', methods=['POST'])

@@ -3,7 +3,7 @@
  */
 
 // --- 状态管理 ---
-const CheckState = {
+const State = {
     results: [],
     page: 1,
     limit: 20,
@@ -18,8 +18,9 @@ const CheckState = {
 
     /**
      * 用途说明：更新结果列表及分页信息
-     * 入参说明：data (Object) - 后端返回的 PaginationResult 结构
-     * 入参说明：expandedStatesMap (Object|null) - 存储分组ID到isExpanded状态的映射，用于恢复分组的展开状态
+     * 入参说明：
+     *   data (Object): 后端返回的 PaginationResult 结构
+     *   expandedStatesMap (Object|null): 存储分组ID到isExpanded状态的映射，用于恢复分组的展开状态
      * 返回值说明：无
      */
     setPaginationData(data, expandedStatesMap = null) {
@@ -37,8 +38,6 @@ const CheckState = {
                 group.isExpanded = true;
             }
         });
-
-        this.lastCheckTime = UIComponents.formatDate();
     }
 };
 
@@ -66,26 +65,10 @@ const UIController = {
         };
 
         // 初始化公用分页组件
-        CheckState.paginationController = UIComponents.initPagination('pagination-container', {
-            limit: CheckState.limit,
+        State.paginationController = UIComponents.initPagination('pagination-container', {
+            limit: State.limit,
             onPageChange: (newPage) => App.changePage(newPage)
         });
-
-        // 绑定全局删除按钮
-        this.elements.globalDeleteBtn.onclick = () => {
-            const paths = Array.from(CheckState.selectedPaths);
-            if (paths.length > 0) {
-                App.moveToRecycleBin(paths, `确定要将选中的 ${paths.length} 个文件移入回收站吗？\n(移入回收站后若组内文件少于2个，该组将自动解散)`);
-            }
-        };
-
-        // 绑定筛选事件
-        if (this.elements.filterSimilarityType) {
-            this.elements.filterSimilarityType.onchange = () => {
-                CheckState.similarityType = this.elements.filterSimilarityType.value;
-                App.loadResults(1);
-            };
-        }
 
         this.renderHeader(ProgressStatus.IDLE);
     },
@@ -99,9 +82,9 @@ const UIController = {
         if (typeof UIComponents !== 'undefined') {
             const title = '文件查重';
             if (status === ProgressStatus.PROCESSING) {
-                UIComponents.initHeader(title, true, null, '停止查重', () => DuplicateCheckAPI.stop(), 'btn-text-danger');
+                UIComponents.initHeader(title, true, null, '停止查重', () => App.handleStop(), 'btn-text-danger');
             } else {
-                UIComponents.initHeader(title, true, null, '开始查重', () => DuplicateCheckAPI.start());
+                UIComponents.initHeader(title, true, null, '开始查重', () => App.handleStart());
             }
         }
     },
@@ -124,7 +107,7 @@ const UIController = {
             scanningContainer.classList.add('hidden');
             UIComponents.hideProgressBar('#scanning-container');
 
-            if (status === ProgressStatus.COMPLETED || (CheckState.results && CheckState.results.length > 0) || CheckState.similarityType !== '') {
+            if (status === ProgressStatus.COMPLETED || (State.results && State.results.length > 0) || State.similarityType !== '') {
                 resultsGroup.classList.remove('hidden');
                 emptyHint.classList.add('hidden');
             } else {
@@ -156,20 +139,20 @@ const UIController = {
         const { wrapper, summaryBar, summaryGroups, summaryFiles, summaryTime } = this.elements;
         wrapper.innerHTML = '';
 
-        const results = CheckState.results;
+        const results = State.results;
         if (!results || results.length === 0) {
             summaryBar.classList.remove('hidden');
             wrapper.innerHTML = '<div style="text-align: center; color: #9aa0a6; padding-top: 100px;">未发现重复文件</div>';
-            if (CheckState.paginationController) CheckState.paginationController.update(0, 1);
+            if (State.paginationController) State.paginationController.update(0, 1);
             this.updateFloatingBar();
             return;
         }
 
         summaryBar.classList.remove('hidden');
-        summaryGroups.textContent = `重复组总数: ${CheckState.total}`;
+        summaryGroups.textContent = `重复组总数: ${State.total}`;
         const totalFiles = results.reduce((acc, g) => acc + (g.files ? g.files.length : 0), 0);
         summaryFiles.textContent = `当前页文件: ${totalFiles}`;
-        summaryTime.textContent = `刷新时间: ${CheckState.lastCheckTime}`;
+        summaryTime.textContent = `查重时间: ${State.lastCheckTime || '--'}`;
 
         results.forEach(group => {
             const groupEl = this.createGroupElement(group);
@@ -177,8 +160,8 @@ const UIController = {
         });
 
         // 更新公用分页组件
-        if (CheckState.paginationController) {
-            CheckState.paginationController.update(CheckState.total, CheckState.page);
+        if (State.paginationController) {
+            State.paginationController.update(State.total, State.page);
         }
 
         this.updateFloatingBar();
@@ -225,12 +208,10 @@ const UIController = {
                     <tbody>
                         ${files.map(f => {
                             const info = f.file_info;
-                            const isChecked = CheckState.selectedPaths.has(info.file_path);
-                            // 用途说明：文件名直接从 API 返回的 file_name 字段获取
+                            const isChecked = State.selectedPaths.has(info.file_path);
                             const fileName = info.file_name || '未知文件名';
                             const fileSizeStr = CommonUtils.formatFileSize(info.file_size);
                             
-                            // 格式化相似率：类型(百分比)
                             const typeMap = {
                                 'md5': 'MD5',
                                 'hash': '图片指纹',
@@ -262,7 +243,7 @@ const UIController = {
             if (e.target.type === 'checkbox') return;
             groupEl.classList.toggle('expanded');
             const groupId = groupEl.getAttribute('data-group-id');
-            const targetGroup = CheckState.results.find(g => String(g.id) === groupId);
+            const targetGroup = State.results.find(g => String(g.id) === groupId);
             if (targetGroup) {
                 targetGroup.isExpanded = groupEl.classList.contains('expanded');
             }
@@ -272,28 +253,23 @@ const UIController = {
         const selectAllInGroup = groupEl.querySelector('.select-all-in-group');
         const theadRow = groupEl.querySelector('thead tr');
 
-        // 点击表头行整条激活全选
         if (theadRow && selectAllInGroup) {
             theadRow.addEventListener('click', (e) => {
-                // 如果直接点击的是复选框本身，则无需额外逻辑，由 bindTableSelection 处理
                 if (e.target === selectAllInGroup) return;
-                
                 selectAllInGroup.checked = !selectAllInGroup.checked;
-                // 手动触发 change 事件以执行 UIComponents.bindTableSelection 中的逻辑
                 selectAllInGroup.dispatchEvent(new Event('change'));
             });
         }
         
-        // 使用通用绑定逻辑，并传入全局 CheckState.selectedPaths
         UIComponents.bindTableSelection({
             tableBody: tbody,
             selectAllCheckbox: selectAllInGroup,
-            selectedSet: CheckState.selectedPaths,
+            selectedSet: State.selectedPaths,
             onSelectionChange: () => this.updateFloatingBar()
         });
 
         tbody.querySelectorAll('.clickable-row').forEach(tr => {
-            if (CheckState.settings && CheckState.settings.file_repository.quick_view_thumbnail) {
+            if (State.settings && State.settings.file_repository.quick_view_thumbnail) {
                 tr.addEventListener('mouseenter', (e) => UIComponents.showQuickPreview(e, tr.getAttribute('data-thumbnail')));
                 tr.addEventListener('mousemove', (e) => UIComponents.moveQuickPreview(e));
                 tr.addEventListener('mouseleave', () => UIComponents.hideQuickPreview());
@@ -309,8 +285,10 @@ const UIController = {
      * 返回值说明：无
      */
     updateFloatingBar() {
-        const checkedCount = CheckState.selectedPaths.size;
+        const checkedCount = State.selectedPaths.size;
         const { globalDeleteBtn } = this.elements;
+        if (!globalDeleteBtn) return;
+
         if (checkedCount > 0) {
             globalDeleteBtn.classList.remove('hidden');
             globalDeleteBtn.textContent = `移入回收站 (${checkedCount})`;
@@ -321,94 +299,68 @@ const UIController = {
 };
 
 // --- API 交互模块 ---
-const DuplicateCheckAPI = {
+const API = {
     /**
      * 用途说明：向后端发送请求开始查重任务
      * 入参说明：无
-     * 返回值说明：无
+     * 返回值说明：Object - 后端响应结果
      */
-    async start() {
-        try {
-            const response = await Request.post('/api/file_repository/duplicate/check', {}, {}, true);
-            if (response.status === 'success') {
-                Toast.show('查重任务已启动');
-                CheckState.results = [];
-                CheckState.selectedPaths.clear();
-                UIController.toggleView(ProgressStatus.PROCESSING);
-                App.startPolling();
-            } else {
-                Toast.show(response.message);
-            }
-        } catch (error) {
-            Toast.show('启动失败');
-        }
+    async startCheck() {
+        return await Request.post('/api/file_repository/duplicate/check', {}, {}, true);
     },
 
     /**
      * 用途说明：向后端发送请求停止查重任务
      * 入参说明：无
-     * 返回值说明：无
+     * 返回值说明：Object - 后端响应结果
      */
-    async stop() {
-        if (!confirm('确定要终止当前的查重任务吗？')) return;
-        try {
-            const response = await Request.post('/api/file_repository/duplicate/stop', {}, {}, true);
-            if (response.status === 'success') Toast.show('正在停止任务...');
-        } catch (error) {
-            Toast.show('请求停止失败');
-        }
+    async stopCheck() {
+        return await Request.post('/api/file_repository/duplicate/stop', {}, {}, true);
     },
 
     /**
      * 用途说明：向后端轮询查重任务的最新进度
      * 入参说明：无
-     * 返回值说明：Object - 包含 status 和 progress
+     * 返回值说明：Object - 进度数据
      */
-    async fetchProgress() {
-        try {
-            const response = await Request.get('/api/file_repository/duplicate/progress', {}, false);
-            if (response.status === 'success') return response.data;
-        } catch (error) {
-            console.error('获取查重进度失败:', error);
-        }
-        return null;
+    async getProgress() {
+        const response = await Request.get('/api/file_repository/duplicate/progress', {}, false);
+        return response.status === 'success' ? response.data : null;
     },
 
     /**
      * 用途说明：分页获取查重结果数据
-     * 入参说明：page (int), limit (int), similarityType (string)
+     * 入参说明：
+     *   params (Object): 包含 page, limit, similarity_type
      * 返回值说明：Object - PaginationResult
      */
-    async fetchList(page, limit, similarityType = '') {
-        try {
-            const queryParams = { page: page, limit: limit };
-            if (similarityType) queryParams.similarity_type = similarityType;
-
-            const query = new URLSearchParams(queryParams).toString();
-            const response = await Request.get('/api/file_repository/duplicate/list?' + query, {}, true);
-            if (response.status === 'success') return response.data;
-        } catch (error) {
-            console.error('获取结果列表失败:', error);
-        }
-        return null;
+    async getDuplicateList(params) {
+        const query = new URLSearchParams(params).toString();
+        const response = await Request.get('/api/file_repository/duplicate/list?' + query, {}, true);
+        return response.status === 'success' ? response.data : null;
     },
 
     /**
-     * 用途说明：调用通用移入回收站 API 批量文件
+     * 用途说明：获取最近一次查重的完成时间
+     * 入参说明：无
+     * 返回值说明：String - 时间字符串
+     */
+    async getLatestCheckTime() {
+        const response = await Request.get('/api/file_repository/duplicate/latest_check_time', {}, false);
+        return response.status === 'success' ? response.data : '--';
+    },
+
+    /**
+     * 用途说明：调用通用移入回收站 API 批量处理文件
      * 入参说明：paths (Array) - 文件路径列表
      * 返回值说明：Object - 后端响应结果
      */
     async moveToRecycleBin(paths) {
-        try {
-            return await Request.post('/api/file_repository/move_to_recycle_bin', { file_paths: paths }, {}, true);
-        } catch (error) {
-            console.error('移入回收站文件请求失败:', error);
-            return { status: 'error', message: '请求失败' };
-        }
+        return await Request.post('/api/file_repository/move_to_recycle_bin', { file_paths: paths }, {}, true);
     }
 };
 
-// --- 应用入口 ---
+// --- 应用逻辑主入口 ---
 const App = {
     /**
      * 用途说明：应用启动入口
@@ -417,10 +369,11 @@ const App = {
      */
     async init() {
         UIController.init();
+        this.bindEvents();
         await this.loadSettings();
 
         // 初始化时检查一次进度
-        const data = await DuplicateCheckAPI.fetchProgress();
+        const data = await API.getProgress();
         if (data) {
             if (data.status === ProgressStatus.PROCESSING) {
                 UIController.toggleView(ProgressStatus.PROCESSING);
@@ -433,14 +386,83 @@ const App = {
         }
     },
 
+    /**
+     * 用途说明：加载系统设置
+     * 入参说明：无
+     * 返回值说明：无
+     */
     async loadSettings() {
         try {
             const response = await Request.get('/api/setting/get');
             if (response.status === 'success') {
-                CheckState.settings = response.data;
+                State.settings = response.data;
             }
         } catch (error) {
             console.error('加载设置失败:', error);
+        }
+    },
+
+    /**
+     * 用途说明：绑定页面交互事件
+     * 入参说明：无
+     * 返回值说明：无
+     */
+    bindEvents() {
+        const { globalDeleteBtn, filterSimilarityType } = UIController.elements;
+
+        // 绑定全局删除按钮
+        if (globalDeleteBtn) {
+            globalDeleteBtn.onclick = () => {
+                const paths = Array.from(State.selectedPaths);
+                if (paths.length > 0) {
+                    this.handleMoveToRecycleBin(paths);
+                }
+            };
+        }
+
+        // 绑定筛选事件
+        if (filterSimilarityType) {
+            filterSimilarityType.onchange = () => {
+                State.similarityType = filterSimilarityType.value;
+                this.loadResults(1);
+            };
+        }
+    },
+
+    /**
+     * 用途说明：处理开始查重逻辑
+     * 入参说明：无
+     * 返回值说明：无
+     */
+    async handleStart() {
+        try {
+            const response = await API.startCheck();
+            if (response.status === 'success') {
+                Toast.show('查重任务已启动');
+                State.results = [];
+                State.selectedPaths.clear();
+                UIController.toggleView(ProgressStatus.PROCESSING);
+                this.startPolling();
+            } else {
+                Toast.show(response.message);
+            }
+        } catch (error) {
+            Toast.show('启动失败');
+        }
+    },
+
+    /**
+     * 用途说明：处理停止查重逻辑
+     * 入参说明：无
+     * 返回值说明：无
+     */
+    async handleStop() {
+        if (!confirm('确定要终止当前的查重任务吗？')) return;
+        try {
+            const response = await API.stopCheck();
+            if (response.status === 'success') Toast.show('正在停止任务...');
+        } catch (error) {
+            Toast.show('请求停止失败');
         }
     },
 
@@ -450,10 +472,19 @@ const App = {
      * 返回值说明：无
      */
     async loadResults(page) {
-        const data = await DuplicateCheckAPI.fetchList(page, CheckState.limit, CheckState.similarityType);
+        const params = {
+            page: page,
+            limit: State.limit,
+            similarity_type: State.similarityType
+        };
+        const data = await API.getDuplicateList(params);
         if (data) {
-            CheckState.setPaginationData(data, CheckState.previousExpandedStates);
-            CheckState.previousExpandedStates = null;
+            State.setPaginationData(data, State.previousExpandedStates);
+            State.previousExpandedStates = null;
+
+            // 结果加载成功后，获取最新的查重时间
+            State.lastCheckTime = await API.getLatestCheckTime();
+
             UIController.toggleView(ProgressStatus.COMPLETED);
             UIController.renderResults();
         }
@@ -461,42 +492,42 @@ const App = {
 
     /**
      * 用途说明：切换页码逻辑
-     * 入参说明：page (int)
+     * 入参说明：page (int) - 目标页码
      * 返回值说明：无
      */
     async changePage(page) {
         if (page < 1) return;
         const expandedStatesMap = {};
-        CheckState.results.forEach(group => {
+        State.results.forEach(group => {
             expandedStatesMap[group.id] = group.isExpanded;
         });
-        CheckState.previousExpandedStates = expandedStatesMap;
+        State.previousExpandedStates = expandedStatesMap;
         await this.loadResults(page);
         window.scrollTo(0, 0);
     },
 
     /**
      * 用途说明：批量移入回收站并刷新列表
-     * 入参说明：paths (Array) - 路径列表, confirmMsg (String) - 确认提示词
+     * 入参说明：paths (Array) - 路径列表
      * 返回值说明：无
      */
-    async moveToRecycleBin(paths, confirmMsg) {
+    async handleMoveToRecycleBin(paths) {
         if (!paths || paths.length === 0) return;
 
         UIComponents.showConfirmModal({
-            message: confirmMsg,
+            message: `确定要将选中的 ${paths.length} 个文件移入回收站吗？\n(移入回收站后若组内文件少于2个，该组将自动解散)`,
             confirmText: '确定移动',
             onConfirm: async () => {
-                const response = await DuplicateCheckAPI.moveToRecycleBin(paths);
+                const response = await API.moveToRecycleBin(paths);
                 if (response.status === 'success') {
                     Toast.show(response.message || '已移入回收站');
-                    CheckState.selectedPaths.clear(); // 成功后清除选中
+                    State.selectedPaths.clear();
                     const expandedStatesMap = {};
-                    CheckState.results.forEach(group => {
+                    State.results.forEach(group => {
                         expandedStatesMap[group.id] = group.isExpanded;
                     });
-                    CheckState.previousExpandedStates = expandedStatesMap;
-                    this.loadResults(CheckState.page);
+                    State.previousExpandedStates = expandedStatesMap;
+                    this.loadResults(State.page);
                 } else {
                     Toast.show(response.message || '移入回收站失败');
                 }
@@ -510,9 +541,9 @@ const App = {
      * 返回值说明：无
      */
     startPolling() {
-        if (CheckState.pollingInterval) return;
-        CheckState.pollingInterval = setInterval(async () => {
-            const data = await DuplicateCheckAPI.fetchProgress();
+        if (State.pollingInterval) return;
+        State.pollingInterval = setInterval(async () => {
+            const data = await API.getProgress();
             if (!data) return;
 
             if (data.status === ProgressStatus.PROCESSING) {
@@ -535,9 +566,9 @@ const App = {
      * 返回值说明：无
      */
     stopPolling() {
-        if (CheckState.pollingInterval) {
-            clearInterval(CheckState.pollingInterval);
-            CheckState.pollingInterval = null;
+        if (State.pollingInterval) {
+            clearInterval(State.pollingInterval);
+            State.pollingInterval = null;
         }
     }
 };

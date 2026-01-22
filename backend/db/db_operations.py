@@ -242,6 +242,18 @@ class DBOperations:
         """
         return processor_manager.duplicate_group_processor.get_group_count()
 
+    @staticmethod
+    def get_latest_duplicate_check_time() -> Optional[str]:
+        """
+        用途说明：获取最近一次查重的时间（取第一条查重组的创建时间）。
+        返回值说明：Optional[str]: 格式化后的时间字符串，若无数据则返回 None。
+        """
+        # 直接通过 processor 获取
+        res = processor_manager.duplicate_group_processor.get_duplicate_groups_paged(page=1, limit=1)
+        if res and res.list:
+            return res.list[0].create_time
+        return None
+
     # --- 缩略图相关操作 ---
 
     @staticmethod

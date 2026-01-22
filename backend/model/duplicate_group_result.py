@@ -22,5 +22,6 @@ class DuplicateGroupResult:
     """
     id: Optional[int] = None
     group_name: str = ""
+    create_time: Optional[str] = None
     # 包含该组内所有重复文件的详细信息及相似度
     files: List[DuplicateFileResult] = field(default_factory=list)

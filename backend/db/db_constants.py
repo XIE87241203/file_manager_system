@@ -3,7 +3,7 @@ class DBConstants:
     用途：数据库表名及列名常量类，统一管理所有数据库结构相关的硬编码字符串
     """
 
-    DB_VERSION: int = 10  # 当前数据库版本，升级至 10 以支持 file_name 列
+    DB_VERSION: int = 12  # 当前数据库版本，升级至 12 以支持 duplicate_groups 的 create_time 列
 
     class SimilarityType:
         """用途：查重相似度类型常量"""
@@ -52,6 +52,7 @@ class DBConstants:
         TABLE_GROUPS: str = 'duplicate_groups'
         COL_GRP_ID_PK: str = 'id'
         COL_GRP_GROUP_NAME: str = 'group_name'
+        COL_GRP_CREATE_TIME: str = 'create_time'
 
     class DuplicateFile:
         """用途 : duplicate_files 表相关的常量"""

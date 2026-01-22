@@ -162,6 +162,14 @@ class DuplicateService(BaseAsyncService):
         from backend.db.processor_manager import processor_manager
         return processor_manager.duplicate_group_processor.get_duplicate_groups_paged(page, limit, similarity_type)
 
+    @staticmethod
+    def get_latest_check_time() -> Optional[str]:
+        """
+        用途说明：获取最近一次查重的完成时间。
+        返回值说明：Optional[str]: 格式化后的时间字符串。
+        """
+        return DBOperations.get_latest_duplicate_check_time()
+
 
 # 在模块加载时执行初始化
 DuplicateService.init_service()

@@ -200,12 +200,14 @@ class DuplicateGroupProcessor(BaseDBProcessor):
                     FROM {DBConstants.DuplicateFile.TABLE_FILES} 
                     WHERE {DBConstants.DuplicateFile.COL_SIMILARITY_TYPE} = ?
                 ) f ON g.{DBConstants.DuplicateGroup.COL_GRP_ID_PK} = f.{DBConstants.DuplicateFile.COL_FILE_GROUP_ID}
+                ORDER BY g.{DBConstants.DuplicateGroup.COL_GRP_CREATE_TIME} DESC
                 LIMIT ? OFFSET ?
             """
             group_rows: List[dict] = BaseDBProcessor._execute(group_query, (similarity_type, limit, offset), is_query=True)
         else:
             group_query: str = f"""
                 SELECT * FROM {DBConstants.DuplicateGroup.TABLE_GROUPS}
+                ORDER BY {DBConstants.DuplicateGroup.COL_GRP_CREATE_TIME} DESC
                 LIMIT ? OFFSET ?
             """
             group_rows: List[dict] = BaseDBProcessor._execute(group_query, (limit, offset), is_query=True)
@@ -256,6 +258,7 @@ class DuplicateGroupProcessor(BaseDBProcessor):
             results.append(DuplicateGroupResult(
                 id=group_id,
                 group_name=g_row[DBConstants.DuplicateGroup.COL_GRP_GROUP_NAME],
+                create_time=g_row[DBConstants.DuplicateGroup.COL_GRP_CREATE_TIME],
                 files=group_files_map.get(group_id, [])
             ))
 

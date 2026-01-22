@@ -29,8 +29,10 @@ class DuplicateGroupDBModel:
     入参说明：
         id (Optional[int]): 数据库主键 ID
         group_name (str): 分组名称
+        create_time (Optional[str]): 组的创建时间
         files (List[DuplicateFileDBModel]): 该组内的重复文件详情列表
     """
     id: Optional[int] = None
     group_name: str = ""
+    create_time: Optional[str] = None
     files: List[DuplicateFileDBModel] = field(default_factory=list)
