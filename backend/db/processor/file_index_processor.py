@@ -1,5 +1,5 @@
 import sqlite3
-from typing import Optional, List, Dict, Tuple
+from typing import Optional, List, Tuple, Dict
 
 from backend.db.db_constants import DBConstants
 from backend.db.processor.base_db_processor import BaseDBProcessor
@@ -317,11 +317,12 @@ class FileIndexProcessor(BaseDBProcessor):
                 sql_params.extend([name, pattern])
             
             # 使用 CTE (WITH) 构造临时搜索项表，并通过 LIKE JOIN 物理表实现批量搜索
+            # 调整：由匹配文件路径改为匹配文件名 (COL_FILE_NAME)
             query = f"""
                 WITH SearchTerms(original_name, pattern) AS (VALUES {placeholders})
                 SELECT st.original_name, fi.{DBConstants.FileIndex.COL_FILE_PATH}
                 FROM SearchTerms st
-                JOIN {DBConstants.FileIndex.TABLE_NAME} fi ON fi.{DBConstants.FileIndex.COL_FILE_PATH} LIKE st.pattern
+                JOIN {DBConstants.FileIndex.TABLE_NAME} fi ON fi.{DBConstants.FileIndex.COL_FILE_NAME} LIKE st.pattern
                 GROUP BY st.original_name
             """
             rows = BaseDBProcessor._execute(query, tuple(sql_params), is_query=True, conn=conn)

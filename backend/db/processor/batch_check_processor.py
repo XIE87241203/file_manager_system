@@ -75,6 +75,16 @@ class BatchCheckProcessor(BaseDBProcessor):
         ]
 
     @staticmethod
+    def get_count() -> int:
+        """
+        用途说明：获取检测结果总条数。
+        返回值说明：int: 检测结果总条数。
+        """
+        query: str = f"SELECT COUNT(*) as total FROM {DBConstants.BatchCheckResult.TABLE_NAME}"
+        res = BaseDBProcessor._execute(query, is_query=True, fetch_one=True)
+        return res['total'] if res else 0
+
+    @staticmethod
     def delete_results_by_names(file_names: List[str], conn: Optional[sqlite3.Connection] = None) -> int:
         """
         用途说明：根据文件名批量删除检测结果。

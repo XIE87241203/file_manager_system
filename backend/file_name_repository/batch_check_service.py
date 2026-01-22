@@ -15,6 +15,25 @@ class BatchCheckService(BaseAsyncService):
     """
 
     @classmethod
+    def init_service(cls) -> None:
+        """
+        用途说明：初始化服务状态，检测数据库中是否已存在批量检测数据。
+        如果存在，则将进度管理器初始化为“已完成”状态。
+        """
+        try:
+            count: int = processor_manager.batch_check_processor.get_count()
+            if count > 0:
+                cls._progress_manager.set_status(ProgressStatus.COMPLETED)
+                cls._progress_manager.update_progress(
+                    current=1,
+                    total=1,
+                    message=f"检测完成，共有 {count} 条检测记录"
+                )
+                LogUtils.info(f"批量检测服务初始化：检测到已有 {count} 条记录，已自动恢复进度状态")
+        except Exception as e:
+            LogUtils.error(f"批量检测服务初始化失败: {e}")
+
+    @classmethod
     def start_batch_check_task(cls, file_names: List[str]) -> bool:
         """
         用途说明：启动异步批量检测任务。包含初始化进度、重置状态及提交线程池逻辑。
@@ -42,7 +61,7 @@ class BatchCheckService(BaseAsyncService):
     @classmethod
     def _internal_check(cls, file_names: List[str]) -> None:
         """
-        用途说明：批量检测内部逻辑，支持中途停止。
+        用途说明：批量检测内部逻辑，支持中途停止。采用分批查询优化数据库性能。
         入参说明：file_names (List[str]): 待检测的文件名列表。
         """
         try:
@@ -50,44 +69,52 @@ class BatchCheckService(BaseAsyncService):
             processor_manager.batch_check_processor.clear_results()
             
             total: int = len(file_names)
-            batch_size: int = 50  # 每50个文件更新一次进度和存库
-            results_to_save: List[BatchCheckDBModel] = []
+            batch_size: int = 100  # 综合性能与进度反馈频率，设置每批处理 100 条
             
-            for i, name in enumerate(file_names):
+            for i in range(0, total, batch_size):
                 # 检测是否被叫停
                 if cls._progress_manager.is_stopped():
                     LogUtils.info("批量检测任务已由用户手动停止")
                     break
 
-                # 构建搜索模式
-                pattern: List[Tuple[str, str]] = [(name, Utils.process_search_query(name))]
+                # 获取当前批次的文件名
+                current_batch = file_names[i : i + batch_size]
                 
-                # 检测各库
-                index_matches: Dict[str, str] = processor_manager.file_index_processor.get_paths_by_patterns(pattern)
-                history_matches: Dict[str, str] = processor_manager.already_entered_file_processor.check_names_exist_by_patterns(pattern)
-                pending_matches: Dict[str, str] = processor_manager.pending_entry_file_processor.check_names_exist_by_patterns(pattern)
+                # 批量构建搜索模式 (模糊匹配模式)
+                name_patterns: List[Tuple[str, str]] = [(name, Utils.process_search_query(name)) for name in current_batch]
                 
-                # 汇总
-                source: str = "new"
-                detail: str = ""
+                # 2. 调用处理器进行批量搜索 (注：FileIndexProcessor.get_paths_by_patterns 已调整为搜索文件名而非路径)
+                index_matches: Dict[str, str] = processor_manager.file_index_processor.get_paths_by_patterns(name_patterns)
+                history_matches: Dict[str, str] = processor_manager.already_entered_file_processor.check_names_exist_by_patterns(name_patterns)
+                pending_matches: Dict[str, str] = processor_manager.pending_entry_file_processor.check_names_exist_by_patterns(name_patterns)
                 
-                if name in index_matches:
-                    source, detail = "index", index_matches[name]
-                elif name in history_matches:
-                    source, detail = "history", f"匹配到: {history_matches[name]}"
-                elif name in pending_matches:
-                    source, detail = "pending", pending_matches[name]
+                results_to_save: List[BatchCheckDBModel] = []
+                for name in current_batch:
+                    # 汇总各库检测结果
+                    source: str = "new"
+                    detail: str = ""
+                    
+                    if name in index_matches:
+                        # 文件索引库匹配：返回路径
+                        source, detail = "index", index_matches[name]
+                    elif name in history_matches:
+                        # 曾录入库匹配：返回匹配到的完整名
+                        source, detail = "history", f"匹配到: {history_matches[name]}"
+                    elif name in pending_matches:
+                        # 待录入库匹配：返回匹配到的名
+                        source, detail = "pending", pending_matches[name]
+                    
+                    results_to_save.append(BatchCheckDBModel(name=name, source=source, detail=detail))
                 
-                results_to_save.append(BatchCheckDBModel(name=name, source=source, detail=detail))
+                # 3. 批量存入结果表
+                processor_manager.batch_check_processor.batch_insert_results(results_to_save)
                 
-                # 分批存库并更新进度
-                if (i + 1) % batch_size == 0 or (i + 1) == total:
-                    processor_manager.batch_check_processor.batch_insert_results(results_to_save)
-                    results_to_save.clear()
-                    cls._progress_manager.update_progress(
-                        current=i + 1,
-                        message=f"已完成 {i + 1}/{total}"
-                    )
+                # 4. 更新进度
+                current_progress = min(i + batch_size, total)
+                cls._progress_manager.update_progress(
+                    current=current_progress,
+                    message=f"已完成 {current_progress}/{total}"
+                )
 
             if cls._progress_manager.is_stopped():
                 cls._progress_manager.set_status(ProgressStatus.IDLE)
@@ -122,3 +149,7 @@ class BatchCheckService(BaseAsyncService):
         cls._progress_manager.set_status(ProgressStatus.IDLE)
         cls._progress_manager.reset_progress()
         return True
+
+
+# 在模块加载时执行初始化
+BatchCheckService.init_service()
