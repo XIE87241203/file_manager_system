@@ -27,10 +27,8 @@ const UIController = {
      * 返回值说明：无
      */
     init() {
-        UIComponents.initRepoHeader({
-            title: '批量检测结果',
-            showSearch: false,
-        });
+        // 修改为通用的 initHeader，移除了搜索框，风格与设置页面保持一致
+        UIComponents.initHeader('批量检测结果', true);
 
         // --- 核心逻辑：接管返回按钮并解决历史记录冲突 ---
         const backBtn = document.getElementById('nav-back-btn');

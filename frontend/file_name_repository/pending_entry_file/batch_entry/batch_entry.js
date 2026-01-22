@@ -19,10 +19,7 @@ const UIController = {
      * 用途说明：初始化 UI 并缓存元素。
      */
     init() {
-        UIComponents.initRepoHeader({
-            title: '批量录入新数据',
-            showSearch: false,
-        });
+        UIComponents.initHeader('批量录入新数据', true);
 
         this.elements = {
             inputArea: document.getElementById('batch-input-area'),
