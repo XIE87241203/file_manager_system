@@ -110,6 +110,14 @@ const HomeAPI = {
      */
     async calculateRepoDetail() {
         return await Request.post('/api/file_repository/detail/calculate', {}, {}, false);
+    },
+
+    /**
+     * 用途说明：从后端获取应用版本号。
+     * 返回值说明：Promise<Object> - 后端响应结果。
+     */
+    async getAppVersion() {
+        return await Request.get('/api/system/version', {}, false); // showMask is false for version fetching
     }
 };
 
@@ -117,11 +125,13 @@ const HomeAPI = {
 const App = {
     /**
      * 用途说明：初始化应用，绑定事件并加载初始数据。
+     * 补充说明：现在还会获取并显示应用版本号。
      */
     init() {
         UIController.init();
         this.bindEvents();
         this.loadRepoStats();
+        this.fetchAndDisplayAppVersion(); // Add this line
     },
 
     /**
@@ -158,6 +168,21 @@ const App = {
         } catch (error) {
             UIController.clearLoadingState();
             this.loadRepoStats();
+        }
+    },
+
+    /**
+     * 用途说明：获取并显示应用版本号。
+     */
+    async fetchAndDisplayAppVersion() {
+        const response = await HomeAPI.getAppVersion();
+        if (response.status === 'success' && response.data && response.data.version) {
+            const versionDisplay = document.getElementById('app-version-display');
+            if (versionDisplay) {
+                versionDisplay.textContent = `版本: ${response.data.version}`;
+            }
+        } else {
+            console.error('Failed to fetch app version:', response.message);
         }
     },
 

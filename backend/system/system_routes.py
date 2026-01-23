@@ -3,6 +3,7 @@ from flask import Blueprint, request
 from backend.common.auth_middleware import token_required
 from backend.common.response import success_response
 from backend.system.system_service import SystemService
+from config import GlobalConfig
 
 # 创建系统管理模块的蓝图
 system_bp = Blueprint('system', __name__)
@@ -37,3 +38,13 @@ def get_log_files():
     """
     files: list = SystemService.get_available_log_files()
     return success_response("获取日志文件列表成功", data={"files": files})
+
+@system_bp.route('/version', methods=['GET'])
+def get_app_version():
+    """
+    用途说明：获取当前应用的后端版本号（公开接口）。
+    入参说明：无。
+    返回值说明：JSON 响应，data 字段包含应用程序版本号。
+    """
+    app_version: str = GlobalConfig.APP_VERSION
+    return success_response("获取应用版本号成功", data={"version": app_version}, log=False)

@@ -3,7 +3,7 @@
  */
 const Login = {
     /**
-     * 用途：初始化登录页面，绑定事件
+     * 用途：初始化登录页面，绑定事件并获取版本号
      */
     init() {
         // 清空认证信息
@@ -12,6 +12,9 @@ const Login = {
 
         // 绑定回车键事件
         this.bindEvents();
+
+        // 获取并显示版本号
+        this.fetchAndDisplayAppVersion();
     },
 
     /**
@@ -33,6 +36,24 @@ const Login = {
         const loginBtn = document.getElementById('loginBtn');
         if (loginBtn) {
             loginBtn.onclick = () => this.handleLogin();
+        }
+    },
+
+    /**
+     * 用途：从后端获取应用版本号并显示在页面右下角
+     */
+    async fetchAndDisplayAppVersion() {
+        try {
+            // 使用 /api/system/version 接口，不需要 Token，不显示蒙版
+            const response = await Request.get('/api/system/version', {}, false);
+            if (response.status === 'success' && response.data && response.data.version) {
+                const versionDisplay = document.getElementById('app-version-display');
+                if (versionDisplay) {
+                    versionDisplay.textContent = `版本: ${response.data.version}`;
+                }
+            }
+        } catch (error) {
+            console.error('获取版本号失败:', error);
         }
     },
 
