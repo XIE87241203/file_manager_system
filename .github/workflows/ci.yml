@@ -1,0 +1,60 @@
+
+# 工作流名称：Docker 镜像构建与发布
+# 用途：当代码推送到 main 分支或推送版本标签时，自动构建 Docker 镜像并推送到 GitHub Container Registry (GHCR)
+name: Docker Image CI
+
+on:
+  push:
+    # 监听的分支：main
+    branches: [ "main" ]
+    # 监听的标签：符合 v*.*.* 格式的标签（如 v1.0.0）
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  build-and-push-docker-image:
+    # 运行环境
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write # 必须具备写入权限以发布包到 GHCR
+
+    steps:
+    - name: Checkout repository
+      # 用途：检出代码仓库
+      uses: actions/checkout@v4
+
+    - name: Log in to GitHub Container Registry
+      # 用途：登录到 GitHub 容器镜像仓库
+      # 入参：registry (仓库地址), username (用户名), password (密钥)
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Extract metadata (tags, labels) for Docker
+      # 用途：提取并生成 Docker 镜像的标签和标签
+      # 入参：images (镜像名称), tags (标签规则)
+      # 返回值：生成的标签列表（通过 steps.meta.outputs.tags 访问）
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ghcr.io/${{ github.repository }}
+        tags: |
+          # 规则 1：如果是 Git Tag 触发，则使用 Tag 名作为版本（如 v1.0.0）
+          type=semver,pattern={{version}}
+          # 规则 2：使用 Git Commit 的短 SHA 作为标签
+          type=sha,enable=true,prefix=,suffix=,priority=100
+          # 规则 3：始终保持一个 latest 标签
+          type=raw,value=latest,enable=true,priority=99
+
+    - name: Build and push Docker image
+      # 用途：构建镜像并推送至仓库
+      # 入参：context (上下文路径), push (是否推送), tags (镜像标签), labels (镜像元数据)
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}

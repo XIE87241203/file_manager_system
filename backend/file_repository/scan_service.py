@@ -20,8 +20,8 @@ class ScanMode(Enum):
     """
     用途：定义扫描模式
     """
-    FULL_SCAN: str = "full_scan"  # 全量扫描模式
-    INDEX_SCAN: str = "index_scan"  # 增量索引模式
+    FULL_SCAN = "full_scan"  # 全量扫描模式
+    INDEX_SCAN = "index_scan"  # 增量索引模式
 
 
 class ScanService(BaseAsyncService):
