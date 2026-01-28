@@ -355,10 +355,10 @@ const UIComponents = {
 
     /**
      * 用途说明：弹出通用输入框弹窗（如添加忽略文件）
-     * 入参说明：options (object): { title, placeholder, isTextArea, onConfirm }
+     * 入参说明：options (object): { title, placeholder, isTextArea, onConfirm, isSmall }
      */
     showInputModal(options) {
-        const { title = '输入内容', placeholder = '', isTextArea = false, onConfirm } = options;
+        const { title = '输入内容', placeholder = '', isTextArea = false, onConfirm, isSmall = false } = options;
         let modal = document.getElementById('common-input-modal');
         if (!modal) {
             modal = document.createElement('div');
@@ -373,8 +373,11 @@ const UIComponents = {
             : `<input type="text" id="common-modal-input" class="input-field" placeholder="${placeholder}">`;
 
         // 为 modal-content 添加了 modal-input-content 类，实现 70% 宽高的动态调整
+        // 如果 isSmall 为 true，则不使用大尺寸类名
+        const contentClass = isSmall ? 'modal-content' : 'modal-content modal-input-content';
+
         modal.innerHTML = `
-            <div class="modal-content modal-input-content">
+            <div class="${contentClass}">
                 <h3 class="title">${title}</h3>
                 <div class="form-group modal-input-group">
                     ${inputHtml}
@@ -399,6 +402,17 @@ const UIComponents = {
         document.getElementById('common-modal-input-cancel-btn').onclick = () => {
             modal.classList.add('hidden');
         };
+
+        // 支持回车确认（非 textarea 模式）
+        if (!isTextArea) {
+            inputEl.onkeypress = (e) => {
+                if (e.key === 'Enter') {
+                    const value = inputEl.value.trim();
+                    if (onConfirm) onConfirm(value);
+                    modal.classList.add('hidden');
+                }
+            };
+        }
     },
 
     initQuickPreview() {
@@ -471,13 +485,14 @@ const UIComponents = {
             container.style.display = 'flex';
             container.innerHTML = `
                 <button class="btn-page" id="${containerId}-prev" ${currentPage <= 1 ? 'disabled' : ''}>上一页</button>
-                <span class="page-info">第 ${currentPage} / ${totalPages} 页 (共 ${total} 条)</span>
+                <span class="page-info clickable-page-info" title="点击跳转页码">第 ${currentPage} / ${totalPages} 页 (共 ${total} 条)</span>
                 <button class="btn-page" id="${containerId}-next" ${currentPage >= totalPages ? 'disabled' : ''}>下一页</button>
             `;
 
             const prevBtn = container.querySelector(`#${containerId}-prev`);
             const nextBtn = container.querySelector(`#${containerId}-next`);
-            
+            const pageInfo = container.querySelector('.page-info');
+
             if (prevBtn) prevBtn.onclick = () => {
                 if (currentPage > 1) {
                     onPageChange(currentPage - 1);
@@ -490,6 +505,26 @@ const UIComponents = {
                     this._scrollToTop();
                 }
             };
+
+            if (pageInfo) {
+                pageInfo.onclick = () => {
+                    this.showInputModal({
+                        title: '跳转页码',
+                        placeholder: `请输入页码 (1-${totalPages})`,
+                        isSmall: true,
+                        onConfirm: (val) => {
+                            const pageNum = parseInt(val);
+                            if (isNaN(pageNum) || pageNum < 1 || pageNum > totalPages) {
+                                Toast.show(`请输入 1 到 ${totalPages} 之间的有效页码`);
+                                return;
+                            }
+                            if (pageNum === currentPage) return;
+                            onPageChange(pageNum);
+                            this._scrollToTop();
+                        }
+                    });
+                };
+            }
         };
 
         return {

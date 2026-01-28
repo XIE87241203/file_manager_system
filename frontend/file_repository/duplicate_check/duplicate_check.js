@@ -197,6 +197,8 @@ const UIController = {
                     <thead>
                         <tr class="header-row-clickable">
                             <th class="col-dup-name">文件名</th>
+                            <th class="col-dup-duration">视频时长</th>
+                            <th class="col-dup-codec">视频编码</th>
                             <th class="col-dup-similarity">相似率</th>
                             <th class="col-dup-size">大小</th>
                             <th class="col-dup-path">完整路径</th>
@@ -211,7 +213,9 @@ const UIController = {
                             const isChecked = State.selectedPaths.has(info.file_path);
                             const fileName = info.file_name || '未知文件名';
                             const fileSizeStr = CommonUtils.formatFileSize(info.file_size);
-                            
+                            const durationStr = info.file_type === 'video' ? CommonUtils.formatDuration(info.video_duration) : '-';
+                            const codecStr = (info.file_type === 'video' && info.video_codec) ? info.video_codec : '-';
+
                             const typeMap = {
                                 'md5': 'MD5',
                                 'hash': '图片指纹',
@@ -224,6 +228,8 @@ const UIController = {
                             return `
                                 <tr class="clickable-row ${isChecked ? 'selected-row' : ''}" data-path="${info.file_path}" data-thumbnail="${info.thumbnail_path || ''}">
                                     <td class="col-dup-name" title="${fileName}">${fileName}</td>
+                                    <td class="col-dup-duration">${durationStr}</td>
+                                    <td class="col-dup-codec">${codecStr}</td>
                                     <td class="col-dup-similarity">${similarityDisplay}</td>
                                     <td class="col-dup-size">${fileSizeStr}</td>
                                     <td class="col-dup-path file-path" title="${info.file_path}">${info.file_path}</td>

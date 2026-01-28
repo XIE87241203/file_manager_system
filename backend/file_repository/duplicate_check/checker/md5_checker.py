@@ -53,11 +53,11 @@ class MD5Checker(BaseDuplicateChecker):
                 results.append(group)
         return results
 
-    def is_supported(self, file_extension: str) -> bool:
+    def is_supported(self, file_path: str) -> bool:
         """
-        用途：查询该检查器是否支持处理指定后缀名的文件。
+        用途：查询该检查器是否支持处理指定路径的文件。
         入参说明：
-            file_extension (str): 文件后缀名（带点，如 '.mp4'）。
+            file_path (str): 文件完整路径。
         返回值说明：
             bool: 默认检查器作为兜底，通常在分发逻辑中最后判断，这里返回 True 表示支持所有类型。
         """

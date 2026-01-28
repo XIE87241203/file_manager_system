@@ -27,7 +27,7 @@ class ThumbnailGenerator:
     _queue: Deque[FileIndexDBModel] = deque()  # 任务队列，存储模型对象
     _queue_set: Set[str] = set()    # 去重集合，存储文件路径
     _is_processing: bool = False
-    _THUMBNAIL_DIR = os.path.join(Utils.get_runtime_path(), "cache", "thumbnail")
+    _THUMBNAIL_DIR: str = os.path.join(Utils.get_runtime_path(), "cache", "thumbnail")
 
     def __new__(cls) -> 'ThumbnailGenerator':
         """
@@ -50,7 +50,7 @@ class ThumbnailGenerator:
         返回值说明：无。
         """
         with self._lock:
-            added_count = 0
+            added_count: int = 0
             for task in tasks:
                 if task.file_path not in self._queue_set:
                     self._queue.append(task)
@@ -107,7 +107,7 @@ class ThumbnailGenerator:
         # 2. 锁外执行耗时任务（磁盘IO与图像处理，预防死锁）
         if file_info:
             try:
-                thumb_size = settingService.get_config().file_repository.thumbnail_size
+                thumb_size: int = settingService.get_config().file_repository.thumbnail_size
                 actual_path, thumb_path = self._generate_single_thumbnail(file_info, thumb_size)
                 if thumb_path:
                     DBOperations.update_thumbnail_path(actual_path, thumb_path)
@@ -119,29 +119,31 @@ class ThumbnailGenerator:
 
     def _generate_single_thumbnail(self, file_info: FileIndexDBModel, size: int) -> Tuple[str, Optional[str]]:
         """
-        用途：为单个文件生成缩略图（支持常见图片和视频格式）。
+        用途：为单个文件生成缩略图（支持常见图片和视频格式，视频提取中间帧）。
         入参说明：
             file_info (FileIndexDBModel): 文件索引模型。
             size (int): 缩略图最大边长（保持纵横比）。
         返回值说明：
             Tuple[str, Optional[str]]: (原始文件路径, 缩略图生成后的物理路径或None)。
         """
-        file_path = file_info.file_path
+        file_path: str = file_info.file_path
         if not os.path.exists(file_path):
             return file_path, None
 
-        ext = os.path.splitext(file_path)[1].lower()
         # 使用源文件的 MD5 作为文件名确保唯一性，且同内容文件可复用缩略图
-        thumb_name = file_info.file_md5 + ".jpg"
-        thumb_path = os.path.join(self._THUMBNAIL_DIR, thumb_name)
+        thumb_name: str = file_info.file_md5 + ".jpg"
+        thumb_path: str = os.path.join(self._THUMBNAIL_DIR, thumb_name)
 
-        # 如果缩略图已存在（MD5 碰撞/同内容文件），直接返回路径
+        # 如果缩略图已存在，则删除原有文件再重新生成，确保缩略图是最新的
         if os.path.exists(thumb_path):
-            return file_path, thumb_path
+            try:
+                os.remove(thumb_path)
+            except Exception as e:
+                LogUtils.error(f"删除已存在的缩略图失败: {thumb_path}, 错误: {e}")
 
         try:
             # 图片处理
-            if ext in ['.jpg', '.jpeg', '.png', '.bmp', '.webp']:
+            if Utils.is_image_file(file_path):
                 with Image.open(file_path) as img:
                     img.thumbnail((size, size))
                     if img.mode != 'RGB':
@@ -149,14 +151,32 @@ class ThumbnailGenerator:
                     img.save(thumb_path, "JPEG")
                 return file_path, thumb_path
             
-            # 视频处理 (通过 OpenCV 提取第一帧)
-            elif ext in ['.mp4', '.avi', '.mkv', '.mov', '.flv']:
+            # 视频处理 (通过 OpenCV 提取中间帧)
+            elif Utils.is_video_file(file_path):
                 cap = cv2.VideoCapture(file_path)
+                if not cap.isOpened():
+                    return file_path, None
+                
+                # 获取视频总帧数
+                frame_count: int = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+                # 计算中间帧位置，如果帧数获取失败则默认为 0
+                middle_frame_index: int = max(0, frame_count // 2)
+                
+                # 设置跳转到中间帧
+                cap.set(cv2.CAP_PROP_POS_FRAMES, middle_frame_index)
                 success, frame = cap.read()
+                
+                # 兜底逻辑：如果中间帧读取失败，尝试读取第一帧
+                if not success and middle_frame_index > 0:
+                    cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                    success, frame = cap.read()
+
                 if success:
-                    h, w = frame.shape[:2]
-                    scale = size / max(h, w)
-                    new_h, new_w = int(h * scale), int(w * scale)
+                    h: int = frame.shape[0]
+                    w: int = frame.shape[1]
+                    scale: float = size / max(h, w)
+                    new_h: int = int(h * scale)
+                    new_w: int = int(w * scale)
                     resized = cv2.resize(frame, (new_w, new_h))
                     cv2.imwrite(thumb_path, resized)
                     cap.release()

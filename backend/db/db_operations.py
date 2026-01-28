@@ -110,19 +110,20 @@ class DBOperations:
 
     @staticmethod
     def search_file_index_list(page: int, limit: int, sort_by: str, order: bool,
-                               search_query: str, is_in_recycle_bin: bool = False) -> PaginationResult[FileIndexDBModel]:
+                               search_query: str, is_in_recycle_bin: bool = False,
+                               file_type: Optional[str] = None) -> PaginationResult[FileIndexDBModel]:
         """
         用途说明：分页查询文件索引列表。
         """
-        return processor_manager.file_index_processor.get_paged_list(page, limit, sort_by, order, search_query, is_in_recycle_bin)
+        return processor_manager.file_index_processor.get_paged_list(page, limit, sort_by, order, search_query, is_in_recycle_bin, file_type)
 
     @staticmethod
     def search_history_file_index_list(page: int, limit: int, sort_by: str, order: bool,
-                                       search_query: str) -> PaginationResult[HistoryFileIndexDBModule]:
+                                       search_query: str, file_type: Optional[str] = None) -> PaginationResult[HistoryFileIndexDBModule]:
         """
         用途说明：分页查询历史文件索引列表。
         """
-        return processor_manager.history_file_index_processor.get_paged_list(page, limit, sort_by, order, search_query)
+        return processor_manager.history_file_index_processor.get_paged_list(page, limit, sort_by, order, search_query, file_type)
 
     @staticmethod
     def get_file_index_list_by_condition(offset: int, limit: int,

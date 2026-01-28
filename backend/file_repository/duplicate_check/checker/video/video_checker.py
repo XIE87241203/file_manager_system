@@ -1,7 +1,7 @@
-import os
-from typing import List, Set
+from typing import List
 
 from backend.common.log_utils import LogUtils
+from backend.common.utils import Utils
 from backend.file_repository.duplicate_check.checker.base_checker import BaseDuplicateChecker
 from backend.file_repository.duplicate_check.checker.video.utils.video_analyzer import VideoAnalyzer
 from backend.file_repository.duplicate_check.checker.video.utils.video_similarity_Tree import \
@@ -15,11 +15,6 @@ class VideoChecker(BaseDuplicateChecker):
     """
     用途：视频文件查重检查器，通过感知哈希和相似性树识别内容重复或高度相似的视频。
     """
-
-    # 常见视频文件后缀名集合
-    VIDEO_EXTENSIONS: Set[str] = {
-        '.mp4', '.avi', '.mkv', '.mov', '.wmv', '.flv', '.webm', '.mpeg', '.mpg', '.m4v', '.3gp'
-    }
 
     def __init__(self, frame_similar_distance: int = 5,
                  frame_similarity_rate: float = 0.7, interval_seconds: int = 30,
@@ -54,7 +49,7 @@ class VideoChecker(BaseDuplicateChecker):
         返回值说明：
             None
         """
-        if self.is_supported(os.path.splitext(file_info.file_path)[1]):
+        if Utils.is_video_file(file_info.file_path):
             LogUtils.info(f"VideoChecker 正在处理视频: {file_info.file_path}")
             # 将视频添加到相似性树中进行分析
             self.tree.add_video(file_info.file_path)
@@ -89,12 +84,12 @@ class VideoChecker(BaseDuplicateChecker):
 
         return results
 
-    def is_supported(self, file_extension: str) -> bool:
+    def is_supported(self, file_path: str) -> bool:
         """
-        用途：查询该检查器是否支持处理指定后缀名的文件。
+        用途说明：查询该检查器是否支持处理指定路径的文件。
         入参说明：
-            file_extension (str): 文件后缀名（带点，如 '.mp4'）。
+            file_path (str): 文件完整路径。
         返回值说明：
             bool: 如果支持则返回 True，否则返回 False。
         """
-        return file_extension.lower() in self.VIDEO_EXTENSIONS
+        return Utils.is_video_file(file_path)

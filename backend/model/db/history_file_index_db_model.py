@@ -9,8 +9,11 @@ class HistoryFileIndexDBModule:
     """
     id: Optional[int] = None
     file_path: str = ""
-    file_name: str = ""  # 新增：文件名字段
+    file_name: str = ""
     file_md5: str = ""
     file_size: int = 0
+    file_type: Optional[str] = None           # 新增：文件类型
+    video_duration: Optional[float] = None   # 新增：视频时长
+    video_codec: Optional[str] = None         # 新增：视频编码
     scan_time: Optional[str] = None
     delete_time: Optional[str] = None

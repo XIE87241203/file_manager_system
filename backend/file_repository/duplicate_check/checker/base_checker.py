@@ -32,11 +32,11 @@ class BaseDuplicateChecker(ABC):
         pass
 
     @abstractmethod
-    def is_supported(self, file_extension: str) -> bool:
+    def is_supported(self, file_path: str) -> bool:
         """
-        用途：查询该检查器是否支持处理指定后缀名的文件。
+        用途：查询该检查器是否支持处理指定路径的文件。
         入参说明：
-            file_extension (str): 文件后缀名（带点，如 '.mp4'）。
+            file_path (str): 文件完整路径。
         返回值说明：
             bool: 如果支持则返回 True，否则返回 False。
         """

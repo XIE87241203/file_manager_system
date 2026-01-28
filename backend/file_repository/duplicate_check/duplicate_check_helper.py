@@ -1,7 +1,5 @@
-import os
 from typing import List
 
-from backend.common.utils import Utils
 from backend.file_repository.duplicate_check.checker.image_checker import ImageChecker
 from backend.file_repository.duplicate_check.checker.md5_checker import MD5Checker
 from backend.file_repository.duplicate_check.checker.video.video_checker import VideoChecker
@@ -43,12 +41,9 @@ class DuplicateCheckHelper:
         """
         用途：遍历检查器列表，利用检查器的 is_supported 方法进行文件分发录入。
         """
-        file_name: str = Utils.get_filename(file_info.file_path) or ""
-        _, ext = os.path.splitext(file_name.lower())
-        
-        # 遍历所有检查器，找到第一个支持该后缀名的检查器并处理
+        # 遍历所有检查器，找到第一个支持该路径的检查器并处理
         for checker in self.checkers:
-            if checker.is_supported(ext):
+            if checker.is_supported(file_info.file_path):
                 checker.add_file(file_info)
                 break
 

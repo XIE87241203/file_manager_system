@@ -122,6 +122,9 @@ class DBManager:
                 {DBConstants.FileIndex.COL_FILE_NAME} TEXT,
                 {DBConstants.FileIndex.COL_FILE_MD5} TEXT NOT NULL,
                 {DBConstants.FileIndex.COL_FILE_SIZE} INTEGER DEFAULT 0,
+                {DBConstants.FileIndex.COL_FILE_TYPE} TEXT,
+                {DBConstants.FileIndex.COL_VIDEO_DURATION} REAL,
+                {DBConstants.FileIndex.COL_VIDEO_CODEC} TEXT,
                 {DBConstants.FileIndex.COL_SCAN_TIME} DATETIME DEFAULT CURRENT_TIMESTAMP,
                 {DBConstants.FileIndex.COL_THUMBNAIL_PATH} TEXT,
                 {DBConstants.FileIndex.COL_RECYCLE_BIN_TIME} DATETIME
@@ -141,6 +144,9 @@ class DBManager:
                 {DBConstants.HistoryFileIndex.COL_FILE_NAME} TEXT,
                 {DBConstants.HistoryFileIndex.COL_FILE_MD5} TEXT NOT NULL UNIQUE,
                 {DBConstants.HistoryFileIndex.COL_FILE_SIZE} INTEGER DEFAULT 0,
+                {DBConstants.HistoryFileIndex.COL_FILE_TYPE} TEXT,
+                {DBConstants.HistoryFileIndex.COL_VIDEO_DURATION} REAL,
+                {DBConstants.HistoryFileIndex.COL_VIDEO_CODEC} TEXT,
                 {DBConstants.HistoryFileIndex.COL_SCAN_TIME} DATETIME DEFAULT CURRENT_TIMESTAMP,
                 {DBConstants.HistoryFileIndex.COL_DELETE_TIME} DATETIME DEFAULT CURRENT_TIMESTAMP
             )
@@ -318,6 +324,24 @@ class DBManager:
                 LogUtils.info("数据库升级到版本 12: 已通过重建表方式为 duplicate_groups 添加 create_time 列并完成数据迁移")
             except Exception as e:
                 LogUtils.error(f"升级到版本 12 失败: {e}")
+                raise e
+
+        if old_version < 13:
+            # 升级到版本 13: 添加文件类型、视频时长、视频编码
+            try:
+                # file_index
+                cursor.execute(f"ALTER TABLE {DBConstants.FileIndex.TABLE_NAME} ADD COLUMN {DBConstants.FileIndex.COL_FILE_TYPE} TEXT")
+                cursor.execute(f"ALTER TABLE {DBConstants.FileIndex.TABLE_NAME} ADD COLUMN {DBConstants.FileIndex.COL_VIDEO_DURATION} REAL")
+                cursor.execute(f"ALTER TABLE {DBConstants.FileIndex.TABLE_NAME} ADD COLUMN {DBConstants.FileIndex.COL_VIDEO_CODEC} TEXT")
+                
+                # history_file_index
+                cursor.execute(f"ALTER TABLE {DBConstants.HistoryFileIndex.TABLE_NAME} ADD COLUMN {DBConstants.HistoryFileIndex.COL_FILE_TYPE} TEXT")
+                cursor.execute(f"ALTER TABLE {DBConstants.HistoryFileIndex.TABLE_NAME} ADD COLUMN {DBConstants.HistoryFileIndex.COL_VIDEO_DURATION} REAL")
+                cursor.execute(f"ALTER TABLE {DBConstants.HistoryFileIndex.TABLE_NAME} ADD COLUMN {DBConstants.HistoryFileIndex.COL_VIDEO_CODEC} TEXT")
+                
+                LogUtils.info("数据库升级到版本 13: 已为 file_index 和 history_file_index 添加文件类型、视频时长、视频编码列")
+            except Exception as e:
+                LogUtils.error(f"升级到版本 13 失败: {e}")
                 raise e
 
 

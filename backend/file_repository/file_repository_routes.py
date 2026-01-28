@@ -1,5 +1,6 @@
 import os
 from dataclasses import asdict
+from typing import Optional
 
 from flask import Blueprint, request, send_file
 
@@ -143,23 +144,53 @@ def get_scan_progress():
 @file_repo_bp.route('/list', methods=['GET'])
 @token_required
 def list_files():
+    """
+    用途说明：分页获取文件列表，支持按类型筛选和历史记录查询。
+    入参说明：
+        page (int): 当前页码
+        limit (int): 每页数量
+        sort_by (str): 排序字段
+        order_asc (bool): 是否升序
+        search (str): 搜索关键词
+        search_history (bool): 是否搜索历史记录
+        file_type (str): 文件类型 (video/image/other)
+    """
     page: int = request.args.get('page', default=1, type=int)
     limit: int = request.args.get('limit', default=100, type=int)
     sort_by: str = request.args.get('sort_by', default='scan_time')
     order_asc: bool = request.args.get('order_asc', default='false').lower() == 'true'
     search_query: str = request.args.get('search', default='').strip()
     search_history: bool = request.args.get('search_history', default='false').lower() == 'true'
-    is_in_recycle_bin: bool = request.args.get('is_in_recycle_bin', default='false').lower() == 'true'
+    file_type: Optional[str] = request.args.get('file_type', default=None)
 
     if search_history:
-        data = FileService.search_history_file_index_list(page, limit, sort_by, order_asc, search_query)
+        data = FileService.search_history_file_index_list(page, limit, sort_by, order_asc, search_query, file_type=file_type)
         return success_response("获取文件列表成功", data=asdict(data))
     else:
-        if is_in_recycle_bin:
-            data = RecycleBinService.get_recycle_bin_list(page, limit, sort_by, order_asc, search_query)
-        else:
-            data = FileService.search_file_index_list(page, limit, sort_by, order_asc, search_query, is_in_recycle_bin)
+        data = FileService.search_file_index_list(page, limit, sort_by, order_asc, search_query, file_type=file_type)
         return success_response("获取文件列表成功", data=asdict(data))
+
+
+@file_repo_bp.route('/recycle_bin/list', methods=['GET'])
+@token_required
+def list_recycle_bin_files():
+    """
+    用途说明：获取回收站中的文件列表。
+    入参说明：
+        page (int): 当前页码
+        limit (int): 每页数量
+        sort_by (str): 排序字段
+        order_asc (bool): 是否升序
+        search (str): 搜索关键词
+    """
+    page: int = request.args.get('page', default=1, type=int)
+    limit: int = request.args.get('limit', default=100, type=int)
+    sort_by: str = request.args.get('sort_by', default='recycle_bin_time')
+    order_asc: bool = request.args.get('order_asc', default='false').lower() == 'true'
+    search_query: str = request.args.get('search', default='').strip()
+
+    data = RecycleBinService.get_recycle_bin_list(page, limit, sort_by, order_asc, search_query)
+    return success_response("获取回收站列表成功", data=asdict(data))
 
 
 @file_repo_bp.route('/move_to_recycle_bin', methods=['POST'])

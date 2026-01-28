@@ -67,7 +67,8 @@ const UIController = {
         if (selectAllCheckbox) selectAllCheckbox.checked = false;
 
         if (!list || list.length === 0) {
-            tableBody.innerHTML = UIComponents.getEmptyTableHtml(6, '回收站空空如也');
+            // 用途说明：动态调整空状态的列跨度，包含新增的文件类型、时长、编码列
+            tableBody.innerHTML = UIComponents.getEmptyTableHtml(8, '回收站空空如也');
             return;
         }
 
@@ -80,12 +81,16 @@ const UIController = {
             // 用途说明：文件名直接从 API 返回的 file_name 字段获取
             const fileName = file.file_name || '未知文件名';
             const fileSizeStr = CommonUtils.formatFileSize(file.file_size);
+            // 用途说明：使用 CommonUtils.formatDuration 格式化视频时长
+            const durationStr = CommonUtils.formatDuration(file.video_duration);
 
             tr.innerHTML = `
                 <td class="col-name" title="${fileName}">${fileName}</td>
                 <td class="col-size">${fileSizeStr}</td>
                 <td class="col-path" title="${file.file_path}">${file.file_path}</td>
-                <td class="col-md5"><code>${file.file_md5}</code></td>
+                <td class="col-type">${file.file_type || '未知'}</td>
+                <td class="col-duration">${durationStr}</td>
+                <td class="col-codec">${file.video_codec || 'N/A'}</td>
                 <td class="col-time">${file.recycle_bin_time}</td>
                 <td class="col-check">
                     <input type="checkbox" class="file-checkbox" data-path="${file.file_path}" ${isChecked ? 'checked' : ''}>

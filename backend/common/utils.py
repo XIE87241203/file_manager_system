@@ -1,8 +1,11 @@
 import fnmatch
 import hashlib
 import os
-from typing import Tuple, List
+from typing import Tuple, List, Optional
 
+import cv2
+
+from backend.common.file_type_enum import FileType
 from backend.common.log_utils import LogUtils
 
 
@@ -14,7 +17,7 @@ class Utils:
     @staticmethod
     def get_runtime_path() -> str:
         """
-        用途：获取程序运行时的 data 目录路径。
+        用途说明：获取程序运行时的 data 目录路径。
         入参说明：无
         返回值说明：str - 返回项目根目录下的 data 目录的绝对路径
         """
@@ -29,7 +32,7 @@ class Utils:
     @staticmethod
     def calculate_md5(file_path: str) -> Tuple[str, str]:
         """
-        用途：计算指定文件的完整 MD5 哈希值。适用于需要保证绝对唯一性的场景。
+        用途说明：计算指定文件的完整 MD5 哈希值。适用于需要保证绝对唯一性的场景。
         入参说明：file_path (str) - 文件的绝对路径
         返回值说明：Tuple[str, str] - (文件绝对路径, MD5 十六进制字符串)；失败则 MD5 为空字符串
         """
@@ -51,7 +54,7 @@ class Utils:
     @staticmethod
     def calculate_fast_md5(file_path: str, sample_size: int = 8192) -> Tuple[str, str]:
         """
-        用途：通过文件采样（头、中、尾）和文件大小快速计算 MD5，极大地优化大文件的计算速度。
+        用途说明：通过文件采样（头、中、尾）和文件大小快速计算 MD5，极大地优化大文件的计算速度。
         入参说明：
             file_path (str): 文件的绝对路径
             sample_size (int): 每个采样块的大小（字节），默认 8KB
@@ -99,7 +102,7 @@ class Utils:
                       ignore_filenames_case_insensitive: bool = True,
                       ignore_paths_case_insensitive: bool = True) -> bool:
         """
-        用途：根据忽略规则判断文件是否应被忽略
+        用途说明：根据忽略规则判断文件是否应被忽略
         入参说明：
             file_path (str): 文件完整路径
             ignore_filenames (List[str]): 忽略的文件名列表（支持通配符）
@@ -136,7 +139,7 @@ class Utils:
     @staticmethod
     def get_filename(file_path: str) -> str:
         """
-        用途：从文件路径中获取文件名（包括后缀）。
+        用途说明：从文件路径中获取文件名（包括后缀）。
         入参说明：file_path (str) - 文件的路径。
         返回值说明：str - 文件名（包括后缀）。
         """
@@ -145,7 +148,7 @@ class Utils:
     @staticmethod
     def delete_os_file(file_path: str) -> bool:
         """
-        用途：删除操作系统层面的物理文件。
+        用途说明：删除操作系统层面的物理文件。
         入参说明：file_path (str) - 文件的绝对路径。
         返回值说明：bool - 删除成功返回 True，文件不存在返回 False。若删除失败则抛出异常。
         """
@@ -179,3 +182,99 @@ class Utils:
             return f"%{processed_query}%"
         else:
             return "%"
+
+    @staticmethod
+    def is_video_file(file_path: str) -> bool:
+        """
+        用途说明：根据文件后缀判断是否为视频文件。
+        入参说明：file_path (str): 文件完整路径。
+        返回值说明：bool: 是视频返回 True，否则返回 False。
+        """
+        video_extensions: set = {'.mp4', '.avi', '.mkv', '.mov', '.wmv', '.flv', '.webm', '.mpeg', '.mpg', '.m4v', '.3gp'}
+        _, ext = os.path.splitext(file_path)
+        return ext.lower() in video_extensions
+
+    @staticmethod
+    def is_image_file(file_path: str) -> bool:
+        """
+        用途说明：根据文件后缀判断是否为图片文件。
+        入参说明：file_path (str): 文件完整路径。
+        返回值说明：bool: 是图片返回 True，否则返回 False。
+        """
+        image_extensions: set = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'}
+        _, ext = os.path.splitext(file_path)
+        return ext.lower() in image_extensions
+
+    @staticmethod
+    def get_video_params(file_path: str) -> Tuple[Optional[float], Optional[str]]:
+        """
+        用途说明：使用 OpenCV 获取视频的时长与编码格式。
+        入参说明：file_path (str): 视频文件路径。
+        返回值说明：Tuple[Optional[float], Optional[str]]: (视频时长秒, 编码格式)；获取失败对应项为 None。
+        """
+        duration: Optional[float] = None
+        codec: Optional[str] = None
+        cap: Optional[cv2.VideoCapture] = None
+        try:
+            cap = cv2.VideoCapture(file_path)
+            if cap.isOpened():
+                fps: float = cap.get(cv2.CAP_PROP_FPS)
+                frame_count: float = cap.get(cv2.CAP_PROP_FRAME_COUNT)
+                if fps > 0 and frame_count > 0:
+                    # 使用向下取整 (int)，与大多数系统文件管理器的显示习惯保持一致
+                    duration = float(int(frame_count / fps))
+                
+                fourcc: int = int(cap.get(cv2.CAP_PROP_FOURCC))
+                if fourcc != 0:
+                    # 将整数转换为 4 字符编码字符串
+                    codec = "".join([chr((fourcc >> 8 * i) & 0xFF) for i in range(4)]).strip()
+        except Exception as e:
+            LogUtils.error(f"提取视频参数失败: {file_path}, 错误: {e}")
+        finally:
+            if cap:
+                cap.release()
+        return duration, codec
+
+    @staticmethod
+    def get_file_info(file_path: str) -> Optional['FileIndexDBModel']:
+        """
+        用途说明：获取文件信息并组装成 FileIndexDBModel。包含 MD5、文件类型、视频时长与编码等。
+        入参说明：file_path (str): 文件完整路径。
+        返回值说明：Optional[FileIndexDBModel]: 组装好的数据库模型，失败返回 None。
+        """
+        from backend.model.db.file_index_db_model import FileIndexDBModel
+        try:
+            if not os.path.exists(file_path):
+                return None
+
+            # 1. 计算 MD5 和基础信息
+            _, f_md5 = Utils.calculate_fast_md5(file_path)
+            if not f_md5:
+                return None
+            
+            f_size: int = os.path.getsize(file_path)
+            f_name: str = os.path.basename(file_path)
+            
+            # 2. 识别文件类型及提取扩展属性
+            file_type: str = FileType.OTHER.value
+            video_duration: Optional[float] = None
+            video_codec: Optional[str] = None
+            
+            if Utils.is_video_file(file_path):
+                file_type = FileType.VIDEO.value
+                video_duration, video_codec = Utils.get_video_params(file_path)
+            elif Utils.is_image_file(file_path):
+                file_type = FileType.IMAGE.value
+
+            return FileIndexDBModel(
+                file_path=file_path,
+                file_name=f_name,
+                file_md5=f_md5,
+                file_size=f_size,
+                file_type=file_type,
+                video_duration=video_duration,
+                video_codec=video_codec
+            )
+        except Exception as e:
+            LogUtils.error(f"获取文件信息失败: {file_path}, 错误: {e}")
+            return None

@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 
 from backend.db.db_constants import DBConstants
 from backend.db.processor.base_db_processor import BaseDBProcessor
@@ -10,43 +10,6 @@ class HistoryFileIndexProcessor(BaseDBProcessor):
     """
     用途：历史文件索引数据库处理器，负责 history_file_index 表的相关操作
     """
-
-    @staticmethod
-    def batch_insert_data(data_list: List[HistoryFileIndexDBModule]) -> int:
-        """
-        用途：批量插入历史文件索引数据
-        入参说明：
-            data_list (List[HistoryFileIndexDBModule]): 待插入历史文件索引对象列表
-        返回值说明：
-            int: 成功插入的行数
-        """
-        if not data_list:
-            return 0
-
-        # 准备数据元组列表
-        data: List[tuple] = [
-            (
-                item.file_path,
-                item.file_name,
-                item.file_md5,
-                item.file_size,
-                item.scan_time,
-            )
-            for item in data_list
-        ]
-
-        query: str = f'''
-            INSERT OR IGNORE INTO {DBConstants.HistoryFileIndex.TABLE_NAME} (
-                {DBConstants.HistoryFileIndex.COL_FILE_PATH},
-                {DBConstants.HistoryFileIndex.COL_FILE_NAME},
-                {DBConstants.HistoryFileIndex.COL_FILE_MD5},
-                {DBConstants.HistoryFileIndex.COL_FILE_SIZE},
-                {DBConstants.HistoryFileIndex.COL_SCAN_TIME},
-                {DBConstants.HistoryFileIndex.COL_DELETE_TIME}
-            ) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-        '''
-
-        return BaseDBProcessor._execute_batch(query, data)
 
     @staticmethod
     def copy_file_index_to_history() -> int:
@@ -62,6 +25,9 @@ class HistoryFileIndexProcessor(BaseDBProcessor):
                 {DBConstants.HistoryFileIndex.COL_FILE_NAME},
                 {DBConstants.HistoryFileIndex.COL_FILE_MD5},
                 {DBConstants.HistoryFileIndex.COL_FILE_SIZE},
+                {DBConstants.HistoryFileIndex.COL_FILE_TYPE},
+                {DBConstants.HistoryFileIndex.COL_VIDEO_DURATION},
+                {DBConstants.HistoryFileIndex.COL_VIDEO_CODEC},
                 {DBConstants.HistoryFileIndex.COL_SCAN_TIME},
                 {DBConstants.HistoryFileIndex.COL_DELETE_TIME}
             )
@@ -70,6 +36,9 @@ class HistoryFileIndexProcessor(BaseDBProcessor):
                 {DBConstants.FileIndex.COL_FILE_NAME},
                 {DBConstants.FileIndex.COL_FILE_MD5},
                 {DBConstants.FileIndex.COL_FILE_SIZE},
+                {DBConstants.FileIndex.COL_FILE_TYPE},
+                {DBConstants.FileIndex.COL_VIDEO_DURATION},
+                {DBConstants.FileIndex.COL_VIDEO_CODEC},
                 {DBConstants.FileIndex.COL_SCAN_TIME},
                 CURRENT_TIMESTAMP
             FROM {DBConstants.FileIndex.TABLE_NAME}
@@ -88,15 +57,16 @@ class HistoryFileIndexProcessor(BaseDBProcessor):
         return BaseDBProcessor._clear_table(DBConstants.HistoryFileIndex.TABLE_NAME)
 
     @staticmethod
-    def get_paged_list(page: int, limit: int, sort_by: str, order: bool, search_query: str) -> PaginationResult[HistoryFileIndexDBModule]:
+    def get_paged_list(page: int, limit: int, sort_by: str, order: bool, search_query: str, file_type: Optional[str] = None) -> PaginationResult[HistoryFileIndexDBModule]:
         """
-        用途：分页查询历史文件索引列表，支持模糊搜索。
+        用途：分页查询历史文件索引列表，支持模糊搜索及文件类型筛选。
         入参说明：
             page (int): 当前页码
             limit (int): 每页记录数
             sort_by (str): 排序字段
             order (bool): 排序方向 (True 为 ASC, False 为 DESC)
             search_query (str): 搜索关键词
+            file_type (Optional[str]): 文件类型筛选 (video/image/other)
         返回值说明：
             PaginationResult[HistoryFileIndexDBModule]: 包含 total, list, page, limit 等分页信息的对象
         """
@@ -106,9 +76,18 @@ class HistoryFileIndexProcessor(BaseDBProcessor):
             DBConstants.HistoryFileIndex.COL_FILE_NAME,
             DBConstants.HistoryFileIndex.COL_FILE_MD5,
             DBConstants.HistoryFileIndex.COL_FILE_SIZE,
+            DBConstants.HistoryFileIndex.COL_FILE_TYPE,
+            DBConstants.HistoryFileIndex.COL_VIDEO_DURATION,
+            DBConstants.HistoryFileIndex.COL_VIDEO_CODEC,
             DBConstants.HistoryFileIndex.COL_SCAN_TIME,
             DBConstants.HistoryFileIndex.COL_DELETE_TIME
         ]
+
+        extra_where: str = ""
+        extra_params: tuple = ()
+        if file_type:
+            extra_where += f" AND {DBConstants.HistoryFileIndex.COL_FILE_TYPE} = ?"
+            extra_params += (file_type,)
 
         return BaseDBProcessor._search_paged_list(
             table_name=DBConstants.HistoryFileIndex.TABLE_NAME,
@@ -120,5 +99,7 @@ class HistoryFileIndexProcessor(BaseDBProcessor):
             search_query=search_query,
             search_column=DBConstants.HistoryFileIndex.COL_FILE_NAME, # 改为按文件名搜索
             allowed_sort_columns=allowed_cols,
-            default_sort_column=DBConstants.HistoryFileIndex.COL_DELETE_TIME
+            default_sort_column=DBConstants.HistoryFileIndex.COL_DELETE_TIME,
+            extra_where=extra_where,
+            extra_params=extra_params
         )

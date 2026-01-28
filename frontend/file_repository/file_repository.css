@@ -103,3 +103,34 @@
 .btn-text-danger-small:hover {
     background-color: #fad2cf;
 }
+
+/* 9. 表头筛选样式 */
+.filter-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 4px 0;
+    text-align: center;
+}
+
+.filter-select {
+    width: auto;
+    min-width: 60px;
+    padding: 2px 4px;
+    font-size: 12px;
+    border: 1px solid #dadce0;
+    border-radius: 4px;
+    background-color: #fff;
+    color: #3c4043;
+    cursor: pointer;
+    outline: none;
+    text-align: center;
+    text-align-last: center; /* 确保下拉框选中的文字居中 */
+}
+
+.filter-select:focus {
+    border-color: #1a73e8;
+}
+}

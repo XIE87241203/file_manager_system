@@ -3,7 +3,7 @@ class DBConstants:
     用途：数据库表名及列名常量类，统一管理所有数据库结构相关的硬编码字符串
     """
 
-    DB_VERSION: int = 12  # 当前数据库版本，升级至 12 以支持 duplicate_groups 的 create_time 列
+    DB_VERSION: int = 13  # 当前数据库版本，升级至 13 以支持文件类型、视频时长、视频编码
 
     class SimilarityType:
         """用途：查重相似度类型常量"""
@@ -24,6 +24,9 @@ class DBConstants:
         COL_FILE_NAME: str = 'file_name'
         COL_FILE_MD5: str = 'file_md5'
         COL_FILE_SIZE: str = 'file_size'
+        COL_FILE_TYPE: str = 'file_type'           # 新增：文件类型 (如 video, image, document, etc.)
+        COL_VIDEO_DURATION: str = 'video_duration' # 新增：视频时长 (秒)
+        COL_VIDEO_CODEC: str = 'video_codec'       # 新增：视频编码 (如 h264, h265, etc.)
         COL_RECYCLE_BIN_TIME: str = 'recycle_bin_time'
         COL_THUMBNAIL_PATH: str = 'thumbnail_path'
         COL_SCAN_TIME: str = 'scan_time'
@@ -36,6 +39,9 @@ class DBConstants:
         COL_FILE_NAME: str = 'file_name'
         COL_FILE_MD5: str = 'file_md5'
         COL_FILE_SIZE: str = 'file_size'
+        COL_FILE_TYPE: str = 'file_type'           # 新增：文件类型
+        COL_VIDEO_DURATION: str = 'video_duration' # 新增：视频时长
+        COL_VIDEO_CODEC: str = 'video_codec'       # 新增：视频编码
         COL_SCAN_TIME: str = 'scan_time'
         COL_DELETE_TIME: str = 'delete_time'
 

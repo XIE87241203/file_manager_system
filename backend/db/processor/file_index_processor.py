@@ -31,6 +31,9 @@ class FileIndexProcessor(BaseDBProcessor):
                 f.file_name,
                 f.file_md5,
                 f.file_size,
+                f.file_type,
+                f.video_duration,
+                f.video_codec,
                 f.thumbnail_path,
                 f.recycle_bin_time,
                 f.scan_time
@@ -42,11 +45,14 @@ class FileIndexProcessor(BaseDBProcessor):
                 {DBConstants.FileIndex.COL_FILE_NAME},
                 {DBConstants.FileIndex.COL_FILE_MD5},
                 {DBConstants.FileIndex.COL_FILE_SIZE},
+                {DBConstants.FileIndex.COL_FILE_TYPE},
+                {DBConstants.FileIndex.COL_VIDEO_DURATION},
+                {DBConstants.FileIndex.COL_VIDEO_CODEC},
                 {DBConstants.FileIndex.COL_THUMBNAIL_PATH},
                 {DBConstants.FileIndex.COL_RECYCLE_BIN_TIME},
                 {DBConstants.FileIndex.COL_SCAN_TIME}
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         '''
 
         return BaseDBProcessor._execute_batch(query, data, conn=conn)
@@ -69,7 +75,7 @@ class FileIndexProcessor(BaseDBProcessor):
         """
         用途说明：批量更新文件的扫描时间。
         入参说明：
-            file_paths (List[str]): 文件路径列表。
+            file_paths (List[str]): 文件路径列表.
             scan_time (str): 新新的扫描时间字符串。
             conn (Optional[sqlite3.Connection]): 数据库连接对象。
         返回值说明：返回更新成功的记录数。
@@ -158,9 +164,10 @@ class FileIndexProcessor(BaseDBProcessor):
         return BaseDBProcessor._clear_table(DBConstants.FileIndex.TABLE_NAME)
 
     @staticmethod
-    def get_paged_list(page: int, limit: int, sort_by: str, order: bool, search_query: str, is_in_recycle_bin: bool = False) -> PaginationResult[FileIndexDBModel]:
+    def get_paged_list(page: int, limit: int, sort_by: str, order: bool, search_query: str, 
+                       is_in_recycle_bin: bool = False, file_type: Optional[str] = None) -> PaginationResult[FileIndexDBModel]:
         """
-        用途说明：分页搜索文件列表，并根据是否在回收站进行过滤。
+        用途说明：分页搜索文件列表，并根据是否在回收站以及文件类型进行过滤。
         入参说明：
             page (int): 当前页码。
             limit (int): 每页条数。
@@ -168,14 +175,18 @@ class FileIndexProcessor(BaseDBProcessor):
             order (bool): 是否为升序（True 为 ASC, False 为 DESC）。
             search_query (str): 搜索关键词。
             is_in_recycle_bin (bool): 是否过滤回收站内的数据。
+            file_type (Optional[str]): 文件类型筛选 (如 'video', 'image', 'other')。
         返回值说明：返回封装了 FileIndexDBModel 列表的分页结果对象。
         """
         allowed_cols: List[str] = [
             DBConstants.FileIndex.COL_ID,
             DBConstants.FileIndex.COL_FILE_PATH,
-            DBConstants.FileIndex.COL_FILE_NAME,  # 允许按文件名排序
+            DBConstants.FileIndex.COL_FILE_NAME,
             DBConstants.FileIndex.COL_FILE_MD5,
             DBConstants.FileIndex.COL_FILE_SIZE,
+            DBConstants.FileIndex.COL_FILE_TYPE,
+            DBConstants.FileIndex.COL_VIDEO_DURATION,
+            DBConstants.FileIndex.COL_VIDEO_CODEC,
             DBConstants.FileIndex.COL_SCAN_TIME,
             DBConstants.FileIndex.COL_RECYCLE_BIN_TIME
         ]
@@ -186,6 +197,10 @@ class FileIndexProcessor(BaseDBProcessor):
             extra_where = f"AND ({col_recycle} IS NOT NULL AND {col_recycle} != '')"
         else:
             extra_where = f"AND ({col_recycle} IS NULL OR {col_recycle} = '')"
+
+        # 处理文件类型筛选
+        if file_type:
+            extra_where += f" AND {DBConstants.FileIndex.COL_FILE_TYPE} = '{file_type}'"
 
         return BaseDBProcessor._search_paged_list(
             table_name=DBConstants.FileIndex.TABLE_NAME,

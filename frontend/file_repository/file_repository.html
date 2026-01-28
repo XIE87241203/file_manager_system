@@ -31,8 +31,22 @@
                             <th class="sortable col-path" data-field="file_path">
                                 完整路径 <span class="sort-icon"></span>
                             </th>
-                            <th class="sortable col-md5" data-field="file_md5">
-                                MD5 哈希值 <span class="sort-icon"></span>
+                            <th class="col-type">
+                                <div class="filter-header">
+                                    <span>类型</span>
+                                    <select id="filter-file-type" class="filter-select">
+                                        <option value="">All</option>
+                                        <option value="video">Video</option>
+                                        <option value="image">Image</option>
+                                        <option value="other">Other</option>
+                                    </select>
+                                </div>
+                            </th>
+                            <th class="sortable col-duration" data-field="video_duration">
+                                时长 <span class="sort-icon"></span>
+                            </th>
+                            <th class="sortable col-codec" data-field="video_codec">
+                                编码 <span class="sort-icon"></span>
                             </th>
                             <th class="sortable col-time" data-field="scan_time">
                                 扫描时间 <span class="sort-icon"></span>

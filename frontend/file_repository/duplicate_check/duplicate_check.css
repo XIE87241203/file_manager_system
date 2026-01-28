@@ -185,10 +185,12 @@
 }
 
 /* 指定查重页面的列宽 */
-.col-dup-name { width: 25%; }
-.col-dup-similarity { width: 15%; } /* 相似率列合并展示类型和比率 */
-.col-dup-size { width: 10%; }
-.col-dup-path { width: 45%; } 
+.col-dup-name { width: 22%; }
+.col-dup-duration { width: 80px; text-align: center; }
+.col-dup-codec { width: 80px; text-align: center; }
+.col-dup-similarity { width: 14%; } /* 相似率列合并展示类型和比率 */
+.col-dup-size { width: 80px; }
+.col-dup-path { width: 35%; }
 .col-dup-check { width: 40px; text-align: center; }
 
 .file-item-table tr:last-child td {
@@ -206,4 +208,10 @@
 
 .file-path {
     color: #70757a;
+}
+
+/* 特殊列样式微调 */
+.col-dup-duration, .col-dup-codec {
+    color: #5f6368;
+    font-family: monospace;
 }

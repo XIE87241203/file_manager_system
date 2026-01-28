@@ -16,13 +16,36 @@ class FileService(BaseFileService):
     """
 
     @staticmethod
-    def search_file_index_list(page: int, limit: int, sort_by: str, order: bool, search_query: str, is_in_recycle_bin: bool = False) -> PaginationResult[FileIndexDBModel]:
-        return DBOperations.search_file_index_list(page, limit, sort_by, order, search_query, is_in_recycle_bin)
+    def search_file_index_list(page: int, limit: int, sort_by: str, order: bool, search_query: str, file_type: Optional[str] = None) -> PaginationResult[FileIndexDBModel]:
+        """
+        用途说明：搜索文件索引列表，支持分页、排序、关键词搜索及文件类型筛选。
+        入参说明：
+            page (int): 当前页码。
+            limit (int): 每页记录数。
+            sort_by (str): 排序字段。
+            order (bool): 是否升序。
+            search_query (str): 搜索关键词。
+            is_in_recycle_bin (bool): 是否查询回收站文件。
+            file_type (Optional[str]): 文件类型筛选（video/image/other）。
+        返回值说明：PaginationResult[FileIndexDBModel] - 分页结果对象。
+        """
+        return DBOperations.search_file_index_list(page, limit, sort_by, order, search_query, False , file_type)
 
 
     @staticmethod
-    def search_history_file_index_list(page: int, limit: int, sort_by: str, order: bool, search_query: str) -> PaginationResult[HistoryFileIndexDBModule]:
-        return DBOperations.search_history_file_index_list(page, limit, sort_by, order, search_query)
+    def search_history_file_index_list(page: int, limit: int, sort_by: str, order: bool, search_query: str, file_type: Optional[str] = None) -> PaginationResult[HistoryFileIndexDBModule]:
+        """
+        用途说明：分页查询历史文件索引列表，支持文件类型筛选。
+        入参说明：
+            page (int): 当前页码。
+            limit (int): 每页记录数。
+            sort_by (str): 排序字段。
+            order (bool): 是否升序。
+            search_query (str): 搜索关键词。
+            file_type (Optional[str]): 文件类型筛选 (video/image/other)
+        返回值说明：PaginationResult[HistoryFileIndexDBModule] - 分页结果对象。
+        """
+        return DBOperations.search_history_file_index_list(page, limit, sort_by, order, search_query, file_type)
 
     @staticmethod
     def clear_repository(clear_history: bool) -> bool:
@@ -83,6 +106,7 @@ class FileService(BaseFileService):
     def get_repo_detail() -> Optional[FileRepoDetailDBModel]:
         """
         用途说明：获取文件仓库详情。
+        返回值说明：Optional[FileRepoDetailDBModel] - 仓库详情对象。
         """
         return DBOperations.get_repo_detail()
 
@@ -90,5 +114,6 @@ class FileService(BaseFileService):
     def calculate_repo_detail() -> Optional[FileRepoDetailDBModel]:
         """
         用途说明：计算并保存文件仓库详情。
+        返回值说明：Optional[FileRepoDetailDBModel] - 计算后的仓库详情对象。
         """
         return DBOperations.calculate_and_save_repo_detail()

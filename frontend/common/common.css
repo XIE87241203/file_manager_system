@@ -669,6 +669,18 @@ body {
     color: #5f6368;
 }
 
+.clickable-page-info {
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+}
+
+.clickable-page-info:hover {
+    background-color: #f1f3f4;
+    color: #1a73e8;
+}
+
 /* --- 大尺寸按钮样式 --- */
 
 .btn-primary-large {

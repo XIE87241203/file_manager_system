@@ -1,11 +1,11 @@
-import os
 from dataclasses import dataclass
-from typing import List, Set
+from typing import List
 
 import imagehash
 from PIL import Image
 
 from backend.common.log_utils import LogUtils
+from backend.common.utils import Utils
 from backend.db.db_constants import DBConstants
 from backend.file_repository.duplicate_check.checker.base_checker import BaseDuplicateChecker
 from backend.model.db.duplicate_group_db_model import DuplicateGroupDBModel, DuplicateFileDBModel
@@ -25,11 +25,6 @@ class ImageChecker(BaseDuplicateChecker):
     用途：图片文件查重检查器。通过 MD5 识别完全一致的文件，通过汉明距离识别高度相似的图片，并记录相似率。
     """
 
-    # 常见图片文件后缀名集合
-    IMAGE_EXTENSIONS: Set[str] = {
-        '.jpg', '.jpeg', '.png', '.bmp', '.gif', '.webp', '.tiff'
-    }
-
     def __init__(self, threshold: int = 8):
         """
         用途：初始化图片检查器。
@@ -45,9 +40,8 @@ class ImageChecker(BaseDuplicateChecker):
         用途：录入一个图片文件，预计算其感知哈希（pHash）。
         """
         file_path: str = file_info.file_path
-        extension: str = os.path.splitext(file_path)[1].lower()
 
-        if self.is_supported(extension):
+        if self.is_supported(file_path):
             try:
                 with Image.open(file_path) as img:
                     hash_val = imagehash.phash(img)
@@ -118,8 +112,8 @@ class ImageChecker(BaseDuplicateChecker):
         LogUtils.info(f"ImageChecker 完成查重，发现 {len(results)} 组重复/相似图片。")
         return results
 
-    def is_supported(self, file_extension: str) -> bool:
+    def is_supported(self, file_path: str) -> bool:
         """
-        用途：判断该检查器是否支持处理指定的后缀名。
+        用途：判断该检查器是否支持处理指定的路径。
         """
-        return file_extension.lower() in self.IMAGE_EXTENSIONS
+        return Utils.is_image_file(file_path)

@@ -20,6 +20,25 @@ const CommonUtils = {
     },
 
     /**
+     * 用途说明：将视频时长（秒）转换为 HH:mm:ss 格式。
+     * 入参说明：seconds (number) - 视频总时长（秒）。
+     * 返回值说明：String - 格式化后的时长字符串。
+     */
+    formatDuration: function(seconds) {
+        if (seconds === null || seconds === undefined || isNaN(seconds)) return 'N/A';
+        const s = Math.floor(seconds);
+        if (s <= 0) return '00:00:00';
+
+        const hours = Math.floor(s / 3600);
+        const minutes = Math.floor((s % 3600) / 60);
+        const remainingSeconds = s % 60;
+
+        return [hours, minutes, remainingSeconds]
+            .map(v => v < 10 ? "0" + v : v)
+            .join(":");
+    },
+
+    /**
      * 用途说明：将日期转换为友好显示格式。如果是今天、昨天、前天，则返回对应的描述文字；否则返回 yyyy/MM/dd。
      * 入参说明：dateInput (String|Date|Number) - 可被解析为日期的输入值。
      * 返回值说明：String - 格式化后的日期字符串。

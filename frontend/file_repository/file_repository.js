@@ -9,6 +9,7 @@ const State = {
     sortBy: 'scan_time',
     order: 'DESC',
     search: '',
+    fileType: '', // 新增：文件类型筛选
     searchHistory: false,
     scanInterval: null,
     thumbnailInterval: null,
@@ -45,6 +46,7 @@ const UIController = {
             thumbnailBtn: document.getElementById('btn-thumbnail'),
             thumbnailProgressText: document.getElementById('thumbnail-progress-text'),
             sortableHeaders: document.querySelectorAll('th.sortable'),
+            filterFileType: document.getElementById('filter-file-type'), // 新增：类型筛选下拉框
             mainContent: document.getElementById('repo-main-content')
         };
 
@@ -81,7 +83,8 @@ const UIController = {
         }
 
         if (!list || list.length === 0) {
-            tableBody.innerHTML = UIComponents.getEmptyTableHtml(State.searchHistory ? 5 : 6, '暂无索引文件');
+            // 用途说明：动态调整空状态的列跨度，包含新增的文件类型、时长、编码列
+            tableBody.innerHTML = UIComponents.getEmptyTableHtml(State.searchHistory ? 7 : 8, '暂无索引文件');
             return;
         }
 
@@ -95,12 +98,16 @@ const UIController = {
             const fileName = file.file_name || '未知文件名';
             // 使用 CommonUtils.formatFileSize 格式化文件大小
             const fileSizeStr = CommonUtils.formatFileSize(file.file_size);
+            // 使用 CommonUtils.formatDuration 格式化视频时长
+            const durationStr = CommonUtils.formatDuration(file.video_duration);
 
             let html = `
                 <td class="col-name" title="${fileName}">${fileName}</td>
                 <td class="col-size">${fileSizeStr}</td>
                 <td class="col-path" title="${file.file_path}">${file.file_path}</td>
-                <td class="col-md5"><code>${file.file_md5}</code></td>
+                <td class="col-type">${file.file_type || '未知'}</td>
+                <td class="col-duration">${durationStr}</td>
+                <td class="col-codec">${file.video_codec || 'N/A'}</td>
                 <td class="col-time">${file.scan_time || file.delete_time}</td>
             `;
 
@@ -246,7 +253,7 @@ const App = {
     },
 
     bindEvents() {
-        const { scanBtn, sortableHeaders, deleteSelectedBtn, thumbnailBtn } = UIController.elements;
+        const { scanBtn, sortableHeaders, deleteSelectedBtn, thumbnailBtn, filterFileType } = UIController.elements;
 
         if (scanBtn) {
             scanBtn.onclick = () => {
@@ -279,6 +286,15 @@ const App = {
         if (deleteSelectedBtn) {
             deleteSelectedBtn.onclick = () => this.handleMoveToRecycleBin();
         }
+
+        // 绑定类型筛选事件
+        if (filterFileType) {
+            filterFileType.onchange = () => {
+                State.fileType = filterFileType.value;
+                State.page = 1;
+                this.loadFileList();
+            };
+        }
     },
 
     handleSearch() {
@@ -297,6 +313,7 @@ const App = {
             sort_by: State.sortBy,
             order_asc: State.order === 'ASC',
             search: State.search,
+            file_type: State.fileType, // 传入文件类型筛选
             search_history: State.searchHistory
         };
 
