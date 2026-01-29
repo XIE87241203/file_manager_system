@@ -20,6 +20,8 @@ const UIController = {
 
     /**
      * 用途说明：初始化 UI 控制器
+     * 入参说明：无
+     * 返回值说明：无
      */
     init() {
         // 使用公用组件初始化顶部栏
@@ -60,6 +62,8 @@ const UIController = {
 
     /**
      * 用途说明：渲染表格内容
+     * 入参说明：list: 文件对象列表
+     * 返回值说明：无
      */
     renderTable(list) {
         const { tableBody, selectAllCheckbox } = this.elements;
@@ -102,10 +106,20 @@ const UIController = {
         this.updateActionButtons();
     },
 
+    /**
+     * 用途说明：更新排序 UI 样式
+     * 入参说明：field: 排序字段, order: 排序方向 (ASC/DESC)
+     * 返回值说明：无
+     */
     updateSortUI(field, order) {
         UIComponents.updateSortUI(this.elements.sortableHeaders, field, order);
     },
 
+    /**
+     * 用途说明：根据选中状态更新操作按钮（恢复/彻底删除）的显示
+     * 入参说明：无
+     * 返回值说明：无
+     */
     updateActionButtons() {
         const { restoreSelectedBtn, deleteSelectedBtn, clearRecycleBtn } = this.elements;
         const count = State.selectedPaths.size;
@@ -126,25 +140,51 @@ const UIController = {
 
 // --- API 交互模块 ---
 const RecycleBinAPI = {
+    /**
+     * 用途说明：分页获取回收站文件列表
+     * 入参说明：params: 包含 page, limit, sort_by, order_asc, search 等参数的对象
+     * 返回值说明：返回 API 响应结果，包含文件列表和分页信息
+     */
     async getList(params) {
         const query = new URLSearchParams(params).toString();
-        return await Request.get('/api/file_repository/list?is_in_recycle_bin=true&' + query);
+        // 修改说明：API 路径调整为后端最新的专有回收站列表路由
+        return await Request.get('/api/file_repository/recycle_bin/list?' + query);
     },
 
+    /**
+     * 用途说明：从回收站恢复文件
+     * 入参说明：filePaths: 要恢复的文件路径数组
+     * 返回值说明：返回 API 响应结果
+     */
     async restoreFiles(filePaths) {
         return await Request.post('/api/file_repository/restore_from_recycle_bin', { file_paths: filePaths });
     },
 
+    /**
+     * 用途说明：批量彻底删除回收站中的文件
+     * 入参说明：filePaths: 要彻底删除的文件路径数组
+     * 返回值说明：返回 API 响应结果
+     */
     async deleteFiles(filePaths) {
         // 彻底删除进度条开启时，禁用默认 mask
         return await Request.post('/api/file_repository/clear_recycle_bin', { file_paths: filePaths }, {}, false);
     },
 
+    /**
+     * 用途说明：清空整个回收站
+     * 入参说明：无
+     * 返回值说明：返回 API 响应结果
+     */
     async clearAll() {
         // 清空进度条开启时，禁用默认 mask
         return await Request.post('/api/file_repository/clear_recycle_bin', {}, {}, false);
     },
 
+    /**
+     * 用途说明：获取清理回收站任务的执行进度
+     * 入参说明：无
+     * 返回值说明：返回 API 响应结果，包含进度和状态
+     */
     async getDeleteProgress() {
         // 轮询进度时一律不显示 mask，防止页面抖动
         return await Request.get('/api/file_repository/clear_recycle_bin/progress', {}, false);
@@ -153,6 +193,11 @@ const RecycleBinAPI = {
 
 // --- 应用逻辑主入口 ---
 const App = {
+    /**
+     * 用途说明：页面初始化
+     * 入参说明：无
+     * 返回值说明：无
+     */
     init() {
         UIController.init();
         this.bindEvents();
@@ -160,6 +205,11 @@ const App = {
         this.checkTaskStatus();
     },
 
+    /**
+     * 用途说明：绑定页面交互事件
+     * 入参说明：无
+     * 返回值说明：无
+     */
     bindEvents() {
         const { clearRecycleBtn, restoreSelectedBtn, deleteSelectedBtn, sortableHeaders } = UIController.elements;
 
@@ -182,6 +232,11 @@ const App = {
         });
     },
 
+    /**
+     * 用途说明：处理搜索逻辑
+     * 入参说明：无
+     * 返回值说明：无
+     */
     handleSearch() {
         const { searchInput } = UIController.elements;
         State.search = searchInput.value.trim();
@@ -190,6 +245,11 @@ const App = {
         this.loadFileList();
     },
 
+    /**
+     * 用途说明：加载回收站文件列表数据并触发渲染
+     * 入参说明：无
+     * 返回值说明：无
+     */
     async loadFileList() {
         const params = {
             page: State.page,
@@ -205,6 +265,11 @@ const App = {
         }
     },
 
+    /**
+     * 用途说明：处理恢复选中文件逻辑
+     * 入参说明：无
+     * 返回值说明：无
+     */
     async handleRestore() {
         const paths = Array.from(State.selectedPaths);
         UIComponents.showConfirmModal({
@@ -222,6 +287,11 @@ const App = {
         });
     },
 
+    /**
+     * 用途说明：处理彻底删除选中文件逻辑
+     * 入参说明：无
+     * 返回值说明：无
+     */
     async handleDeleteSelected() {
         const paths = Array.from(State.selectedPaths);
         UIComponents.showConfirmModal({
@@ -238,6 +308,11 @@ const App = {
         });
     },
 
+    /**
+     * 用途说明：处理清空回收站逻辑
+     * 入参说明：无
+     * 返回值说明：无
+     */
     async handleClearAll() {
         UIComponents.showConfirmModal({
             title: '清空回收站',
@@ -255,6 +330,8 @@ const App = {
 
     /**
      * 用途说明：启动进度轮询，并根据状态切换逻辑决定是否刷新列表。
+     * 入参说明：无
+     * 返回值说明：无
      */
     startProgressPolling() {
         UIComponents.showProgressBar('.repo-container', '正在删除文件...');
@@ -294,6 +371,11 @@ const App = {
         }, 1000);
     },
 
+    /**
+     * 用途说明：进入页面时检查是否有正在进行的删除任务
+     * 入参说明：无
+     * 返回值说明：无
+     */
     async checkTaskStatus() {
         const res = await RecycleBinAPI.getDeleteProgress();
         if (res.status === 'success' && res.data.status === ProgressStatus.PROCESSING) {
