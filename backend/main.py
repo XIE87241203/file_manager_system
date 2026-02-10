@@ -22,6 +22,7 @@ from backend.file_repository.file_repository_routes import file_repo_bp
 from backend.file_name_repository.file_name_repository_routes import file_name_repo_bp
 from backend.system.system_routes import system_bp
 from backend.common.response import error_response
+from backend.common.heartbeat_service import HeartbeatService
 from config import GlobalConfig
 
 
@@ -92,6 +93,14 @@ app.register_blueprint(system_bp, url_prefix='/api/system')
 
 def start_server() -> None:
     db_manager.init_db()
+    
+    # 启动心跳服务
+    HeartbeatService.start()
+    
+    # 启动后台定时任务调度器
+    from backend.file_repository.scheduler_service import SchedulerService
+    SchedulerService.refresh_config()
+    
     LogUtils.info(f"系统服务正在启动 (Port: {GlobalConfig.SYSTEM_PORT})...")
     LogUtils.info(f"访问地址: http://localhost:{GlobalConfig.SYSTEM_PORT}")
     serve(app, host='0.0.0.0', port=GlobalConfig.SYSTEM_PORT, threads=8)

@@ -13,7 +13,9 @@ const State = {
         ignore_paths: [],
         ignore_paths_case_insensitive: true,
         thumbnail_size: 256,
-        quick_view_thumbnail: false
+        quick_view_thumbnail: false,
+        auto_refresh_enabled: false,
+        auto_refresh_time: "04:00"
     },
     duplicateCheck: {
         image_threshold: 8,
@@ -160,6 +162,10 @@ const UIController = {
         document.getElementById('ignore-paths').value = (fr.ignore_paths || []).join(', ');
         document.getElementById('ignore-paths-case-insensitive').checked = fr.ignore_paths_case_insensitive;
         document.getElementById('search-replace-chars').value = (fr.search_replace_chars || []).join(', ');
+
+        // 自动刷新配置
+        document.getElementById('auto-refresh-enabled').checked = fr.auto_refresh_enabled || false;
+        document.getElementById('auto-refresh-time').value = fr.auto_refresh_time || "04:00";
 
         // 文件录入配置同步到 State
         State.fileNameEntry = data.file_name_entry || State.fileNameEntry;
@@ -318,6 +324,10 @@ const App = {
         fr.ignore_paths = document.getElementById('ignore-paths').value.split(',').map(s => s.trim()).filter(s => s);
         fr.ignore_paths_case_insensitive = document.getElementById('ignore-paths-case-insensitive').checked;
         fr.search_replace_chars = document.getElementById('search-replace-chars').value.split(',').map(s => s.trim()).filter(s => s);
+
+        // 自动刷新字段采集
+        fr.auto_refresh_enabled = document.getElementById('auto-refresh-enabled').checked;
+        fr.auto_refresh_time = document.getElementById('auto-refresh-time').value;
 
         if (fr.scan_suffixes.length === 0) {
             Toast.show('扫描后缀不能为空');

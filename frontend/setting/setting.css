@@ -184,6 +184,35 @@ body {
     margin: 0;
 }
 
+/* 自动刷新配置项组合 */
+.auto-refresh-config {
+    display: flex;
+    align-items: center;
+    gap: 30px;
+    grid-column: 1 / -1;
+    flex-wrap: wrap;
+}
+
+.time-setting-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.time-setting-item .label-text {
+    margin-bottom: 0;
+    white-space: nowrap;
+    font-size: 0.95rem;
+    color: #3c4043;
+}
+
+.input-inline {
+    width: auto !important;
+    padding: 4px 10px !important;
+    height: 32px !important;
+    font-size: 0.9rem !important;
+}
+
 /* 数据维护项样式 */
 .maintenance-item {
     display: flex;

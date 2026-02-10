@@ -65,6 +65,19 @@
                 </div>
             </div>
 
+            <!-- 自动刷新配置（合并到一行） -->
+            <div class="full-width checkbox-options-group form-group auto-refresh-config">
+                <div class="checkbox-item">
+                    <input type="checkbox" id="auto-refresh-enabled" class="checkbox-field">
+                    <label class="label-text" for="auto-refresh-enabled">启用自动刷新</label>
+                </div>
+                <div class="time-setting-item">
+                    <label class="label-text" for="auto-refresh-time">自动刷新时间:</label>
+                    <input type="time" id="auto-refresh-time" class="input-field input-inline">
+                    <small class="form-hint mt-0">(每天在此时间点自动执行增量扫描)</small>
+                </div>
+            </div>
+
             <div class="form-group">
                 <label class="label-text" for="ignore-filenames">忽略文件名</label>
                 <input type="text" id="ignore-filenames" class="input-field" placeholder="例如: .DS_Store, thumbs.db (逗号分隔)" autocomplete="off">

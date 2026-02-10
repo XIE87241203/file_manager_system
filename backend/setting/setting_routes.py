@@ -1,9 +1,11 @@
-from flask import Blueprint, request
 from dataclasses import asdict
-from backend.setting.setting_service import settingService
-from backend.common.response import success_response, error_response
-from backend.common.log_utils import LogUtils
+
+from flask import Blueprint, request
+
 from backend.common.auth_middleware import token_required
+from backend.common.log_utils import LogUtils
+from backend.common.response import success_response, error_response
+from backend.setting.setting_service import settingService
 
 # 创建设置模块的蓝图
 setting_bp = Blueprint('setting', __name__)
@@ -41,6 +43,15 @@ def update_setting():
 
     # 调用 SettingService 的封装逻辑处理配置更新及相关业务逻辑
     if settingService.update_settings(data, request.username):
+        # 检查是否修改了自动刷新相关的配置
+        file_repo_data = data.get('file_repository')
+        if isinstance(file_repo_data, dict):
+            if 'auto_refresh_time' in file_repo_data or 'auto_refresh_enabled' in file_repo_data:
+                # 动态导入以避免循环依赖
+                from backend.file_repository.scheduler_service import SchedulerService
+                SchedulerService.refresh_config()
+                LogUtils.info("检测到自动刷新配置变更，已刷新定时任务")
+
         LogUtils.info(f"配置已更新并保存。操作人: {request.username}")
         return success_response("配置更新成功")
     else:

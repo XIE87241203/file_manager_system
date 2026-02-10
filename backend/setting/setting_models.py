@@ -23,6 +23,8 @@ class FileRepositorySettings:
     ignore_paths_case_insensitive: bool = True
     thumbnail_size: int = 256
     quick_view_thumbnail: bool = False
+    auto_refresh_enabled: bool = False  # 是否启用自动刷新
+    auto_refresh_time: str = "04:00"  # 自动刷新时间 (HH:mm)
 
 @dataclass
 class DuplicateCheckSettings:
