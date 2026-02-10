@@ -7,7 +7,7 @@ from backend.setting.setting_models import FileRepositorySettings
 from backend.setting.setting_service import settingService
 
 
-class SchedulerService:
+class AutoScanService:
     """
     用途：后台定时任务服务，负责根据配置自动执行文件扫描。
     通过注册到全局 HeartbeatService 实现定时检查。

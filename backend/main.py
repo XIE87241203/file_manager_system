@@ -98,8 +98,8 @@ def start_server() -> None:
     HeartbeatService.start()
     
     # 启动后台定时任务调度器
-    from backend.file_repository.scheduler_service import SchedulerService
-    SchedulerService.refresh_config()
+    from backend.file_repository.auto_scan_service import AutoScanService
+    AutoScanService.refresh_config()
     
     LogUtils.info(f"系统服务正在启动 (Port: {GlobalConfig.SYSTEM_PORT})...")
     LogUtils.info(f"访问地址: http://localhost:{GlobalConfig.SYSTEM_PORT}")

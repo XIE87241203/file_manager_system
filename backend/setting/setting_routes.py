@@ -48,8 +48,8 @@ def update_setting():
         if isinstance(file_repo_data, dict):
             if 'auto_refresh_time' in file_repo_data or 'auto_refresh_enabled' in file_repo_data:
                 # 动态导入以避免循环依赖
-                from backend.file_repository.scheduler_service import SchedulerService
-                SchedulerService.refresh_config()
+                from backend.file_repository.auto_scan_service import AutoScanService
+                AutoScanService.refresh_config()
                 LogUtils.info("检测到自动刷新配置变更，已刷新定时任务")
 
         LogUtils.info(f"配置已更新并保存。操作人: {request.username}")
