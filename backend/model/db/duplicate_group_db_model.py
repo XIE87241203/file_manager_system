@@ -11,13 +11,13 @@ class DuplicateFileDBModel:
     入参说明：
         id (Optional[int]): 数据库主键 ID
         group_id (Optional[int]): 所属重复分组的 ID
-        file_id (int): 关联的文件索引 ID
+        file_path (str): 关联的文件路径
         similarity_type (str): 相似类型，如 'md5', 'hash'
         similarity_rate (float): 相似率，1.0 表示完全相同
     """
     id: Optional[int] = None
     group_id: Optional[int] = None
-    file_id: int = 0
+    file_path: str = ""
     similarity_type: str = DBConstants.SimilarityType.MD5
     similarity_rate: float = 1.0
 

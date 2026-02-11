@@ -69,7 +69,7 @@ class ImageChecker(BaseDuplicateChecker):
             
             # 将当前图片作为代表加入组（相似率 1.0）
             current_group_files.append(DuplicateFileDBModel(
-                file_id=self.image_data[i].info.id,
+                file_path=self.image_data[i].info.file_path,
                 similarity_type=DBConstants.SimilarityType.MD5,
                 similarity_rate=1.0
             ))
@@ -83,7 +83,7 @@ class ImageChecker(BaseDuplicateChecker):
                 if self.image_data[i].info.file_md5 and \
                    self.image_data[i].info.file_md5 == self.image_data[j].info.file_md5:
                     current_group_files.append(DuplicateFileDBModel(
-                        file_id=self.image_data[j].info.id,
+                        file_path=self.image_data[j].info.file_path,
                         similarity_type=DBConstants.SimilarityType.MD5,
                         similarity_rate=1.0
                     ))
@@ -97,7 +97,7 @@ class ImageChecker(BaseDuplicateChecker):
                     # pHash 通常为 64 位，因此最大距离为 64
                     similarity_rate: float = 1.0 - (distance / 64.0)
                     current_group_files.append(DuplicateFileDBModel(
-                        file_id=self.image_data[j].info.id,
+                        file_path=self.image_data[j].info.file_path,
                         similarity_type=DBConstants.SimilarityType.HASH,
                         similarity_rate=similarity_rate
                     ))

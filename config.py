@@ -4,4 +4,4 @@ class GlobalConfig:
     """
     # 系统统一运行端口 (前后端共用)
     SYSTEM_PORT: int = 5000
-    APP_VERSION: str = '1.0.21'
+    APP_VERSION: str = '1.0.22'

@@ -70,7 +70,7 @@ class VideoChecker(BaseDuplicateChecker):
             duplicate_files: List[DuplicateFileDBModel] = []
             for video in group:
                 duplicate_files.append(DuplicateFileDBModel(
-                    file_id=video.file_index.id,
+                    file_path=video.file_index.file_path,
                     similarity_type=video.similarity_type,
                     similarity_rate=video.similarity_rate
                 ))

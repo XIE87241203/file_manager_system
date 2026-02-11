@@ -60,9 +60,7 @@ class DBOperations:
         """
         try:
             with db_manager.transaction() as conn:
-                res1: bool = processor_manager.file_index_processor.clear_all_table()
-                res2: bool = processor_manager.duplicate_group_processor.clear_all_table()
-                return res1 and res2
+                return processor_manager.file_index_processor.clear_all_table()
         except Exception:
             return False
 
@@ -94,18 +92,21 @@ class DBOperations:
         return processor_manager.file_index_processor.get_file_index_by_path(file_path)
 
     @staticmethod
-    def delete_file_index_by_file_id(file_id: int) -> bool:
+    def delete_file_index_by_path(file_path: str) -> bool:
         """
         用途说明：删除指定文件索引，并同步维护重复文件分组（使用事务确保原子性）。
-        入参说明：file_id (int): 文件 ID。
+        入参说明：file_path (str): 文件完整路径。
         返回值说明：bool: 是否删除成功。
         """
         try:
             with db_manager.transaction() as conn:
-                res1: bool = processor_manager.file_index_processor.delete_by_id(file_id, conn=conn)
-                res2: bool = processor_manager.duplicate_group_processor.delete_file_by_id(file_id, conn=conn)
+                # 1. 删除文件索引
+                res1: bool = processor_manager.file_index_processor.delete_by_path(file_path, conn=conn)
+                # 2. 从重复组中批量移除（虽然是单个，也调用批量接口）
+                res2: bool = processor_manager.duplicate_group_processor.delete_files_by_paths([file_path], conn=conn)
                 return res1 and res2
-        except Exception:
+        except Exception as e:
+            LogUtils.error(f"删除文件索引及重复记录失败: {e}")
             return False
 
     @staticmethod
@@ -162,12 +163,13 @@ class DBOperations:
         recycle_time: str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         try:
             with db_manager.transaction() as conn:
-                file_ids: List[int] = processor_manager.file_index_processor.get_ids_by_paths(file_paths, conn=conn)
+                # 1. 移动到回收站
                 res1: int = processor_manager.file_index_processor.move_to_recycle_bin(file_paths, recycle_time, conn=conn)
-                for f_id in file_ids:
-                    processor_manager.duplicate_group_processor.delete_file_by_id(f_id, conn=conn)
+                # 2. 批量从查重结果中移除
+                processor_manager.duplicate_group_processor.delete_files_by_paths(file_paths, conn=conn)
                 return res1 > 0
-        except Exception:
+        except Exception as e:
+            LogUtils.error(f"批量移入回收站失败: {e}")
             return False
 
     @staticmethod
@@ -363,7 +365,7 @@ class DBOperations:
     @staticmethod
     def calculate_and_save_repo_detail() -> Optional[FileRepoDetailDBModel]:
         """
-        用途说明：从 file_index 表中统计所有文件的总数和总大小，并保存到 file_repo_detail 表中。
+        用途说明：从 file_index 表中统计所有文件的总数 and 总大小，并保存到 file_repo_detail 表中。
         返回值说明：最新的 FileRepoDetailDBModel 对象，计算失败则返回 None。
         """
         stats: Tuple[int, int] = processor_manager.file_index_processor.get_total_stats()

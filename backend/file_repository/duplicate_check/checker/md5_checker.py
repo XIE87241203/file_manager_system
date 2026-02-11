@@ -41,7 +41,7 @@ class MD5Checker(BaseDuplicateChecker):
                 # 构造 DuplicateFileDBModel 列表
                 duplicate_files: List[DuplicateFileDBModel] = [
                     DuplicateFileDBModel(
-                        file_id=f.id,
+                        file_path=f.file_path,
                         similarity_type=DBConstants.SimilarityType.MD5,
                         similarity_rate=1.0
                     ) for f in files

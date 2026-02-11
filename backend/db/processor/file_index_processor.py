@@ -58,16 +58,16 @@ class FileIndexProcessor(BaseDBProcessor):
         return BaseDBProcessor._execute_batch(query, data, conn=conn)
 
     @staticmethod
-    def delete_by_id(file_id: int, conn: Optional[sqlite3.Connection] = None) -> bool:
+    def delete_by_path(file_path: str, conn: Optional[sqlite3.Connection] = None) -> bool:
         """
-        用途说明：根据 ID 从文件索引表中删除记录。
+        用途说明：根据文件路径从文件索引表中删除记录。
         入参说明：
-            file_id (int): 文件 ID。
+            file_path (str): 文件路径。
             conn (Optional[sqlite3.Connection]): 数据库连接对象。
         返回值说明：返回是否删除成功。
         """
-        query: str = f"DELETE FROM {DBConstants.FileIndex.TABLE_NAME} WHERE {DBConstants.FileIndex.COL_ID} = ?"
-        result: int = BaseDBProcessor._execute(query, (file_id,), conn=conn)
+        query: str = f"DELETE FROM {DBConstants.FileIndex.TABLE_NAME} WHERE {DBConstants.FileIndex.COL_FILE_PATH} = ?"
+        result: int = BaseDBProcessor._execute(query, (file_path,), conn=conn)
         return bool(result and result > 0)
 
     @staticmethod

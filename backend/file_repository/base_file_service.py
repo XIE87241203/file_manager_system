@@ -30,8 +30,7 @@ class BaseFileService:
             Utils.delete_os_file(file_path)
 
             # 4. 清理数据库记录（包括主索引和重复组关联）
-            if file_info:
-                DBOperations.delete_file_index_by_file_id(file_info.id)
+            DBOperations.delete_file_index_by_path(file_path)
 
             return True, "文件及其关联索引、缩略图已成功删除"
         except Exception as e:

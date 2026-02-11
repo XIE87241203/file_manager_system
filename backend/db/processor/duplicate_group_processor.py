@@ -49,7 +49,7 @@ class DuplicateGroupProcessor(BaseDBProcessor):
                 for f_model in group.files:
                     files_data.append((
                         group_id, 
-                        f_model.file_id, 
+                        f_model.file_path, 
                         f_model.similarity_type, 
                         f_model.similarity_rate
                     ))
@@ -59,7 +59,7 @@ class DuplicateGroupProcessor(BaseDBProcessor):
                     cursor.executemany(
                         f"INSERT INTO {DBConstants.DuplicateFile.TABLE_FILES} "
                         f"({DBConstants.DuplicateFile.COL_FILE_GROUP_ID}, "
-                        f"{DBConstants.DuplicateFile.COL_FILE_ID}, "
+                        f"{DBConstants.DuplicateFile.COL_FILE_PATH}, "
                         f"{DBConstants.DuplicateFile.COL_SIMILARITY_TYPE}, "
                         f"{DBConstants.DuplicateFile.COL_SIMILARITY_RATE}) "
                         f"VALUES (?, ?, ?, ?)",
@@ -79,62 +79,69 @@ class DuplicateGroupProcessor(BaseDBProcessor):
                 conn.close()
 
     @staticmethod
-    def delete_file_by_id(file_id: int, conn: Optional[sqlite3.Connection] = None) -> bool:
+    def delete_files_by_paths(file_paths: List[str], conn: Optional[sqlite3.Connection] = None) -> bool:
         """
-        用途：根据 ID 从重复文件记录中删除，并维护分组完整性
+        用途：根据文件路径列表批量从重复文件记录中删除，并维护分组完整性
         入参说明：
-            file_id (int): 记录的唯一标识 ID
+            file_paths (List[str]): 待删除的文件完整路径列表
             conn (Optional[sqlite3.Connection]): 数据库连接对象（可选，用于事务支持）
         返回值说明：
             bool: 是否操作成功
         """
+        if not file_paths:
+            return True
+
         local_conn: bool = False
         if conn is None:
             conn = db_manager.get_connection()
             local_conn = True
 
         try:
-            cursor = conn.cursor()
+            cursor: sqlite3.Cursor = conn.cursor()
 
-            # 2. 查询该文件所属的 group_id
+            # 1. 查找这些文件涉及到的所有 group_id (为了后续维护分组完整性)
+            placeholders: str = ','.join(['?'] * len(file_paths))
             cursor.execute(
-                f"SELECT {DBConstants.DuplicateFile.COL_FILE_GROUP_ID} FROM {DBConstants.DuplicateFile.TABLE_FILES} "
-                f"WHERE {DBConstants.DuplicateFile.COL_FILE_ID} = ?",
-                (file_id,)
+                f"SELECT DISTINCT {DBConstants.DuplicateFile.COL_FILE_GROUP_ID} "
+                f"FROM {DBConstants.DuplicateFile.TABLE_FILES} "
+                f"WHERE {DBConstants.DuplicateFile.COL_FILE_PATH} IN ({placeholders})",
+                tuple(file_paths)
             )
-            row = cursor.fetchone()
-            if not row:
-                # 不在查重结果中，视为成功（幂等性）
+            affected_groups: List[tuple] = cursor.fetchall()
+            group_ids: List[int] = [row[0] for row in affected_groups]
+
+            if not group_ids:
                 return True
 
-            group_id: int = row[0]
-
-            # 3. 从重复文件中删除该记录
+            # 2. 批量删除文件记录
             cursor.execute(
-                f"DELETE FROM {DBConstants.DuplicateFile.TABLE_FILES} WHERE {DBConstants.DuplicateFile.COL_FILE_ID} = ?",
-                (file_id,)
+                f"DELETE FROM {DBConstants.DuplicateFile.TABLE_FILES} "
+                f"WHERE {DBConstants.DuplicateFile.COL_FILE_PATH} IN ({placeholders})",
+                tuple(file_paths)
             )
 
-            # 4. 检查组内剩余文件数量
-            cursor.execute(
-                f"SELECT COUNT(*) FROM {DBConstants.DuplicateFile.TABLE_FILES} WHERE {DBConstants.DuplicateFile.COL_FILE_GROUP_ID} = ?",
-                (group_id,)
-            )
-            count: int = cursor.fetchone()[0]
+            # 3. 维护分组完整性：检查每个受影响的分组
+            for group_id in group_ids:
+                cursor.execute(
+                    f"SELECT COUNT(*) FROM {DBConstants.DuplicateFile.TABLE_FILES} "
+                    f"WHERE {DBConstants.DuplicateFile.COL_FILE_GROUP_ID} = ?",
+                    (group_id,)
+                )
+                count: int = cursor.fetchone()[0]
 
-            # 5. 若少于2个文件，则解散分组
-            if count < 2:
-                # 删除组内剩余的文件记录
-                cursor.execute(
-                    f"DELETE FROM {DBConstants.DuplicateFile.TABLE_FILES} WHERE {DBConstants.DuplicateFile.COL_FILE_GROUP_ID} = ?",
-                    (group_id,)
-                )
-                # 删除分组记录
-                cursor.execute(
-                    f"DELETE FROM {DBConstants.DuplicateGroup.TABLE_GROUPS} WHERE {DBConstants.DuplicateGroup.COL_GRP_ID_PK} = ?",
-                    (group_id,)
-                )
-                LogUtils.info(f"由于成员不足2个，已自动解散重复分组 ID: {group_id}")
+                # 4. 若组内成员少于 2 个，则彻底清理该组
+                if count < 2:
+                    # 删除组内残留文件记录
+                    cursor.execute(
+                        f"DELETE FROM {DBConstants.DuplicateFile.TABLE_FILES} WHERE {DBConstants.DuplicateFile.COL_FILE_GROUP_ID} = ?",
+                        (group_id,)
+                    )
+                    # 删除分组记录
+                    cursor.execute(
+                        f"DELETE FROM {DBConstants.DuplicateGroup.TABLE_GROUPS} WHERE {DBConstants.DuplicateGroup.COL_GRP_ID_PK} = ?",
+                        (group_id,)
+                    )
+                    LogUtils.info(f"由于成员不足2个，已自动解散重复分组 ID: {group_id}")
 
             if local_conn:
                 conn.commit()
@@ -142,10 +149,65 @@ class DuplicateGroupProcessor(BaseDBProcessor):
         except Exception as e:
             if local_conn and conn:
                 conn.rollback()
-            LogUtils.error(f"根据 ID 删除重复记录失败: {e}")
+            LogUtils.error(f"批量根据路径删除重复记录失败: {e}")
             return False
         finally:
             if local_conn and conn:
+                conn.close()
+
+    @staticmethod
+    def _self_heal(conn: Optional[sqlite3.Connection] = None) -> None:
+        """
+        用途说明：核心数据库自愈逻辑，全表清理失效路径关联及解散成员不足 2 人的分组。
+        流程说明：
+            1. 使用子查询批量删除所有在 file_index 表中找不到 file_path 的重复记录。
+            2. 使用 GROUP BY 识别出成员数量 < 2 的分组，并物理删除这些分组及其残余关联。
+        入参说明：
+            conn (Optional[sqlite3.Connection]): 可选数据库连接，用于支持事务嵌套。
+        返回值说明：无
+        """
+        local_conn: bool = False
+        if conn is None:
+            conn = db_manager.get_connection()
+            local_conn = True
+
+        try:
+            cursor: sqlite3.Cursor = conn.cursor()
+            # 1. 清理孤儿文件关联（即 file_index 中已被删除的文件）
+            cursor.execute(f"""
+                DELETE FROM {DBConstants.DuplicateFile.TABLE_FILES}
+                WHERE {DBConstants.DuplicateFile.COL_FILE_PATH} NOT IN (
+                    SELECT {DBConstants.FileIndex.COL_FILE_PATH} FROM {DBConstants.FileIndex.TABLE_NAME}
+                )
+            """)
+
+            # 2. 清理成员不足的分组（识别并解散）
+            cursor.execute(f"""
+                DELETE FROM {DBConstants.DuplicateGroup.TABLE_GROUPS}
+                WHERE {DBConstants.DuplicateGroup.COL_GRP_ID_PK} NOT IN (
+                    SELECT {DBConstants.DuplicateFile.COL_FILE_GROUP_ID}
+                    FROM {DBConstants.DuplicateFile.TABLE_FILES}
+                    GROUP BY {DBConstants.DuplicateFile.COL_FILE_GROUP_ID}
+                    HAVING COUNT(*) >= 2
+                )
+            """)
+            
+            # 3. 同步清理 duplicate_files 中那些已经失去父分组的记录（防御性清理）
+            cursor.execute(f"""
+                DELETE FROM {DBConstants.DuplicateFile.TABLE_FILES}
+                WHERE {DBConstants.DuplicateFile.COL_FILE_GROUP_ID} NOT IN (
+                    SELECT {DBConstants.DuplicateGroup.COL_GRP_ID_PK} FROM {DBConstants.DuplicateGroup.TABLE_GROUPS}
+                )
+            """)
+
+            if local_conn:
+                conn.commit()
+        except Exception as e:
+            if local_conn:
+                conn.rollback()
+            LogUtils.error(f"执行数据库自愈清理失败: {e}")
+        finally:
+            if local_conn:
                 conn.close()
 
     @staticmethod
@@ -167,15 +229,24 @@ class DuplicateGroupProcessor(BaseDBProcessor):
             similarity_type: Optional[str] = None
     ) -> PaginationResult[DuplicateGroupResult]:
         """
-        用途：分页获取重复文件分组数据（已优化：通过批量查询避免 N+1 问题）
+        用途说明：分页获取重复文件分组数据（基于先自愈后查询的优化方案）。
+        流程说明：
+            1. 调用 _self_heal() 进行全局自愈，确保数据库数据 100% 真实有效。
+            2. 统计总数：由于数据已清理，直接统计即可获得准确的总条数。
+            3. 分页查询：获取当前页的分组信息。
+            4. 批量查询：获取所有成员详情（无需复杂的 LEFT JOIN 判断）。
+            5. 返回封装：封装并返回分页结果。
         入参说明：
-            page (int): 当前页码
-            limit (int): 每页展示的分组条数
-            similarity_type (Optional[str]): 筛选相似度类型 (如 'md5', 'hash', 'video_feature')
+            page (int): 当前页码。
+            limit (int): 每页条数。
+            similarity_type (Optional[str]): 相似度类型。
         返回值说明：
-            PaginationResult[DuplicateGroupResult]: 包含分组及其文件列表的分页结果对象
+            PaginationResult[DuplicateGroupResult]: 清理后的准确分页结果。
         """
-        # 1. 查询总分组数（如果有筛选，需要按筛选条件计数）
+        # 1. 执行全表自愈，确保 total 计算前数据是干净的
+        DuplicateGroupProcessor._self_heal()
+
+        # 2. 获取准确的总分组数
         if similarity_type:
             count_query: str = f"""
                 SELECT COUNT(DISTINCT {DBConstants.DuplicateFile.COL_FILE_GROUP_ID}) as total 
@@ -190,7 +261,7 @@ class DuplicateGroupProcessor(BaseDBProcessor):
         if total == 0:
             return PaginationResult(total=0, list=[], page=page, limit=limit, sort_by="", order="ASC")
 
-        # 2. 分页查询分组列表
+        # 3. 分页查询分组列表
         offset: int = max(0, (page - 1) * limit)
         if similarity_type:
             group_query: str = f"""
@@ -215,7 +286,7 @@ class DuplicateGroupProcessor(BaseDBProcessor):
         if not group_rows:
             return PaginationResult(total=total, list=[], page=page, limit=limit, sort_by="", order="ASC")
 
-        # 3. 提取所有组 ID，并批量查询这些组关联的所有文件
+        # 4. 批量获取成员详情
         group_ids: List[int] = [row[DBConstants.DuplicateGroup.COL_GRP_ID_PK] for row in group_rows]
         placeholders: str = ','.join(['?'] * len(group_ids))
         
@@ -225,33 +296,29 @@ class DuplicateGroupProcessor(BaseDBProcessor):
                    df.{DBConstants.DuplicateFile.COL_SIMILARITY_RATE},
                    fi.* 
             FROM {DBConstants.FileIndex.TABLE_NAME} fi
-            JOIN {DBConstants.DuplicateFile.TABLE_FILES} df 
-            ON fi.{DBConstants.FileIndex.COL_ID} = df.{DBConstants.DuplicateFile.COL_FILE_ID}
+            INNER JOIN {DBConstants.DuplicateFile.TABLE_FILES} df 
+            ON fi.{DBConstants.FileIndex.COL_FILE_PATH} = df.{DBConstants.DuplicateFile.COL_FILE_PATH}
             WHERE df.{DBConstants.DuplicateFile.COL_FILE_GROUP_ID} IN ({placeholders})
         """
         all_file_rows: List[dict] = BaseDBProcessor._execute(file_query, tuple(group_ids), is_query=True)
 
-        # 4. 按 group_id 组织文件数据
+        # 5. 组织数据
         group_files_map: Dict[int, List[DuplicateFileResult]] = {}
         for f_row in all_file_rows:
             gid: int = f_row.pop(DBConstants.DuplicateFile.COL_FILE_GROUP_ID)
-            # 获取相似度信息
             sim_type: str = f_row.pop(DBConstants.DuplicateFile.COL_SIMILARITY_TYPE)
             sim_rate: float = f_row.pop(DBConstants.DuplicateFile.COL_SIMILARITY_RATE)
             
-            # 剩余字段构建文件模型
             file_info: FileIndexDBModel = FileIndexDBModel(**f_row)
-            
             if gid not in group_files_map:
                 group_files_map[gid] = []
-            
             group_files_map[gid].append(DuplicateFileResult(
                 file_info=file_info,
                 similarity_type=sim_type or DBConstants.SimilarityType.MD5,
                 similarity_rate=sim_rate if sim_rate is not None else 1.0
             ))
 
-        # 5. 封装结果
+        # 6. 封装返回
         results: List[DuplicateGroupResult] = []
         for g_row in group_rows:
             group_id: int = g_row[DBConstants.DuplicateGroup.COL_GRP_ID_PK]

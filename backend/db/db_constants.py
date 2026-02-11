@@ -3,7 +3,7 @@ class DBConstants:
     用途：数据库表名及列名常量类，统一管理所有数据库结构相关的硬编码字符串
     """
 
-    DB_VERSION: int = 13  # 当前数据库版本，升级至 13 以支持文件类型、视频时长、视频编码
+    DB_VERSION: int = 14  # 当前数据库版本，升级至 14 以支持 duplicate_files 使用 file_path 关联
 
     class SimilarityType:
         """用途：查重相似度类型常量"""
@@ -65,7 +65,7 @@ class DBConstants:
         TABLE_FILES: str = 'duplicate_files'
         COL_FILE_ID_PK: str = 'id'
         COL_FILE_GROUP_ID: str = 'group_id'
-        COL_FILE_ID: str = 'file_id'
+        COL_FILE_PATH: str = 'file_path'            # 修改：使用 file_path 关联
         COL_SIMILARITY_TYPE: str = 'similarity_type' # 相似类型：md5, hash
         COL_SIMILARITY_RATE: str = 'similarity_rate' # 相似率：0.0-1.0
 

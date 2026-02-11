@@ -85,12 +85,11 @@ class DBManager:
             current_db_version: int = row[0] if row else 0
             LogUtils.info(f"读取数据库版本成功，当前版本: {current_db_version}")
 
-            # 3. 创建基础表结构（如果不存在）
-            self._create_tables(cursor)
-
             # 4. 版本检查与升级
             target_version: int = DBConstants.DB_VERSION
             if current_db_version == 0:
+                # 3. 创建基础表结构（如果不存在）
+                self._create_tables(cursor)
                 # 新数据库，直接插入当前版本号
                 cursor.execute(f"INSERT INTO {DBConstants.VersionInfo.TABLE_NAME} ({DBConstants.VersionInfo.COL_VERSION}) VALUES (?)", (target_version,))
                 LogUtils.info(f"数据库初始化成功，版本: {target_version}")
@@ -176,7 +175,7 @@ class DBManager:
             CREATE TABLE IF NOT EXISTS {DBConstants.DuplicateFile.TABLE_FILES} (
                 {DBConstants.DuplicateFile.COL_FILE_ID_PK} INTEGER PRIMARY KEY AUTOINCREMENT,
                 {DBConstants.DuplicateFile.COL_FILE_GROUP_ID} INTEGER NOT NULL,
-                {DBConstants.DuplicateFile.COL_FILE_ID} INTEGER NOT NULL,
+                {DBConstants.DuplicateFile.COL_FILE_PATH} TEXT NOT NULL,
                 {DBConstants.DuplicateFile.COL_SIMILARITY_TYPE} TEXT,
                 {DBConstants.DuplicateFile.COL_SIMILARITY_RATE} REAL DEFAULT 1.0
             )
@@ -187,8 +186,8 @@ class DBManager:
             ON {DBConstants.DuplicateFile.TABLE_FILES} ({DBConstants.DuplicateFile.COL_FILE_GROUP_ID})
         ''')
         cursor.execute(f'''
-            CREATE INDEX IF NOT EXISTS idx_duplicate_files_file_id 
-            ON {DBConstants.DuplicateFile.TABLE_FILES} ({DBConstants.DuplicateFile.COL_FILE_ID})
+            CREATE INDEX IF NOT EXISTS idx_duplicate_files_file_path 
+            ON {DBConstants.DuplicateFile.TABLE_FILES} ({DBConstants.DuplicateFile.COL_FILE_PATH})
         ''')
 
         # 6. 创建 already_entered_file 表
@@ -342,6 +341,41 @@ class DBManager:
                 LogUtils.info("数据库升级到版本 13: 已为 file_index 和 history_file_index 添加文件类型、视频时长、视频编码列")
             except Exception as e:
                 LogUtils.error(f"升级到版本 13 失败: {e}")
+                raise e
+
+        if old_version < 14:
+            # 升级到版本 14: 重置查重表结构，从关联 ID 改为关联路径
+            try:
+                # 1. 直接删除旧的重复文件关联表
+                cursor.execute(f"DROP TABLE IF EXISTS {DBConstants.DuplicateFile.TABLE_FILES}")
+                
+                # 2. 清空重复分组表数据（因为旧关联已失效，重置分组以保证数据一致性）
+                cursor.execute(f"DELETE FROM {DBConstants.DuplicateGroup.TABLE_GROUPS}")
+                
+                # 3. 创建符合新结构的新表 (使用 file_path 关联)
+                cursor.execute(f'''
+                    CREATE TABLE {DBConstants.DuplicateFile.TABLE_FILES} (
+                        {DBConstants.DuplicateFile.COL_FILE_ID_PK} INTEGER PRIMARY KEY AUTOINCREMENT,
+                        {DBConstants.DuplicateFile.COL_FILE_GROUP_ID} INTEGER NOT NULL,
+                        {DBConstants.DuplicateFile.COL_FILE_PATH} TEXT NOT NULL,
+                        {DBConstants.DuplicateFile.COL_SIMILARITY_TYPE} TEXT,
+                        {DBConstants.DuplicateFile.COL_SIMILARITY_RATE} REAL DEFAULT 1.0
+                    )
+                ''')
+
+                # 4. 创建新索引
+                cursor.execute(f'''
+                    CREATE INDEX IF NOT EXISTS idx_duplicate_files_group_id 
+                    ON {DBConstants.DuplicateFile.TABLE_FILES} ({DBConstants.DuplicateFile.COL_FILE_GROUP_ID})
+                ''')
+                cursor.execute(f'''
+                    CREATE INDEX IF NOT EXISTS idx_duplicate_files_file_path 
+                    ON {DBConstants.DuplicateFile.TABLE_FILES} ({DBConstants.DuplicateFile.COL_FILE_PATH})
+                ''')
+
+                LogUtils.info("数据库升级到版本 14: 重置查重关联表并切换为基于路径关联")
+            except Exception as e:
+                LogUtils.error(f"升级到版本 14 失败: {e}")
                 raise e
 
 

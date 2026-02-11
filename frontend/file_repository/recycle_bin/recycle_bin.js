@@ -73,6 +73,7 @@ const UIController = {
         if (!list || list.length === 0) {
             // 用途说明：动态调整空状态的列跨度，包含新增的文件类型、时长、编码列
             tableBody.innerHTML = UIComponents.getEmptyTableHtml(8, '回收站空空如也');
+            this.updateActionButtons();
             return;
         }
 
