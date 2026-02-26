@@ -101,8 +101,12 @@ const UIController = {
             // 使用 CommonUtils.formatDuration 格式化视频时长
             const durationStr = CommonUtils.formatDuration(file.video_duration);
 
+            // --- 新增：视频播放按钮生成 ---
+            const isVideo = file.file_type === 'video';
+            const playBtnHtml = isVideo ? `<span class="play-btn" title="点击播放视频"><i class="play-icon">▶</i></span>` : '';
+
             let html = `
-                <td class="col-name" title="${fileName}">${fileName}</td>
+                <td class="col-name" title="${fileName}">${playBtnHtml}${fileName}</td>
                 <td class="col-size">${fileSizeStr}</td>
                 <td class="col-path" title="${file.file_path}">${file.file_path}</td>
                 <td class="col-type">${file.file_type || '未知'}</td>
@@ -121,6 +125,15 @@ const UIController = {
 
             tr.innerHTML = html;
             
+            // --- 新增：为播放按钮绑定事件 ---
+            if (isVideo) {
+                const playBtn = tr.querySelector('.play-btn');
+                playBtn.onclick = (e) => {
+                    e.stopPropagation(); // 阻止触发行的选中逻辑
+                    App.handlePlayVideo(file.file_path);
+                };
+            }
+
             if (State.settings && State.settings.file_repository.quick_view_thumbnail) {
                 tr.addEventListener('mouseenter', (e) => UIComponents.showQuickPreview(e, file.thumbnail_path));
                 tr.addEventListener('mousemove', (e) => UIComponents.moveQuickPreview(e));
@@ -325,6 +338,19 @@ const App = {
         } else {
             Toast.show(response.message);
         }
+    },
+
+    /**
+     * 用途说明：处理视频播放请求，跳转到专用播放页面并禁止下载功能。
+     * 入参说明：filePath (String) - 视频文件在服务器上的绝对路径。
+     */
+    handlePlayVideo(filePath) {
+        // 构造播放页面 URL
+        const playPageUrl = `../video_player/video_player.html?path=${encodeURIComponent(filePath)}`;
+
+        window.location.href = playPageUrl
+//        // 在新窗口中打开播放页面
+//        window.open(playPageUrl, '_blank');
     },
 
     confirmStartScan() {

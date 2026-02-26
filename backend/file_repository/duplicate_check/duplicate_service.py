@@ -125,7 +125,7 @@ class DuplicateService(BaseAsyncService):
                     cls._progress_manager.update_progress(
                         current=current_processed,
                         total=total_files,
-                        message=f"正在分析 ({current_processed}/{total_files}): {file_name}"
+                        message=f"正在分析: {file_name}"
                     )
                     helper.add_file(file_info)
 

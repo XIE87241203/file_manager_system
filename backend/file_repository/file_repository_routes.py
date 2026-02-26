@@ -373,6 +373,33 @@ def view_thumbnail():
     return send_file(requested_path, mimetype='image/jpeg')
 
 
+# --- 视频播放相关路由 ---
+
+@file_repo_bp.route('/video/stream', methods=['GET'])
+@token_required
+def stream_video():
+    """
+    用途说明：提供视频流式传输接口，支持 Range 请求，以便调起第三方播放器。
+    入参说明：Query 参数 path 为视频文件的绝对路径。
+    返回值说明：视频文件流。
+    """
+    path: str = request.args.get('path')
+    if not path:
+        return error_response("参数缺失", 400)
+
+    if not os.path.exists(path):
+        return error_response("视频文件不存在", 404)
+
+    # 简单校验是否为视频文件（可选，增加安全性）
+    if not Utils.is_video_file(path):
+        return error_response("该文件不是有效的视频格式", 400)
+
+    LogUtils.info(f"用户 {_get_current_user()} 请求播放视频: {path}")
+    
+    # conditional=True 允许 Flask 处理 Range 请求，这对于视频拖动进度条至关重要
+    return send_file(path, conditional=True)
+
+
 # --- 文件仓库详情统计相关路由 ---
 
 @file_repo_bp.route('/detail', methods=['GET'])

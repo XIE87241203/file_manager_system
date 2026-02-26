@@ -133,4 +133,34 @@
 .filter-select:focus {
     border-color: #1a73e8;
 }
+
+/* 10. 播放按钮样式 */
+.play-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    margin-right: 8px;
+    cursor: pointer;
+    color: #1a73e8;
+    background-color: #e8f0fe;
+    border-radius: 50%;
+    transition: background-color 0.2s, transform 0.1s;
+    user-select: none;
+    vertical-align: middle;
+}
+
+.play-btn:hover {
+    background-color: #d2e3fc;
+    transform: scale(1.1);
+}
+
+.play-btn:active {
+    transform: scale(0.95);
+}
+
+.play-icon {
+    font-size: 12px;
+    margin-left: 2px; /* 微调三角位置 */
 }

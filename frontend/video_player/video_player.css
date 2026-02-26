@@ -1,0 +1,75 @@
+/**
+ * 用途说明：视频播放页面专用样式，实现沉浸式播放体验并适配通用头部。
+ */
+
+/* 1. 页面整体布局 */
+.player-body {
+    background-color: #000; /* 播放页背景设为黑色，增强沉浸感 */
+    overflow: hidden; /* 防止出现滚动条 */
+    height: 100dvh; /* 使用动态视口高度，适配移动端浏览器工具栏 */
+    display: flex;
+    flex-direction: column;
+    align-items: stretch; /* 覆盖 common.css 的 center，确保容器撑满宽度 */
+    min-height: 0; /* 覆盖 common.css 的限制 */
+    min-width: 0;  /* 覆盖 common.css 的限制 */
+    margin: 0;
+    padding: 0;
+}
+
+/* 2. 适配通用头部（覆盖 common.css 样式使其更符合播放页需求） */
+.player-body .top-bar {
+    background-color: #202124;
+    color: #fff;
+    border-bottom: 1px solid #3c4043;
+    z-index: 100; /* 确保在播放器上方 */
+    flex-shrink: 0; /* 确保头部高度不被 flex 压缩 */
+}
+
+.player-body .top-bar-title {
+    color: #fff;
+}
+
+.player-body .back-btn {
+    color: #e8eaed;
+}
+
+.player-body .back-btn:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* 3. 播放器容器 */
+.player-container {
+    flex: 1; /* 自动撑开占据剩余高度 */
+    width: 100%;
+    background-color: #000;
+    position: relative; /* 为子元素绝对定位提供基准 */
+    overflow: hidden;
+}
+
+/* ArtPlayer 容器：使用绝对定位撑满父容器 */
+.artplayer-app {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+
+/* 4. 横屏模式 CSS 实现 - 作用于 body，实现整个网页横屏 */
+.page-landscape {
+    position: fixed !important;
+    top: 0 !important;
+    left: 100vw !important; /* 旋转后位移补偿 */
+    width: 100dvh !important; /* 宽度变为视口高度 */
+    height: 100vw !important; /* 高度变为视口宽度 */
+    transform: rotate(90deg);
+    transform-origin: top left;
+    z-index: 9999;
+}
+
+/* 5. 安全防护：禁用文字选择 */
+.player-body {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+}

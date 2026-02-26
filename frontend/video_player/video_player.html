@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>视频播放 - 文件管理系统</title>
+    <!-- 引入公用样式 -->
+    <link rel="stylesheet" href="../common/common.css">
+    <!-- 引入页面私有样式 -->
+    <link rel="stylesheet" href="video_player.css">
+</head>
+<body class="player-body">
+    <!-- 顶部工具栏：由 UIComponents.initHeader 动态初始化 -->
+    <header class="top-bar"></header>
+
+    <main class="player-container">
+        <!-- ArtPlayer 容器 -->
+        <div id="artplayer-container" class="artplayer-app"></div>
+    </main>
+
+    <!-- 脚本加载 -->
+    <script src="https://cdn.jsdelivr.net/npm/artplayer/dist/artplayer.js"></script>
+    <script src="../common/common.js"></script>
+    <script src="../common/ui_components.js"></script>
+    <script src="../common/request.js"></script>
+    <script src="../common/toast.js"></script>
+    <script src="video_player.js"></script>
+</body>
+</html>
