@@ -7,12 +7,14 @@
     <!-- 引入公用样式 -->
     <link rel="stylesheet" href="../../common/common.css">
     <link rel="stylesheet" href="../../common/table.css">
+    <link rel="stylesheet" href="../../common/header_toolbar/search/search_header_toolbar.css">
+    <link rel="stylesheet" href="../../common/page_bar/page_bar.css">
     <!-- 引入页面私有样式 -->
     <link rel="stylesheet" href="pending_entry_file.css">
 </head>
 <body class="repo-body">
-    <!-- 顶部工具栏：由 UIComponents.initRepoHeader 动态初始化 -->
-    <header class="top-bar"></header>
+    <!-- 顶部工具栏：由 SearchHeaderToolbar 动态初始化 -->
+    <header class="header-bar"></header>
 
     <div id="repo-main-content" class="repo-content-group">
             <!-- 数据展示区 -->
@@ -46,17 +48,28 @@
                     <div id="pagination-container" class="pagination-container"></div>
                 </div>
                 <div class="footer-right">
-                    <button id="btn-open-and-move" class="btn-primary-large hidden" style="margin-right: 10px;">打开网址</button>
-                    <button id="btn-move-to-already-entered" class="btn-secondary-large hidden" style="margin-right: 10px;">移到已收录</button>
-                    <button id="btn-delete-selected" class="btn-danger-large hidden">删除选中</button>
+                    <div class="icon-btn hidden" id="btn-footer-menu" title="更多操作">
+                        <img src="../../common/header_toolbar/icon/menu_icon.svg" class="icon-img" alt="菜单">
+                    </div>
                 </div>
             </footer>
         </div>
+
+    <!-- 下拉菜单 A -->
+    <div id="footer-dropdown-menu" class="dropdown-menu">
+        <div class="menu-item" id="menu-open-and-move">打开网址</div>
+        <div class="menu-item" id="menu-move-to-already-entered">移到已收录</div>
+        <div class="menu-divider"></div>
+        <div class="menu-item text-danger" id="menu-delete-selected">删除选中</div>
+    </div>
 
     <!-- 脚本加载 -->
     <script src="../../common/ui_components.js"></script>
     <script src="../../common/request.js"></script>
     <script src="../../common/toast.js"></script>
+    <script src="../../common/header_toolbar/search/search_header_toolbar.js"></script>
+    <script src="../../common/page_bar/page_bar.js"></script>
+    <script src="pending_entry_file_request.js"></script>
     <script src="pending_entry_file.js"></script>
 </body>
 </html>

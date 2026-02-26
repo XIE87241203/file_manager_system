@@ -15,15 +15,13 @@ const UIController = {
      * 用途说明：初始化页面 UI，缓存关键 DOM 元素并初始化顶部栏。
      */
     init() {
-        // 初始化公用头部，主页不需要返回按钮，右侧添加退出登录按钮
-        UIComponents.initHeader(
-            '文件管理系统', 
-            false, 
-            null, 
-            '退出登录', 
-            () => App.logout(), 
-            'btn-text-danger'
-        );
+        // 使用通用的 HeaderToolbar 初始化顶部栏
+        HeaderToolbar.init({
+            title: '文件管理系统',
+            backCallback: null, // 首页不需要返回按钮
+            menuCallback: null,  // 首页暂时不需要右侧菜单
+            showBack: false
+        });
 
         // 缓存统计展示相关的 DOM 元素
         this.elements = {
@@ -31,15 +29,16 @@ const UIController = {
             totalSize: document.getElementById('repo-total-size'),
             updateTime: document.getElementById('repo-update-time'),
             btnCalc: document.getElementById('btn-calc-repo-stats'),
-            headerTitle: document.querySelector('.top-bar-title'),
+            headerTitle: document.querySelector('.header-title'), // 适配 default_header_toolbar 的类名
             testPageMenu: document.getElementById('menu-test-page')
         };
 
-        // 特殊处理：让标题支持点击事件（覆盖 common.css 中的 pointer-events: none）
+        // 让标题支持点击事件，用于触发隐藏入口
         if (this.elements.headerTitle) {
             this.elements.headerTitle.style.pointerEvents = 'auto';
             this.elements.headerTitle.style.cursor = 'default';
         }
+
     },
 
     /**
@@ -131,7 +130,7 @@ const App = {
         UIController.init();
         this.bindEvents();
         this.loadRepoStats();
-        this.fetchAndDisplayAppVersion(); // Add this line
+        this.fetchAndDisplayAppVersion();
     },
 
     /**
@@ -218,10 +217,15 @@ const App = {
                     'menu-recycle-bin': '../file_repository/recycle_bin/recycle_bin.html',
                     'menu-setting': '../setting/setting.html',
                     'menu-logs': '../system/logs/logs.html',
-                    'menu-test-page': '../test_page/test_progress_button.html'
+                    'menu-test-page': '../test_page/test_progress_button.html',
+                    'menu-logout': 'LOGOUT' // 特殊标识处理退出
                 };
                 const target = map[card.id];
-                if (target) window.location.href = target;
+                if (target === 'LOGOUT') {
+                    this.logout();
+                } else if (target) {
+                    window.location.href = target;
+                }
             };
         });
 

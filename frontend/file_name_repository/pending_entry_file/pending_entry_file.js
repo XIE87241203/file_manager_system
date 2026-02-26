@@ -10,7 +10,6 @@ const State = {
     order: 'DESC',
     search: '',
     selectedIds: new Set(),
-    paginationController: null,
     linkPrefix: '', // 文件名跳转前缀
     currentList: [], // 当前页面的数据列表
     defaultInterval: 2000 // 默认打开链接的间隔时间（毫秒）
@@ -26,35 +25,31 @@ const UIController = {
      * 返回值说明：无
      */
     init() {
-        // 使用公用组件初始化顶部栏
-        UIComponents.initRepoHeader({
-            searchPlaceholder: '搜索文件名...',
-            showHistoryCheckbox: false,
-            rightBtnText: '批量录入新数据',
-            rightBtnId: 'btn-go-batch',
-            onSearch: () => App.handleSearch()
+        // 使用公用组件初始化搜索顶部栏
+        SearchHeaderToolbar.init({
+            searchHint: '搜索文件名...',
+            menuIcon: "../../common/header_toolbar/icon/add_icon.svg",
+            searchCallback: (content) => {
+                State.search = content;
+                App.handleSearch();
+            },
+            menuCallback: () => {
+                window.location.href = 'batch_entry/batch_entry.html';
+            }
         });
 
         this.elements = {
             tableBody: document.getElementById('pending-entry-list-body'),
             searchInput: document.getElementById('search-input'),
-            goBatchBtn: document.getElementById('btn-go-batch'),
-            deleteSelectedBtn: document.getElementById('btn-delete-selected'),
-            openAndMoveBtn: document.getElementById('btn-open-and-move'),
-            moveToAlreadyEnteredBtn: document.getElementById('btn-move-to-already-entered'), // 移到已收录按钮
+            // 改为下拉菜单中的 ID
+            deleteSelectedBtn: document.getElementById('menu-delete-selected'),
+            openAndMoveBtn: document.getElementById('menu-open-and-move'),
+            moveToAlreadyEnteredBtn: document.getElementById('menu-move-to-already-entered'),
+            footerMenuBtn: document.getElementById('btn-footer-menu'),
+            footerMenu: document.getElementById('footer-dropdown-menu'),
             selectAllCheckbox: document.getElementById('select-all-checkbox'),
             sortableHeaders: document.querySelectorAll('th.sortable')
         };
-
-        // 初始化分页组件
-        State.paginationController = UIComponents.initPagination('pagination-container', {
-            limit: State.limit,
-            onPageChange: (newPage) => {
-                State.page = newPage;
-                App.loadPendingList();
-                window.scrollTo(0, 0);
-            }
-        });
 
         // 绑定表格选择逻辑
         UIComponents.bindTableSelection({
@@ -90,10 +85,10 @@ const UIController = {
             tr.setAttribute('data-id', item.id);
             if (isChecked) tr.classList.add('selected-row');
 
-            // 根据是否有前缀决定文件名渲染方式
+            // 根据是否有前缀决定文件名渲染方式，并添加 title 属性用于悬停显示全名
             const nameDisplay = State.linkPrefix 
-                ? `<a href="${State.linkPrefix}${encodeURIComponent(item.file_name)}" target="_blank" class="file-link">${item.file_name}</a>`
-                : item.file_name;
+                ? `<a href="${State.linkPrefix}${encodeURIComponent(item.file_name)}" target="_blank" class="file-link max-two-line" title="${item.file_name}">${item.file_name}</a>`
+                : `<span class="max-two-line" title="${item.file_name}">${item.file_name}</span>`;
 
             tr.innerHTML = `
                 <td class="col-index">${startVisibleIndex + index}</td>
@@ -125,58 +120,38 @@ const UIController = {
      * 返回值说明：无
      */
     updateActionButtons() {
-        const { deleteSelectedBtn, openAndMoveBtn, moveToAlreadyEnteredBtn } = this.elements;
+        const { footerMenuBtn, deleteSelectedBtn } = this.elements;
         const count = State.selectedIds.size;
 
         if (count > 0) {
-            deleteSelectedBtn.classList.remove('hidden');
-            deleteSelectedBtn.textContent = `删除选中 (${count})`;
-            if (openAndMoveBtn) openAndMoveBtn.classList.remove('hidden');
-            if (moveToAlreadyEnteredBtn) moveToAlreadyEnteredBtn.classList.remove('hidden');
+            footerMenuBtn.classList.remove('hidden');
+            if (deleteSelectedBtn) {
+                deleteSelectedBtn.textContent = `删除选中 (${count})`;
+            }
         } else {
-            deleteSelectedBtn.classList.add('hidden');
-            if (openAndMoveBtn) openAndMoveBtn.classList.add('hidden');
-            if (moveToAlreadyEnteredBtn) moveToAlreadyEnteredBtn.classList.add('hidden');
+            footerMenuBtn.classList.add('hidden');
+            this.toggleFooterMenu(false);
         }
-    }
-};
-
-// --- API 交互模块 ---
-const PendingEntryAPI = {
-    /**
-     * 用途说明：获取待录入文件名列表
-     * 入参说明：params: Object - 查询参数 (page, limit, sort_by, order_asc, search)
-     * 返回值说明：Promise - 返回包含状态 and 数据的对象
-     */
-    async getList(params) {
-        const query = new URLSearchParams(params).toString();
-        return await Request.get('/api/file_name_repository/pending_entry/list?' + query);
     },
 
     /**
-     * 用途说明：批量删除待录入记录
-     * 入参说明：ids: Array - 记录 ID 列表
-     * 返回值说明：Promise - 返回操作结果状态
+     * 用途说明：切换底部下拉菜单的显示状态
+     * 入参说明：show: boolean - 是否显示
+     * 返回值说明：无
      */
-    async batchDeletePending(ids) {
-        return await Request.post('/api/file_name_repository/pending_entry/batch_delete', { ids: ids });
-    },
+    toggleFooterMenu(show) {
+        const { footerMenu, footerMenuBtn } = this.elements;
+        if (!footerMenu || !footerMenuBtn) return;
 
-    /**
-     * 用途说明：批量添加曾录入记录
-     * 入参说明：fileNames: Array - 文件名列表
-     * 返回值说明：Promise - 返回操作结果状态
-     */
-    async addToAlreadyEntered(fileNames) {
-        return await Request.post('/api/file_name_repository/already_entered/add', { file_names: fileNames });
-    },
-
-    /**
-     * 用途说明：获取系统配置
-     * 返回值说明：Promise<Object> - 配置数据
-     */
-    async getSettings() {
-        return await Request.get('/api/setting/get');
+        if (show) {
+            const rect = footerMenuBtn.getBoundingClientRect();
+            // 定位在按钮上方
+            footerMenu.style.bottom = (window.innerHeight - rect.top + 8) + 'px';
+            footerMenu.style.right = (window.innerWidth - rect.right) + 'px';
+            footerMenu.classList.add('show');
+        } else {
+            footerMenu.classList.remove('show');
+        }
     }
 };
 
@@ -187,10 +162,10 @@ const App = {
      * 入参说明：无
      * 返回值说明：无
      */
-    async init() {
+    init() {
         UIController.init();
         this.bindEvents();
-        await this.loadConfig(); // 先加载配置
+        this.loadConfig(); // 加载配置
         this.loadPendingList();
     },
 
@@ -199,15 +174,15 @@ const App = {
      * 入参说明：无
      * 返回值说明：无
      */
-    async loadConfig() {
-        try {
-            const res = await PendingEntryAPI.getSettings();
-            if (res.status === 'success' && res.data && res.data.file_name_entry) {
-                State.linkPrefix = res.data.file_name_entry.file_name_link_prefix || '';
-            }
-        } catch (e) {
-            console.error('加载配置失败:', e);
-        }
+    loadConfig() {
+        PendingEntryAPI.getSettings(
+            (data) => {
+                if (data && data.file_name_entry) {
+                    State.linkPrefix = data.file_name_entry.file_name_link_prefix || '';
+                }
+            },
+            (err) => console.error('加载配置失败:', err)
+        );
     },
 
     /**
@@ -216,13 +191,24 @@ const App = {
      * 返回值说明：无
      */
     bindEvents() {
-        const { goBatchBtn, deleteSelectedBtn, openAndMoveBtn, moveToAlreadyEnteredBtn, sortableHeaders } = UIController.elements;
+        const {
+            deleteSelectedBtn, openAndMoveBtn, moveToAlreadyEnteredBtn,
+            sortableHeaders, footerMenuBtn, footerMenu
+        } = UIController.elements;
 
-        if (goBatchBtn) {
-            goBatchBtn.onclick = () => {
-                window.location.href = 'batch_entry/batch_entry.html';
+        // 绑定底部菜单按钮
+        if (footerMenuBtn) {
+            footerMenuBtn.onclick = (e) => {
+                e.stopPropagation();
+                const isShow = footerMenu.classList.contains('show');
+                UIController.toggleFooterMenu(!isShow);
             };
         }
+
+        // 点击页面其他地方关闭菜单
+        document.addEventListener('click', () => {
+            UIController.toggleFooterMenu(false);
+        });
 
         if (deleteSelectedBtn) {
             deleteSelectedBtn.onclick = () => this.handleDeleteSelected();
@@ -267,8 +253,6 @@ const App = {
      * 返回值说明：无
      */
     handleSearch() {
-        const { searchInput } = UIController.elements;
-        State.search = searchInput.value.trim();
         State.page = 1;
         State.selectedIds.clear();
         this.loadPendingList();
@@ -279,7 +263,7 @@ const App = {
      * 入参说明：无
      * 返回值说明：无
      */
-    async loadPendingList() {
+    loadPendingList() {
         const params = {
             page: State.page,
             limit: State.limit,
@@ -287,14 +271,27 @@ const App = {
             order_asc: State.order === 'ASC',
             search: State.search
         };
-        const res = await PendingEntryAPI.getList(params);
-        if (res.status === 'success' && res.data) {
-            State.currentList = res.data.list;
-            UIController.renderTable(res.data.list);
-            State.paginationController.update(res.data.total, res.data.page);
-        } else {
-            Toast.show(res.message || '加载列表失败');
-        }
+        PendingEntryAPI.getList(
+            params,
+            (data) => {
+                State.currentList = data.list;
+                UIController.renderTable(data.list);
+
+                // 使用公共 PageBar 组件渲染分页栏
+                PageBar.init({
+                    containerId: 'pagination-container',
+                    totalItems: data.total,
+                    pageSize: State.limit,
+                    currentPage: data.page,
+                    onPageChange: (newPage) => {
+                        State.page = newPage;
+                        this.loadPendingList();
+                        window.scrollTo(0, 0);
+                    }
+                });
+            },
+            (err) => Toast.show(err || '加载列表失败')
+        );
     },
 
     /**
@@ -302,18 +299,21 @@ const App = {
      * 入参说明：无
      * 返回值说明：无
      */
-    async handleDeleteSelected() {
+    handleDeleteSelected() {
         const ids = Array.from(State.selectedIds).map(id => parseInt(id));
         UIComponents.showConfirmModal({
             title: '删除选中记录',
             message: `确定要移除选中的 ${ids.length} 条记录吗？`,
-            onConfirm: async () => {
-                const res = await PendingEntryAPI.batchDeletePending(ids);
-                if (res.status === 'success') {
-                    Toast.show('已删除');
-                    State.selectedIds.clear();
-                    this.loadPendingList();
-                }
+            onConfirm: () => {
+                PendingEntryAPI.batchDeletePending(
+                    ids,
+                    () => {
+                        Toast.show('已删除');
+                        State.selectedIds.clear();
+                        this.loadPendingList();
+                    },
+                    (err) => Toast.show(err || '删除失败')
+                );
             }
         });
     },
@@ -323,7 +323,7 @@ const App = {
      * 入参说明：无
      * 返回值说明：无
      */
-    async handleOpenAndMoveSelected() {
+    handleOpenAndMoveSelected() {
         const ids = Array.from(State.selectedIds).map(id => parseInt(id));
         const selectedFiles = State.currentList.filter(item => State.selectedIds.has(String(item.id)));
         
@@ -397,7 +397,7 @@ const App = {
      * 入参说明：无
      * 返回值说明：无
      */
-    async handleMoveToAlreadyEntered() {
+    handleMoveToAlreadyEntered() {
         const ids = Array.from(State.selectedIds).map(id => parseInt(id));
         const selectedFiles = State.currentList.filter(item => State.selectedIds.has(String(item.id)));
 
@@ -409,26 +409,23 @@ const App = {
         UIComponents.showConfirmModal({
             title: '移到已收录',
             message: `确认将选中的 ${selectedFiles.length} 条记录转移到“曾录入文件名库”吗？`,
-            onConfirm: async () => {
+            onConfirm: () => {
                 const fileNames = selectedFiles.map(f => f.file_name);
-                try {
-                    const addRes = await PendingEntryAPI.addToAlreadyEntered(fileNames);
-                    if (addRes.status === 'success') {
-                        const delRes = await PendingEntryAPI.batchDeletePending(ids);
-                        if (delRes.status === 'success') {
-                            Toast.show('已成功移入曾录入库');
-                            State.selectedIds.clear();
-                            this.loadPendingList();
-                        } else {
-                            Toast.show('已添加至曾录入库，但从待录入库移除失败');
-                        }
-                    } else {
-                        Toast.show('转移失败: ' + (addRes.message || '未知错误'));
-                    }
-                } catch (e) {
-                    console.error('移库失败:', e);
-                    Toast.show('操作过程中出现异常');
-                }
+                PendingEntryAPI.addToAlreadyEntered(
+                    fileNames,
+                    () => {
+                        PendingEntryAPI.batchDeletePending(
+                            ids,
+                            () => {
+                                Toast.show('已成功移入曾录入库');
+                                State.selectedIds.clear();
+                                this.loadPendingList();
+                            },
+                            (err) => Toast.show('已添加至曾录入库，但从待录入库移除失败: ' + err)
+                        );
+                    },
+                    (err) => Toast.show('转移失败: ' + err)
+                );
             }
         });
     }

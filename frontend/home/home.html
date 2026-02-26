@@ -5,11 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>首页 - 文件管理系统</title>
     <link rel="stylesheet" href="../common/common.css">
+    <link rel="stylesheet" href="../common/header_toolbar/default/default_header_toolbar.css">
     <link rel="stylesheet" href="home.css">
 </head>
 <body>
-    <!-- 顶部工具栏容器，由 ui_components.js 动态初始化 -->
-    <header class="top-bar"></header>
+    <!-- 顶部工具栏容器，由 default_header_toolbar.js 动态初始化 -->
+    <header class="header-bar"></header>
 
     <main class="main-content">
         <div class="home-container">
@@ -72,6 +73,12 @@
                     <div class="menu-label">运行日志</div>
                 </div>
 
+                <!-- 退出登录 -->
+                <div id="menu-logout" class="menu-item">
+                    <div class="menu-icon">🚪</div>
+                    <div class="menu-label">退出登录</div>
+                </div>
+
                 <!-- 隐藏的测试页面入口 -->
                 <div id="menu-test-page" class="menu-item hidden">
                     <div class="menu-icon">🧪</div>
@@ -86,6 +93,7 @@
     <script src="../common/ui_components.js"></script>
     <script src="../common/request.js"></script>
     <script src="../common/toast.js"></script>
+    <script src="../common/header_toolbar/default/default_header_toolbar.js"></script>
     <script src="home.js"></script>
 
     <!-- 应用版本号显示 -->

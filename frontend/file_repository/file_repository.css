@@ -45,10 +45,6 @@
     height: 16px;
 }
 
-/* 4. 主容器及内容区域 */
-.repo-container {
-}
-
 /* 文件去重按钮最大宽度限制 */
 .btn-duplicate-check {
     max-width: 200px;
@@ -76,11 +72,29 @@
     background-color: #f8f9fa;
 }
 
-/* 8. 缩略图生成相关 */
-.thumbnail-action-container {
-    display: flex;
-    align-items: center;
-    gap: 12px;
+/* 8. 缩略图生成相关 (菜单内样式) */
+.menu-item.thumbnail-btn-generating {
+    color: #1a73e8;
+    transition: all 0.2s;
+    position: relative;
+}
+
+.menu-item.thumbnail-btn-generating:hover {
+    background-color: #d93025 !important;
+    color: #ffffff !important;
+}
+
+.menu-item.thumbnail-btn-generating:hover span {
+    visibility: hidden;
+}
+
+.menu-item.thumbnail-btn-generating:hover::after {
+    content: "取消生成缩略图";
+    position: absolute;
+    left: 0;
+    right: 0;
+    text-align: center;
+    visibility: visible;
 }
 
 .progress-text {
@@ -164,3 +178,58 @@
     font-size: 12px;
     margin-left: 2px; /* 微调三角位置 */
 }
+
+/* 11. 批量删除按钮图标化样式 */
+.btn-delete-icon {
+    width: 40px;
+    height: 40px;
+    background-color: #dc3545;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s;
+    padding: 0;
+}
+
+.btn-delete-icon:hover {
+    background-color: #c82333;
+}
+
+.trash-icon {
+    width: 20px;
+    height: 20px;
+    background-color: #fff;
+    -webkit-mask-image: url("../common/icons/trash_icon.svg");
+    mask-image: url("../common/icons/trash_icon.svg");
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-position: center;
+    mask-position: center;
+    -webkit-mask-size: contain;
+    mask-size: contain;
+}
+
+.col-time {
+    width: 100px;
+}
+
+.col-file-name {
+    width: 200px;
+}
+.col-size {
+    width: 100px;
+}
+
+.col-path {width: 200px;}
+.col-type {width: 100px;}
+.col-duration {width: 100px;}
+.col-codec {width: 100px;}
+.col-check { width: 40px; text-align: center; }
+
+.file-repository-table {
+    min-width: 700px;
+}
+

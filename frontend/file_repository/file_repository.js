@@ -13,9 +13,9 @@ const State = {
     searchHistory: false,
     scanInterval: null,
     thumbnailInterval: null,
+    thumbnailCount: 0, // 新增：记录缩略图剩余数量
     selectedPaths: new Set(),
-    settings: null,
-    paginationController: null
+    settings: null
 };
 
 // --- UI 控制模块 ---
@@ -23,42 +23,27 @@ const UIController = {
     elements: {},
 
     /**
-     * 用途说明：初始化 UI 控制器
+     * 用途说明：初始化 UI 控制器，绑定页面元素及初始化公用组件
      */
     init() {
         // 使用公用组件初始化顶部栏
-        UIComponents.initRepoHeader({
-            searchPlaceholder: '搜索文件名 (正则模糊匹配)...',
-            showHistoryCheckbox: true,
-            rightBtnText: '建立索引',
-            rightBtnId: 'btn-scan',
-            onSearch: () => App.handleSearch(),
-            onHistoryChange: () => App.handleSearch()
+        SearchHeaderToolbar.init({
+            searchHint: '搜索文件名 (正则模糊匹配)...',
+            searchCallback: (content) => {
+                State.search = content;
+                App.handleSearch();
+            },
+            menuCallback: (e) => this.showMenu(e)
         });
 
         this.elements = {
             tableBody: document.getElementById('file-list-body'),
-            scanBtn: document.getElementById('btn-scan'),
-            searchInput: document.getElementById('search-input'),
-            searchHistoryCheckbox: document.getElementById('search-history-checkbox'),
             selectAllCheckbox: document.getElementById('select-all-checkbox'),
             deleteSelectedBtn: document.getElementById('btn-delete-selected'),
-            thumbnailBtn: document.getElementById('btn-thumbnail'),
-            thumbnailProgressText: document.getElementById('thumbnail-progress-text'),
             sortableHeaders: document.querySelectorAll('th.sortable'),
             filterFileType: document.getElementById('filter-file-type'), // 新增：类型筛选下拉框
             mainContent: document.getElementById('repo-main-content')
         };
-
-        // 初始化分页组件
-        State.paginationController = UIComponents.initPagination('pagination-container', {
-            limit: State.limit,
-            onPageChange: (newPage) => {
-                State.page = newPage;
-                App.loadFileList();
-                window.scrollTo(0, 0);
-            }
-        });
 
         // 绑定表格选择逻辑
         UIComponents.bindTableSelection({
@@ -70,7 +55,81 @@ const UIController = {
     },
 
     /**
+     * 用途说明：显示或切换菜单下拉列表的显示状态
+     * 入参说明：event (Event) - 点击事件对象
+     */
+    showMenu(event) {
+        const menuBtn = document.getElementById('btn-menu');
+        const rect = menuBtn.getBoundingClientRect();
+
+        // 创建或获取菜单容器
+        let menu = document.getElementById('repo-action-menu');
+        if (!menu) {
+            menu = document.createElement('div');
+            menu.id = 'repo-action-menu';
+            menu.className = 'dropdown-menu';
+            document.body.appendChild(menu);
+
+            // 点击外部关闭
+            document.addEventListener('click', (e) => {
+                if (!menu.contains(e.target) && !menuBtn.contains(e.target)) {
+                    menu.classList.remove('show');
+                }
+            });
+        }
+
+        // 如果菜单已经显示，则关闭它（实现再次点击关闭逻辑）
+        if (menu.classList.contains('show')) {
+            menu.classList.remove('show');
+            return;
+        }
+
+        const scanBtnText = App.isScanning() ? '停止索引' : '建立索引';
+        const scanBtnClass = App.isScanning() ? 'menu-item text-danger' : 'menu-item';
+
+        const isThumbnailGenerating = State.thumbnailInterval !== null;
+        const thumbnailText = isThumbnailGenerating ? `缩略图生成剩余: ${State.thumbnailCount}` : '生成缩略图';
+        const thumbnailClass = isThumbnailGenerating ? 'menu-item thumbnail-btn-generating' : 'menu-item';
+
+        // 渲染菜单内容：复选框在文字后面
+        menu.innerHTML = `
+            <div class="${scanBtnClass}" id="menu-btn-scan">${scanBtnText}</div>
+            <div class="${thumbnailClass}" id="menu-btn-thumbnail"><span>${thumbnailText}</span></div>
+            <div class="menu-divider"></div>
+            <label class="menu-item checkbox-item">
+                <span>搜索历史库</span>
+                <input type="checkbox" id="menu-search-history" ${State.searchHistory ? 'checked' : ''}>
+            </label>
+        `;
+
+        // 绑定菜单项事件
+        menu.querySelector('#menu-btn-scan').onclick = () => {
+            menu.classList.remove('show');
+            if (App.isScanning()) App.handleStopScan();
+            else App.confirmStartScan();
+        };
+
+        menu.querySelector('#menu-btn-thumbnail').onclick = () => {
+            menu.classList.remove('show');
+            if (State.thumbnailInterval !== null) App.handleStopThumbnail();
+            else App.confirmStartThumbnail();
+        };
+
+        const historyCheck = menu.querySelector('#menu-search-history');
+        historyCheck.onchange = () => {
+            State.searchHistory = historyCheck.checked;
+            App.handleSearch();
+        };
+
+        // 定位并显示
+        menu.style.top = `${rect.bottom + 5}px`;
+        menu.style.left = `${rect.right - 160}px`;
+        menu.classList.add('show');
+    },
+
+    /**
      * 用途说明：渲染文件表格内容
+     * 入参说明：list (Array) - 文件数据列表
      */
     renderTable(list) {
         const { tableBody, selectAllCheckbox } = this.elements;
@@ -83,25 +142,20 @@ const UIController = {
         }
 
         if (!list || list.length === 0) {
-            // 用途说明：动态调整空状态的列跨度，包含新增的文件类型、时长、编码列
             tableBody.innerHTML = UIComponents.getEmptyTableHtml(State.searchHistory ? 7 : 8, '暂无索引文件');
             return;
         }
 
         list.forEach(file => {
-            // 关键修复：从 State.selectedPaths 中读取该文件是否被选中，以保持跨页选中状态
             const isChecked = State.selectedPaths.has(file.file_path);
             const tr = document.createElement('tr');
             tr.setAttribute('data-path', file.file_path);
             if (isChecked) tr.classList.add('selected-row');
             
             const fileName = file.file_name || '未知文件名';
-            // 使用 CommonUtils.formatFileSize 格式化文件大小
             const fileSizeStr = CommonUtils.formatFileSize(file.file_size);
-            // 使用 CommonUtils.formatDuration 格式化视频时长
             const durationStr = CommonUtils.formatDuration(file.video_duration);
 
-            // --- 新增：视频播放按钮生成 ---
             const isVideo = file.file_type === 'video';
             const playBtnHtml = isVideo ? `<span class="play-btn" title="点击播放视频"><i class="play-icon">▶</i></span>` : '';
 
@@ -125,11 +179,10 @@ const UIController = {
 
             tr.innerHTML = html;
             
-            // --- 新增：为播放按钮绑定事件 ---
             if (isVideo) {
                 const playBtn = tr.querySelector('.play-btn');
                 playBtn.onclick = (e) => {
-                    e.stopPropagation(); // 阻止触发行的选中逻辑
+                    e.stopPropagation();
                     App.handlePlayVideo(file.file_path);
                 };
             }
@@ -146,27 +199,30 @@ const UIController = {
         this.updateDeleteButtonVisibility();
     },
 
+    /**
+     * 用途说明：更新表头排序 UI 状态
+     * 入参说明：field (String) - 排序字段，order (String) - 排序方向
+     */
     updateSortUI(field, order) {
         UIComponents.updateSortUI(this.elements.sortableHeaders, field, order);
     },
 
+    /**
+     * 用途说明：切换扫描时的 UI 遮罩
+     * 入参说明：isScanning (Boolean) - 是否正在扫描
+     */
     toggleScanUI(isScanning) {
-        const { mainContent, scanBtn } = this.elements;
+        const { mainContent } = this.elements;
         if (isScanning) {
             mainContent.style.visibility = 'hidden';
-            if (scanBtn) {
-                scanBtn.textContent = '停止索引';
-                scanBtn.className = 'right-btn btn-text-danger';
-            }
         } else {
             mainContent.style.visibility = 'visible';
-            if (scanBtn) {
-                scanBtn.textContent = '建立索引';
-                scanBtn.className = 'right-btn';
-            }
         }
     },
 
+    /**
+     * 用途说明：根据选中情况更新批量删除按钮的可见性及文字
+     */
     updateDeleteButtonVisibility() {
         const { deleteSelectedBtn } = this.elements;
         if (!deleteSelectedBtn) return;
@@ -178,109 +234,79 @@ const UIController = {
 
         if (State.selectedPaths.size > 0) {
             deleteSelectedBtn.classList.remove('hidden');
-            deleteSelectedBtn.textContent = `移入回收站 (${State.selectedPaths.size})`;
         } else {
             deleteSelectedBtn.classList.add('hidden');
         }
     },
 
+    /**
+     * 用途说明：切换缩略图生成相关的 UI 状态
+     * 入参说明：isGenerating (Boolean) - 是否正在生成
+     */
     toggleThumbnailUI(isGenerating) {
-        const { thumbnailBtn, thumbnailProgressText } = this.elements;
-        if (!thumbnailBtn) return;
-
-        if (isGenerating) {
-            thumbnailBtn.textContent = '停止生成';
-            thumbnailBtn.className = 'btn-text-danger-small';
-            thumbnailProgressText.classList.remove('hidden');
-        } else {
-            thumbnailBtn.textContent = '生成缩略图';
-            thumbnailBtn.className = 'btn-secondary-small';
-            thumbnailProgressText.classList.add('hidden');
+        const menuThumbnailBtn = document.getElementById('menu-btn-thumbnail');
+        if (menuThumbnailBtn) {
+            if (isGenerating) {
+                menuThumbnailBtn.className = 'menu-item thumbnail-btn-generating';
+                menuThumbnailBtn.innerHTML = `<span>缩略图生成剩余 ${State.thumbnailCount}</span>`;
+            } else {
+                menuThumbnailBtn.className = 'menu-item';
+                menuThumbnailBtn.innerHTML = '<span>生成缩略图</span>';
+            }
         }
     },
 
+    /**
+     * 用途说明：更新缩略图生成进度文字
+     * 入参说明：count (Number) - 队列剩余数量
+     */
     updateThumbnailProgress(count) {
-        const { thumbnailProgressText } = this.elements;
-        if (thumbnailProgressText) {
-            thumbnailProgressText.textContent = count > 0 ? `队列剩余: ${count}` : '处理中...';
+        State.thumbnailCount = count;
+        const menuThumbnailBtn = document.getElementById('menu-btn-thumbnail');
+        if (menuThumbnailBtn && State.thumbnailInterval !== null) {
+            const span = menuThumbnailBtn.querySelector('span');
+            if (span) span.textContent = count > 0 ? `缩略图生成剩余 ${count}` : '处理中...';
         }
-    }
-};
-
-// --- API 交互模块 ---
-const RepositoryAPI = {
-    async getFileList(params) {
-        const query = new URLSearchParams(params).toString();
-        return await Request.get('/api/file_repository/list?' + query);
-    },
-
-    async moveToRecycleBin(filePaths) {
-        return await Request.post('/api/file_repository/move_to_recycle_bin', { file_paths: filePaths });
-    },
-
-    async startScan(fullScan = false) {
-        return await Request.post('/api/file_repository/scan', { full_scan: fullScan });
-    },
-
-    async stopScan() {
-        return await Request.post('/api/file_repository/stop', {});
-    },
-
-    async getProgress() {
-        return await Request.get('/api/file_repository/progress', {}, false);
-    },
-
-    async startThumbnailGeneration(rebuildAll = false) {
-        return await Request.post('/api/file_repository/thumbnail/start', { rebuild_all: rebuildAll });
-    },
-
-    async stopThumbnailGeneration() {
-        return await Request.post('/api/file_repository/thumbnail/stop', {});
-    },
-
-    async getThumbnailQueueCount() {
-        return await Request.get('/api/file_repository/thumbnail/queue_count', {}, false);
     }
 };
 
 // --- 应用逻辑主入口 ---
 const App = {
-    async init() {
+    /**
+     * 用途说明：应用初始化，启动各模块状态检查
+     */
+    init() {
         UIController.init();
         this.bindEvents();
-        await this.loadSettings();
+        this.loadSettings();
         this.loadFileList();
         this.checkScanStatus();
         this.checkThumbnailStatus();
     },
 
-    async loadSettings() {
-        try {
-            const response = await Request.get('/api/setting/get');
-            if (response.status === 'success') {
-                State.settings = response.data;
-            }
-        } catch (error) {
-            console.error('加载设置失败:', error);
-        }
+    /**
+     * 用途说明：判断当前是否处于扫描中状态
+     * 返回值说明：Boolean - 是否扫描中
+     */
+    isScanning() {
+        return State.scanInterval !== null;
     },
 
+    /**
+     * 用途说明：异步加载系统设置
+     */
+    loadSettings() {
+        FileRepositoryAPI.getSettings(
+            (data) => { State.settings = data; },
+            (msg) => console.error('加载设置失败:', msg)
+        );
+    },
+
+    /**
+     * 用途说明：绑定页面交互事件（排序、删除、缩略图生成、类型筛选等）
+     */
     bindEvents() {
-        const { scanBtn, sortableHeaders, deleteSelectedBtn, thumbnailBtn, filterFileType } = UIController.elements;
-
-        if (scanBtn) {
-            scanBtn.onclick = () => {
-                if (scanBtn.textContent === '建立索引') this.confirmStartScan();
-                else this.handleStopScan();
-            };
-        }
-
-        if (thumbnailBtn) {
-            thumbnailBtn.onclick = () => {
-                if (thumbnailBtn.textContent === '生成缩略图') this.confirmStartThumbnail();
-                else this.handleStopThumbnail();
-            };
-        }
+        const { sortableHeaders, deleteSelectedBtn, filterFileType } = UIController.elements;
 
         sortableHeaders.forEach(th => {
             th.onclick = () => {
@@ -300,7 +326,6 @@ const App = {
             deleteSelectedBtn.onclick = () => this.handleMoveToRecycleBin();
         }
 
-        // 绑定类型筛选事件
         if (filterFileType) {
             filterFileType.onchange = () => {
                 State.fileType = filterFileType.value;
@@ -310,49 +335,62 @@ const App = {
         }
     },
 
+    /**
+     * 用途说明：处理搜索触发逻辑，重置分页并刷新列表
+     */
     handleSearch() {
-        const { searchInput, searchHistoryCheckbox } = UIController.elements;
-        State.search = searchInput.value.trim();
-        State.searchHistory = searchHistoryCheckbox.checked;
         State.page = 1;
         State.selectedPaths.clear(); 
         this.loadFileList();
     },
 
-    async loadFileList() {
+    /**
+     * 用途说明：调用接口加载文件列表数据
+     */
+    loadFileList() {
         const params = {
             page: State.page,
             limit: State.limit,
             sort_by: State.sortBy,
             order_asc: State.order === 'ASC',
             search: State.search,
-            file_type: State.fileType, // 传入文件类型筛选
+            file_type: State.fileType,
             search_history: State.searchHistory
         };
 
-        const response = await RepositoryAPI.getFileList(params);
-        if (response.status === 'success') {
-            const data = response.data;
-            UIController.renderTable(data.list);
-            State.paginationController.update(data.total, data.page);
-        } else {
-            Toast.show(response.message);
-        }
+        FileRepositoryAPI.getFileList(params,
+            (data) => {
+                UIController.renderTable(data.list);
+
+                // 使用公共 PageBar 组件渲染分页栏
+                PageBar.init({
+                    containerId: 'pagination-container',
+                    totalItems: data.total,
+                    pageSize: State.limit,
+                    currentPage: data.page,
+                    onPageChange: (newPage) => {
+                        State.page = newPage;
+                        this.loadFileList();
+                        window.scrollTo(0, 0);
+                    }
+                });
+            },
+            (msg) => Toast.show(msg)
+        );
     },
 
     /**
-     * 用途说明：处理视频播放请求，跳转到专用播放页面并禁止下载功能。
-     * 入参说明：filePath (String) - 视频文件在服务器上的绝对路径。
+     * 用途说明：处理视频播放请求，跳转到专用播放页面
+     * 入参说明：filePath (String) - 视频文件路径
      */
     handlePlayVideo(filePath) {
-        // 构造播放页面 URL
         const playPageUrl = `../video_player/video_player.html?path=${encodeURIComponent(filePath)}`;
-
-        window.location.href = playPageUrl
-//        // 在新窗口中打开播放页面
-//        window.open(playPageUrl, '_blank');
+        window.location.href = playPageUrl;
     },
 
+    /**
+     * 用途说明：弹出确认框询问是否开始建立索引
+     */
     confirmStartScan() {
         UIComponents.showConfirmModal({
             title: '建立索引',
@@ -363,46 +401,64 @@ const App = {
         });
     },
 
-    async handleStartScan(fullScan = false) {
-        const response = await RepositoryAPI.startScan(fullScan);
-        if (response.status === 'success') {
-            Toast.show('扫描任务已启动');
-            UIController.toggleScanUI(true);
-            UIComponents.showProgressBar('.repo-container', '开始扫描...');
-            this.startScanPolling();
-        } else {
-            Toast.show(response.message);
-        }
+    /**
+     * 用途说明：调用接口正式启动扫描任务
+     * 入参说明：fullScan (Boolean) - 是否进行全量扫描
+     */
+    handleStartScan(fullScan = false) {
+        FileRepositoryAPI.startScan(fullScan,
+            () => {
+                Toast.show('扫描任务已启动');
+                UIController.toggleScanUI(true);
+                UIComponents.showProgressBar('.repo-container', '开始扫描...');
+                this.startScanPolling();
+            },
+            (msg) => Toast.show(msg)
+        );
     },
 
-    async handleStopScan() {
-        const response = await RepositoryAPI.stopScan();
-        if (response.status === 'success') {
-            Toast.show('已发送停止指令');
-        }
+    /**
+     * 用途说明：调用接口停止正在进行的扫描任务
+     */
+    handleStopScan() {
+        FileRepositoryAPI.stopScan(
+            () => Toast.show('已发送停止指令'),
+            (msg) => Toast.show(msg)
+        );
     },
 
+    /**
+     * 用途说明：启动扫描进度的实时轮询
+     */
     startScanPolling() {
         if (State.scanInterval) clearInterval(State.scanInterval);
-        State.scanInterval = setInterval(async () => {
-            const response = await RepositoryAPI.getProgress();
-            if (response.status === 'success') {
-                const data = response.data;
-                if (data.status === ProgressStatus.PROCESSING) {
-                    UIComponents.renderProgress('.repo-container', data.progress);
-                } else {
+        State.scanInterval = setInterval(() => {
+            FileRepositoryAPI.getProgress(
+                (data) => {
+                    if (data.status === ProgressStatus.PROCESSING) {
+                        UIComponents.renderProgress('.repo-container', data.progress);
+                    } else {
+                        this.stopScanPolling();
+                        UIController.toggleScanUI(false);
+                        if (data.status === ProgressStatus.COMPLETED) {
+                            Toast.show('扫描完成');
+                            State.page = 1;
+                            this.loadFileList();
+                        }
+                    }
+                },
+                (msg) => {
                     this.stopScanPolling();
                     UIController.toggleScanUI(false);
-                    if (data.status === ProgressStatus.COMPLETED) {
-                        Toast.show('扫描完成');
-                        State.page = 1;
-                        this.loadFileList();
-                    }
+                    Toast.show(msg);
                 }
-            }
+            );
         }, 1000);
     },
 
+    /**
+     * 用途说明：停止扫描进度的轮询任务
+     */
     stopScanPolling() {
         if (State.scanInterval) {
             clearInterval(State.scanInterval);
@@ -411,81 +467,105 @@ const App = {
         UIComponents.hideProgressBar('.repo-container');
     },
 
-    async checkScanStatus() {
-        const response = await RepositoryAPI.getProgress();
-        if (response.status === 'success' && response.data.status === ProgressStatus.PROCESSING) {
-            UIController.toggleScanUI(true);
-            UIComponents.showProgressBar('.repo-container', '正在扫描...');
-            this.startScanPolling();
-        }
+    /**
+     * 用途说明：页面初始化时检查是否有正在运行的扫描任务
+     */
+    checkScanStatus() {
+        FileRepositoryAPI.getProgress(
+            (data) => {
+                if (data.status === ProgressStatus.PROCESSING) {
+                    UIController.toggleScanUI(true);
+                    UIComponents.showProgressBar('.repo-container', '正在扫描...');
+                    this.startScanPolling();
+                }
+            },
+            () => {}
+        );
     },
 
-    async handleMoveToRecycleBin() {
+    /**
+     * 用途说明：处理将选中的文件移入回收站
+     */
+    handleMoveToRecycleBin() {
         if (State.selectedPaths.size === 0) return;
         UIComponents.showConfirmModal({
             title: '移入回收站',
             message: `确定要将选中的 ${State.selectedPaths.size} 个文件移入回收站吗？`,
             confirmText: '确定移动',
-            onConfirm: async () => {
-                const response = await RepositoryAPI.moveToRecycleBin(Array.from(State.selectedPaths));
-                if (response.status === 'success') {
-                    Toast.show('已移入回收站');
-                    State.selectedPaths.clear();
-                    this.loadFileList();
-                } else {
-                    Toast.show(response.message);
-                }
+            onConfirm: () => {
+                FileRepositoryAPI.moveToRecycleBin(Array.from(State.selectedPaths),
+                    () => {
+                        Toast.show('已移入回收站');
+                        State.selectedPaths.clear();
+                        this.loadFileList();
+                    },
+                    (msg) => Toast.show(msg)
+                );
             }
         });
     },
 
+    /**
+     * 用途说明：弹出确认框开始缩略图生成
+     */
     confirmStartThumbnail() {
         UIComponents.showConfirmModal({
             title: '生成缩略图',
             message: '是否开始生成缩略图？',
             checkbox: { label: '重构所有缩略图', checked: false },
             confirmText: '开始生成',
-            onConfirm: async (rebuildAll) => {
-                const response = await RepositoryAPI.startThumbnailGeneration(rebuildAll);
-                if (response.status === 'success') {
-                    Toast.show('任务已启动');
-                    UIController.toggleThumbnailUI(true);
-                    this.startThumbnailPolling();
-                } else {
-                    Toast.show(response.message);
-                }
+            onConfirm: (rebuildAll) => {
+                FileRepositoryAPI.startThumbnailGeneration(rebuildAll,
+                    () => {
+                        Toast.show('任务已启动');
+                        UIController.toggleThumbnailUI(true);
+                        this.startThumbnailPolling();
+                    },
+                    (msg) => Toast.show(msg)
+                );
             }
         });
     },
 
-    async handleStopThumbnail() {
-        const response = await RepositoryAPI.stopThumbnailGeneration();
-        if (response.status === 'success') {
-            Toast.show('已发送停止指令');
-        }
+    /**
+     * 用途说明：调用接口停止缩略图生成
+     */
+    handleStopThumbnail() {
+        FileRepositoryAPI.stopThumbnailGeneration(
+            () => Toast.show('已发送停止指令'),
+            (msg) => Toast.show(msg)
+        );
     },
 
+    /**
+     * 用途说明：启动缩略图进度轮询
+     */
     startThumbnailPolling() {
         if (State.thumbnailInterval) clearInterval(State.thumbnailInterval);
-        State.thumbnailInterval = setInterval(async () => {
-            const response = await RepositoryAPI.getThumbnailQueueCount();
-            if (response.status === 'success') {
-                const count = response.data;
-                if (count > 0) {
-                    UIController.updateThumbnailProgress(count);
-                } else {
+        State.thumbnailInterval = setInterval(() => {
+            FileRepositoryAPI.getThumbnailQueueCount(
+                (count) => {
+                    State.thumbnailCount = count;
+                    if (count > 0) {
+                        UIController.updateThumbnailProgress(count);
+                    } else {
+                        this.stopThumbnailPolling();
+                        UIController.toggleThumbnailUI(false);
+                        Toast.show('缩略图生成完成');
+                        this.loadFileList();
+                    }
+                },
+                () => {
                     this.stopThumbnailPolling();
                     UIController.toggleThumbnailUI(false);
-                    Toast.show('缩略图生成完成');
-                    this.loadFileList();
                 }
-            } else {
-                this.stopThumbnailPolling();
-                UIController.toggleThumbnailUI(false);
-            }
+            );
         }, 1500);
     },
 
+    /**
+     * 用途说明：停止缩略图轮询任务
+     */
     stopThumbnailPolling() {
         if (State.thumbnailInterval) {
             clearInterval(State.thumbnailInterval);
@@ -493,13 +573,22 @@ const App = {
         }
     },
 
-    async checkThumbnailStatus() {
-        const response = await RepositoryAPI.getThumbnailQueueCount();
-        if (response.status === 'success' && response.data > 0) {
-            UIController.toggleThumbnailUI(true);
-            this.startThumbnailPolling();
-        }
+    /**
+     * 用途说明：初始化检查缩略图生成状态
+     */
+    checkThumbnailStatus() {
+        FileRepositoryAPI.getThumbnailQueueCount(
+            (count) => {
+                State.thumbnailCount = count;
+                if (count > 0) {
+                    UIController.toggleThumbnailUI(true);
+                    this.startThumbnailPolling();
+                }
+            },
+            () => {}
+        );
     }
 };
 
+// 启动应用
 document.addEventListener('DOMContentLoaded', () => App.init());

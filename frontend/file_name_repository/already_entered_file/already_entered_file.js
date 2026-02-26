@@ -10,7 +10,6 @@ const State = {
     order: 'DESC',
     search: '',
     selectedIds: new Set(),
-    paginationController: null,
     linkPrefix: '' // 文件名跳转前缀
 };
 
@@ -39,16 +38,6 @@ const UIController = {
             selectAllCheckbox: document.getElementById('select-all-checkbox'),
             sortableHeaders: document.querySelectorAll('th.sortable')
         };
-
-        // 初始化分页组件
-        State.paginationController = UIComponents.initPagination('pagination-container', {
-            limit: State.limit,
-            onPageChange: (newPage) => {
-                State.page = newPage;
-                App.loadList();
-                window.scrollTo(0, 0);
-            }
-        });
 
         // 绑定表格选择逻辑
         UIComponents.bindTableSelection({
@@ -233,7 +222,19 @@ const App = {
         const res = await AlreadyEnteredAPI.getList(params);
         if (res.status === 'success' && res.data) {
             UIController.renderTable(res.data.list);
-            State.paginationController.update(res.data.total, res.data.page);
+
+            // 使用公共 PageBar 组件渲染分页栏
+            PageBar.init({
+                containerId: 'pagination-container',
+                totalItems: res.data.total,
+                pageSize: State.limit,
+                currentPage: res.data.page,
+                onPageChange: (newPage) => {
+                    State.page = newPage;
+                    this.loadList();
+                    window.scrollTo(0, 0);
+                }
+            });
         } else {
             Toast.show(res.message || '加载列表失败');
         }

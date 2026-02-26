@@ -8,12 +8,12 @@ body {
     font-family: "Helvetica Neue", Helvetica, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", Arial, sans-serif;
     display: flex;
     flex-direction: column;
-    align-items: center;
     min-height: 600px;
-    min-width: 600px;
+    min-width: 375px;
     background-color: #f0f2f5;
     overflow-x: auto;
-    overflow-y: auto;
+    height: 100vh;
+    width: 100vw;
     margin: 0;
 }
 
@@ -542,15 +542,6 @@ body {
 
 /* --- 仓库页面基础布局 (适用于文件仓库、回收站、查重页) --- */
 
-.repo-body {
-    height: 100dvh;
-    width: 100vw;
-    margin: 0;
-    display: flex;
-    flex-direction: column;
-    background-color: #fff;
-}
-
 .repo-container {
     flex: 1;
     display: flex;
@@ -640,23 +631,22 @@ body {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 16px;
+    padding: 0 10px;
     background-color: #fff;
     border-top: 1px solid #dee2e6;
     flex-shrink: 0;
-}
-
-.footer-left, .footer-right {
-    flex: 1;
+    z-index: 100;
+    box-shadow: 0 -2px 4px rgba(0, 0, 0, 0.05);
 }
 
 .footer-right {
     display: flex;
     justify-content: flex-end;
+    flex: 0 0 40px;
 }
 
 .footer-center {
-    flex: 2;
+    flex: 1;
     display: flex;
     justify-content: center;
 }
@@ -754,3 +744,17 @@ a.file-link:visited {
     color: #888;
     z-index: 100;
 }
+
+.footer-left {
+    flex: 0 0 40px;
+}
+
+.max-two-line {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    word-break: break-all;
+}
+

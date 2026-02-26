@@ -14,11 +14,12 @@
     font-size: 1.05rem;
     font-weight: 600;
     color: #1a73e8;
-    margin: 32px 0 16px 0;
     padding-bottom: 8px;
     border-bottom: 1px solid #e8eaed;
     display: flex;
     align-items: center;
+    flex-wrap: wrap; /* 允许内容在空间不足时换行 */
+    gap: 8px;        /* 子元素之间的基础间距 */
     letter-spacing: 0.5px;
 }
 
@@ -38,16 +39,25 @@
 
 /* 文件仓库详情统计徽章 */
 .repo-detail-badge {
-    margin-left: auto;
+    margin-left: auto; /* 在宽屏下推至最右侧 */
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 5px;
     background-color: #f1f3f4;
-    padding: 4px 12px;
     border-radius: 20px;
     font-size: 0.8rem;
     color: #5f6368;
     font-weight: normal;
+}
+
+/* 响应式：窄屏下统计信息换行显示在标题下方 */
+@media (max-width: 650px) {
+    .repo-detail-badge {
+         /* 16px = before宽度4px + margin-right 12px，使其与文字左对齐 */
+         margin-top: 4px;
+         flex-basis: 100%;  /* 强制占据整行从而实现换行 */
+         width: fit-content; /* 宽度随内容自适应 */
+    }
 }
 
 .detail-item {
@@ -100,9 +110,10 @@
 .menu-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
-    gap: 20px;
+    gap: 10px;
     width: 100%;
-    margin-bottom: 10px;
+    margin-top: 10px;
+    margin-bottom: 20px;
 }
 
 .menu-item {
