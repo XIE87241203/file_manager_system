@@ -499,11 +499,11 @@ body {
 
 /* 专用输入弹窗样式 */
 .modal-input-content {
-    width: 70vw !important;
-    height: 70dvh !important;
+    width: 90% !important;
+    height: 80% !important;
     max-width: none !important;
-    min-width: 500px;
-    min-height: 400px;
+    min-width: 300px;
+    min-height: 300px;
     display: flex;
     flex-direction: column;
 }
@@ -756,5 +756,19 @@ a.file-link:visited {
     overflow: hidden;
     text-overflow: ellipsis;
     word-break: break-all;
+}
+
+.trash-icon {
+    width: 20px;
+    height: 20px;
+    background-color: #fff;
+    -webkit-mask-image: url("../common/icons/trash_icon.svg");
+    mask-image: url("../common/icons/trash_icon.svg");
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-position: center;
+    mask-position: center;
+    -webkit-mask-size: contain;
+    mask-size: contain;
 }
 

@@ -372,7 +372,6 @@ const UIComponents = {
             ? `<textarea id="common-modal-input" class="input-field modal-input-textarea" placeholder="${placeholder}"></textarea>`
             : `<input type="text" id="common-modal-input" class="input-field" placeholder="${placeholder}">`;
 
-        // 为 modal-content 添加了 modal-input-content 类，实现 70% 宽高的动态调整
         // 如果 isSmall 为 true，则不使用大尺寸类名
         const contentClass = isSmall ? 'modal-content' : 'modal-content modal-input-content';
 

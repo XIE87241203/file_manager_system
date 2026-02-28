@@ -10,7 +10,6 @@ const State = {
     order: 'DESC',
     search: '',
     selectedPaths: new Set(),
-    paginationController: null,
     lastTaskStatus: null // 用途说明：缓存上一次任务状态，用于判断状态切换
 };
 
@@ -24,32 +23,22 @@ const UIController = {
      * 返回值说明：无
      */
     init() {
-        // 使用公用组件初始化顶部栏
-        UIComponents.initRepoHeader({
-            searchPlaceholder: '搜索文件名 (正则模糊匹配)...',
-            showHistoryCheckbox: false,
-            onSearch: () => App.handleSearch()
+        // 使用搜索型顶部工具栏初始化顶部栏
+        SearchHeaderToolbar.init({
+            searchHint: '搜索文件名 (正则模糊匹配)...',
+            searchCallback: (content) => App.handleSearch(content)
         });
 
         this.elements = {
             tableBody: document.getElementById('file-list-body'),
             searchInput: document.getElementById('search-input'),
             selectAllCheckbox: document.getElementById('select-all-checkbox'),
-            clearRecycleBtn: document.getElementById('btn-clear-recycle-bin'),
-            restoreSelectedBtn: document.getElementById('btn-restore-selected'),
-            deleteSelectedBtn: document.getElementById('btn-delete-selected'),
+            restoreSelectedBtn: document.getElementById('menu-restore-selected'),
+            deleteSelectedBtn: document.getElementById('menu-delete-selected'),
+            footerMenuBtn: document.getElementById('btn-recycle-action'),
+            footerMenu: document.getElementById('footer-dropdown-menu'),
             sortableHeaders: document.querySelectorAll('th.sortable')
         };
-
-        // 初始化分页组件
-        State.paginationController = UIComponents.initPagination('pagination-container', {
-            limit: State.limit,
-            onPageChange: (newPage) => {
-                State.page = newPage;
-                App.loadFileList();
-                window.scrollTo(0, 0);
-            }
-        });
 
         // 绑定表格选择逻辑
         UIComponents.bindTableSelection({
@@ -122,73 +111,38 @@ const UIController = {
      * 返回值说明：无
      */
     updateActionButtons() {
-        const { restoreSelectedBtn, deleteSelectedBtn, clearRecycleBtn } = this.elements;
+        const { restoreSelectedBtn, deleteSelectedBtn, footerMenuBtn } = this.elements;
         const count = State.selectedPaths.size;
 
         if (count > 0) {
-            restoreSelectedBtn.classList.remove('hidden');
             restoreSelectedBtn.textContent = `恢复选中 (${count})`;
-            deleteSelectedBtn.classList.remove('hidden');
             deleteSelectedBtn.textContent = `彻底删除 (${count})`;
-            clearRecycleBtn.classList.add('hidden');
         } else {
-            restoreSelectedBtn.classList.add('hidden');
-            deleteSelectedBtn.classList.add('hidden');
-            clearRecycleBtn.classList.remove('hidden');
+            restoreSelectedBtn.textContent = '恢复选中';
+            deleteSelectedBtn.textContent = '彻底删除选中';
+            if (footerMenuBtn) {
+                this.toggleFooterMenu(false);
+            }
         }
-    }
-};
-
-// --- API 交互模块 ---
-const RecycleBinAPI = {
-    /**
-     * 用途说明：分页获取回收站文件列表
-     * 入参说明：params: 包含 page, limit, sort_by, order_asc, search 等参数的对象
-     * 返回值说明：返回 API 响应结果，包含文件列表和分页信息
-     */
-    async getList(params) {
-        const query = new URLSearchParams(params).toString();
-        // 修改说明：API 路径调整为后端最新的专有回收站列表路由
-        return await Request.get('/api/file_repository/recycle_bin/list?' + query);
     },
 
     /**
-     * 用途说明：从回收站恢复文件
-     * 入参说明：filePaths: 要恢复的文件路径数组
-     * 返回值说明：返回 API 响应结果
+     * 用途说明：切换底部下拉菜单的显示状态
+     * 入参说明：show: boolean - 是否显示
+     * 返回值说明：无
      */
-    async restoreFiles(filePaths) {
-        return await Request.post('/api/file_repository/restore_from_recycle_bin', { file_paths: filePaths });
-    },
+    toggleFooterMenu(show) {
+        const { footerMenu, footerMenuBtn } = this.elements;
+        if (!footerMenu || !footerMenuBtn) return;
 
-    /**
-     * 用途说明：批量彻底删除回收站中的文件
-     * 入参说明：filePaths: 要彻底删除的文件路径数组
-     * 返回值说明：返回 API 响应结果
-     */
-    async deleteFiles(filePaths) {
-        // 彻底删除进度条开启时，禁用默认 mask
-        return await Request.post('/api/file_repository/clear_recycle_bin', { file_paths: filePaths }, {}, false);
-    },
-
-    /**
-     * 用途说明：清空整个回收站
-     * 入参说明：无
-     * 返回值说明：返回 API 响应结果
-     */
-    async clearAll() {
-        // 清空进度条开启时，禁用默认 mask
-        return await Request.post('/api/file_repository/clear_recycle_bin', {}, {}, false);
-    },
-
-    /**
-     * 用途说明：获取清理回收站任务的执行进度
-     * 入参说明：无
-     * 返回值说明：返回 API 响应结果，包含进度和状态
-     */
-    async getDeleteProgress() {
-        // 轮询进度时一律不显示 mask，防止页面抖动
-        return await Request.get('/api/file_repository/clear_recycle_bin/progress', {}, false);
+        if (show) {
+            const rect = footerMenuBtn.getBoundingClientRect();
+            footerMenu.style.bottom = (window.innerHeight - rect.top + 8) + 'px';
+            footerMenu.style.right = (window.innerWidth - rect.right) + 'px';
+            footerMenu.classList.add('show');
+        } else {
+            footerMenu.classList.remove('show');
+        }
     }
 };
 
@@ -212,11 +166,37 @@ const App = {
      * 返回值说明：无
      */
     bindEvents() {
-        const { clearRecycleBtn, restoreSelectedBtn, deleteSelectedBtn, sortableHeaders } = UIController.elements;
+        const { restoreSelectedBtn, deleteSelectedBtn, footerMenuBtn, footerMenu, sortableHeaders } = UIController.elements;
+        if (restoreSelectedBtn) {
+            restoreSelectedBtn.onclick = () => {
+                UIController.toggleFooterMenu(false);
+                this.handleRestore();
+            };
+        }
+        if (deleteSelectedBtn) {
+            deleteSelectedBtn.onclick = () => {
+                UIController.toggleFooterMenu(false);
+                this.handleDeleteSelected();
+            };
+        }
 
-        if (clearRecycleBtn) clearRecycleBtn.onclick = () => this.handleClearAll();
-        if (restoreSelectedBtn) restoreSelectedBtn.onclick = () => this.handleRestore();
-        if (deleteSelectedBtn) deleteSelectedBtn.onclick = () => this.handleDeleteSelected();
+        if (footerMenuBtn) {
+            footerMenuBtn.onclick = (event) => {
+                event.stopPropagation();
+                const count = State.selectedPaths.size;
+                if (count > 0 && footerMenu) {
+                    const isShow = footerMenu.classList.contains('show');
+                    UIController.toggleFooterMenu(!isShow);
+                } else {
+                    UIController.toggleFooterMenu(false);
+                    this.handleClearAll();
+                }
+            };
+        }
+
+        document.addEventListener('click', () => {
+            UIController.toggleFooterMenu(false);
+        });
 
         sortableHeaders.forEach(th => {
             th.onclick = () => {
@@ -235,12 +215,15 @@ const App = {
 
     /**
      * 用途说明：处理搜索逻辑
-     * 入参说明：无
+     * 入参说明：searchContent: 搜索内容字符串（来自顶部工具栏回调，可选）
      * 返回值说明：无
      */
-    handleSearch() {
+    handleSearch(searchContent) {
         const { searchInput } = UIController.elements;
-        State.search = searchInput.value.trim();
+        const content = typeof searchContent === 'string'
+            ? searchContent
+            : (searchInput ? searchInput.value.trim() : '');
+        State.search = content;
         State.page = 1;
         State.selectedPaths.clear();
         this.loadFileList();
@@ -251,7 +234,7 @@ const App = {
      * 入参说明：无
      * 返回值说明：无
      */
-    async loadFileList() {
+    loadFileList() {
         const params = {
             page: State.page,
             limit: State.limit,
@@ -259,11 +242,24 @@ const App = {
             order_asc: State.order === 'ASC',
             search: State.search
         };
-        const res = await RecycleBinAPI.getList(params);
-        if (res.status === 'success') {
-            UIController.renderTable(res.data.list);
-            State.paginationController.update(res.data.total, res.data.page);
-        }
+        RecycleBinAPI.getList(params,
+            (data) => {
+                UIController.renderTable(data.list);
+                // 使用公共 PageBar 组件渲染分页栏
+                PageBar.init({
+                    containerId: 'pagination-container',
+                    totalItems: data.total,
+                    pageSize: State.limit,
+                    currentPage: data.page,
+                    onPageChange: (newPage) => {
+                        State.page = newPage;
+                        this.loadFileList();
+                        window.scrollTo(0, 0);
+                    }
+                });
+            },
+            (msg) => Toast.show(msg)
+        );
     },
 
     /**
@@ -271,19 +267,21 @@ const App = {
      * 入参说明：无
      * 返回值说明：无
      */
-    async handleRestore() {
+    handleRestore() {
         const paths = Array.from(State.selectedPaths);
         UIComponents.showConfirmModal({
             title: '恢复文件',
             message: `确定要将选中的 ${paths.length} 个文件恢复到仓库吗？`,
             confirmText: '确定恢复',
-            onConfirm: async () => {
-                const res = await RecycleBinAPI.restoreFiles(paths);
-                if (res.status === 'success') {
-                    Toast.show('已恢复');
-                    State.selectedPaths.clear();
-                    this.loadFileList();
-                }
+            onConfirm: () => {
+                RecycleBinAPI.restoreFiles(paths,
+                    () => {
+                        Toast.show('已恢复');
+                        State.selectedPaths.clear();
+                        this.loadFileList();
+                    },
+                    (msg) => Toast.show(msg)
+                );
             }
         });
     },
@@ -293,18 +291,20 @@ const App = {
      * 入参说明：无
      * 返回值说明：无
      */
-    async handleDeleteSelected() {
+    handleDeleteSelected() {
         const paths = Array.from(State.selectedPaths);
         UIComponents.showConfirmModal({
             title: '彻底删除',
             message: `确定要彻底删除选中的 ${paths.length} 个文件吗？此操作不可恢复，将物理删除磁盘文件！`,
             confirmText: '确定删除',
-            onConfirm: async () => {
-                const res = await RecycleBinAPI.deleteFiles(paths);
-                if (res.status === 'success') {
-                    Toast.show('删除任务已启动');
-                    this.startProgressPolling();
-                }
+            onConfirm: () => {
+                RecycleBinAPI.deleteFiles(paths,
+                    () => {
+                        Toast.show('删除任务已启动');
+                        this.startProgressPolling();
+                    },
+                    (msg) => Toast.show(msg)
+                );
             }
         });
     },
@@ -314,17 +314,19 @@ const App = {
      * 入参说明：无
      * 返回值说明：无
      */
-    async handleClearAll() {
+    handleClearAll() {
         UIComponents.showConfirmModal({
             title: '清空回收站',
             message: '确定要清空回收站中所有的文件吗？这将物理删除所有回收站内的磁盘文件！',
             confirmText: '确定清空',
-            onConfirm: async () => {
-                const res = await RecycleBinAPI.clearAll();
-                if (res.status === 'success') {
-                    Toast.show('清空任务已启动');
-                    this.startProgressPolling();
-                }
+            onConfirm: () => {
+                RecycleBinAPI.clearAll(
+                    () => {
+                        Toast.show('清空任务已启动');
+                        this.startProgressPolling();
+                    },
+                    (msg) => Toast.show(msg)
+                );
             }
         });
     },
@@ -339,36 +341,38 @@ const App = {
         // 初始化当前状态，确保能识别后续的 IDLE 切换
         State.lastTaskStatus = ProgressStatus.PROCESSING;
 
-        const timer = setInterval(async () => {
-            const res = await RecycleBinAPI.getDeleteProgress();
-            if (res.status === 'success') {
-                const currentStatus = res.data.status;
-                const progress = res.data.progress;
+        const timer = setInterval(() => {
+            RecycleBinAPI.getDeleteProgress(
+                (data) => {
+                    const currentStatus = data.status;
+                    const progress = data.progress;
 
-                if (currentStatus === ProgressStatus.PROCESSING) {
-                    UIComponents.renderProgress('.repo-container', progress);
-                } else {
-                    // 状态不再是 PROCESSING，停止轮询
+                    if (currentStatus === ProgressStatus.PROCESSING) {
+                        UIComponents.renderProgress('.repo-container', progress);
+                    } else {
+                        // 状态不再是 PROCESSING，停止轮询
+                        clearInterval(timer);
+                        UIComponents.hideProgressBar('.repo-container');
+
+                        // 核心逻辑：如果从 PROCESSING 切换到 IDLE，或者变为 COMPLETED，则刷新
+                        const isTaskFinished = (State.lastTaskStatus === ProgressStatus.PROCESSING && currentStatus === ProgressStatus.IDLE)
+                                             || currentStatus === ProgressStatus.COMPLETED;
+
+                        if (isTaskFinished) {
+                            Toast.show('处理完成');
+                            State.selectedPaths.clear();
+                            this.loadFileList();
+                        }
+                    }
+                    // 更新缓存状态
+                    State.lastTaskStatus = currentStatus;
+                },
+                () => {
                     clearInterval(timer);
                     UIComponents.hideProgressBar('.repo-container');
-
-                    // 核心逻辑：如果从 PROCESSING 切换到 IDLE，或者变为 COMPLETED，则刷新
-                    const isTaskFinished = (State.lastTaskStatus === ProgressStatus.PROCESSING && currentStatus === ProgressStatus.IDLE)
-                                         || currentStatus === ProgressStatus.COMPLETED;
-
-                    if (isTaskFinished) {
-                        Toast.show('处理完成');
-                        State.selectedPaths.clear();
-                        this.loadFileList();
-                    }
+                    State.lastTaskStatus = null;
                 }
-                // 更新缓存状态
-                State.lastTaskStatus = currentStatus;
-            } else {
-                clearInterval(timer);
-                UIComponents.hideProgressBar('.repo-container');
-                State.lastTaskStatus = null;
-            }
+            );
         }, 1000);
     },
 
@@ -377,11 +381,15 @@ const App = {
      * 入参说明：无
      * 返回值说明：无
      */
-    async checkTaskStatus() {
-        const res = await RecycleBinAPI.getDeleteProgress();
-        if (res.status === 'success' && res.data.status === ProgressStatus.PROCESSING) {
-            this.startProgressPolling();
-        }
+    checkTaskStatus() {
+        RecycleBinAPI.getDeleteProgress(
+            (data) => {
+                if (data.status === ProgressStatus.PROCESSING) {
+                    this.startProgressPolling();
+                }
+            },
+            () => {}
+        );
     }
 };
 

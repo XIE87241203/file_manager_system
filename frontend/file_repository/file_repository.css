@@ -198,20 +198,6 @@
     background-color: #c82333;
 }
 
-.trash-icon {
-    width: 20px;
-    height: 20px;
-    background-color: #fff;
-    -webkit-mask-image: url("../common/icons/trash_icon.svg");
-    mask-image: url("../common/icons/trash_icon.svg");
-    -webkit-mask-repeat: no-repeat;
-    mask-repeat: no-repeat;
-    -webkit-mask-position: center;
-    mask-position: center;
-    -webkit-mask-size: contain;
-    mask-size: contain;
-}
-
 .col-time {
     width: 100px;
 }

@@ -4,25 +4,67 @@
  * 依赖于 common.css 和 table.css。
  */
 
-.top-bar-left {
-    width: 150px;
+.btn-delete-icon {
+    width: 40px;
+    height: 40px;
+    background-color: #dc3545;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
     display: flex;
     align-items: center;
-}
-
-.top-bar-center {
-    flex: 1;
-    display: flex;
     justify-content: center;
-    align-items: center;
+    transition: background-color 0.2s;
+    padding: 0;
 }
 
-.top-bar-right {
-    width: 150px;
-    display: flex;
-    justify-content: flex-end;
+.btn-delete-icon:hover {
+    background-color: #c82333;
 }
 
-.footer-right {
-    gap: 12px;
+.trash-icon {
+    width: 20px;
+    height: 20px;
+    background-color: #fff;
+    -webkit-mask-image: url("../../common/icons/trash_icon.svg");
+    mask-image: url("../../common/icons/trash_icon.svg");
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-position: center;
+    mask-position: center;
+    -webkit-mask-size: contain;
+    mask-size: contain;
+}
+
+.col-time {
+    width: 100px;
+}
+
+.col-name {
+    width: 200px;
+}
+
+.col-size {
+    width: 100px;
+}
+
+.col-path {
+    width: 200px;
+}
+
+.col-type {
+    width: 100px;
+}
+
+.col-duration {
+    width: 100px;
+}
+
+.col-codec {
+    width: 100px;
+}
+
+.col-check {
+    width: 40px;
+    text-align: center;
 }

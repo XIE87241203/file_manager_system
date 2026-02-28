@@ -18,22 +18,28 @@ const UIController = {
     elements: {},
 
     /**
-     * 用途说明：初始化 UI 控制器，并使用公用组件初始化顶部栏
+     * 用途说明：初始化 UI 控制器，并使用 SearchHeaderToolbar 初始化顶部栏
+     * 入参说明：无
+     * 返回值说明：无
      */
     init() {
-        // 使用公用组件初始化顶部栏
-        UIComponents.initRepoHeader({
-            searchPlaceholder: '搜索文件名...',
-            showHistoryCheckbox: false,
-            rightBtnText: '新增曾录入',
-            rightBtnId: 'btn-add-already-entered',
-            onSearch: () => App.handleSearch()
+        // 使用 SearchHeaderToolbar 组件初始化顶部栏
+        SearchHeaderToolbar.init({
+            searchHint: '搜索文件名...',
+            menuIcon: "../../common/header_toolbar/icon/add_icon.svg",
+            searchCallback: (content) => {
+                State.search = content;
+                App.handleSearch();
+            },
+            menuCallback: () => {
+                App.handleAddAlreadyEntered();
+            }
         });
 
         this.elements = {
             tableBody: document.getElementById('already-entered-list-body'),
+            // 搜索输入框 ID 由 SearchHeaderToolbar 定义
             searchInput: document.getElementById('search-input'),
-            addBtn: document.getElementById('btn-add-already-entered'),
             deleteSelectedBtn: document.getElementById('btn-delete-selected'),
             selectAllCheckbox: document.getElementById('select-all-checkbox'),
             sortableHeaders: document.querySelectorAll('th.sortable')
@@ -51,6 +57,8 @@ const UIController = {
 
     /**
      * 用途说明：渲染表格内容
+     * 入参说明：list: Array - 文件名记录数组
+     * 返回值说明：无
      */
     renderTable(list) {
         const { tableBody, selectAllCheckbox } = this.elements;
@@ -89,100 +97,75 @@ const UIController = {
         this.updateActionButtons();
     },
 
+    /**
+     * 用途说明：更新排序 UI 状态
+     * 入参说明：field: string - 排序字段; order: string - 排序方式
+     * 返回值说明：无
+     */
     updateSortUI(field, order) {
         UIComponents.updateSortUI(this.elements.sortableHeaders, field, order);
     },
 
+    /**
+     * 用途说明：更新底部操作按钮（如删除选中）的状态
+     * 入参说明：无
+     * 返回值说明：无
+     */
     updateActionButtons() {
         const { deleteSelectedBtn } = this.elements;
+        if (!deleteSelectedBtn) return;
+
         const count = State.selectedIds.size;
         if (count > 0) {
             deleteSelectedBtn.classList.remove('hidden');
-            deleteSelectedBtn.textContent = `删除选中 (${count})`;
         } else {
             deleteSelectedBtn.classList.add('hidden');
         }
     }
 };
 
-// --- API 交互模块 ---
-const AlreadyEnteredAPI = {
-    async getList(params) {
-        const query = new URLSearchParams(params).toString();
-        // 更新路径：/api/file_name_repository
-        return await Request.get('/api/file_name_repository/already_entered/list?' + query);
-    },
-
-    async add(fileNames) {
-        // 更新路径：/api/file_name_repository
-        return await Request.post('/api/file_name_repository/already_entered/add', { file_names: fileNames });
-    },
-
-    async batchDelete(ids) {
-        // 更新路径：/api/file_name_repository
-        return await Request.post('/api/file_name_repository/already_entered/batch_delete', { ids: ids });
-    },
-
-    async clear() {
-        // 更新路径：/api/file_name_repository
-        return await Request.post('/api/file_name_repository/already_entered/clear', {});
-    },
-
-    /**
-     * 用途说明：获取系统配置
-     * 返回值说明：Promise<Object> - 配置数据
-     */
-    async getSettings() {
-        return await Request.get('/api/setting/get');
-    }
-};
-
 // --- 应用逻辑主入口 ---
 const App = {
-    async init() {
+    /**
+     * 用途说明：程序初始化入口
+     * 入参说明：无
+     * 返回值说明：无
+     */
+    init() {
         UIController.init();
         this.bindEvents();
-        await this.loadConfig(); // 先加载配置
-        this.loadList();
+        this.loadConfig(() => {
+            this.loadList();
+        });
     },
 
     /**
      * 用途说明：加载系统配置以获取链接前缀
+     * 入参说明：callback: Function - 加载完成后的回调
+     * 返回值说明：无
      */
-    async loadConfig() {
-        try {
-            const res = await AlreadyEnteredAPI.getSettings();
-            if (res.status === 'success' && res.data && res.data.file_name_entry) {
-                State.linkPrefix = res.data.file_name_entry.file_name_link_prefix || '';
+    loadConfig(callback) {
+        AlreadyEnteredAPI.getSettings(
+            (data) => {
+                if (data && data.file_name_entry) {
+                    State.linkPrefix = data.file_name_entry.file_name_link_prefix || '';
+                }
+                callback && callback();
+            },
+            (err) => {
+                console.error('加载配置失败:', err);
+                callback && callback();
             }
-        } catch (e) {
-            console.error('加载配置失败:', e);
-        }
+        );
     },
 
+    /**
+     * 用途说明：绑定页面交互事件
+     * 入参说明：无
+     * 返回值说明：无
+     */
     bindEvents() {
-        const { addBtn, deleteSelectedBtn, sortableHeaders } = UIController.elements;
-
-        if (addBtn) {
-            addBtn.onclick = () => {
-                UIComponents.showInputModal({
-                    title: '新增曾录入文件名',
-                    placeholder: '请输入文件名（多个请用换行或逗号分隔）',
-                    isTextArea: true,
-                    onConfirm: async (value) => {
-                        const names = value.split(/[\n,，]/).map(n => n.trim()).filter(n => n);
-                        if (names.length === 0) return;
-                        const res = await AlreadyEnteredAPI.add(names);
-                        if (res.status === 'success') {
-                            Toast.show('添加成功');
-                            this.loadList();
-                        } else {
-                            Toast.show(res.message);
-                        }
-                    }
-                });
-            };
-        }
+        const { deleteSelectedBtn, sortableHeaders } = UIController.elements;
 
         if (deleteSelectedBtn) {
             deleteSelectedBtn.onclick = () => this.handleDeleteSelected();
@@ -203,15 +186,46 @@ const App = {
         });
     },
 
+    /**
+     * 用途说明：处理新增曾录入文件名操作
+     * 入参说明：无
+     * 返回值说明：无
+     */
+    handleAddAlreadyEntered() {
+        UIComponents.showInputModal({
+            title: '新增曾录入文件名',
+            placeholder: '请输入文件名（多个请用换行或逗号分隔）',
+            isTextArea: true,
+            onConfirm: (value) => {
+                const names = value.split(/[\n,，]/).map(n => n.trim()).filter(n => n);
+                if (names.length === 0) return;
+                AlreadyEnteredAPI.add(names, (res) => {
+                    Toast.show('添加成功');
+                    this.loadList();
+                }, (msg) => {
+                    Toast.show(msg);
+                });
+            }
+        });
+    },
+
+    /**
+     * 用途说明：处理搜索触发
+     * 入参说明：无
+     * 返回值说明：无
+     */
     handleSearch() {
-        const { searchInput } = UIController.elements;
-        State.search = searchInput.value.trim();
         State.page = 1;
         State.selectedIds.clear();
         this.loadList();
     },
 
-    async loadList() {
+    /**
+     * 用途说明：从服务器加载列表数据
+     * 入参说明：无
+     * 返回值说明：无
+     */
+    loadList() {
         const params = {
             page: State.page,
             limit: State.limit,
@@ -219,39 +233,45 @@ const App = {
             order_asc: State.order === 'ASC',
             search: State.search
         };
-        const res = await AlreadyEnteredAPI.getList(params);
-        if (res.status === 'success' && res.data) {
-            UIController.renderTable(res.data.list);
+
+        AlreadyEnteredAPI.getList(params, (data) => {
+            UIController.renderTable(data.list);
 
             // 使用公共 PageBar 组件渲染分页栏
             PageBar.init({
                 containerId: 'pagination-container',
-                totalItems: res.data.total,
+                totalItems: data.total,
                 pageSize: State.limit,
-                currentPage: res.data.page,
+                currentPage: data.page,
                 onPageChange: (newPage) => {
                     State.page = newPage;
                     this.loadList();
                     window.scrollTo(0, 0);
                 }
             });
-        } else {
-            Toast.show(res.message || '加载列表失败');
-        }
+        }, (msg) => {
+            Toast.show(msg || '加载列表失败');
+        });
     },
 
-    async handleDeleteSelected() {
+    /**
+     * 用途说明：处理批量删除选中记录
+     * 入参说明：无
+     * 返回值说明：无
+     */
+    handleDeleteSelected() {
         const ids = Array.from(State.selectedIds).map(id => parseInt(id));
         UIComponents.showConfirmModal({
             title: '删除选中记录',
             message: `确定要移除选中的 ${ids.length} 条记录吗？`,
-            onConfirm: async () => {
-                const res = await AlreadyEnteredAPI.batchDelete(ids);
-                if (res.status === 'success') {
+            onConfirm: () => {
+                AlreadyEnteredAPI.batchDelete(ids, (res) => {
                     Toast.show('已删除');
                     State.selectedIds.clear();
                     this.loadList();
-                }
+                }, (msg) => {
+                    Toast.show(msg);
+                });
             }
         });
     }
