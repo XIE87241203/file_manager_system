@@ -5,12 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>系统设置 - 文件管理系统</title>
     <link rel="stylesheet" href="../common/common.css">
+    <link rel="stylesheet" href="../common/header_toolbar/default/default_header_toolbar.css">
     <link rel="stylesheet" href="../common/widget/progress_button.css">
     <link rel="stylesheet" href="setting.css">
 </head>
 <body>
-<!-- 顶部工具栏容器，由 ui_components.js 动态初始化 -->
-<header class="top-bar"></header>
+<!-- 顶部工具栏容器，由 default_header_toolbar.js 动态初始化 -->
+<header class="header-bar"></header>
 
 <main class="main-content">
     <!-- 选项卡导航 -->
@@ -25,7 +26,7 @@
     <!-- 文件仓库分页 -->
     <div id="content-repo" class="tab-content active">
         <div class="settings-grid">
-            <div class="full-width">
+            <div>
                 <div class="section-header mt-0">
                     <h3>仓库目录</h3>
                     <button id="add-repo-btn" class="btn-primary btn-add-small">添加仓库</button>
@@ -245,6 +246,7 @@
 <script src="../common/request.js"></script>
 <script src="../common/toast.js"></script>
 <script src="../common/widget/progress_button.js"></script>
+<script src="../common/header_toolbar/default/default_header_toolbar.js"></script>
 <script src="setting.js"></script>
 </body>
 </html>

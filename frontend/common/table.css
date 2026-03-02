@@ -28,8 +28,16 @@ th {
     font-size: 13px;
     font-weight: 500;
     color: #5f6368;
-    height: 50px;
+    height: 40px;
 }
+
+.col-name {
+    width: 120px;
+}
+
+col-name {}
+
+th.sortable.col-name {}
 
 /* 常用列宽度控制 */
 .col-size {width: 100px;}
@@ -44,6 +52,10 @@ th.sortable {
     cursor: pointer;
     user-select: none;
     /* transition: background-color 0.2s; */
+}
+
+.col-time {
+    width: 120px;
 }
 
 th.sortable:hover {

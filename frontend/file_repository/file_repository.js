@@ -410,7 +410,7 @@ const App = {
             () => {
                 Toast.show('扫描任务已启动');
                 UIController.toggleScanUI(true);
-                UIComponents.showProgressBar('.repo-container', '开始扫描...');
+                UIComponents.showProgressBar('.main-content', '开始扫描...');
                 this.startScanPolling();
             },
             (msg) => Toast.show(msg)
@@ -436,7 +436,7 @@ const App = {
             FileRepositoryAPI.getProgress(
                 (data) => {
                     if (data.status === ProgressStatus.PROCESSING) {
-                        UIComponents.renderProgress('.repo-container', data.progress);
+                        UIComponents.renderProgress('.main-content', data.progress);
                     } else {
                         this.stopScanPolling();
                         UIController.toggleScanUI(false);
@@ -464,7 +464,7 @@ const App = {
             clearInterval(State.scanInterval);
             State.scanInterval = null;
         }
-        UIComponents.hideProgressBar('.repo-container');
+        UIComponents.hideProgressBar('.main-content');
     },
 
     /**
@@ -475,7 +475,7 @@ const App = {
             (data) => {
                 if (data.status === ProgressStatus.PROCESSING) {
                     UIController.toggleScanUI(true);
-                    UIComponents.showProgressBar('.repo-container', '正在扫描...');
+                    UIComponents.showProgressBar('.main-content', '正在扫描...');
                     this.startScanPolling();
                 }
             },

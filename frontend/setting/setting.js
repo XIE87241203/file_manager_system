@@ -237,7 +237,12 @@ const App = {
      * 用途说明：初始化应用
      */
     init() {
-        UIComponents.initHeader('系统设置', true, null, '保存', () => this.handleGlobalSave());
+        HeaderToolbar.init({
+            title: '系统设置',
+            showBack: true,
+            menuIcon: '../../common/header_toolbar/icon/save_icon.svg',
+            menuCallback: () => this.handleGlobalSave()
+        });
         UIController.initTabs();
         UIController.initThumbnailSyncButton();
         this.loadSettings();
@@ -294,7 +299,7 @@ const App = {
                 }
                 State.fileRepository.directories.push(path);
                 UIController.renderRepositoryList();
-                Toast.show('已添加到本地列表，请记得点击顶栏“保存”哦~');
+                Toast.show('已添加到本地列表，请记得点击顶栏保存图标哦~');
             }
         });
     },

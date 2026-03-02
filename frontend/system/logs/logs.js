@@ -20,7 +20,10 @@ const UIController = {
      * 用途说明：初始化 UI 元素缓存及公用头部
      */
     init() {
-        UIComponents.initHeader('运行日志');
+        HeaderToolbar.init({
+            title: '运行日志',
+            showBack: true
+        });
         State.logContentElement = document.getElementById('log-content');
         
         this.bindEvents();

@@ -5,13 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>运行日志 - 文件管理系统</title>
     <link rel="stylesheet" href="../../common/common.css">
+    <link rel="stylesheet" href="../../common/header_toolbar/default/default_header_toolbar.css">
     <link rel="stylesheet" href="logs.css">
 </head>
-<body class="repo-body">
-    <!-- 顶部工具栏由 UIComponents 动态初始化 -->
-    <header class="top-bar"></header>
+<body>
+    <!-- 顶部工具栏由 default_header_toolbar.js 动态初始化 -->
+    <header class="header-bar"></header>
 
-    <main class="repo-container">
+    <main class="main-content">
         <!-- 日志控制栏 -->
         <div class="log-controls">
             <div class="control-item">
@@ -63,6 +64,7 @@
     <script src="../../common/ui_components.js"></script>
     <script src="../../common/request.js"></script>
     <script src="../../common/toast.js"></script>
+    <script src="../../common/header_toolbar/default/default_header_toolbar.js"></script>
     <script src="logs.js"></script>
 </body>
 </html>

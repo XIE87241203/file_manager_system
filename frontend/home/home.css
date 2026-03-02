@@ -37,6 +37,17 @@
     margin-top: 10px;
 }
 
+/* 内容区域容器 */
+.main-content {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 10px 20px;
+    box-sizing: border-box;
+    height: calc(100vh - 60px);
+    overflow-y: auto;
+}
+
 /* 文件仓库详情统计徽章 */
 .repo-detail-badge {
     margin-left: auto; /* 在宽屏下推至最右侧 */

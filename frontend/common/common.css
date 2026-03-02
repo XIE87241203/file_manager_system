@@ -4,6 +4,11 @@
  */
 
 /* 基础全局样式 */
+html, body {
+    height: 100%;
+    overflow: auto;
+}
+
 body {
     font-family: "Helvetica Neue", Helvetica, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", Arial, sans-serif;
     display: flex;
@@ -11,10 +16,17 @@ body {
     min-height: 600px;
     min-width: 375px;
     background-color: #f0f2f5;
-    overflow-x: auto;
-    height: 100vh;
+    height: 100%;
     width: 100vw;
     margin: 0;
+}
+
+.main-content {
+    display: flex;
+    justify-content: center;
+    box-sizing: border-box;
+    height: calc(100vh - 60px);
+    overflow-y: auto;
 }
 
 /* 隐藏元素 */
@@ -157,15 +169,6 @@ body {
     border-color: #f5c2c7;
 }
 
-/* 内容区域容器 */
-.main-content {
-    width: 100%;
-    display: flex;
-    justify-content: center;
-    padding: 10px 20px;
-    box-sizing: border-box;
-}
-
 /* 卡片容器样式 */
 .card-container {
     background: white;
@@ -186,7 +189,7 @@ body {
 
 /* 表单组样式 */
 .form-group {
-    margin-bottom: 1.2rem;
+    margin-bottom: 15px;
 }
 
 /* 标签样式 */
@@ -540,20 +543,7 @@ body {
     border-radius: 4px;
 }
 
-/* --- 仓库页面基础布局 (适用于文件仓库、回收站、查重页) --- */
-
-.repo-container {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    width: 100%;
-    box-sizing: border-box;
-    overflow: hidden;
-    position: relative;
-}
-
 .repo-content-group {
-    flex: 1;
     display: flex;
     flex-direction: column;
     width: 100%;

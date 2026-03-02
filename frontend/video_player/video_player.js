@@ -27,7 +27,11 @@ const VideoPlayerApp = {
         const fileName = UIComponents.getFileName(filePath);
 
         // 2. 初始化通用头部
-        UIComponents.initHeader(fileName, true);
+        HeaderToolbar.init({
+            title: fileName,
+            showBack: true,
+            theme: 'dark'
+        });
 
         // 3. 初始化 ArtPlayer
         this.initArtPlayer(filePath, fileName);

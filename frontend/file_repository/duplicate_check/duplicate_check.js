@@ -12,7 +12,6 @@ const State = {
     lastCheckTime: '--',
     pollingInterval: null,
     settings: null, // 存储系统设置
-    paginationController: null, // 分页控制器实例
     previousExpandedStates: null, // 用途说明：存储上一页结果的展开/收起状态，用于刷新后保留状态
     selectedPaths: new Set(), // 存储选中的文件路径，以保持跨页选中状态
 
@@ -58,17 +57,10 @@ const UIController = {
             emptyHint: document.getElementById('empty-hint'),
             summaryBar: document.getElementById('results-summary-bar'),
             summaryGroups: document.getElementById('summary-groups'),
-            summaryFiles: document.getElementById('summary-files'),
             summaryTime: document.getElementById('summary-time'),
             globalDeleteBtn: document.getElementById('btn-delete-selected-global'),
             filterSimilarityType: document.getElementById('filter-similarity-type')
         };
-
-        // 初始化公用分页组件
-        State.paginationController = UIComponents.initPagination('pagination-container', {
-            limit: State.limit,
-            onPageChange: (newPage) => App.changePage(newPage)
-        });
 
         this.renderHeader(ProgressStatus.IDLE);
     },
@@ -79,13 +71,26 @@ const UIController = {
      * 返回值说明：无
      */
     renderHeader(status) {
-        if (typeof UIComponents !== 'undefined') {
-            const title = '文件查重';
-            if (status === ProgressStatus.PROCESSING) {
-                UIComponents.initHeader(title, true, null, '停止查重', () => App.handleStop(), 'btn-text-danger');
-            } else {
-                UIComponents.initHeader(title, true, null, '开始查重', () => App.handleStart());
+        if (typeof HeaderToolbar === 'undefined') return;
+        const isProcessing = status === ProgressStatus.PROCESSING;
+        const menuIcon = '../../common/header_toolbar/icon/search_icon.svg';
+        HeaderToolbar.init({
+            title: '文件查重',
+            showBack: true,
+            menuIcon: menuIcon,
+            menuCallback: () => {
+                if (isProcessing) {
+                    App.handleStop();
+                } else {
+                    App.handleStart();
+                }
             }
+        });
+        const menuBtn = document.getElementById('btn-menu');
+        if (menuBtn) {
+            menuBtn.title = isProcessing ? '停止查重' : '开始查重';
+            const menuImg = menuBtn.querySelector('img');
+            if (menuImg) menuImg.alt = isProcessing ? '停止查重' : '开始查重';
         }
     },
 
@@ -136,22 +141,26 @@ const UIController = {
      * 返回值说明：无
      */
     renderResults() {
-        const { wrapper, summaryBar, summaryGroups, summaryFiles, summaryTime } = this.elements;
+        const { wrapper, summaryBar, summaryGroups, summaryTime } = this.elements;
         wrapper.innerHTML = '';
 
         const results = State.results;
         if (!results || results.length === 0) {
             summaryBar.classList.remove('hidden');
             wrapper.innerHTML = '<div style="text-align: center; color: #9aa0a6; padding-top: 100px;">未发现重复文件</div>';
-            if (State.paginationController) State.paginationController.update(0, 1);
+            PageBar.init({
+                containerId: 'pagination-container',
+                totalItems: 0,
+                pageSize: State.limit,
+                currentPage: 1,
+                onPageChange: (newPage) => App.changePage(newPage)
+            });
             this.updateFloatingBar();
             return;
         }
 
         summaryBar.classList.remove('hidden');
         summaryGroups.textContent = `重复组总数: ${State.total}`;
-        const totalFiles = results.reduce((acc, g) => acc + (g.files ? g.files.length : 0), 0);
-        summaryFiles.textContent = `当前页文件: ${totalFiles}`;
         summaryTime.textContent = `查重时间: ${State.lastCheckTime || '--'}`;
 
         results.forEach(group => {
@@ -160,9 +169,13 @@ const UIController = {
         });
 
         // 更新公用分页组件
-        if (State.paginationController) {
-            State.paginationController.update(State.total, State.page);
-        }
+        PageBar.init({
+            containerId: 'pagination-container',
+            totalItems: State.total,
+            pageSize: State.limit,
+            currentPage: State.page,
+            onPageChange: (newPage) => App.changePage(newPage)
+        });
 
         this.updateFloatingBar();
     },
@@ -184,17 +197,16 @@ const UIController = {
         groupEl.innerHTML = `
             <div class="group-header">
                 <div class="group-info">
-                    <span class="group-title">${groupType}</span>
+                    <span class="group-title" title="${groupType}">${groupType}</span>
                     <span class="group-count">${fileCount} 个文件</span>
                     <span class="group-md5">ID: ${group.id}</span>
-                </div>
-                <div class="group-actions">
                     <span class="expand-icon">▶</span>
                 </div>
             </div>
             <div class="group-content">
                 <table class="file-item-table">
                     <thead>
+
                         <tr class="header-row-clickable">
                             <th class="col-dup-name">文件名</th>
                             <th class="col-dup-duration">视频时长</th>
@@ -297,7 +309,8 @@ const UIController = {
 
         if (checkedCount > 0) {
             globalDeleteBtn.classList.remove('hidden');
-            globalDeleteBtn.textContent = `移入回收站 (${checkedCount})`;
+            globalDeleteBtn.setAttribute('title', `移入回收站 (${checkedCount})`);
+            globalDeleteBtn.setAttribute('aria-label', `移入回收站 (${checkedCount})`);
         } else {
             globalDeleteBtn.classList.add('hidden');
         }

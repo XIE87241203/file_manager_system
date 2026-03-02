@@ -9,16 +9,24 @@ body {
 .tabs {
     display: flex;
     border-bottom: 2px solid #f0f0f0;
-    margin-bottom: 2.5rem;
+    margin-bottom: 15px;
+    padding: 0px 10px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background-color: #ffffff;
 }
-
+.settings-grid { width: 100%; }
 .tab-btn {
-    padding: 12px 30px;
+    flex: 1 1 0;
+    max-width: 150px;
+    padding: 15px 5px;
     cursor: pointer;
     background: none;
     border: none;
     font-size: 1rem;
     color: #888;
+    text-align: center;
     transition: all 0.2s ease-in-out;
     border-bottom: 2px solid transparent;
     margin-bottom: -2px;
@@ -37,10 +45,12 @@ body {
 
 .tab-content {
     display: none;
+    padding: 10px 20px;
+    overflow-y: auto;
 }
 
 .tab-content.active {
-    display: block;
+    display: flex;
 }
 
 /* 主内容容器：占据剩余高度并支持滚动 */
@@ -50,19 +60,6 @@ body {
     overflow-y: auto;
     box-sizing: border-box;
     background-color: #ffffff; /* 内部也保持纯白 */
-}
-
-/* 响应式网格布局 */
-.settings-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(450px, 1fr));
-    gap: 0 80px;
-    align-items: start;
-}
-
-/* 需要横跨整行的元素 */
-.full-width {
-    grid-column: 1 / -1;
 }
 
 /* 章节头部样式：用于标题和按钮右对齐 */
@@ -79,9 +76,10 @@ body {
 
 /* 仓库列表样式 */
 .repo-list {
-    margin-bottom: 1.5rem;
+    margin-bottom: 15px;
     max-height: 200px; /* 限制高度约为3行，超过则显示滚动条 */
     overflow-y: auto;
+    overflow-x: auto;
     border: 1px solid #f0f0f0;
     border-radius: 8px;
     padding: 10px;
@@ -90,7 +88,7 @@ body {
 .repo-item {
     display: flex;
     align-items: center;
-    padding: 12px 20px;
+    padding: 10px 10px;
     background: #fcfcfc;
     border: 1px solid #f0f0f0;
     border-radius: 6px;
@@ -147,8 +145,7 @@ body {
     border-radius: 12px;
     padding: 10px 15px;
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-    gap: 0px 40px;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
 }
 
 .group-title {
@@ -188,7 +185,6 @@ body {
 .auto-refresh-config {
     display: flex;
     align-items: center;
-    gap: 30px;
     grid-column: 1 / -1;
     flex-wrap: wrap;
 }
@@ -211,6 +207,24 @@ body {
     padding: 4px 10px !important;
     height: 32px !important;
     font-size: 0.9rem !important;
+}
+
+@media (max-width: 720px) {
+    .auto-refresh-config {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .time-setting-item {
+        width: 100%;
+        flex-wrap: wrap;
+    }
+
+    .time-setting-item .form-hint {
+        display: block;
+        width: 100%;
+        margin-top: 6px;
+    }
 }
 
 /* 数据维护项样式 */

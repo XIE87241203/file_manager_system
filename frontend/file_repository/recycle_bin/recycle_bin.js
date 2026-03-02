@@ -337,7 +337,7 @@ const App = {
      * 返回值说明：无
      */
     startProgressPolling() {
-        UIComponents.showProgressBar('.repo-container', '正在删除文件...');
+        UIComponents.showProgressBar('.main-content', '正在删除文件...');
         // 初始化当前状态，确保能识别后续的 IDLE 切换
         State.lastTaskStatus = ProgressStatus.PROCESSING;
 
@@ -348,11 +348,11 @@ const App = {
                     const progress = data.progress;
 
                     if (currentStatus === ProgressStatus.PROCESSING) {
-                        UIComponents.renderProgress('.repo-container', progress);
+                        UIComponents.renderProgress('.main-content', progress);
                     } else {
                         // 状态不再是 PROCESSING，停止轮询
                         clearInterval(timer);
-                        UIComponents.hideProgressBar('.repo-container');
+                        UIComponents.hideProgressBar('.main-content');
 
                         // 核心逻辑：如果从 PROCESSING 切换到 IDLE，或者变为 COMPLETED，则刷新
                         const isTaskFinished = (State.lastTaskStatus === ProgressStatus.PROCESSING && currentStatus === ProgressStatus.IDLE)
@@ -369,7 +369,7 @@ const App = {
                 },
                 () => {
                     clearInterval(timer);
-                    UIComponents.hideProgressBar('.repo-container');
+                    UIComponents.hideProgressBar('.main-content');
                     State.lastTaskStatus = null;
                 }
             );
