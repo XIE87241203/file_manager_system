@@ -13,13 +13,20 @@ const State = {
 
 // --- UI 控制模块 ---
 const UIController = {
+    /** @type {Object} 缓存的 DOM 元素集合 */
     elements: {},
 
     /**
-     * 用途说明：初始化 UI 并缓存元素。
+     * 用途说明：初始化 UI 组件并缓存 DOM 元素。
+     * 入参说明：无
+     * 返回值说明：无
      */
     init() {
-        UIComponents.initHeader('批量录入新数据', true);
+        // 使用标准的 HeaderToolbar 组件初始化头部
+        HeaderToolbar.init({
+            title: '批量录入文件名',
+            showBack: true
+        });
 
         this.elements = {
             inputArea: document.getElementById('batch-input-area'),
@@ -30,25 +37,25 @@ const UIController = {
     }
 };
 
-// --- API 交互模块 ---
-const BatchAPI = {
-    async startCheck(fileNames) {
-        return await Request.post('/api/file_name_repository/pending_entry/check_batch', { file_names: fileNames }, {}, false);
-    },
-    async getStatus() {
-        return await Request.get('/api/file_name_repository/pending_entry/check_status', {}, false);
-    }
-};
-
 // --- 应用逻辑主入口 ---
 const App = {
+    /**
+     * 用途说明：页面逻辑初始化入口。
+     * 入参说明：无
+     * 返回值说明：无
+     */
     init() {
         UIController.init();
         this.bindEvents();
-        // 入口守卫：根据后端状态决定行为
+        // 入口守卫：根据后端状态决定行为（如断点续传或自动跳转）
         this.guardEntry();
     },
 
+    /**
+     * 用途说明：绑定页面按钮及其他交互事件。
+     * 入参说明：无
+     * 返回值说明：无
+     */
     bindEvents() {
         const { btnCheck, btnClear } = UIController.elements;
         btnCheck.onclick = () => this.handleCheckBatch();
@@ -56,54 +63,62 @@ const App = {
     },
 
     /**
-     * 用途说明：入口守卫。
-     * 逻辑说明：使用 location.href 进行正常跳转，确保返回键能回到本页并触发逻辑。
+     * 用途说明：入口守卫。检查是否有正在进行的任务，并据此决定是否启动轮询或直接跳转。
+     * 入参说明：无
+     * 返回值说明：无
      */
-    async guardEntry() {
-        try {
-            const response = await BatchAPI.getStatus();
-            if (response.status !== 'success') return;
-
-            const { status } = response.data;
-            if (status === 'processing') {
-                this.startPolling();
-            } else if (status === 'completed') {
-                // 任务已完成，正常跳转，保留历史记录
-                window.location.href = 'batch_check_results.html';
+    guardEntry() {
+        BatchEntryRequest.getStatus(
+            (data) => {
+                const { status } = data;
+                if (status === 'processing') {
+                    this.startPolling();
+                } else if (status === 'completed') {
+                    // 任务已完成，跳转到结果展示页
+                    window.location.href = 'batch_check_results.html';
+                }
+            },
+            (errorMessage) => {
+                console.error('自检异常:', errorMessage);
             }
-        } catch (e) {
-            console.error('自检异常:', e);
-        }
+        );
     },
 
     /**
-     * 用途说明：启动批量检测。
+     * 用途说明：处理“开始检测”按钮点击事件，解析输入并启动后端任务。
+     * 入参说明：无
+     * 返回值说明：无
      */
-    async handleCheckBatch() {
+    handleCheckBatch() {
+        /** @type {string} 获取并清理输入文本 */
         const rawText = UIController.elements.inputArea.value.trim();
         if (!rawText) {
             Toast.show('请输入要检测的文件名清单~');
             return;
         }
 
+        // 解析输入，支持换行和逗号
+        /** @type {string[]} */
         const inputNames = rawText.split(/[\n,，]/).map(n => n.trim()).filter(n => n.length > 0);
+        /** @type {string[]} 去重 */
         const uniqueNames = Array.from(new Set(inputNames));
         if (uniqueNames.length === 0) return;
 
-        try {
-            const response = await BatchAPI.startCheck(uniqueNames);
-            if (response.status === 'success') {
+        BatchEntryRequest.startCheck(uniqueNames,
+            () => { // onSuccess
                 this.startPolling();
-            } else {
-                Toast.show(response.message || '启动失败');
+            },
+            (errorMessage) => { // onError
+                Toast.show(errorMessage || '启动失败');
+                console.error('请求失败:', errorMessage);
             }
-        } catch (error) {
-            console.error('请求失败:', error);
-        }
+        );
     },
 
     /**
-     * 用途说明：进度轮询。
+     * 用途说明：启动进度轮询，实时展示检测进度条。
+     * 入参说明：无
+     * 返回值说明：无
      */
     startPolling() {
         if (State.isChecking) return;
@@ -111,31 +126,38 @@ const App = {
 
         UIComponents.showProgressBar('.repo-content-group', '正在检测中...');
 
-        State.pollTimer = setInterval(async () => {
-            try {
-                const response = await BatchAPI.getStatus();
-                if (response.status !== 'success') return;
-
-                const { status, progress } = response.data;
-                if (status === 'processing') {
-                    const percent = progress.total > 0 ? Math.floor((progress.current / progress.total) * 100) : 0;
-                    UIComponents.updateProgressBar('.repo-content-group', percent, progress.message);
-                } else if (status === 'completed') {
+        State.pollTimer = setInterval(() => {
+            BatchEntryRequest.getStatus(
+                (data) => { // onSuccess
+                    const { status, progress } = data;
+                    if (status === 'processing') {
+                        const percent = progress.total > 0 ? Math.floor((progress.current / progress.total) * 100) : 0;
+                        UIComponents.updateProgressBar('.repo-content-group', percent, progress.message);
+                    } else if (status === 'completed') {
+                        this.stopPolling();
+                        UIComponents.hideProgressBar('.repo-content-group');
+                        window.location.href = 'batch_check_results.html';
+                    } else if (status === 'error') {
+                        this.stopPolling();
+                        UIComponents.hideProgressBar('.repo-content-group');
+                        Toast.show('运行出错: ' + progress.message);
+                    }
+                },
+                (errorMessage) => { // onError
+                    console.error('轮询异常:', errorMessage);
                     this.stopPolling();
                     UIComponents.hideProgressBar('.repo-content-group');
-                    // 完成后正常跳转
-                    window.location.href = 'batch_check_results.html';
-                } else if (status === 'error') {
-                    this.stopPolling();
-                    UIComponents.hideProgressBar('.repo-content-group');
-                    Toast.show('运行出错: ' + progress.message);
+                    Toast.show('轮询任务状态时出错: ' + errorMessage);
                 }
-            } catch (e) {
-                console.error('轮询异常:', e);
-            }
+            );
         }, 1000);
     },
 
+    /**
+     * 用途说明：停止进度轮询并清理定时器。
+     * 入参说明：无
+     * 返回值说明：无
+     */
     stopPolling() {
         State.isChecking = false;
         if (State.pollTimer) {

@@ -268,7 +268,6 @@ const UIComponents = {
         } else {
             this.updateProgressBar(parentSelector, 0, initialText);
         }
-        overlay.style.display = 'flex';
     },
 
     /**

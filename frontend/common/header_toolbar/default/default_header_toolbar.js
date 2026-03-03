@@ -8,7 +8,7 @@ const HeaderToolbar = {
      * @param {string} options.title - 工具栏标题
      * @param {boolean} [options.showBack=true] - 是否显示返回键，默认为 true。若为 false 则隐藏但保留占位。
      * @param {string} [options.theme="light"] - 主题风格，支持 "light" | "dark"，默认 light
-     * @param {string} [options.menuIcon] - 右上角菜单图标路径，若不传则使用默认图标 "../../common/header_toolbar/icon/menu_icon.svg"
+     * @param {string} [options.menuIcon] - 右上角菜单图标路径，若不传则使用默认图标 "/frontend/common/header_toolbar/icon/menu_icon.svg"
      * @param {Function} [options.backCallback] - 返回按钮点击回调，若不传则默认执行 window.history.back()
      * @param {Function} [options.menuCallback] - 菜单按钮点击回调，若不传则隐藏菜单图标但保留占位
      * @returns {void}
@@ -24,7 +24,7 @@ const HeaderToolbar = {
         const title = options.title || "未命名页面";
         const showBack = options.showBack !== false; // 默认显示
         const hasMenu = typeof options.menuCallback === 'function';
-        const menuIcon = options.menuIcon || "../../common/header_toolbar/icon/menu_icon.svg";
+        const menuIcon = options.menuIcon || "/common/header_toolbar/icon/menu_icon.svg";
         const themeClass = options.theme === 'dark' ? 'theme-dark' : 'theme-light';
         header.classList.remove('theme-dark', 'theme-light');
         header.classList.add(themeClass);
@@ -33,7 +33,7 @@ const HeaderToolbar = {
         header.innerHTML = `
             <div class="header-left">
                 <div class="icon-btn" id="btn-back" title="返回" style="visibility: ${showBack ? 'visible' : 'hidden'}">
-                    <img src="../../common/header_toolbar/icon/back_icon.svg" alt="返回" class="icon-img">
+                    <img src="/common/header_toolbar/icon/back_icon.svg" alt="返回" class="icon-img">
                 </div>
             </div>
             <div class="header-title">${title}</div>

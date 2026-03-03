@@ -373,7 +373,7 @@ body {
 
 /* 通用进度条组件样式 (Common Progress Bar) */
 .common-progress-overlay {
-    position: absolute;
+    position: fixed;
     top: 0;
     left: 0;
     right: 0;
@@ -382,7 +382,7 @@ body {
     justify-content: center;
     align-items: center;
     background-color: rgba(241, 243, 244, 0.9);
-    z-index: 500;
+    z-index: 2000;
 }
 
 .common-progress-card {
@@ -394,7 +394,9 @@ body {
     flex-direction: column;
     align-items: center;
     gap: 15px;
-    width: 400px;
+    width: 80%;
+    max-width: 600px;
+    box-sizing: border-box;
 }
 
 .common-progress-spinner {
@@ -761,4 +763,3 @@ a.file-link:visited {
     -webkit-mask-size: contain;
     mask-size: contain;
 }
-
