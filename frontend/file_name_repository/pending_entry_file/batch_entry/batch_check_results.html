@@ -7,12 +7,13 @@
     <!-- 引入公用样式 -->
     <link rel="stylesheet" href="../../../common/common.css">
     <link rel="stylesheet" href="../../../common/table.css">
+    <link rel="stylesheet" href="../../../common/header_toolbar/default/default_header_toolbar.css">
     <!-- 引入页面私有样式 -->
     <link rel="stylesheet" href="batch_check_results.css">
 </head>
 <body>
     <!-- 顶部工具栏：由 JS 动态初始化 -->
-    <header class="top-bar"></header>
+    <header class="header-bar"></header>
 
     <main class="main-content">
         <div id="repo-main-content" class="repo-content-group">
@@ -52,17 +53,9 @@
                 </table>
             </div>
 
-            <!-- 底部导航区：分页控制与操作 -->
+            <!-- 底部导航区：操作 -->
             <footer class="footer-bar">
-                <div class="footer-left">
-                    <!-- 占位，保持布局平衡 -->
-                </div>
-                <div class="footer-center">
-                    <div id="pagination-container" class="pagination-container">
-                        <!-- 分页组件由 ui_components.js 动态初始化 -->
-                    </div>
-                </div>
-                <div class="footer-right">
+                <div class="footer-center-buttons">
                     <button id="btn-copy-selected" class="btn-secondary-large">复制选中文件名</button>
                     <button id="btn-confirm-import" class="btn-primary-large">录入选中纪录</button>
                 </div>
@@ -71,6 +64,7 @@
     </main>
 
     <!-- 脚本加载 -->
+    <script src="../../../common/header_toolbar/default/default_header_toolbar.js"></script>
     <script src="../../../common/ui_components.js"></script>
     <script src="../../../common/request.js"></script>
     <script src="../../../common/toast.js"></script>

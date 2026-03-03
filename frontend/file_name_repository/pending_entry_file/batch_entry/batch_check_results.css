@@ -4,26 +4,6 @@
  * 包含：百分比布局、状态标签样式、固定表头样式。
  */
 
-/* 顶部工具栏适配 */
-.top-bar-left {
-    width: 150px;
-    display: flex;
-    align-items: center;
-}
-
-.top-bar-center {
-    flex: 1;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-}
-
-.top-bar-right {
-    width: 150px;
-    display: flex;
-    justify-content: flex-end;
-}
-
 /* 结果页特有的工具条 */
 .results-header-toolbar {
     padding: 10px 20px;
@@ -60,11 +40,10 @@
 .tag-pending { background: #e3f2fd; color: #1976d2; border: 1px solid #bbdefb; }
 
 /* 列表列宽调整：使用百分比布局 */
-.col-index { width: 5%; text-align: center; }
-.col-name { width: 30%; }
-.col-status { width: 60%; }
-.col-check { width: 5%; text-align: center; }
-
+.col-index {text-align: center;width: 60px;}
+.col-check {text-align: center;}
+.col-name {width: 200px;}
+.col-status{width: 250px;}
 /* 核心修复：固定所有表头单元格 */
 #file-table thead th {
     position: sticky;
@@ -74,8 +53,12 @@
     box-shadow: 0 1px 0 #eee; /* 模拟底部边框，防止滚动时视觉断层 */
 }
 
-/* 底部栏间距 */
-.footer-right {
+/* 底部按钮居中容器 */
+.footer-center-buttons {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
     gap: 12px;
 }
 
