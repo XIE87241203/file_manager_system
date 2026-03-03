@@ -155,51 +155,16 @@ const UIController = {
     }
 };
 
-// --- API 交互模块 ---
-const ResultsAPI = {
-    /**
-     * 用途说明：获取当前批量检测任务的状态。
-     * 返回值说明：Promise<Object>: 包含 status 和 progress 的后端响应。
-     */
-    async getStatus() {
-        return await Request.get('/api/file_name_repository/pending_entry/check_status', {}, false);
-    },
-    /**
-     * 用途说明：获取检测结果列表。
-     * 入参说明：params (Object): 包含 sort_by (string) 和 order_asc (boolean) 的排序参数。
-     * 返回值说明：Promise<Object>: 包含结果数据数组的后端响应。
-     */
-    async getResults(params = {}) {
-        const query = new URLSearchParams(params).toString();
-        return await Request.get('/api/file_name_repository/pending_entry/check_results?' + query);
-    },
-    /**
-     * 用途说明：清理后端任务状态及缓存。
-     * 返回值说明：Promise<Object>: 操作结果状态。
-     */
-    async clearTask() {
-        return await Request.post('/api/file_name_repository/pending_entry/check_clear');
-    },
-    /**
-     * 用途说明：确认录入选中的文件名。
-     * 入参说明：fileNames (string[]): 待录入的文件名数组。
-     * 返回值说明：Promise<Object>: 包含成功录入的数量。
-     */
-    async confirmImport(fileNames) {
-        return await Request.post('/api/file_name_repository/pending_entry/add', { file_names: fileNames });
-    }
-};
-
 // --- 应用逻辑主入口 ---
 const App = {
     /**
      * 用途说明：初始化应用。
      * 返回值说明：无
      */
-    async init() {
+    init() {
         UIController.init();
         this.bindEvents();
-        await this.loadData();
+        this.loadData();
     },
 
     /**
@@ -255,35 +220,31 @@ const App = {
      * 用途说明：加载数据并根据后端状态驱动 UI（轮询或渲染）。
      * 返回值说明：无
      */
-    async loadData() {
-        try {
-            const response = await ResultsAPI.getStatus();
-            if (response.status !== 'success') return;
-
-            const { status } = response.data;
+    loadData() {
+        BatchCheckResultsRequest.getStatus((data) => {
+            const { status } = data;
             if (status === 'completed') {
                 const params = {
                     sort_by: State.sortBy,
                     order_asc: State.order === 'ASC'
                 };
-                const res = await ResultsAPI.getResults(params);
-                if (res.status === 'success') {
-                    State.results = res.data.map(item => ({
+                BatchCheckResultsRequest.getResults(params, (resultsData) => {
+                    State.results = resultsData.map(item => ({
                         ...item,
                         checked: item.source === 'new'
                     }));
                     UIController.renderResults(State.results);
                     UIController.updateSortUI(State.sortBy, State.order);
-                }
+                }, (err) => Toast.show(err));
             } else if (status === 'processing') {
                 this.startPolling();
             } else if (status === 'idle') {
                 Toast.show('任务已结束');
                 setTimeout(() => { window.history.back(); }, 1000);
             }
-        } catch (e) {
-            console.error('加载异常:', e);
-        }
+        }, (err) => {
+            console.error('加载状态异常:', err);
+        });
     },
 
     /**
@@ -295,19 +256,20 @@ const App = {
         State.isPolling = true;
         UIComponents.showProgressBar('.repo-content-group', '正在同步进度...');
 
-        State.pollTimer = setInterval(async () => {
-            const response = await ResultsAPI.getStatus();
-            if (response.status !== 'success') return;
-
-            const { status, progress } = response.data;
-            if (status === 'processing') {
-                const percent = progress.total > 0 ? Math.floor((progress.current / progress.total) * 100) : 0;
-                UIComponents.updateProgressBar('.repo-content-group', percent, progress.message);
-            } else if (status === 'completed') {
-                this.stopPolling();
-                UIComponents.hideProgressBar('.repo-content-group');
-                this.loadData();
-            }
+        State.pollTimer = setInterval(() => {
+            BatchCheckResultsRequest.getStatus((data) => {
+                const { status, progress } = data;
+                if (status === 'processing') {
+                    const percent = progress.total > 0 ? Math.floor((progress.current / progress.total) * 100) : 0;
+                    UIComponents.updateProgressBar('.repo-content-group', percent, progress.message);
+                } else if (status === 'completed') {
+                    this.stopPolling();
+                    UIComponents.hideProgressBar('.repo-content-group');
+                    this.loadData();
+                }
+            }, (err) => {
+                console.error('轮询状态异常:', err);
+            });
         }, 1000);
     },
 
@@ -333,11 +295,10 @@ const App = {
             message: '返回列表将清空本次检测结果并重置状态，确认要继续吗？',
             confirmText: '确认并返回',
             cancelText: '取消',
-            onConfirm: async () => {
-                const response = await ResultsAPI.clearTask();
-                if (response.status === 'success') {
+            onConfirm: () => {
+                BatchCheckResultsRequest.clearTask(() => {
                     window.history.go(-2);
-                }
+                }, (err) => Toast.show(err));
             }
         });
     },
@@ -369,7 +330,7 @@ const App = {
      * 用途说明：执行批量录入，直接从状态中筛选选中的项。
      * 返回值说明：无
      */
-    async handleConfirmImport() {
+    handleConfirmImport() {
         const selectedNames = State.results
             .filter(item => item.checked)
             .map(item => item.name);
@@ -379,19 +340,15 @@ const App = {
             return;
         }
 
-        try {
-            const response = await ResultsAPI.confirmImport(selectedNames);
-            if (response.status === 'success') {
-                const count = response.data?.count ?? 0;
-                Toast.show(`已成功录入 ${count} 条记录！`);
-                if(count>0){
-                    await this.loadData();
-                }
-
+        BatchCheckResultsRequest.confirmImport(selectedNames, (data) => {
+            const count = data?.count ?? 0;
+            Toast.show(`已成功录入 ${count} 条记录！`);
+            if (count > 0) {
+                this.loadData();
             }
-        } catch (e) {
-            console.error('录入请求异常:', e);
-        }
+        }, (err) => {
+            Toast.show(err);
+        });
     }
 };
 
