@@ -22,7 +22,7 @@ I18nUtils.init(language=current_lang)
 # 2. 初始化日志
 LogUtils.init(level=logging.DEBUG)
 
-from flask import Flask, request, send_from_directory
+from flask import Flask, request, redirect
 from flask_cors import CORS
 from waitress import serve
 from backend.auth.auth_routes import auth_bp
@@ -63,9 +63,12 @@ def log_request_info() -> None:
 @app.route('/')
 def index() -> Any:
     """
-    用途：默认返回登录页面
+    用途说明：默认跳转到登录页面，并携带系统设置的语言参数。
+    返回值说明：Any - Flask 重定向响应。
     """
-    return send_from_directory(app.static_folder, 'login/login.html')
+    # 获取系统当前配置的语言
+    lang: str = settingService.get_config().user_data.language
+    return redirect(f'/login/login.html?lang={lang}')
 
 # --- 异常处理句柄 ---
 

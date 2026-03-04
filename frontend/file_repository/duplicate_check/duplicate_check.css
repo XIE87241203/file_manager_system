@@ -2,6 +2,15 @@
  * 用途：查重页面专用样式
  */
 
+/* 确保主内容区域也是弹性布局，允许结果组占满高度 */
+.main-content {
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 60px); /* 减去 header 高度，根据项目实际情况调整 */
+    overflow: hidden;
+    position: relative;
+}
+
 /* 居中状态容器：用于显示进度条并上下左右居中 */
 .centered-status-container {
     position: absolute;
@@ -100,10 +109,10 @@
     border-color: #1a73e8;
 }
 
-/* 查重结果区域 */
+/* 查重结果区域：核心修改，占满剩余高度 */
 .results-wrapper {
+    flex: 1;
     overflow-y: auto;
-    padding: 10px;
     background-color: #f1f3f4;
 }
 
@@ -185,6 +194,11 @@
 
 .duplicate-group.expanded .group-content {
     display: block;
+}
+
+/* 底部操作栏固定在最下方 */
+.footer-bar {
+    flex-shrink: 0;
 }
 
 /* 底部批量移入回收站按钮图标化样式 */

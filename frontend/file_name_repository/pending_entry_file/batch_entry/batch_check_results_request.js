@@ -16,11 +16,11 @@ const BatchCheckResultsRequest = {
                 if (res.status === 'success') {
                     if (onSuccess) onSuccess(res.data);
                 } else {
-                    if (onError) onError(res.message || '获取状态失败');
+                    if (onError) onError(res.message || I18nManager.t('batch_check.get_status_failed'));
                 }
             })
             .catch(err => {
-                if (onError) onError('网络请求异常');
+                if (onError) onError(I18nManager.t('batch_check.network_error'));
             });
     },
 
@@ -39,11 +39,11 @@ const BatchCheckResultsRequest = {
                 if (res.status === 'success') {
                     if (onSuccess) onSuccess(res.data);
                 } else {
-                    if (onError) onError(res.message || '获取结果列表失败');
+                    if (onError) onError(res.message || I18nManager.t('batch_check.get_results_failed'));
                 }
             })
             .catch(err => {
-                if (onError) onError('网络请求异常');
+                if (onError) onError(I18nManager.t('batch_check.network_error'));
             });
     },
 
@@ -60,11 +60,11 @@ const BatchCheckResultsRequest = {
                 if (res.status === 'success') {
                     if (onSuccess) onSuccess(res.data);
                 } else {
-                    if (onError) onError(res.message || '清理任务失败');
+                    if (onError) onError(res.message || I18nManager.t('batch_check.clear_task_failed'));
                 }
             })
             .catch(err => {
-                if (onError) onError('网络请求异常');
+                if (onError) onError(I18nManager.t('batch_check.network_error'));
             });
     },
 
@@ -82,11 +82,11 @@ const BatchCheckResultsRequest = {
                 if (res.status === 'success') {
                     if (onSuccess) onSuccess(res.data);
                 } else {
-                    if (onError) onError(res.message || '录入失败');
+                    if (onError) onError(res.message || I18nManager.t('batch_check.import_failed'));
                 }
             })
             .catch(err => {
-                if (onError) onError('网络请求异常');
+                if (onError) onError(I18nManager.t('batch_check.network_error'));
             });
     }
 };

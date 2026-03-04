@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>文件查重 - 文件管理系统</title>
+    <title data-i18n="duplicate_check.title"></title>
     <!-- 引入公用样式 -->
     <link rel="stylesheet" href="../../common/common.css">
     <link rel="stylesheet" href="../../common/table.css">
@@ -29,18 +29,18 @@
                 <div class="summary-content">
                     <!-- 重复类型筛选 -->
                     <div class="filter-item">
-                        <label for="filter-similarity-type">类型:</label>
+                        <label for="filter-similarity-type" data-i18n="duplicate_check.filter_type"></label>
                         <select id="filter-similarity-type" class="common-select">
-                            <option value="">全部</option>
-                            <option value="md5">MD5完全一致</option>
-                            <option value="hash">图片相似</option>
-                            <option value="video_feature">视频相似</option>
+                            <option value="" data-i18n="duplicate_check.filter_all"></option>
+                            <option value="md5" data-i18n="duplicate_check.filter_md5"></option>
+                            <option value="hash" data-i18n="duplicate_check.filter_image"></option>
+                            <option value="video_feature" data-i18n="duplicate_check.filter_video"></option>
                         </select>
                     </div>
                     <span class="summary-divider">|</span>
                     <div class="summary-stats">
-                        <span id="summary-groups">分组: 0</span>
-                        <span id="summary-time">查重时间: --</span>
+                        <span id="summary-groups"></span>
+                        <span id="summary-time"></span>
                     </div>
                 </div>
             </div>
@@ -57,7 +57,7 @@
                     </div>
                 </div>
                 <div class="footer-right">
-                    <button id="btn-delete-selected-global" class="btn-delete-icon hidden" title="移入回收站">
+                    <button id="btn-delete-selected-global" class="btn-delete-icon hidden">
                         <span class="trash-icon"></span>
                     </button>
                 </div>
@@ -65,12 +65,14 @@
         </div>
 
         <!-- 初始引导提示 -->
-        <div id="empty-hint" class="empty-hint">
-            点击右上角图标开始查重
+        <div id="empty-hint" class="empty-hint" data-i18n="duplicate_check.start_hint">
         </div>
     </main>
 
     <!-- 脚本加载 -->
+    <script src="../../common/i18n/zh.js"></script>
+    <script src="../../common/i18n/en.js"></script>
+    <script src="../../common/i18n/i18n_utils.js"></script>
     <script src="../../common/common.js"></script>
     <script src="../../common/ui_components.js"></script>
     <script src="../../common/request.js"></script>
@@ -79,6 +81,7 @@
     <script src="../../common/page_bar/page_bar.js"></script>
     <!-- 引入顶部工具栏组件 -->
     <script src="../../common/header_toolbar/default/default_header_toolbar.js"></script>
+    <script src="duplicate_check_request.js"></script>
     <script src="duplicate_check.js"></script>
 </body>
 </html>

@@ -25,7 +25,7 @@ const UIController = {
     init() {
         // 使用搜索型顶部工具栏初始化顶部栏
         SearchHeaderToolbar.init({
-            searchHint: '搜索文件名 (正则模糊匹配)...',
+            searchHint: I18nManager.t('recycle_bin.search_hint'),
             searchCallback: (content) => App.handleSearch(content)
         });
 
@@ -61,7 +61,7 @@ const UIController = {
 
         if (!list || list.length === 0) {
             // 用途说明：动态调整空状态的列跨度，包含新增的文件类型、时长、编码列
-            tableBody.innerHTML = UIComponents.getEmptyTableHtml(8, '回收站空空如也');
+            tableBody.innerHTML = UIComponents.getEmptyTableHtml(8, I18nManager.t('recycle_bin.empty_hint'));
             this.updateActionButtons();
             return;
         }
@@ -73,7 +73,7 @@ const UIController = {
             if (isChecked) tr.classList.add('selected-row');
 
             // 用途说明：文件名直接从 API 返回的 file_name 字段获取
-            const fileName = file.file_name || '未知文件名';
+            const fileName = file.file_name || I18nManager.t('recycle_bin.unknown_file');
             const fileSizeStr = CommonUtils.formatFileSize(file.file_size);
             // 用途说明：使用 CommonUtils.formatDuration 格式化视频时长
             const durationStr = CommonUtils.formatDuration(file.video_duration);
@@ -82,7 +82,7 @@ const UIController = {
                 <td class="col-name" title="${fileName}">${fileName}</td>
                 <td class="col-size">${fileSizeStr}</td>
                 <td class="col-path" title="${file.file_path}">${file.file_path}</td>
-                <td class="col-type">${file.file_type || '未知'}</td>
+                <td class="col-type">${file.file_type || I18nManager.t('recycle_bin.unknown_type')}</td>
                 <td class="col-duration">${durationStr}</td>
                 <td class="col-codec">${file.video_codec || 'N/A'}</td>
                 <td class="col-time">${file.recycle_bin_time}</td>
@@ -115,11 +115,11 @@ const UIController = {
         const count = State.selectedPaths.size;
 
         if (count > 0) {
-            restoreSelectedBtn.textContent = `恢复选中 (${count})`;
-            deleteSelectedBtn.textContent = `彻底删除 (${count})`;
+            restoreSelectedBtn.textContent = I18nManager.t('recycle_bin.restore_selected_count', { count: count });
+            deleteSelectedBtn.textContent = I18nManager.t('recycle_bin.delete_selected_count', { count: count });
         } else {
-            restoreSelectedBtn.textContent = '恢复选中';
-            deleteSelectedBtn.textContent = '彻底删除选中';
+            restoreSelectedBtn.textContent = I18nManager.t('recycle_bin.restore_selected');
+            deleteSelectedBtn.textContent = I18nManager.t('recycle_bin.delete_selected');
             if (footerMenuBtn) {
                 this.toggleFooterMenu(false);
             }
@@ -154,10 +154,30 @@ const App = {
      * 返回值说明：无
      */
     init() {
+        // 初始化多语言
+        I18nManager.init();
+        I18nManager.render();
+
         UIController.init();
         this.bindEvents();
         this.loadFileList();
         this.checkTaskStatus();
+    },
+
+    /**
+     * 用途说明：根据后端任务状态决定是否需要启动轮询
+     * 入参说明：无
+     * 返回值说明：无
+     */
+    checkTaskStatus() {
+        RecycleBinAPI.getDeleteProgress(
+            (data) => {
+                if (data && data.status === ProgressStatus.PROCESSING) {
+                    this.startProgressPolling();
+                }
+            },
+            () => {}
+        );
     },
 
     /**
@@ -270,13 +290,12 @@ const App = {
     handleRestore() {
         const paths = Array.from(State.selectedPaths);
         UIComponents.showConfirmModal({
-            title: '恢复文件',
-            message: `确定要将选中的 ${paths.length} 个文件恢复到仓库吗？`,
-            confirmText: '确定恢复',
+            title: I18nManager.t('recycle_bin.restore_confirm_title'),
+            message: I18nManager.t('recycle_bin.restore_confirm_msg', { count: paths.length }),
             onConfirm: () => {
                 RecycleBinAPI.restoreFiles(paths,
                     () => {
-                        Toast.show('已恢复');
+                        Toast.show(I18nManager.t('recycle_bin.restore_success'));
                         State.selectedPaths.clear();
                         this.loadFileList();
                     },
@@ -294,13 +313,12 @@ const App = {
     handleDeleteSelected() {
         const paths = Array.from(State.selectedPaths);
         UIComponents.showConfirmModal({
-            title: '彻底删除',
-            message: `确定要彻底删除选中的 ${paths.length} 个文件吗？此操作不可恢复，将物理删除磁盘文件！`,
-            confirmText: '确定删除',
+            title: I18nManager.t('recycle_bin.delete_confirm_title'),
+            message: I18nManager.t('recycle_bin.delete_confirm_msg', { count: paths.length }),
             onConfirm: () => {
                 RecycleBinAPI.deleteFiles(paths,
                     () => {
-                        Toast.show('删除任务已启动');
+                        Toast.show(I18nManager.t('recycle_bin.delete_task_started'));
                         this.startProgressPolling();
                     },
                     (msg) => Toast.show(msg)
@@ -316,13 +334,12 @@ const App = {
      */
     handleClearAll() {
         UIComponents.showConfirmModal({
-            title: '清空回收站',
-            message: '确定要清空回收站中所有的文件吗？这将物理删除所有回收站内的磁盘文件！',
-            confirmText: '确定清空',
+            title: I18nManager.t('recycle_bin.clear_confirm_title'),
+            message: I18nManager.t('recycle_bin.clear_confirm_msg'),
             onConfirm: () => {
                 RecycleBinAPI.clearAll(
                     () => {
-                        Toast.show('清空任务已启动');
+                        Toast.show(I18nManager.t('recycle_bin.clear_task_started'));
                         this.startProgressPolling();
                     },
                     (msg) => Toast.show(msg)
@@ -337,7 +354,7 @@ const App = {
      * 返回值说明：无
      */
     startProgressPolling() {
-        UIComponents.showProgressBar('.main-content', '正在删除文件...');
+        UIComponents.showProgressBar('.main-content', I18nManager.t('recycle_bin.deleting_files'));
         // 初始化当前状态，确保能识别后续的 IDLE 切换
         State.lastTaskStatus = ProgressStatus.PROCESSING;
 
@@ -359,7 +376,7 @@ const App = {
                                              || currentStatus === ProgressStatus.COMPLETED;
 
                         if (isTaskFinished) {
-                            Toast.show('处理完成');
+                            Toast.show(I18nManager.t('recycle_bin.process_finished'));
                             State.selectedPaths.clear();
                             this.loadFileList();
                         }
@@ -374,22 +391,6 @@ const App = {
                 }
             );
         }, 1000);
-    },
-
-    /**
-     * 用途说明：进入页面时检查是否有正在进行的删除任务
-     * 入参说明：无
-     * 返回值说明：无
-     */
-    checkTaskStatus() {
-        RecycleBinAPI.getDeleteProgress(
-            (data) => {
-                if (data.status === ProgressStatus.PROCESSING) {
-                    this.startProgressPolling();
-                }
-            },
-            () => {}
-        );
     }
 };
 

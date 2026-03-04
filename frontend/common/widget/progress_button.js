@@ -22,9 +22,11 @@ const ProgressButtonWidget = {
      * 返回值说明：Object - 包含 setState, setProgress 和 getElement 方法的按钮控制器。
      */
     create: function(options) {
+        const t = (key) => (typeof I18nManager !== 'undefined' ? I18nManager.t(key) : '');
+
         const settings = {
-            normalText: options.normalText || '开始任务',
-            stopText: options.stopText || '停止任务',
+            normalText: options.normalText || t('common.start_task'),
+            stopText: options.stopText || t('common.stop_task'),
             defaultBgColor: options.defaultBgColor || '#f0f0f0',
             onStart: options.onStart || (() => {}),
             onStop: options.onStop || (() => {})

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>首页 - 文件管理系统</title>
+    <title data-i18n="home.title"></title>
     <link rel="stylesheet" href="../common/common.css">
     <link rel="stylesheet" href="../common/header_toolbar/default/default_header_toolbar.css">
     <link rel="stylesheet" href="home.css">
@@ -15,74 +15,74 @@
     <main class="main-content">
         <div class="home-container">
             <!-- 文件录入管理分组 -->
-            <div class="menu-group-title">文件录入管理</div>
+            <div class="menu-group-title" data-i18n="home.group_file_entry"></div>
             <div class="menu-grid">
                 <!-- 待录入文件名库入口 -->
                 <div id="menu-pending-entry" class="menu-item">
                     <div class="menu-icon">📝</div>
-                    <div class="menu-label">待录入文件名库</div>
+                    <div class="menu-label" data-i18n="home.menu_pending"></div>
                 </div>
                 <!-- 曾录入文件名库入口 -->
                 <div id="menu-ignore-file" class="menu-item">
                     <div class="menu-icon">🗃️</div>
-                    <div class="menu-label">曾录入文件名库</div>
+                    <div class="menu-label" data-i18n="home.menu_history"></div>
                 </div>
             </div>
             
             <!-- 文件管理分组 -->
             <div class="menu-group-title">
-                文件管理
+                <span data-i18n="home.group_file_manage"></span>
                 <!-- 文件仓库详情徽章 -->
                 <div id="repo-detail-container" class="repo-detail-badge">
-                    <span class="detail-item">文件: <span id="repo-total-count" class="detail-value">--</span></span>
-                    <span class="detail-item">大小: <span id="repo-total-size" class="detail-value">--</span></span>
-                    <span class="detail-item">日期: <span id="repo-update-time" class="detail-value">--</span></span>
-                    <button id="btn-calc-repo-stats" class="btn-calc-stats" title="重新计算统计信息">🔄</button>
+                    <span class="detail-item"><span data-i18n="home.stats_file"></span>: <span id="repo-total-count" class="detail-value">--</span></span>
+                    <span class="detail-item"><span data-i18n="home.stats_size"></span>: <span id="repo-total-size" class="detail-value">--</span></span>
+                    <span class="detail-item"><span data-i18n="home.stats_date"></span>: <span id="repo-update-time" class="detail-value">--</span></span>
+                    <button id="btn-calc-repo-stats" class="btn-calc-stats" data-i18n-title="home.stats_refresh_tip" title="">🔄</button>
                 </div>
             </div>
             <div class="menu-grid">
                 <!-- 文件仓库入口 -->
                 <div id="menu-file-repository" class="menu-item">
                     <div class="menu-icon">📂</div>
-                    <div class="menu-label">文件仓库</div>
+                    <div class="menu-label" data-i18n="home.menu_repo"></div>
                 </div>
                 <!-- 文件去重入口 -->
                 <div id="menu-duplicate-check" class="menu-item">
                     <div class="menu-icon">👯</div>
-                    <div class="menu-label">文件去重</div>
+                    <div class="menu-label" data-i18n="home.menu_dup"></div>
                 </div>
                 <!-- 回收站入口 -->
                 <div id="menu-recycle-bin" class="menu-item">
                     <div class="menu-icon">🗑️</div>
-                    <div class="menu-label">回收站</div>
+                    <div class="menu-label" data-i18n="home.menu_recycle"></div>
                 </div>
             </div>
 
             <!-- 系统管理分组 -->
-            <div class="menu-group-title">系统管理</div>
+            <div class="menu-group-title" data-i18n="home.group_sys_manage"></div>
             <div class="menu-grid">
                 <!-- 设置入口 -->
                 <div id="menu-setting" class="menu-item">
                     <div class="menu-icon">⚙️</div>
-                    <div class="menu-label">系统设置</div>
+                    <div class="menu-label" data-i18n="home.menu_setting"></div>
                 </div>
                 
                 <!-- 运行日志 -->
                 <div id="menu-logs" class="menu-item">
                     <div class="menu-icon">📊</div>
-                    <div class="menu-label">运行日志</div>
+                    <div class="menu-label" data-i18n="home.menu_logs"></div>
                 </div>
 
                 <!-- 退出登录 -->
                 <div id="menu-logout" class="menu-item">
                     <div class="menu-icon">🚪</div>
-                    <div class="menu-label">退出登录</div>
+                    <div class="menu-label" data-i18n="home.menu_logout"></div>
                 </div>
 
                 <!-- 隐藏的测试页面入口 -->
                 <div id="menu-test-page" class="menu-item hidden">
                     <div class="menu-icon">🧪</div>
-                    <div class="menu-label">组件测试</div>
+                    <div class="menu-label" data-i18n="home.menu_test"></div>
                 </div>
             </div>
 
@@ -91,12 +91,18 @@
         </div>
     </main>
 
+    <!-- 引入多语言资源 -->
+    <script src="../common/i18n/zh.js"></script>
+    <script src="../common/i18n/en.js"></script>
+    <script src="../common/i18n/i18n_utils.js"></script>
+
     <!-- 引入公用工具 -->
     <script src="../common/common.js"></script>
     <script src="../common/ui_components.js"></script>
     <script src="../common/request.js"></script>
     <script src="../common/toast.js"></script>
     <script src="../common/header_toolbar/default/default_header_toolbar.js"></script>
+    <script src="home_request.js"></script>
     <script src="home.js"></script>
 
 </body>

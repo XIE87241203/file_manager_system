@@ -25,7 +25,10 @@ def token_required(f):
             if data:
                 token = data.get('token')
         
-        # 3. 如果还是没有，尝试从 URL 参数中获取 (用于 <img> 标签预览等 GET 请求)
+        # 3. 如果还是没有，尝试从 URL 参数中获取 (用于 <img> 标签预览、视频流等 GET 请求)
+        if not token:
+            token = request.args.get('token')
+
         if not token:
             LogUtils.error(t('auth_token_missing_log', path=request.path))
             return error_response(t('auth_token_missing'), 401)

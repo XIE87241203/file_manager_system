@@ -3,35 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>登录 - 文件管理系统</title>
+    <title data-i18n="login.title"></title>
     <!-- 引入第三方加密库 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
     <!-- 使用绝对路径引入资源 -->
-    <link rel="stylesheet" href="/common/common.css">
     <link rel="stylesheet" href="/login/login.css">
+    <link rel="stylesheet" href="/common/common.css">
 </head>
 <body>
     <main class="main-content">
         <div class="card-container">
-            <h2 class="title">系统登录</h2>
+            <h2 class="title" data-i18n="login.title"></h2>
             
-            <!-- 已移除 API 地址输入框，系统将自动使用当前服务器地址 -->
-
             <div class="form-group">
-                <label class="label-text" for="username">用户名</label>
-                <input type="text" id="username" class="input-field" placeholder="请输入用户名" autocomplete="username">
+                <label class="label-text" for="username" data-i18n="login.username"></label>
+                <input type="text" id="username" class="input-field" placeholder="" data-i18n-placeholder="login.username_placeholder" autocomplete="username">
             </div>
 
             <div class="form-group">
-                <label class="label-text" for="password">密码</label>
-                <input type="password" id="password" class="input-field" placeholder="请输入密码" autocomplete="current-password">
+                <label class="label-text" for="password" data-i18n="login.password"></label>
+                <input type="password" id="password" class="input-field" placeholder="" data-i18n-placeholder="login.password_placeholder" autocomplete="current-password">
             </div>
 
-            <button id="loginBtn" class="btn-primary">登录</button>
+            <button id="loginBtn" class="btn-primary" data-i18n="login.login_btn"></button>
             
             <div id="message" class="message"></div>
         </div>
     </main>
+
+    <!-- 引入多语言资源 -->
+    <script src="/common/i18n/zh.js"></script>
+    <script src="/common/i18n/en.js"></script>
+    <script src="/common/i18n/i18n_utils.js"></script>
 
     <!-- 使用绝对路径引入基础依赖库 -->
     <script src="/common/request.js"></script>
@@ -39,6 +42,7 @@
     <script src="/common/ui_components.js"></script>
     <!-- 页面逻辑 -->
     <script src="/login/login.js"></script>
+    <script src="/login/login_request.js"></script>
 
     <!-- 应用版本号显示 -->
     <div id="app-version-display" class="app-version-footer"></div>

@@ -56,9 +56,11 @@ const CommonUtils = {
         const diffTime = today.getTime() - targetDate.getTime();
         const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
 
-        if (diffDays === 0) return '今天';
-        if (diffDays === 1) return '昨天';
-        if (diffDays === 2) return '前天';
+        const t = (key) => (typeof I18nManager !== 'undefined' ? I18nManager.t(key) : '');
+
+        if (diffDays === 0) return t('common.today');
+        if (diffDays === 1) return t('common.yesterday');
+        if (diffDays === 2) return t('common.before_yesterday');
 
         // 格式化为 yyyy/MM/dd
         const year = date.getFullYear();

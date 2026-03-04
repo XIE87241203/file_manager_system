@@ -14,7 +14,7 @@ const FileRepositoryAPI = {
                 if (res.status === 'success') onSuccess(res.data);
                 else onError(res.message);
             })
-            .catch(err => onError(err.message || '网络请求失败'));
+            .catch(err => onError(err.message || I18nManager.t('common.network_error')));
     },
 
     /**
@@ -28,7 +28,7 @@ const FileRepositoryAPI = {
                 if (res.status === 'success') onSuccess(res);
                 else onError(res.message);
             })
-            .catch(err => onError(err.message || '网络请求失败'));
+            .catch(err => onError(err.message || I18nManager.t('common.network_error')));
     },
 
     /**
@@ -42,7 +42,7 @@ const FileRepositoryAPI = {
                 if (res.status === 'success') onSuccess(res);
                 else onError(res.message);
             })
-            .catch(err => onError(err.message || '网络请求失败'));
+            .catch(err => onError(err.message || I18nManager.t('common.network_error')));
     },
 
     /**
@@ -56,7 +56,7 @@ const FileRepositoryAPI = {
                 if (res.status === 'success') onSuccess(res);
                 else onError(res.message);
             })
-            .catch(err => onError(err.message || '网络请求失败'));
+            .catch(err => onError(err.message || I18nManager.t('common.network_error')));
     },
 
     /**
@@ -70,7 +70,7 @@ const FileRepositoryAPI = {
                 if (res.status === 'success') onSuccess(res.data);
                 else onError(res.message);
             })
-            .catch(err => onError(err.message || '网络请求失败'));
+            .catch(err => onError(err.message || I18nManager.t('common.network_error')));
     },
 
     /**
@@ -84,7 +84,7 @@ const FileRepositoryAPI = {
                 if (res.status === 'success') onSuccess(res);
                 else onError(res.message);
             })
-            .catch(err => onError(err.message || '网络请求失败'));
+            .catch(err => onError(err.message || I18nManager.t('common.network_error')));
     },
 
     /**
@@ -98,7 +98,7 @@ const FileRepositoryAPI = {
                 if (res.status === 'success') onSuccess(res);
                 else onError(res.message);
             })
-            .catch(err => onError(err.message || '网络请求失败'));
+            .catch(err => onError(err.message || I18nManager.t('common.network_error')));
     },
 
     /**
@@ -112,7 +112,7 @@ const FileRepositoryAPI = {
                 if (res.status === 'success') onSuccess(res.data);
                 else onError(res.message);
             })
-            .catch(err => onError(err.message || '网络请求失败'));
+            .catch(err => onError(err.message || I18nManager.t('common.network_error')));
     },
 
     /**
@@ -126,6 +126,6 @@ const FileRepositoryAPI = {
                 if (res.status === 'success') onSuccess(res.data);
                 else onError(res.message);
             })
-            .catch(err => onError(err.message || '网络请求失败'));
+            .catch(err => onError(err.message || I18nManager.t('common.network_error')));
     }
 };

@@ -75,7 +75,7 @@ const UIController = {
         const isProcessing = status === ProgressStatus.PROCESSING;
         const menuIcon = '../../common/header_toolbar/icon/search_icon.svg';
         HeaderToolbar.init({
-            title: '文件查重',
+            title: I18nManager.t('duplicate_check.title'),
             showBack: true,
             menuIcon: menuIcon,
             menuCallback: () => {
@@ -88,9 +88,9 @@ const UIController = {
         });
         const menuBtn = document.getElementById('btn-menu');
         if (menuBtn) {
-            menuBtn.title = isProcessing ? '停止查重' : '开始查重';
+            menuBtn.title = isProcessing ? I18nManager.t('duplicate_check.stop_check') : I18nManager.t('duplicate_check.start_check');
             const menuImg = menuBtn.querySelector('img');
-            if (menuImg) menuImg.alt = isProcessing ? '停止查重' : '开始查重';
+            if (menuImg) menuImg.alt = menuBtn.title;
         }
     },
 
@@ -106,7 +106,7 @@ const UIController = {
             scanningContainer.classList.remove('hidden');
             resultsGroup.classList.add('hidden');
             emptyHint.classList.add('hidden');
-            UIComponents.showProgressBar('#scanning-container', '正在准备分析文件...');
+            UIComponents.showProgressBar('#scanning-container', I18nManager.t('duplicate_check.preparing'));
         } else {
             this.renderHeader(ProgressStatus.IDLE);
             scanningContainer.classList.add('hidden');
@@ -147,7 +147,7 @@ const UIController = {
         const results = State.results;
         if (!results || results.length === 0) {
             summaryBar.classList.remove('hidden');
-            wrapper.innerHTML = '<div style="text-align: center; color: #9aa0a6; padding-top: 100px;">未发现重复文件</div>';
+            wrapper.innerHTML = `<div style="text-align: center; color: #9aa0a6; padding-top: 100px;">${I18nManager.t('duplicate_check.empty_results')}</div>`;
             PageBar.init({
                 containerId: 'pagination-container',
                 totalItems: 0,
@@ -160,8 +160,8 @@ const UIController = {
         }
 
         summaryBar.classList.remove('hidden');
-        summaryGroups.textContent = `重复组总数: ${State.total}`;
-        summaryTime.textContent = `查重时间: ${State.lastCheckTime || '--'}`;
+        summaryGroups.textContent = I18nManager.t('duplicate_check.summary_groups', { total: State.total });
+        summaryTime.textContent = I18nManager.t('duplicate_check.summary_time', { time: State.lastCheckTime || '--' });
 
         results.forEach(group => {
             const groupEl = this.createGroupElement(group);
@@ -192,13 +192,13 @@ const UIController = {
 
         const files = group.files || [];
         const fileCount = files.length;
-        const groupType = group.group_name || '重复组';
+        const groupType = group.group_name || I18nManager.t('duplicate_check.group_default_name');
 
         groupEl.innerHTML = `
             <div class="group-header">
                 <div class="group-info">
                     <span class="group-title" title="${groupType}">${groupType}</span>
-                    <span class="group-count">${fileCount} 个文件</span>
+                    <span class="group-count">${I18nManager.t('duplicate_check.file_count', { count: fileCount })}</span>
                     <span class="group-md5">ID: ${group.id}</span>
                     <span class="expand-icon">▶</span>
                 </div>
@@ -206,14 +206,13 @@ const UIController = {
             <div class="group-content">
                 <table class="file-item-table">
                     <thead>
-
                         <tr class="header-row-clickable">
-                            <th class="col-dup-name">文件名</th>
-                            <th class="col-dup-duration">视频时长</th>
-                            <th class="col-dup-codec">视频编码</th>
-                            <th class="col-dup-similarity">相似率</th>
-                            <th class="col-dup-size">大小</th>
-                            <th class="col-dup-path">完整路径</th>
+                            <th class="col-dup-name" data-i18n="duplicate_check.col_name"></th>
+                            <th class="col-dup-duration" data-i18n="duplicate_check.col_duration"></th>
+                            <th class="col-dup-codec" data-i18n="duplicate_check.col_codec"></th>
+                            <th class="col-dup-similarity" data-i18n="duplicate_check.col_similarity"></th>
+                            <th class="col-dup-size" data-i18n="duplicate_check.col_size"></th>
+                            <th class="col-dup-path" data-i18n="duplicate_check.col_path"></th>
                             <th class="col-dup-check">
                                 <input type="checkbox" class="file-checkbox select-all-in-group">
                             </th>
@@ -223,15 +222,15 @@ const UIController = {
                         ${files.map(f => {
                             const info = f.file_info;
                             const isChecked = State.selectedPaths.has(info.file_path);
-                            const fileName = info.file_name || '未知文件名';
+                            const fileName = info.file_name || I18nManager.t('duplicate_check.unknown_file');
                             const fileSizeStr = CommonUtils.formatFileSize(info.file_size);
                             const durationStr = info.file_type === 'video' ? CommonUtils.formatDuration(info.video_duration) : '-';
                             const codecStr = (info.file_type === 'video' && info.video_codec) ? info.video_codec : '-';
 
                             const typeMap = {
-                                'md5': 'MD5',
-                                'hash': '图片指纹',
-                                'video_feature': '视频指纹'
+                                'md5': I18nManager.t('duplicate_check.type_md5'),
+                                'hash': I18nManager.t('duplicate_check.type_image'),
+                                'video_feature': I18nManager.t('duplicate_check.type_video')
                             };
                             const typeStr = typeMap[f.similarity_type] || f.similarity_type;
                             const rateStr = (f.similarity_rate * 100).toFixed(1) + '%';
@@ -255,6 +254,8 @@ const UIController = {
                 </table>
             </div>
         `;
+
+        I18nManager.render(groupEl);
 
         const header = groupEl.querySelector('.group-header');
         header.addEventListener('click', (e) => {
@@ -309,73 +310,10 @@ const UIController = {
 
         if (checkedCount > 0) {
             globalDeleteBtn.classList.remove('hidden');
-            globalDeleteBtn.setAttribute('title', `移入回收站 (${checkedCount})`);
-            globalDeleteBtn.setAttribute('aria-label', `移入回收站 (${checkedCount})`);
+            globalDeleteBtn.setAttribute('title', I18nManager.t('duplicate_check.move_to_recycle_count', { count: checkedCount }));
         } else {
             globalDeleteBtn.classList.add('hidden');
         }
-    }
-};
-
-// --- API 交互模块 ---
-const API = {
-    /**
-     * 用途说明：向后端发送请求开始查重任务
-     * 入参说明：无
-     * 返回值说明：Object - 后端响应结果
-     */
-    async startCheck() {
-        return await Request.post('/api/file_repository/duplicate/check', {}, {}, true);
-    },
-
-    /**
-     * 用途说明：向后端发送请求停止查重任务
-     * 入参说明：无
-     * 返回值说明：Object - 后端响应结果
-     */
-    async stopCheck() {
-        return await Request.post('/api/file_repository/duplicate/stop', {}, {}, true);
-    },
-
-    /**
-     * 用途说明：向后端轮询查重任务的最新进度
-     * 入参说明：无
-     * 返回值说明：Object - 进度数据
-     */
-    async getProgress() {
-        const response = await Request.get('/api/file_repository/duplicate/progress', {}, false);
-        return response.status === 'success' ? response.data : null;
-    },
-
-    /**
-     * 用途说明：分页获取查重结果数据
-     * 入参说明：
-     *   params (Object): 包含 page, limit, similarity_type
-     * 返回值说明：Object - PaginationResult
-     */
-    async getDuplicateList(params) {
-        const query = new URLSearchParams(params).toString();
-        const response = await Request.get('/api/file_repository/duplicate/list?' + query, {}, true);
-        return response.status === 'success' ? response.data : null;
-    },
-
-    /**
-     * 用途说明：获取最近一次查重的完成时间
-     * 入参说明：无
-     * 返回值说明：String - 时间字符串
-     */
-    async getLatestCheckTime() {
-        const response = await Request.get('/api/file_repository/duplicate/latest_check_time', {}, false);
-        return response.status === 'success' ? response.data : '--';
-    },
-
-    /**
-     * 用途说明：调用通用移入回收站 API 批量处理文件
-     * 入参说明：paths (Array) - 文件路径列表
-     * 返回值说明：Object - 后端响应结果
-     */
-    async moveToRecycleBin(paths) {
-        return await Request.post('/api/file_repository/move_to_recycle_bin', { file_paths: paths }, {}, true);
     }
 };
 
@@ -386,23 +324,31 @@ const App = {
      * 入参说明：无
      * 返回值说明：无
      */
-    async init() {
+    init() {
+        // 初始化多语言
+        I18nManager.init();
+        I18nManager.render();
+
         UIController.init();
         this.bindEvents();
-        await this.loadSettings();
+        this.loadSettings();
 
         // 初始化时检查一次进度
-        const data = await API.getProgress();
-        if (data) {
-            if (data.status === ProgressStatus.PROCESSING) {
-                UIController.toggleView(ProgressStatus.PROCESSING);
-                this.startPolling();
-            } else if (data.status === ProgressStatus.COMPLETED) {
-                this.loadResults(1);
-            } else {
-                UIController.toggleView(ProgressStatus.IDLE);
-            }
-        }
+        DuplicateCheckAPI.getProgress(
+            (data) => {
+                if (data) {
+                    if (data.status === ProgressStatus.PROCESSING) {
+                        UIController.toggleView(ProgressStatus.PROCESSING);
+                        this.startPolling();
+                    } else if (data.status === ProgressStatus.COMPLETED) {
+                        this.loadResults(1);
+                    } else {
+                        UIController.toggleView(ProgressStatus.IDLE);
+                    }
+                }
+            },
+            (err) => console.error(err)
+        );
     },
 
     /**
@@ -410,15 +356,11 @@ const App = {
      * 入参说明：无
      * 返回值说明：无
      */
-    async loadSettings() {
-        try {
-            const response = await Request.get('/api/setting/get');
-            if (response.status === 'success') {
-                State.settings = response.data;
-            }
-        } catch (error) {
-            console.error('加载设置失败:', error);
-        }
+    loadSettings() {
+        DuplicateCheckAPI.getSettings(
+            (data) => { State.settings = data; },
+            (err) => console.error(I18nManager.t('common.error'), err)
+        );
     },
 
     /**
@@ -453,21 +395,17 @@ const App = {
      * 入参说明：无
      * 返回值说明：无
      */
-    async handleStart() {
-        try {
-            const response = await API.startCheck();
-            if (response.status === 'success') {
-                Toast.show('查重任务已启动');
+    handleStart() {
+        DuplicateCheckAPI.startCheck(
+            () => {
+                Toast.show(I18nManager.t('duplicate_check.check_started'));
                 State.results = [];
                 State.selectedPaths.clear();
                 UIController.toggleView(ProgressStatus.PROCESSING);
                 this.startPolling();
-            } else {
-                Toast.show(response.message);
-            }
-        } catch (error) {
-            Toast.show('启动失败');
-        }
+            },
+            (err) => Toast.show(err || I18nManager.t('duplicate_check.start_failed'))
+        );
     },
 
     /**
@@ -475,81 +413,95 @@ const App = {
      * 入参说明：无
      * 返回值说明：无
      */
-    async handleStop() {
-        if (!confirm('确定要终止当前的查重任务吗？')) return;
-        try {
-            const response = await API.stopCheck();
-            if (response.status === 'success') Toast.show('正在停止任务...');
-        } catch (error) {
-            Toast.show('请求停止失败');
-        }
+    handleStop() {
+        UIComponents.showConfirmModal({
+            title: I18nManager.t('common.hint'),
+            message: I18nManager.t('duplicate_check.stop_confirm'),
+            onConfirm: () => {
+                DuplicateCheckAPI.stopCheck(
+                    () => Toast.show(I18nManager.t('duplicate_check.stopping')),
+                    (err) => Toast.show(err || I18nManager.t('duplicate_check.stop_failed'))
+                );
+            }
+        });
     },
 
     /**
      * 用途说明：加载指定页码的结果数据
-     * 入参说明：page (int) - 目标页码
-     * 返回值说明：无
+     * @param {number} page - 入参说明：目标页码
+     * @returns {void} - 返回值说明：无
      */
-    async loadResults(page) {
+    loadResults(page) {
         const params = {
             page: page,
             limit: State.limit,
             similarity_type: State.similarityType
         };
-        const data = await API.getDuplicateList(params);
-        if (data) {
-            State.setPaginationData(data, State.previousExpandedStates);
-            State.previousExpandedStates = null;
+        DuplicateCheckAPI.getDuplicateList(
+            params,
+            (data) => {
+                State.setPaginationData(data, State.previousExpandedStates);
+                State.previousExpandedStates = null;
 
-            // 结果加载成功后，获取最新的查重时间
-            State.lastCheckTime = await API.getLatestCheckTime();
-
-            UIController.toggleView(ProgressStatus.COMPLETED);
-            UIController.renderResults();
-        }
+                // 结果加载成功后，获取最新的查重时间
+                DuplicateCheckAPI.getLatestCheckTime(
+                    (timeData) => {
+                        State.lastCheckTime = timeData;
+                        UIController.toggleView(ProgressStatus.COMPLETED);
+                        UIController.renderResults();
+                    },
+                    () => {
+                        UIController.toggleView(ProgressStatus.COMPLETED);
+                        UIController.renderResults();
+                    }
+                );
+            },
+            (err) => Toast.show(err)
+        );
     },
 
     /**
      * 用途说明：切换页码逻辑
-     * 入参说明：page (int) - 目标页码
-     * 返回值说明：无
+     * @param {number} page - 入参说明：目标页码
+     * @returns {void} - 返回值说明：无
      */
-    async changePage(page) {
+    changePage(page) {
         if (page < 1) return;
         const expandedStatesMap = {};
         State.results.forEach(group => {
             expandedStatesMap[group.id] = group.isExpanded;
         });
         State.previousExpandedStates = expandedStatesMap;
-        await this.loadResults(page);
+        this.loadResults(page);
         window.scrollTo(0, 0);
     },
 
     /**
      * 用途说明：批量移入回收站并刷新列表
-     * 入参说明：paths (Array) - 路径列表
-     * 返回值说明：无
+     * @param {Array} paths - 入参说明：路径列表
+     * @returns {void} - 返回值说明：无
      */
-    async handleMoveToRecycleBin(paths) {
+    handleMoveToRecycleBin(paths) {
         if (!paths || paths.length === 0) return;
 
         UIComponents.showConfirmModal({
-            message: `确定要将选中的 ${paths.length} 个文件移入回收站吗？\n(移入回收站后若组内文件少于2个，该组将自动解散)`,
-            confirmText: '确定移动',
-            onConfirm: async () => {
-                const response = await API.moveToRecycleBin(paths);
-                if (response.status === 'success') {
-                    Toast.show(response.message || '已移入回收站');
-                    State.selectedPaths.clear();
-                    const expandedStatesMap = {};
-                    State.results.forEach(group => {
-                        expandedStatesMap[group.id] = group.isExpanded;
-                    });
-                    State.previousExpandedStates = expandedStatesMap;
-                    this.loadResults(State.page);
-                } else {
-                    Toast.show(response.message || '移入回收站失败');
-                }
+            title: I18nManager.t('duplicate_check.delete_confirm_title'),
+            message: I18nManager.t('duplicate_check.delete_confirm_msg', { count: paths.length }),
+            onConfirm: () => {
+                DuplicateCheckAPI.moveToRecycleBin(
+                    paths,
+                    (res) => {
+                        Toast.show(res.message || I18nManager.t('common.success'));
+                        State.selectedPaths.clear();
+                        const expandedStatesMap = {};
+                        State.results.forEach(group => {
+                            expandedStatesMap[group.id] = group.isExpanded;
+                        });
+                        State.previousExpandedStates = expandedStatesMap;
+                        this.loadResults(State.page);
+                    },
+                    (err) => Toast.show(err)
+                );
             }
         });
     },
@@ -561,21 +513,27 @@ const App = {
      */
     startPolling() {
         if (State.pollingInterval) return;
-        State.pollingInterval = setInterval(async () => {
-            const data = await API.getProgress();
-            if (!data) return;
-
-            if (data.status === ProgressStatus.PROCESSING) {
-                UIController.updateProgress(data.progress);
-            } else {
-                this.stopPolling();
-                if (data.status === ProgressStatus.COMPLETED) {
-                    Toast.show('查重已完成');
-                    this.loadResults(1);
-                } else {
-                    UIController.toggleView(data.status);
+        State.pollingInterval = setInterval(() => {
+            DuplicateCheckAPI.getProgress(
+                (data) => {
+                    if (!data) return;
+                    if (data.status === ProgressStatus.PROCESSING) {
+                        UIController.updateProgress(data.progress);
+                    } else {
+                        this.stopPolling();
+                        if (data.status === ProgressStatus.COMPLETED) {
+                            Toast.show(I18nManager.t('common.success'));
+                            this.loadResults(1);
+                        } else {
+                            UIController.toggleView(data.status);
+                        }
+                    }
+                },
+                (err) => {
+                    console.error(err);
+                    this.stopPolling();
                 }
-            }
+            );
         }, 1500);
     },
 

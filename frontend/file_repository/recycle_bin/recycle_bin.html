@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>回收站 - 文件管理系统</title>
+    <title data-i18n="recycle_bin.title"></title>
     <!-- 引入公用样式 -->
     <link rel="stylesheet" href="../../common/common.css">
     <link rel="stylesheet" href="../../common/table.css">
@@ -26,25 +26,25 @@
                     <thead>
                         <tr>
                             <th class="sortable col-name" data-field="file_name">
-                                文件名 <span class="sort-icon"></span>
+                                <span data-i18n="recycle_bin.col_name"></span> <span class="sort-icon"></span>
                             </th>
                             <th class="sortable col-size" data-field="file_size">
-                                大小 <span class="sort-icon"></span>
+                                <span data-i18n="recycle_bin.col_size"></span> <span class="sort-icon"></span>
                             </th>
                             <th class="sortable col-path" data-field="file_path">
-                                完整路径 <span class="sort-icon"></span>
+                                <span data-i18n="recycle_bin.col_path"></span> <span class="sort-icon"></span>
                             </th>
                             <th class="sortable col-type" data-field="file_type">
-                                类型 <span class="sort-icon"></span>
+                                <span data-i18n="recycle_bin.col_type"></span> <span class="sort-icon"></span>
                             </th>
                             <th class="sortable col-duration" data-field="video_duration">
-                                时长 <span class="sort-icon"></span>
+                                <span data-i18n="recycle_bin.col_duration"></span> <span class="sort-icon"></span>
                             </th>
                             <th class="sortable col-codec" data-field="video_codec">
-                                编码 <span class="sort-icon"></span>
+                                <span data-i18n="recycle_bin.col_codec"></span> <span class="sort-icon"></span>
                             </th>
                             <th class="sortable col-time" data-field="recycle_bin_time">
-                                回收时间 <span class="sort-icon"></span>
+                                <span data-i18n="recycle_bin.col_time"></span> <span class="sort-icon"></span>
                             </th>
                             <th class="col-check">
                                 <input type="checkbox" id="select-all-checkbox" class="select-all-checkbox">
@@ -67,7 +67,7 @@
                     </div>
                 </div>
                 <div class="footer-right">
-                    <button id="btn-recycle-action" class="btn-delete-icon" title="回收站操作">
+                    <button id="btn-recycle-action" class="btn-delete-icon" data-i18n-title="common.more_ops">
                         <span class="trash-icon"></span>
                     </button>
                 </div>
@@ -77,12 +77,15 @@
 
     <!-- 下拉菜单 -->
     <div id="footer-dropdown-menu" class="dropdown-menu">
-        <div class="menu-item" id="menu-restore-selected">恢复选中</div>
+        <div class="menu-item" id="menu-restore-selected" data-i18n="recycle_bin.restore_selected"></div>
         <div class="menu-divider"></div>
-        <div class="menu-item text-danger" id="menu-delete-selected">彻底删除选中</div>
+        <div class="menu-item text-danger" id="menu-delete-selected" data-i18n="recycle_bin.delete_selected"></div>
     </div>
 
     <!-- 脚本加载 -->
+    <script src="../../common/i18n/zh.js"></script>
+    <script src="../../common/i18n/en.js"></script>
+    <script src="../../common/i18n/i18n_utils.js"></script>
     <script src="../../common/common.js"></script>
     <script src="../../common/ui_components.js"></script>
     <script src="../../common/request.js"></script>

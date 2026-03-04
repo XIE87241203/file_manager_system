@@ -15,11 +15,13 @@ body {
     top: 0;
     z-index: 10;
     background-color: #ffffff;
+    overflow-x: auto;
+    overflow-y: hidden;
 }
 .settings-grid { width: 100%; }
 .tab-btn {
     flex: 1 1 0;
-    max-width: 150px;
+    max-width: 200px;
     padding: 15px 5px;
     cursor: pointer;
     background: none;
@@ -29,8 +31,8 @@ body {
     text-align: center;
     transition: all 0.2s ease-in-out;
     border-bottom: 2px solid transparent;
-    margin-bottom: -2px;
     font-weight: 500;
+    min-width: 120px;
 }
 
 .tab-btn.active {

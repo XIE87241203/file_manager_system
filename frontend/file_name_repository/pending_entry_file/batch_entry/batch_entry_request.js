@@ -17,11 +17,11 @@ const BatchEntryRequest = {
                 if (res.status === 'success') {
                     if (onSuccess) onSuccess(res.data);
                 } else {
-                    if (onError) onError(res.message || '启动检测失败');
+                    if (onError) onError(res.message || I18nManager.t('batch_check.start_failed'));
                 }
             })
             .catch(err => {
-                if (onError) onError('网络请求异常');
+                if (onError) onError(I18nManager.t('batch_check.network_error'));
             });
     },
 
@@ -38,11 +38,11 @@ const BatchEntryRequest = {
                 if (res.status === 'success') {
                     if (onSuccess) onSuccess(res.data);
                 } else {
-                    if (onError) onError(res.message || '获取状态失败');
+                    if (onError) onError(res.message || I18nManager.t('batch_check.get_status_failed'));
                 }
             })
             .catch(err => {
-                if (onError) onError('网络请求异常');
+                if (onError) onError(I18nManager.t('batch_check.network_error'));
             });
     }
 };

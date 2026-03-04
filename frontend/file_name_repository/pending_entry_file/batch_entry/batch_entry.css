@@ -66,8 +66,8 @@
 /* 统一动作条内的按钮样式 */
 .action-bar .btn-primary,
 .action-bar .btn-secondary {
-    width: 140px;
     margin: 0;
+    max-width: 200px;
 }
 
 .results-section {

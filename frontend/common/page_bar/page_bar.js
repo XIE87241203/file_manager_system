@@ -23,17 +23,28 @@ const PageBar = {
         const currentPage = options.currentPage || 1;
         const totalPages = Math.ceil(totalItems / pageSize) || 1;
 
+        const t = (key, params) => (typeof I18nManager !== 'undefined' ? I18nManager.t(key, params) : '');
+
+        // 格式化页面信息文案
+        let infoText = `第 <b>${currentPage}</b> / <b>${totalPages}</b> 页 (共 <b>${totalItems}</b> 条)`;
+        if (typeof I18nManager !== 'undefined') {
+            infoText = I18nManager.t('common.page_info', {
+                current: `<b>${currentPage}</b>`,
+                total: `<b>${totalPages}</b>`,
+                count: `<b>${totalItems}</b>`
+            });
+        }
+
         // 1. 生成 HTML 结构
-        // 使用 disabled 类替代 hidden 类，实现变灰效果
         container.innerHTML = `
             <div class="page-bar-container">
-                <div class="page-btn ${currentPage <= 1 ? 'disabled' : ''}" id="page-prev" title="上一页">
+                <div class="page-btn ${currentPage <= 1 ? 'disabled' : ''}" id="page-prev" title="${t('common.prev_page')}">
                     <img src="../../common/page_bar/prev_icon.svg" class="page-btn-icon">
                 </div>
-                <div class="page-info" id="page-jump" title="点击跳转页码">
-                    第 <b>${currentPage}</b> / <b>${totalPages}</b> 页 (共 <b>${totalItems}</b> 条)
+                <div class="page-info" id="page-jump" title="${t('common.jump_page_tip')}">
+                    ${infoText}
                 </div>
-                <div class="page-btn ${currentPage >= totalPages ? 'disabled' : ''}" id="page-next" title="下一页">
+                <div class="page-btn ${currentPage >= totalPages ? 'disabled' : ''}" id="page-next" title="${t('common.next_page')}">
                     <img src="../../common/page_bar/next_icon.svg" class="page-btn-icon">
                 </div>
             </div>
@@ -54,12 +65,14 @@ const PageBar = {
         const jumpBtn = document.getElementById('page-jump');
         const currentPage = options.currentPage || 1;
 
-        // 上一页逻辑：仅在非禁用状态下绑定
+        const t = (key, params) => (typeof I18nManager !== 'undefined' ? I18nManager.t(key, params) : '');
+
+        // 上一页逻辑
         if (prevBtn && !prevBtn.classList.contains('disabled')) {
             prevBtn.onclick = () => options.onPageChange(currentPage - 1);
         }
 
-        // 下一页逻辑：仅在非禁用状态下绑定
+        // 下一页逻辑
         if (nextBtn && !nextBtn.classList.contains('disabled')) {
             nextBtn.onclick = () => options.onPageChange(currentPage + 1);
         }
@@ -67,7 +80,8 @@ const PageBar = {
         // 点击页码弹出输入框跳转
         if (jumpBtn) {
             jumpBtn.onclick = () => {
-                const inputPage = prompt(`请输入要跳转的页码 (1 - ${totalPages}):`, currentPage);
+                const promptMsg = t('common.jump_page_prompt', { total: totalPages });
+                const inputPage = prompt(promptMsg, currentPage);
                 if (inputPage !== null) {
                     const pageNum = parseInt(inputPage);
                     if (!isNaN(pageNum) && pageNum >= 1 && pageNum <= totalPages) {
@@ -75,11 +89,11 @@ const PageBar = {
                             options.onPageChange(pageNum);
                         }
                     } else {
-                        // 如果项目中集成了 Toast 建议替换，否则保留 alert 或 prompt 逻辑
+                        const errorMsg = t('common.jump_page_error', { total: totalPages });
                         if (typeof Toast !== 'undefined') {
-                            Toast.show(`请输入 1 到 ${totalPages} 之间的有效页码`);
+                            Toast.show(errorMsg);
                         } else {
-                            alert(`请输入 1 到 ${totalPages} 之间的有效页码`);
+                            alert(errorMsg);
                         }
                     }
                 }

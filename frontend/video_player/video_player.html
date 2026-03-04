@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>视频播放 - 文件管理系统</title>
+    <title data-i18n="video_player.title"></title>
     <!-- 引入公用样式 -->
     <link rel="stylesheet" href="../common/common.css">
     <link rel="stylesheet" href="../common/header_toolbar/default/default_header_toolbar.css">
@@ -19,6 +19,11 @@
         <div id="artplayer-container" class="artplayer-app"></div>
     </main>
 
+    <!-- 引入多语言资源包 -->
+    <script src="../common/i18n/zh.js"></script>
+    <script src="../common/i18n/en.js"></script>
+    <script src="../common/i18n/i18n_utils.js"></script>
+
     <!-- 脚本加载 -->
     <script src="https://cdn.jsdelivr.net/npm/artplayer/dist/artplayer.js"></script>
     <script src="../common/common.js"></script>
@@ -26,6 +31,7 @@
     <script src="../common/request.js"></script>
     <script src="../common/toast.js"></script>
     <script src="../common/header_toolbar/default/default_header_toolbar.js"></script>
+    <script src="video_player_request.js"></script>
     <script src="video_player.js"></script>
 </body>
 </html>

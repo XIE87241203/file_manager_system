@@ -29,7 +29,7 @@ const UIController = {
     init() {
         // 使用 HeaderToolbar 初始化顶部工具栏
         HeaderToolbar.init({
-            title: '批量检测结果',
+            title: I18nManager.t('batch_check.page_title'),
             showBack: true,
             backCallback: () => {
                 App.handleFinishWithConfirm();
@@ -38,8 +38,7 @@ const UIController = {
 
         this.elements = {
             tableBody: document.getElementById('results-list-body'),
-            totalCount: document.getElementById('total-count'),
-            newCount: document.getElementById('new-count'),
+            statContainer: document.getElementById('stat-info-container'),
             btnSelectAllNew: document.getElementById('btn-select-all-new'),
             btnConfirmImport: document.getElementById('btn-confirm-import'),
             btnCopySelected: document.getElementById('btn-copy-selected'),
@@ -60,7 +59,7 @@ const UIController = {
         tableBody.innerHTML = '';
 
         if (!results || results.length === 0) {
-            tableBody.innerHTML = UIComponents.getEmptyTableHtml(4, '暂无检测结果');
+            tableBody.innerHTML = UIComponents.getEmptyTableHtml(4, I18nManager.t('batch_check.empty_results'));
             return;
         }
 
@@ -69,10 +68,10 @@ const UIController = {
             tr.dataset.name = item.name;
 
             const statusMap = {
-                'index': { text: '库中已存在', class: 'status-exist' },
-                'history': { text: '历史曾录入', class: 'status-history' },
-                'pending': { text: '待录入库中', class: 'status-pending' },
-                'new': { text: '新记录 (未收录)', class: 'status-new' }
+                'index': { text: I18nManager.t('batch_check.status_index'), class: 'status-exist' },
+                'history': { text: I18nManager.t('batch_check.status_history'), class: 'status-history' },
+                'pending': { text: I18nManager.t('batch_check.status_pending'), class: 'status-pending' },
+                'new': { text: I18nManager.t('batch_check.status_new'), class: 'status-new' }
             };
             const statusInfo = statusMap[item.source] || { text: item.source, class: '' };
 
@@ -103,15 +102,23 @@ const UIController = {
             tableBody.appendChild(tr);
         });
 
-        this.elements.totalCount.textContent = results.length;
-        this.elements.newCount.textContent = results.filter(r => r.source === 'new').length;
+        // 渲染统计文案
+        if (this.elements.statContainer) {
+            this.elements.statContainer.innerHTML = I18nManager.t('batch_check.stat_info', {
+                total: results.length,
+                new: results.filter(r => r.source === 'new').length
+            });
+        }
+
         this.updateSelectedCount();
     },
 
     /**
      * 用途说明：刷新单行的选中 UI（样式及全局计数）。
-     * 入参说明：tr (HTMLElement): 目标行；isChecked (boolean): 是否选中；shouldUpdateTotal (boolean): 是否同步刷新全局计数文案，默认为 true。
-     * 返回值说明：无
+     * @param {HTMLElement} tr - 入参说明：目标行元素
+     * @param {boolean} isChecked - 入参说明：是否选中
+     * @param {boolean} shouldUpdateTotal - 入参说明：是否同步刷新全局计数文案，默认为 true
+     * @returns {void} - 返回值说明：无
      */
     refreshRowSelectionUI(tr, isChecked, shouldUpdateTotal = true) {
         if (isChecked) tr.classList.add('selected-row');
@@ -123,7 +130,7 @@ const UIController = {
     },
 
     /**
-     * 用途说明：根据状态中的勾选情况更新“录入选中”按钮文案及顶部全选框。
+     * 用途说明：根据状态中的勾选情况更新底部操作按钮文案、显隐状态及顶部全选框。
      * 入参说明：无
      * 返回值说明：无
      */
@@ -132,12 +139,24 @@ const UIController = {
         const btn = this.elements.btnConfirmImport;
         const copyBtn = this.elements.btnCopySelected;
 
+        // 处理“确认录入”按钮文案与显隐
         if (btn) {
-            btn.textContent = selectedCount > 0 ? `录入选中纪录 (${selectedCount})` : '录入选中纪录';
+            if (selectedCount > 0) {
+                btn.classList.remove('hidden');
+                btn.innerText = I18nManager.t('batch_check.confirm_import_count', { count: selectedCount });
+            } else {
+                btn.classList.add('hidden');
+            }
         }
 
+        // 处理“复制选中”按钮文案与显隐
         if (copyBtn) {
-            copyBtn.textContent = selectedCount > 0 ? `复制选中文件名 (${selectedCount})` : '复制选中文件名';
+            if (selectedCount > 0) {
+                copyBtn.classList.remove('hidden');
+                 copyBtn.innerText = I18nManager.t('batch_check.copy_selected_count', { count: selectedCount });
+            } else {
+                copyBtn.classList.add('hidden');
+            }
         }
 
         if (this.elements.selectAllCheckbox) {
@@ -147,8 +166,9 @@ const UIController = {
 
     /**
      * 用途说明：更新排序 UI，显示当前排序字段和方向。
-     * 入参说明：field (string): 当前排序字段；order (string): 排序顺序 ('ASC' 或 'DESC')。
-     * 返回值说明：无
+     * @param {string} field - 入参说明：当前排序字段
+     * @param {string} order - 入参说明：排序顺序 ('ASC' 或 'DESC')
+     * @returns {void} - 返回值说明：无
      */
     updateSortUI(field, order) {
         UIComponents.updateSortUI(this.elements.sortableHeaders, field, order);
@@ -162,6 +182,10 @@ const App = {
      * 返回值说明：无
      */
     init() {
+        // 初始化多语言
+        I18nManager.init();
+        I18nManager.render();
+
         UIController.init();
         this.bindEvents();
         this.loadData();
@@ -239,11 +263,11 @@ const App = {
             } else if (status === 'processing') {
                 this.startPolling();
             } else if (status === 'idle') {
-                Toast.show('任务已结束');
+                Toast.show(I18nManager.t('batch_check.task_finished'));
                 setTimeout(() => { window.history.back(); }, 1000);
             }
         }, (err) => {
-            console.error('加载状态异常:', err);
+            console.error(I18nManager.t('batch_check.get_status_failed'), err);
         });
     },
 
@@ -254,7 +278,7 @@ const App = {
     startPolling() {
         if (State.isPolling) return;
         State.isPolling = true;
-        UIComponents.showProgressBar('.repo-content-group', '正在同步进度...');
+        UIComponents.showProgressBar('.repo-content-group', I18nManager.t('batch_check.sync_progress'));
 
         State.pollTimer = setInterval(() => {
             BatchCheckResultsRequest.getStatus((data) => {
@@ -268,7 +292,7 @@ const App = {
                     this.loadData();
                 }
             }, (err) => {
-                console.error('轮询状态异常:', err);
+                console.error(I18nManager.t('batch_check.get_status_failed'), err);
             });
         }, 1000);
     },
@@ -291,10 +315,10 @@ const App = {
      */
     handleFinishWithConfirm() {
         UIComponents.showConfirmModal({
-            title: '确认返回？',
-            message: '返回列表将清空本次检测结果并重置状态，确认要继续吗？',
-            confirmText: '确认并返回',
-            cancelText: '取消',
+            title: I18nManager.t('batch_check.back_confirm_title'),
+            message: I18nManager.t('batch_check.back_confirm_msg'),
+            confirmText: I18nManager.t('batch_check.back_confirm_ok'),
+            cancelText: I18nManager.t('common.cancel'),
             onConfirm: () => {
                 BatchCheckResultsRequest.clearTask(() => {
                     window.history.go(-2);
@@ -313,16 +337,16 @@ const App = {
             .map(item => item.name);
 
         if (selectedNames.length === 0) {
-            Toast.show('请勾选需要复制的文件名~');
+            Toast.show(I18nManager.t('batch_check.copy_hint'));
             return;
         }
 
         const textToCopy = selectedNames.join('\n');
         navigator.clipboard.writeText(textToCopy).then(() => {
-            Toast.show(`已成功复制 ${selectedNames.length} 条文件名到剪贴板`);
+            Toast.show(I18nManager.t('batch_check.copy_success', { count: selectedNames.length }));
         }).catch(err => {
-            console.error('复制失败:', err);
-            Toast.show('复制失败，请重试');
+            console.error(I18nManager.t('batch_check.copy_failed'), err);
+            Toast.show(I18nManager.t('batch_check.copy_failed'));
         });
     },
 
@@ -336,13 +360,13 @@ const App = {
             .map(item => item.name);
 
         if (selectedNames.length === 0) {
-            Toast.show('请勾选需要录入的文件名~');
+            Toast.show(I18nManager.t('batch_check.import_hint'));
             return;
         }
 
         BatchCheckResultsRequest.confirmImport(selectedNames, (data) => {
             const count = data?.count ?? 0;
-            Toast.show(`已成功录入 ${count} 条记录！`);
+            Toast.show(I18nManager.t('batch_check.import_success', { count: count }));
             if (count > 0) {
                 this.loadData();
             }

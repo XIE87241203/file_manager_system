@@ -20,8 +20,12 @@ const UIController = {
      * 用途说明：初始化 UI 元素缓存及公用头部
      */
     init() {
+        // 初始化多语言
+        I18nManager.init();
+        I18nManager.render();
+
         HeaderToolbar.init({
-            title: '运行日志',
+            title: I18nManager.t('logs.title'),
             showBack: true
         });
         State.logContentElement = document.getElementById('log-content');
@@ -102,14 +106,14 @@ const UIController = {
         const statusText = document.getElementById('status-text');
         
         if (State.isAutoRefresh) {
-            toggleBtn.textContent = '停止自动刷新';
+            toggleBtn.textContent = I18nManager.t('logs.stop_auto');
             toggleBtn.className = 'right-btn btn-text-danger';
-            statusText.textContent = `自动监控中 (${State.refreshIntervalSec}s)...`;
+            statusText.textContent = I18nManager.t('logs.auto_monitoring').replace('{interval}', State.refreshIntervalSec);
             statusText.style.color = '#1a73e8';
         } else {
-            toggleBtn.textContent = '启动自动刷新';
+            toggleBtn.textContent = I18nManager.t('logs.start_auto');
             toggleBtn.className = 'right-btn';
-            statusText.textContent = '已停止刷新';
+            statusText.textContent = I18nManager.t('logs.stopped');
             statusText.style.color = '#5f6368';
         }
     },
@@ -122,7 +126,7 @@ const UIController = {
         const container = State.logContentElement;
         
         if (!logs || logs.length === 0) {
-            container.innerHTML = '<div class="log-line">未找到匹配的日志内容</div>';
+            container.innerHTML = `<div class="log-line">${I18nManager.t('logs.no_match')}</div>`;
             return;
         }
 
@@ -172,17 +176,6 @@ const UIController = {
     }
 };
 
-// --- API 交互模块 ---
-const LogsAPI = {
-    /**
-     * 用途说明：从后端获取经过筛选的最新日志
-     */
-    async fetchLogs(params) {
-        const query = new URLSearchParams(params).toString();
-        return await Request.get(`/api/system/logs?${query}`, {}, false);
-    }
-};
-
 // --- 应用逻辑主入口 ---
 const App = {
     init() {
@@ -194,7 +187,7 @@ const App = {
     /**
      * 用途说明：执行一次日志加载
      */
-    async loadLogs() {
+    loadLogs() {
         const params = {
             lines: State.logLines,
             level: State.logLevel,
@@ -202,12 +195,15 @@ const App = {
         };
         if (State.logKeyword) params.keyword = State.logKeyword;
 
-        const response = await LogsAPI.fetchLogs(params);
-        if (response.status === 'success') {
-            UIController.renderLogs(response.data.logs);
-        } else {
-            console.error('加载日志失败:', response.message);
-        }
+        LogsRequest.fetchLogs(
+            params,
+            (data) => {
+                UIController.renderLogs(data.logs);
+            },
+            (msg) => {
+                console.error(I18nManager.t('logs.load_failed'), msg);
+            }
+        );
     },
 
     /**

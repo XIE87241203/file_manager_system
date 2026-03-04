@@ -13,9 +13,12 @@ const Request = {
         const mask = document.createElement('div');
         mask.id = 'global-loading-mask';
         mask.className = 'loading-mask';
+
+        const loadingText = (typeof I18nManager !== 'undefined' ? I18nManager.t('common.processing') : '');
+
         mask.innerHTML = `
             <div class="loading-spinner"></div>
-            <div class="loading-text">正在处理中...</div>
+            <div class="loading-text">${loadingText}</div>
         `;
         document.body.appendChild(mask);
     },
@@ -113,12 +116,15 @@ const Request = {
             if (response.status === 401) {
                 if (!url.includes('/api/login')) {
                     this.eraseCookie('token');
-                    if (typeof Toast !== 'undefined') Toast.show('登录已过期，请重新登录');
+                    if (typeof Toast !== 'undefined') {
+                        const msg = (typeof I18nManager !== 'undefined' ? I18nManager.t('common.login_expired') : '');
+                        Toast.show(msg);
+                    }
                     
                     // 同端口环境下，直接跳转到 /login/login.html
                     setTimeout(() => { window.location.href = '/login/login.html'; }, 1500);
                     if (showMask) this.hideLoading();
-                    return Promise.reject({ message: '登录已过期' });
+                    return Promise.reject({ message: 'Login expired' });
                 }
             }
 
@@ -130,9 +136,12 @@ const Request = {
             if (!response.ok) {
                 if (showMask) this.hideLoading();
 
-                // --- 新增：全局拦截 500 错误并弹窗提示 ---
+                // --- 全局拦截 500 错误并弹窗提示 ---
                 if (response.status === 500 && typeof Toast !== 'undefined') {
-                    Toast.show(`服务器异常: ${result.message || '未知内部错误'}`);
+                    const errorMsg = (typeof I18nManager !== 'undefined'
+                        ? I18nManager.t('common.server_error').replace('{}', result.message || 'Unknown')
+                        : '');
+                    Toast.show(errorMsg);
                 }
 
                 return Promise.reject(result);
@@ -143,8 +152,11 @@ const Request = {
         } catch (error) {
             if (showMask) this.hideLoading();
             console.error('API 请求失败:', error);
-            // 网络层面的错误也给个提示
-            if (typeof Toast !== 'undefined') Toast.show('网络连接异常，请检查后端服务');
+            // 网络层面的错误提示
+            if (typeof Toast !== 'undefined') {
+                const networkError = (typeof I18nManager !== 'undefined' ? I18nManager.t('common.network_error') : '');
+                Toast.show(networkError);
+            }
             throw error;
         }
     },

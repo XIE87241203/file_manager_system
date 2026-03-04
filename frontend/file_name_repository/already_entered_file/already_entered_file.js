@@ -25,7 +25,7 @@ const UIController = {
     init() {
         // 使用 SearchHeaderToolbar 组件初始化顶部栏
         SearchHeaderToolbar.init({
-            searchHint: '搜索文件名...',
+            searchHint: I18nManager.t('already_entered.search_hint'),
             menuIcon: "../../common/header_toolbar/icon/add_icon.svg",
             searchCallback: (content) => {
                 State.search = content;
@@ -50,7 +50,6 @@ const UIController = {
             tableBody: this.elements.tableBody,
             selectAllCheckbox: this.elements.selectAllCheckbox,
             selectedSet: State.selectedIds,
-            idAttribute: 'data-id',
             onSelectionChange: () => this.updateActionButtons()
         });
     },
@@ -66,7 +65,7 @@ const UIController = {
         if (selectAllCheckbox) selectAllCheckbox.checked = false;
 
         if (!list || list.length === 0) {
-            tableBody.innerHTML = UIComponents.getEmptyTableHtml(4, '暂无曾录入文件名记录');
+            tableBody.innerHTML = UIComponents.getEmptyTableHtml(4, I18nManager.t('already_entered.no_data'));
             return;
         }
 
@@ -132,6 +131,10 @@ const App = {
      * 返回值说明：无
      */
     init() {
+        // 初始化多语言
+        I18nManager.init();
+        I18nManager.render();
+
         UIController.init();
         this.bindEvents();
         this.loadConfig(() => {
@@ -153,7 +156,7 @@ const App = {
                 callback && callback();
             },
             (err) => {
-                console.error('加载配置失败:', err);
+                console.error(I18nManager.t('common.error'), err);
                 callback && callback();
             }
         );
@@ -193,14 +196,14 @@ const App = {
      */
     handleAddAlreadyEntered() {
         UIComponents.showInputModal({
-            title: '新增曾录入文件名',
-            placeholder: '请输入文件名（多个请用换行或逗号分隔）',
+            title: I18nManager.t('already_entered.add_title'),
+            placeholder: I18nManager.t('already_entered.add_placeholder'),
             isTextArea: true,
             onConfirm: (value) => {
                 const names = value.split(/[\n,，]/).map(n => n.trim()).filter(n => n);
                 if (names.length === 0) return;
                 AlreadyEnteredAPI.add(names, (res) => {
-                    Toast.show('添加成功');
+                    Toast.show(I18nManager.t('already_entered.add_success'));
                     this.loadList();
                 }, (msg) => {
                     Toast.show(msg);
@@ -250,7 +253,7 @@ const App = {
                 }
             });
         }, (msg) => {
-            Toast.show(msg || '加载列表失败');
+            Toast.show(msg || I18nManager.t('common.error'));
         });
     },
 
@@ -262,11 +265,11 @@ const App = {
     handleDeleteSelected() {
         const ids = Array.from(State.selectedIds).map(id => parseInt(id));
         UIComponents.showConfirmModal({
-            title: '删除选中记录',
-            message: `确定要移除选中的 ${ids.length} 条记录吗？`,
+            title: I18nManager.t('already_entered.delete_confirm_title'),
+            message: I18nManager.t('already_entered.delete_confirm_msg', { count: ids.length }),
             onConfirm: () => {
                 AlreadyEnteredAPI.batchDelete(ids, (res) => {
-                    Toast.show('已删除');
+                    Toast.show(I18nManager.t('common.deleted'));
                     State.selectedIds.clear();
                     this.loadList();
                 }, (msg) => {

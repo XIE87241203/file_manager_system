@@ -27,7 +27,7 @@ const UIController = {
     init() {
         // 使用公用组件初始化搜索顶部栏
         SearchHeaderToolbar.init({
-            searchHint: '搜索文件名...',
+            searchHint: I18nManager.t('pending_entry.search_hint'),
             menuIcon: "../../common/header_toolbar/icon/add_icon.svg",
             searchCallback: (content) => {
                 State.search = content;
@@ -56,7 +56,6 @@ const UIController = {
             tableBody: this.elements.tableBody,
             selectAllCheckbox: this.elements.selectAllCheckbox,
             selectedSet: State.selectedIds,
-            idAttribute: 'data-id',
             onSelectionChange: () => this.updateActionButtons()
         });
     },
@@ -72,7 +71,7 @@ const UIController = {
         if (selectAllCheckbox) selectAllCheckbox.checked = false;
 
         if (!list || list.length === 0) {
-            tableBody.innerHTML = UIComponents.getEmptyTableHtml(4, '暂无待录入文件名记录');
+            tableBody.innerHTML = UIComponents.getEmptyTableHtml(4, I18nManager.t('pending_entry.no_data'));
             return;
         }
 
@@ -126,7 +125,7 @@ const UIController = {
         if (count > 0) {
             footerMenuBtn.classList.remove('hidden');
             if (deleteSelectedBtn) {
-                deleteSelectedBtn.textContent = `删除选中 (${count})`;
+                deleteSelectedBtn.textContent = I18nManager.t('common.delete_selected_count', { count: count });
             }
         } else {
             footerMenuBtn.classList.add('hidden');
@@ -163,6 +162,10 @@ const App = {
      * 返回值说明：无
      */
     init() {
+        // 初始化多语言
+        I18nManager.init();
+        I18nManager.render();
+
         UIController.init();
         this.bindEvents();
         this.loadConfig(); // 加载配置
@@ -181,7 +184,7 @@ const App = {
                     State.linkPrefix = data.file_name_entry.file_name_link_prefix || '';
                 }
             },
-            (err) => console.error('加载配置失败:', err)
+            (err) => console.error(I18nManager.t('common.error'), err)
         );
     },
 
@@ -290,7 +293,7 @@ const App = {
                     }
                 });
             },
-            (err) => Toast.show(err || '加载列表失败')
+            (err) => Toast.show(err || I18nManager.t('pending_entry.load_failed'))
         );
     },
 
@@ -302,17 +305,17 @@ const App = {
     handleDeleteSelected() {
         const ids = Array.from(State.selectedIds).map(id => parseInt(id));
         UIComponents.showConfirmModal({
-            title: '删除选中记录',
-            message: `确定要移除选中的 ${ids.length} 条记录吗？`,
+            title: I18nManager.t('already_entered.delete_confirm_title'),
+            message: I18nManager.t('already_entered.delete_confirm_msg', { count: ids.length }),
             onConfirm: () => {
                 PendingEntryAPI.batchDeletePending(
                     ids,
                     () => {
-                        Toast.show('已删除');
+                        Toast.show(I18nManager.t('common.deleted'));
                         State.selectedIds.clear();
                         this.loadPendingList();
                     },
-                    (err) => Toast.show(err || '删除失败')
+                    (err) => Toast.show(err || I18nManager.t('common.error'))
                 );
             }
         });
@@ -328,19 +331,19 @@ const App = {
         const selectedFiles = State.currentList.filter(item => State.selectedIds.has(String(item.id)));
         
         if (selectedFiles.length === 0) {
-            Toast.show('未找到选中数据');
+            Toast.show(I18nManager.t('pending_entry.no_selected'));
             return;
         }
 
         // 提示并输入间隔时间
         UIComponents.showInputModal({
-            title: '打开网址',
+            title: I18nManager.t('pending_entry.open_url'),
             placeholder: String(State.defaultInterval),
             onConfirm: async (value) => {
                 let interval = parseInt(value);
                 if (isNaN(interval) || interval < 0) interval = State.defaultInterval;
 
-                Toast.show(`准备打开 ${selectedFiles.length} 个链接，间隔 ${interval}ms`);
+                Toast.show(I18nManager.t('pending_entry.batch_open_toast', { count: selectedFiles.length, interval: interval }));
 
                 // 1. 逐个打开网页
                 for (let i = 0; i < selectedFiles.length; i++) {
@@ -369,12 +372,12 @@ const App = {
                 const msgEl = document.createElement('p');
                 msgEl.className = 'modal-msg';
                 msgEl.style.marginBottom = '15px';
-                msgEl.textContent = `确认将逐个打开选中的 ${selectedFiles.length} 个文件名的网页链接吗？`;
+                msgEl.textContent = I18nManager.t('pending_entry.batch_open_confirm', { count: selectedFiles.length });
                 group.parentNode.insertBefore(msgEl, group);
 
                 // 2. 在输入框前添加提示标签
                 const labelEl = document.createElement('label');
-                labelEl.textContent = '打开间隔(毫秒)：';
+                labelEl.textContent = I18nManager.t('pending_entry.interval_label');
                 labelEl.style.fontSize = '14px';
                 labelEl.style.display = 'block';
                 labelEl.style.marginBottom = '8px';
@@ -382,7 +385,7 @@ const App = {
                 labelEl.style.fontWeight = '500';
                 group.insertBefore(labelEl, group.firstChild);
             }
-            
+
             // 设置默认值
             const inputEl = document.getElementById('common-modal-input');
             if (inputEl) {
@@ -393,41 +396,28 @@ const App = {
     },
 
     /**
-     * 用途说明：处理“移到已收录”操作：将选中的文件名批量转移到曾录入文件名库
+     * 用途说明：直接将选中的待录入记录移入“曾录入”库
      * 入参说明：无
      * 返回值说明：无
      */
     handleMoveToAlreadyEntered() {
-        const ids = Array.from(State.selectedIds).map(id => parseInt(id));
         const selectedFiles = State.currentList.filter(item => State.selectedIds.has(String(item.id)));
+        const names = selectedFiles.map(f => f.file_name);
+        const ids = selectedFiles.map(f => f.id);
 
-        if (selectedFiles.length === 0) {
-            Toast.show('未找到选中数据');
+        if (names.length === 0) {
+            Toast.show(I18nManager.t('pending_entry.no_selected'));
             return;
         }
 
-        UIComponents.showConfirmModal({
-            title: '移到已收录',
-            message: `确认将选中的 ${selectedFiles.length} 条记录转移到“曾录入文件名库”吗？`,
-            onConfirm: () => {
-                const fileNames = selectedFiles.map(f => f.file_name);
-                PendingEntryAPI.addToAlreadyEntered(
-                    fileNames,
-                    () => {
-                        PendingEntryAPI.batchDeletePending(
-                            ids,
-                            () => {
-                                Toast.show('已成功移入曾录入库');
-                                State.selectedIds.clear();
-                                this.loadPendingList();
-                            },
-                            (err) => Toast.show('已添加至曾录入库，但从待录入库移除失败: ' + err)
-                        );
-                    },
-                    (err) => Toast.show('转移失败: ' + err)
-                );
-            }
-        });
+        PendingEntryAPI.addToAlreadyEntered(names, () => {
+            // 成功加入曾录入后，从待录入中删除
+            PendingEntryAPI.batchDeletePending(ids, () => {
+                Toast.show(I18nManager.t('pending_entry.move_success'));
+                State.selectedIds.clear();
+                this.loadPendingList();
+            }, (err) => Toast.show(err));
+        }, (err) => Toast.show(err));
     }
 };
 

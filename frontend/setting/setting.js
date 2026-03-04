@@ -1,5 +1,5 @@
 /**
- * 用途：系统设置页面逻辑，负责加载和保存后端配置，处理选项卡切换和仓库管理
+ * @description 系统设置页面逻辑处理，负责加载和保存后端配置，处理选项卡切换和维护操作。
  */
 
 // --- 状态管理 ---
@@ -40,83 +40,13 @@ const State = {
     }
 };
 
-// --- API 交互模块 ---
-const API = {
-    /**
-     * 用途说明：从后端获取系统配置
-     * 返回值说明：Promise<Object> - 后端配置数据
-     */
-    async getSettings() {
-        return await Request.get('/api/setting/get');
-    },
-
-    /**
-     * 用途说明：更新后端系统配置
-     * 入参说明：data (Object) - 需要更新的配置片段（file_repository, duplicate_check, 或 user_data）
-     * 返回值说明：Promise<Object> - 请求结果
-     */
-    async updateSettings(data) {
-        return await Request.post('/api/setting/update', data);
-    },
-
-    /**
-     * 用途说明：清空曾录入文件名库记录
-     * 返回值说明：Promise<Object> - 请求结果
-     */
-    async clearAlreadyEntered() {
-        return await Request.post('/api/file_name_repository/already_entered/clear');
-    },
-
-    /**
-     * 用途说明：清空待录入文件名库记录
-     * 返回值说明：Promise<Object> - 请求结果
-     */
-    async clearPendingEntry() {
-        return await Request.post('/api/file_name_repository/pending_entry/clear');
-    },
-
-    /**
-     * 用途说明：清空历史记录库
-     * 返回值说明：Promise<Object> - 请求结果
-     */
-    async clearHistory() {
-        return await Request.post('/api/file_repository/clear_history');
-    },
-
-    /**
-     * 用途说明：清空视频特征指纹库
-     * 返回值说明：Promise<Object> - 请求结果
-     */
-    async clearVideoFeatures() {
-        return await Request.post('/api/file_repository/clear_video_features');
-    },
-
-    /**
-     * 用途说明：启动缩略图同步任务
-     */
-    async startThumbnailSync() {
-        return await Request.post('/api/file_repository/thumbnail/sync/start');
-    },
-
-    /**
-     * 用途说明：停止缩略图同步任务
-     */
-    async stopThumbnailSync() {
-        return await Request.post('/api/file_repository/thumbnail/sync/stop');
-    },
-
-    /**
-     * 用途说明：获取缩略图同步任务进度
-     */
-    async getThumbnailSyncProgress() {
-        return await Request.get('/api/file_repository/thumbnail/sync/progress', {}, false);
-    }
-};
-
 // --- UI 控制模块 ---
 const UIController = {
+    elements: {},
+
     /**
-     * 用途说明：初始化选项卡切换逻辑
+     * @description 用途说明：初始化选项卡切换逻辑
+     * @returns {void} - 返回值说明：无
      */
     initTabs() {
         const tabs = [
@@ -145,8 +75,9 @@ const UIController = {
     },
 
     /**
-     * 用途说明：将配置数据填充到表单输入框中
-     * 入参说明：data (Object) - 后端返回的配置总览数据
+     * @description 用途说明：将配置数据填充到表单输入框中
+     * @param {Object} data - 入参说明：后端返回的配置总览数据
+     * @returns {void} - 返回值说明：无
      */
     fillSettingsForm(data) {
         // 用户数据
@@ -156,6 +87,17 @@ const UIController = {
         document.getElementById('language-select').value = userData.language || 'en';
         document.getElementById('password').value = '';
         document.getElementById('confirm-password').value = '';
+
+        // 根据后端配置初始化多语言并渲染
+        I18nManager.init(userData.language);
+        I18nManager.render();
+        // 重新初始化 HeaderToolbar 以更新标题
+        HeaderToolbar.init({
+            title: I18nManager.t('setting.title'),
+            showBack: true,
+            menuIcon: '../../common/header_toolbar/icon/save_icon.svg',
+            menuCallback: () => App.handleGlobalSave()
+        });
 
         // 文件仓库配置同步到 State
         State.fileRepository = data.file_repository || State.fileRepository;
@@ -191,7 +133,8 @@ const UIController = {
     },
 
     /**
-     * 用途说明：渲染仓库路径列表
+     * @description 用途说明：渲染仓库路径列表
+     * @returns {void} - 返回值说明：无
      */
     renderRepositoryList() {
         const listContainer = document.getElementById('repo-list');
@@ -199,7 +142,7 @@ const UIController = {
         const directories = State.fileRepository.directories;
 
         if (!directories || directories.length === 0) {
-            listContainer.innerHTML = '<div class="empty-hint-text">暂无仓库路径</div>';
+            listContainer.innerHTML = `<div class="empty-hint-text">${I18nManager.t('common.no_data')}</div>`;
             return;
         }
 
@@ -209,7 +152,7 @@ const UIController = {
             item.innerHTML = `
                 <div class="repo-path">${path}</div>
                 <div class="repo-actions">
-                    <button class="btn-delete" data-index="${index}">删除</button>
+                    <button class="btn-delete" data-index="${index}">${I18nManager.t('common.delete')}</button>
                 </div>
             `;
             // 绑定删除按钮点击事件
@@ -219,15 +162,16 @@ const UIController = {
     },
 
     /**
-     * 用途说明：初始化缩略图同步按钮组件
+     * @description 用途说明：初始化缩略图同步按钮组件
+     * @returns {void} - 返回值说明：无
      */
     initThumbnailSyncButton() {
         const container = document.getElementById('sync-thumbnail-btn-container');
         if (!container) return;
 
         State.thumbnailSync.widget = ProgressButtonWidget.create({
-            normalText: '开始同步',
-            stopText: '取消同步',
+            normalText: I18nManager.t('setting.maintenance.sync_thumb'),
+            stopText: I18nManager.t('common.cancel'),
             defaultBgColor: '#007bff',
             onStart: () => App.handleStartThumbnailSync(),
             onStop: () => App.handleStopThumbnailSync()
@@ -240,11 +184,16 @@ const UIController = {
 // --- 应用逻辑主入口 ---
 const App = {
     /**
-     * 用途说明：初始化应用
+     * @description 用途说明：初始化应用，加载多语言、Header及设置数据
+     * @returns {void} - 返回值说明：无
      */
     init() {
+        // 先做基础渲染，API 加载后再精准渲染一次
+        I18nManager.init();
+        I18nManager.render();
+
         HeaderToolbar.init({
-            title: '系统设置',
+            title: I18nManager.t('setting.title'),
             showBack: true,
             menuIcon: '../../common/header_toolbar/icon/save_icon.svg',
             menuCallback: () => this.handleGlobalSave()
@@ -258,7 +207,8 @@ const App = {
     },
 
     /**
-     * 用途说明：绑定页面交互事件
+     * @description 用途说明：绑定页面基础交互事件
+     * @returns {void} - 返回值说明：无
      */
     bindEvents() {
         document.getElementById('add-repo-btn').onclick = () => this.handleAddRepository();
@@ -271,48 +221,48 @@ const App = {
     },
 
     /**
-     * 用途说明：加载后端配置并渲染
+     * @description 用途说明：从后端异步加载系统配置并触发 UI 渲染
+     * @returns {void} - 返回值说明：无
      */
-    async loadSettings() {
-        try {
-            const res = await API.getSettings();
-            if (res.status === 'success') {
-                UIController.fillSettingsForm(res.data);
+    loadSettings() {
+        SettingRequest.getSettings(
+            (data) => {
+                UIController.fillSettingsForm(data);
+            },
+            (msg) => {
+                Toast.show(I18nManager.t('common.error') + ': ' + msg);
             }
-        } catch (e) {
-            Toast.show('加载设置失败: ' + e.message);
-        }
+        );
     },
 
     /**
-     * 用途说明：添加仓库路径（弹窗录入模式）
-     * 入参说明：无
-     * 返回值说明：无
+     * @description 用途说明：显示输入弹窗以添加新的仓库路径
+     * @returns {void} - 返回值说明：无
      */
     handleAddRepository() {
         UIComponents.showInputModal({
-            title: '添加仓库路径',
-            placeholder: '请输入文件仓库绝对路径',
+            title: I18nManager.t('setting.repo.add_repo'),
+            placeholder: I18nManager.t('setting.repo.repo_dir'),
             onConfirm: (value) => {
                 const path = value.trim();
                 if (!path) {
-                    Toast.show('路径不能为空');
+                    Toast.show(I18nManager.t('common.input_path'));
                     return;
                 }
                 if (State.fileRepository.directories.includes(path)) {
-                    Toast.show('该路径已存在');
+                    Toast.show(I18nManager.t('common.path_exists'));
                     return;
                 }
                 State.fileRepository.directories.push(path);
                 UIController.renderRepositoryList();
-                Toast.show('已添加到本地列表，请记得点击顶栏保存图标哦~');
             }
         });
     },
 
     /**
-     * 用途说明：从本地列表删除仓库路径
-     * 入参说明：index (number) - 待删除路径的索引
+     * @description 用途说明：从本地 State 中移除指定索引的仓库路径并重新渲染列表
+     * @param {number} index - 入参说明：待删除路径在数组中的索引
+     * @returns {void} - 返回值说明：无
      */
     handleDeleteRepository(index) {
         State.fileRepository.directories.splice(index, 1);
@@ -320,11 +270,10 @@ const App = {
     },
 
     /**
-     * 用途说明：一次性保存全站设置（包括仓库配置、查重配置和用户信息）
-     * 入参说明：无
-     * 返回值说明：无
+     * @description 用途说明：收集表单数据并执行全站设置保存逻辑，包含关键参数变更检查
+     * @returns {void} - 返回值说明：无
      */
-    async handleGlobalSave() {
+    handleGlobalSave() {
         // 1. 采集文件仓库数据
         const fr = State.fileRepository;
         fr.scan_suffixes = document.getElementById('scan-suffixes').value.split(',').map(s => s.trim()).filter(s => s);
@@ -341,7 +290,7 @@ const App = {
         fr.auto_refresh_time = document.getElementById('auto-refresh-time').value;
 
         if (fr.scan_suffixes.length === 0) {
-            Toast.show('扫描后缀不能为空');
+            Toast.show(I18nManager.t('setting.repo.scan_suffixes_empty'));
             return;
         }
 
@@ -367,7 +316,7 @@ const App = {
         const confirmPassword = document.getElementById('confirm-password').value;
 
         if (!username) {
-            Toast.show('用户名不能为空');
+            Toast.show(I18nManager.t('login.username_placeholder'));
             return;
         }
 
@@ -375,7 +324,7 @@ const App = {
         let isPasswordChanged = false;
         if (password) {
             if (password !== confirmPassword) {
-                Toast.show('两次输入的密码不一致');
+                Toast.show(I18nManager.t('setting.account.password_mismatch'));
                 return;
             }
             userData.password = password;
@@ -396,146 +345,173 @@ const App = {
 
         if (isIntervalChanged || isBackwardsChanged) {
             UIComponents.showConfirmModal({
-                title: '确认修改核心参数',
-                message: '修改视频采样间隔或方向将导致现有视频特征失效，必须清空视频特征库。确定继续吗？',
-                onConfirm: async () => {
-                    const clearRes = await API.clearVideoFeatures();
-                    if (clearRes.status === 'success') {
-                        await this.executeGlobalSave(updateData, isPasswordChanged, isLanguageChanged);
-                    }
+                title: I18nManager.t('common.hint'),
+                message: I18nManager.t('setting.dup_check.video_interval_hint'),
+                onConfirm: () => {
+                    SettingRequest.clearVideoFeatures(
+                        () => {
+                            this.executeGlobalSave(updateData, isPasswordChanged, isLanguageChanged);
+                        },
+                        (msg) => Toast.show(msg)
+                    );
                 }
             });
         } else {
-            await this.executeGlobalSave(updateData, isPasswordChanged, isLanguageChanged);
+            this.executeGlobalSave(updateData, isPasswordChanged, isLanguageChanged);
         }
     },
 
     /**
-     * 用途说明：执行全局保存请求
-     * 入参说明：updateData (Object) - 合并后的更新配置数据, isPasswordChanged (boolean), isLanguageChanged (boolean)
-     * 返回值说明：无
+     * @description 用途说明：发起 API 请求执行全站设置更新，并根据变更项（如密码或语言）处理后续逻辑
+     * @param {Object} updateData - 入参说明：包含所有配置分类的更新对象
+     * @param {boolean} isPasswordChanged - 入参说明：标记密码是否已更改，用于重定向至登录页
+     * @param {boolean} isLanguageChanged - 入参说明：标记语言是否已更改，用于重定向至首页以应用新语言
+     * @returns {void} - 返回值说明：无
      */
-    async executeGlobalSave(updateData, isPasswordChanged, isLanguageChanged) {
-        try {
-            const res = await API.updateSettings(updateData);
-            if (res.status === 'success') {
-                Toast.show('系统设置已全部保存成功');
+    executeGlobalSave(updateData, isPasswordChanged, isLanguageChanged) {
+        SettingRequest.updateSettings(
+            updateData,
+            () => {
+                Toast.show(I18nManager.t('common.success'));
 
                 if (isPasswordChanged) {
                     setTimeout(() => {
-                        Toast.show('检测到密码已修改，请重新登录');
                         Request.eraseCookie('token');
                         window.location.href = '../login/login.html';
                     }, 1000);
                 } else if (isLanguageChanged) {
                     // 语言变更后，重新刷新页面以应用新语言
-                    window.location.reload();
+                    I18nManager.init(updateData.user_data.language);
+                    window.location.href = '../home/home.html';
                 } else {
                     this.loadSettings();
                 }
+            },
+            (msg) => {
+                Toast.show(I18nManager.t('common.error') + ': ' + msg);
             }
-        } catch (e) {
-            Toast.show('保存失败: ' + e.message);
-        }
+        );
     },
 
     /**
-     * 用途说明：统一处理清空库的二次确认逻辑
-     * 入参说明：type (string) - 类型：already_entered, pending_entry, history, video
+     * @description 用途说明：统一处理各种数据清理操作的二次确认及 API 触发逻辑
+     * @param {string} type - 入参说明：清理类型标识，可选 'already_entered', 'pending_entry', 'history', 'video'
+     * @returns {void} - 返回值说明：无
      */
     confirmClear(type) {
         const config = {
-            already_entered: { title: '确认清空曾录入文件名库', msg: '确定要清空所有曾录入文件名吗？', api: API.clearAlreadyEntered },
-            pending_entry: { title: '确认清空待录入文件名库', msg: '确定要清空所有待录入文件名吗？', api: API.clearPendingEntry },
-            history: { title: '确认清空历史库', msg: '这将永久清空所有历史索引记录，确定吗？', api: API.clearHistory },
-            video: { title: '确认清空视频特征库', msg: '这将清空所有视频指纹数据，确定吗？', api: API.clearVideoFeatures }
+            already_entered: {
+                title: I18nManager.t('setting.maintenance.clear_already_entered'),
+                msg: I18nManager.t('setting.maintenance.clear_already_entered_desc'),
+                api: (success, error) => SettingRequest.clearAlreadyEntered(success, error)
+            },
+            pending_entry: {
+                title: I18nManager.t('setting.maintenance.clear_pending_entry'),
+                msg: I18nManager.t('setting.maintenance.clear_pending_entry_desc'),
+                api: (success, error) => SettingRequest.clearPendingEntry(success, error)
+            },
+            history: {
+                title: I18nManager.t('setting.maintenance.clear_history'),
+                msg: I18nManager.t('setting.maintenance.clear_history_desc'),
+                api: (success, error) => SettingRequest.clearHistory(success, error)
+            },
+            video: {
+                title: I18nManager.t('setting.maintenance.clear_video'),
+                msg: I18nManager.t('setting.maintenance.clear_video_desc'),
+                api: (success, error) => SettingRequest.clearVideoFeatures(success, error)
+            }
         };
         const item = config[type];
         UIComponents.showConfirmModal({
             title: item.title,
             message: item.msg,
-            onConfirm: async () => {
-                const res = await item.api();
-                if (res.status === 'success') {
-                    Toast.show(res.message || '操作成功');
-                }
+            onConfirm: () => {
+                item.api(
+                    (res) => {
+                        Toast.show(res.message || I18nManager.t('common.success'));
+                    },
+                    (msg) => Toast.show(msg)
+                );
             }
         });
     },
 
     /**
-     * 用途说明：处理开始缩略图同步
+     * @description 用途说明：触发后端执行缩略图同步清理任务
+     * @returns {void} - 返回值说明：无
      */
-    async handleStartThumbnailSync() {
-        try {
-            const res = await API.startThumbnailSync();
-            if (res.status === 'success') {
-                Toast.show('缩略图同步任务已启动');
+    handleStartThumbnailSync() {
+        SettingRequest.startThumbnailSync(
+            () => {
+                Toast.show(I18nManager.t('common.success'));
                 this.syncThumbnailProgress();
+            },
+            (msg) => {
+                Toast.show(I18nManager.t('common.error') + ': ' + msg);
             }
-        } catch (e) {
-            Toast.show('启动失败: ' + e.message);
-        }
+        );
     },
 
     /**
-     * 用途说明：处理停止缩略图同步
+     * @description 用途说明：触发后端停止当前正在进行的缩略图同步任务
+     * @returns {void} - 返回值说明：无
      */
-    async handleStopThumbnailSync() {
-        try {
-            const res = await API.stopThumbnailSync();
-            if (res.status === 'success') {
-                Toast.show('已发送停止指令');
+    handleStopThumbnailSync() {
+        SettingRequest.stopThumbnailSync(
+            () => {
+                Toast.show(I18nManager.t('common.success'));
+            },
+            (msg) => {
+                Toast.show(I18nManager.t('common.error') + ': ' + msg);
             }
-        } catch (e) {
-            Toast.show('操作失败: ' + e.message);
-        }
+        );
     },
 
     /**
-     * 用途说明：轮询缩略图同步进度
-     * 入参说明：无
-     * 返回值说明：无
+     * @description 用途说明：异步获取缩略图同步进度，并根据状态更新 ProgressButtonWidget 的 UI 表现，支持自动轮询
+     * @returns {void} - 返回值说明：无
      */
-    async syncThumbnailProgress() {
+    syncThumbnailProgress() {
         if (State.thumbnailSync.timer) {
             clearTimeout(State.thumbnailSync.timer);
             State.thumbnailSync.timer = null;
         }
 
-        try {
-            const res = await API.getThumbnailSyncProgress();
-            const { status, progress } = res.data;
-            const widget = State.thumbnailSync.widget;
+        SettingRequest.getThumbnailSyncProgress(
+            (data) => {
+                const { status, progress } = data;
+                const widget = State.thumbnailSync.widget;
 
-            if (status === ProgressStatus.PROCESSING) {
-                State.thumbnailSync.status = ProgressStatus.PROCESSING;
-                widget.setState('processing');
-                const percent = progress.total > 0 ? Math.round((progress.current / progress.total) * 100) : 0;
-                // 设置进度时同时设置文案，格式为：正在处理：当前/总数
-                widget.setProgress(percent, `正在处理：${progress.current}/${progress.total}`);
+                if (status === ProgressStatus.PROCESSING) {
+                    State.thumbnailSync.status = ProgressStatus.PROCESSING;
+                    widget.setState('processing');
+                    const percent = progress.total > 0 ? Math.round((progress.current / progress.total) * 100) : 0;
+                    // 设置进度时同时设置文案，格式为：正在处理：当前/总数
+                    widget.setProgress(percent, `${I18nManager.t('common.loading')}：${progress.current}/${progress.total}`);
 
-                // 继续轮询
-                State.thumbnailSync.timer = setTimeout(() => this.syncThumbnailProgress(), 1000);
-            } else {
-                // 用途说明：仅当之前的任务状态不是 idle 时（即刚从 processing 切换过来），才执行状态重置并弹出结果提示
-                if (State.thumbnailSync.status !== ProgressStatus.IDLE) {
-                    if (status === ProgressStatus.COMPLETED) {
-                        Toast.show(progress.message || '同步任务已完成');
-                    } else if (status === ProgressStatus.ERROR) {
-                        Toast.show('同步任务发生错误: ' + progress.message);
+                    // 继续轮询
+                    State.thumbnailSync.timer = setTimeout(() => this.syncThumbnailProgress(), 1000);
+                } else {
+                    // 用途说明：仅当之前的任务状态不是 idle 时（即刚从 processing 切换过来），才执行状态重置并弹出结果提示
+                    if (State.thumbnailSync.status !== ProgressStatus.IDLE) {
+                        if (status === ProgressStatus.COMPLETED) {
+                            Toast.show(progress.message || I18nManager.t('common.success'));
+                        } else if (status === ProgressStatus.ERROR) {
+                            Toast.show(I18nManager.t('common.error') + ': ' + progress.message);
+                        }
+                        State.thumbnailSync.status = ProgressStatus.IDLE;
                     }
-                    State.thumbnailSync.status = ProgressStatus.IDLE;
+                    widget.setState('idle');
                 }
-                widget.setState('idle');
+            },
+            (msg) => {
+                console.error('获取进度失败:', msg);
+                if (State.thumbnailSync.widget) {
+                    State.thumbnailSync.widget.setState('idle');
+                }
+                State.thumbnailSync.status = ProgressStatus.IDLE;
             }
-        } catch (e) {
-            console.error('获取进度失败:', e);
-            if (State.thumbnailSync.widget) {
-                State.thumbnailSync.widget.setState('idle');
-            }
-            State.thumbnailSync.status = ProgressStatus.IDLE;
-        }
+        );
     }
 };
 

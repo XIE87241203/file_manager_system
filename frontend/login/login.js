@@ -3,9 +3,14 @@
  */
 const Login = {
     /**
-     * 用途：初始化登录页面，绑定事件并获取版本号
+     * @description 用途说明：初始化登录页面，初始化多语言，清除旧 Token 并加载版本号
+     * @returns {void} - 返回值说明：无
      */
     init() {
+        // 初始化多语言 (登录前默认使用本地缓存或英文)
+        I18nManager.init();
+        I18nManager.render();
+
         // 清空认证信息
         Request.eraseCookie('token');
         sessionStorage.removeItem('username');
@@ -18,7 +23,8 @@ const Login = {
     },
 
     /**
-     * 用途：为输入框绑定回车提交事件
+     * @description 用途说明：为表单输入框绑定回车事件以及为登录按钮绑定点击事件
+     * @returns {void} - 返回值说明：无
      */
     bindEvents() {
         ['username', 'password'].forEach(id => {
@@ -40,33 +46,36 @@ const Login = {
     },
 
     /**
-     * 用途：从后端获取应用版本号并显示在页面右下角
+     * @description 用途说明：从后端获取应用版本号并渲染到页面页脚
+     * @returns {void} - 返回值说明：无
      */
-    async fetchAndDisplayAppVersion() {
-        try {
-            // 使用 /api/system/version 接口，不需要 Token，不显示蒙版
-            const response = await Request.get('/api/system/version', {}, false);
-            if (response.status === 'success' && response.data && response.data.version) {
-                const versionDisplay = document.getElementById('app-version-display');
-                if (versionDisplay) {
-                    versionDisplay.textContent = `版本: ${response.data.version}`;
+    fetchAndDisplayAppVersion() {
+        LoginRequest.getVersion(
+            (data) => {
+                if (data && data.version) {
+                    const versionDisplay = document.getElementById('app-version-display');
+                    if (versionDisplay) {
+                        versionDisplay.textContent = `${I18nManager.t('home.version')}: ${data.version}`;
+                    }
                 }
+            },
+            (msg) => {
+                console.error('获取版本号失败:', msg);
             }
-        } catch (error) {
-            console.error('获取版本号失败:', error);
-        }
+        );
     },
 
     /**
-     * 用途：获取表单数据并执行登录逻辑
+     * @description 用途说明：执行登录逻辑，包括表单校验、密码加密、发起请求及成功后的状态持久化与跳转
+     * @returns {void} - 返回值说明：无
      */
-    async handleLogin() {
+    handleLogin() {
         const username = document.getElementById('username').value.trim();
         const password = document.getElementById('password').value;
 
         // 表单校验
         if (!username || !password) {
-            Toast.show("请输入用户名和密码");
+            Toast.show(I18nManager.t('login.username_placeholder'));
             return;
         }
 
@@ -77,28 +86,30 @@ const Login = {
         // 前端 SHA-256 加密
         const passwordHash = CryptoJS.SHA256(password).toString();
 
-        try {
-            // 使用封装的 Request 工具发起 POST 请求
-            const result = await Request.post('/api/login', {
-                username: username,
-                password_hash: passwordHash
-            });
+        const loginData = {
+            username: username,
+            password_hash: passwordHash
+        };
 
-            // 登录成功处理
-            if (result.status === 'success' && result.data && result.data.token) {
-                // 保存 Token (有效期 6 小时)
-                Request.setCookie('token', result.data.token, 6);
-                // 缓存用户名
-                sessionStorage.setItem('username', username);
-                
-                window.location.href = '../home/home.html';
-            } else {
-                Toast.show(result.message || "登录失败");
+        // 调用封装的 API 请求
+        LoginRequest.login(
+            loginData,
+            (data) => {
+                if (data && data.token) {
+                    // 保存 Token (有效期 6 小时)
+                    Request.setCookie('token', data.token, 6);
+                    // 缓存用户名
+                    sessionStorage.setItem('username', username);
+                    // 跳转至首页
+                    window.location.href = '../home/home.html';
+                } else {
+                    Toast.show(I18nManager.t('login.login_failed'));
+                }
+            },
+            (msg) => {
+                Toast.show(msg || I18nManager.t('login.login_failed'));
             }
-        } catch (error) {
-            console.error('登录请求异常:', error);
-            Toast.show(error.message || "无法连接到后端服务器，请检查服务是否启动");
-        }
+        );
     }
 };
 

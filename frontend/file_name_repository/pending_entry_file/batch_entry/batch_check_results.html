@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>检测结果 - 文件管理系统</title>
+    <title data-i18n="batch_check.title"></title>
     <!-- 引入公用样式 -->
     <link rel="stylesheet" href="../../../common/common.css">
     <link rel="stylesheet" href="../../../common/table.css">
@@ -20,13 +20,12 @@
             <!-- 结果列表上方的工具栏 -->
             <div class="results-header-toolbar">
                 <div class="toolbar-left">
-                    <span class="stat-info">
-                        共检测 <span id="total-count">0</span> 项，
-                        其中新记录 <span id="new-count" class="text-new">0</span> 项
+                    <span class="stat-info" id="stat-info-container">
+                        <!-- 由 JS 动态渲染多语言文案 -->
                     </span>
                 </div>
                 <div class="toolbar-right">
-                    <button id="btn-select-all-new" class="btn-primary-large">选中所有未收录</button>
+                    <button id="btn-select-all-new" class="btn-primary-large" data-i18n="batch_check.select_all_new"></button>
                 </div>
             </div>
 
@@ -35,12 +34,14 @@
                 <table id="file-table" class="file-table">
                     <thead>
                         <tr>
-                            <th class="col-index">序号</th>
+                            <th class="col-index" data-i18n="common.index"></th>
                             <th class="sortable col-name" data-field="name">
-                                文件名 <span class="sort-icon"></span>
+                                <span data-i18n="batch_check.col_name"></span>
+                                <span class="sort-icon"></span>
                             </th>
                             <th class="sortable col-status" data-field="source">
-                                状态 / 存储路径 <span class="sort-icon"></span>
+                                <span data-i18n="batch_check.col_status"></span>
+                                <span class="sort-icon"></span>
                             </th>
                             <th class="col-check">
                                 <input type="checkbox" id="select-all-checkbox" class="select-all-checkbox">
@@ -56,14 +57,17 @@
             <!-- 底部导航区：操作 -->
             <footer class="footer-bar">
                 <div class="footer-center-buttons">
-                    <button id="btn-copy-selected" class="btn-secondary-large">复制选中文件名</button>
-                    <button id="btn-confirm-import" class="btn-primary-large">录入选中纪录</button>
+                    <button id="btn-copy-selected" class="btn-secondary-large hidden" data-i18n="batch_check.copy_selected"></button>
+                    <button id="btn-confirm-import" class="btn-primary-large hidden" data-i18n="batch_check.confirm_import"></button>
                 </div>
             </footer>
         </div>
     </main>
 
     <!-- 脚本加载 -->
+    <script src="../../../common/i18n/zh.js"></script>
+    <script src="../../../common/i18n/en.js"></script>
+    <script src="../../../common/i18n/i18n_utils.js"></script>
     <script src="../../../common/header_toolbar/default/default_header_toolbar.js"></script>
     <script src="../../../common/ui_components.js"></script>
     <script src="../../../common/request.js"></script>

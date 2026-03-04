@@ -69,6 +69,12 @@
     - HTML的控件均使用 `id` 绑定 JS 逻辑，`class` 绑定 CSS 样式。
     - 批量删除列表：复选框位于最右侧，支持点击行自动选中。
     - 选中反馈：选中行必须应用 `.selected-row` 样式。
+- **多语言适配 (i18n)**:
+    - **严禁直接书写文案**: **前端文案禁止直接写在网页 HTML 中**。必须使用多语言标签（如 `data-i18n`）映射对应的文案 Key。
+    - **JS 字符串**: 严禁在 JS 中硬编码提示字符串，必须通过多语言工具获取。
+    - **显式标注**: HTML 元素必须使用 `data-i18n` (内容), `data-i18n-placeholder`, `data-i18n-title`, `data-i18n-value` 等属性显式标注。
+    - **统一管理**: 必须使用 `frontend/common/i18n/i18n_utils.js` 进行初始化与渲染。
+    - **文件同步**: 所有文案 Key 必须同步维护在 `frontend/common/i18n/zh.js` (中文) 和 `frontend/common/i18n/en.js` (英文) 中，确保 Key 一致、文案数目始终保持一致且一一对应。
 
 ## 4. 数据库说明
 ### 4.1 操作原则

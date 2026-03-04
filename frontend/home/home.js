@@ -12,12 +12,17 @@ const UIController = {
     elements: {},
 
     /**
-     * 用途说明：初始化页面 UI，缓存关键 DOM 元素并初始化顶部栏。
+     * @description 用途说明：初始化页面 UI，缓存关键 DOM 元素并初始化顶部栏。
+     * @returns {void} - 返回值说明：无
      */
     init() {
+        // 初始化多语言
+        I18nManager.init();
+        I18nManager.render();
+
         // 使用通用的 HeaderToolbar 初始化顶部栏
         HeaderToolbar.init({
-            title: '文件管理系统',
+            title: I18nManager.t('home.title'),
             backCallback: null, // 首页不需要返回按钮
             menuCallback: null,  // 首页暂时不需要右侧菜单
             showBack: false
@@ -38,12 +43,12 @@ const UIController = {
             this.elements.headerTitle.style.pointerEvents = 'auto';
             this.elements.headerTitle.style.cursor = 'default';
         }
-
     },
 
     /**
-     * 用途说明：更新统计 UI 数据。
-     * 入参说明：data (Object) - 包含 total_count, total_size, update_time 的对象。
+     * @description 用途说明：更新统计 UI 数据。
+     * @param {Object} data - 入参说明：包含 total_count, total_size, update_time 的对象。
+     * @returns {void} - 返回值说明：无
      */
     updateStatsUI(data) {
         if (!data) return;
@@ -68,63 +73,38 @@ const UIController = {
     },
 
     /**
-     * 用途说明：切换展示状态为“计算中”，替换文字内容并激活按钮旋转动画。
+     * @description 用途说明：切换展示状态为“计算中”，激活按钮旋转动画。
+     * @returns {void} - 返回值说明：无
      */
     setLoadingState() {
         if (this.elements.btnCalc) this.elements.btnCalc.classList.add('rotating');
     },
 
     /**
-     * 用途说明：清除“计算中”加载状态。
+     * @description 用途说明：清除“计算中”加载状态。
+     * @returns {void} - 返回值说明：无
      */
     clearLoadingState() {
         if (this.elements.btnCalc) this.elements.btnCalc.classList.remove('rotating');
     },
 
     /**
-     * 用途说明：显示隐藏的测试入口。
+     * @description 用途说明：显示隐藏的测试入口。
+     * @returns {void} - 返回值说明：无
      */
     showTestMenu() {
         if (this.elements.testPageMenu) {
             this.elements.testPageMenu.classList.remove('hidden');
-            Toast.show('测试模式已开启~');
+            Toast.show('Debug mode enabled~');
         }
-    }
-};
-
-// --- API 交互模块 ---
-const HomeAPI = {
-    /**
-     * 用途说明：从后端获取文件仓库详情统计。
-     * 返回值说明：Promise<Object> - 后端响应结果。
-     */
-    async getRepoDetail() {
-        return await Request.get('/api/file_repository/detail');
-    },
-
-    /**
-     * 用途说明：手动触发后端重新计算文件仓库统计。
-     * 逻辑说明：显式设置 showMask 为 false，以支持首页自定义的“计算中”UI 反馈。
-     * 返回值说明：Promise<Object> - 后端响应结果。
-     */
-    async calculateRepoDetail() {
-        return await Request.post('/api/file_repository/detail/calculate', {}, {}, false);
-    },
-
-    /**
-     * 用途说明：从后端获取应用版本号。
-     * 返回值说明：Promise<Object> - 后端响应结果。
-     */
-    async getAppVersion() {
-        return await Request.get('/api/system/version', {}, false); // showMask is false for version fetching
     }
 };
 
 // --- 应用逻辑主入口 ---
 const App = {
     /**
-     * 用途说明：初始化应用，绑定事件并加载初始数据。
-     * 补充说明：现在还会获取并显示应用版本号。
+     * @description 用途说明：初始化应用，绑定事件并加载初始数据。
+     * @returns {void} - 返回值说明：无
      */
     init() {
         UIController.init();
@@ -134,75 +114,92 @@ const App = {
     },
 
     /**
-     * 用途说明：页面初始化时加载并展示仓库统计数据。
+     * @description 用途说明：页面初始化时加载并展示仓库统计数据。
+     * @returns {void} - 返回值说明：无
      */
-    async loadRepoStats() {
-        const response = await HomeAPI.getRepoDetail();
-        if (response.status === 'success') {
-            UIController.updateStatsUI(response.data);
-        }
+    loadRepoStats() {
+        HomeRequest.getRepoDetail(
+            (data) => {
+                UIController.updateStatsUI(data);
+            },
+            (msg) => {
+                console.error(msg);
+            }
+        );
     },
 
     /**
-     * 用途说明：处理“计算”按钮点击事件。
+     * @description 用途说明：处理“计算”按钮点击事件。
+     * @returns {void} - 返回值说明：无
      */
-    async handleCalculateStats() {
+    handleCalculateStats() {
         // 1. 切换 UI 至加载状态
         UIController.setLoadingState();
 
-        try {
-            // 2. 发起计算请求（已配置不显示全局蒙版）
-            const response = await HomeAPI.calculateRepoDetail();
-            
-            // 3. 恢复 UI 状态
-            UIController.clearLoadingState();
-            
-            if (response.status === 'success') {
-                Toast.show('仓库数据统计已更新');
-                UIController.updateStatsUI(response.data);
-            } else {
-                Toast.show(response.message || '计算失败');
+        // 2. 发起计算请求（已配置不显示全局蒙版）
+        HomeRequest.calculateRepoDetail(
+            (data) => {
+                UIController.clearLoadingState();
+                Toast.show(I18nManager.t('home.stats_updated'));
+                UIController.updateStatsUI(data);
+            },
+            (msg) => {
+                UIController.clearLoadingState();
+                Toast.show(msg || I18nManager.t('common.error'));
                 this.loadRepoStats(); // 失败时尝试恢复展示旧数据
             }
-        } catch (error) {
-            UIController.clearLoadingState();
-            this.loadRepoStats();
-        }
+        );
     },
 
     /**
-     * 用途说明：获取并显示应用版本号。
+     * @description 用途说明：获取并显示应用版本号。
+     * @returns {void} - 返回值说明：无
      */
-    async fetchAndDisplayAppVersion() {
-        const response = await HomeAPI.getAppVersion();
-        if (response.status === 'success' && response.data && response.data.version) {
-            const versionDisplay = document.getElementById('app-version-display');
-            if (versionDisplay) {
-                versionDisplay.textContent = `版本: ${response.data.version}`;
+    fetchAndDisplayAppVersion() {
+        HomeRequest.getAppVersion(
+            (data) => {
+                if (data && data.version) {
+                    const versionDisplay = document.getElementById('app-version-display');
+                    if (versionDisplay) {
+                        versionDisplay.textContent = `${I18nManager.t('home.version')}: ${data.version}`;
+                    }
+                }
+            },
+            (msg) => {
+                console.error('Failed to fetch app version:', msg);
             }
-        } else {
-            console.error('Failed to fetch app version:', response.message);
-        }
+        );
     },
 
     /**
-     * 用途说明：注销登录逻辑，清除本地状态并跳转。
+     * @description 用途说明：注销登录逻辑，清除本地状态并跳转。
+     * @returns {void} - 返回值说明：无
      */
     logout() {
         UIComponents.showConfirmModal({
-            title: '确认退出',
-            message: '确定要退出登录并返回登录页面吗？',
-            confirmText: '确定退出',
+            title: I18nManager.t('common.logout_confirm_title'),
+            message: I18nManager.t('common.logout_confirm_msg'),
+            confirmText: I18nManager.t('common.confirm'),
             onConfirm: () => {
-                Request.post('/api/logout', {}).catch(err => console.error('Logout failed:', err));
-                Request.eraseCookie('token');
-                window.location.href = '../login/login.html';
+                HomeRequest.logout(
+                    () => {
+                        Request.eraseCookie('token');
+                        window.location.href = '../login/login.html';
+                    },
+                    (msg) => {
+                        console.error('Logout failed:', msg);
+                        // 即使后端失败，前端也尝试清理并跳转
+                        Request.eraseCookie('token');
+                        window.location.href = '../login/login.html';
+                    }
+                );
             }
         });
     },
 
     /**
-     * 用途说明：绑定页面交互事件，包括功能卡片导航和统计刷新。
+     * @description 用途说明：绑定页面交互事件，包括功能卡片导航和统计刷新。
+     * @returns {void} - 返回值说明：无
      */
     bindEvents() {
         // 绑定功能卡片点击

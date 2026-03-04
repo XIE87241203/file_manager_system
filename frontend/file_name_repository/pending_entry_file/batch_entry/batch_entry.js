@@ -24,7 +24,7 @@ const UIController = {
     init() {
         // 使用标准的 HeaderToolbar 组件初始化头部
         HeaderToolbar.init({
-            title: '批量录入文件名',
+            title: I18nManager.t('batch_check.entry_title'),
             showBack: true
         });
 
@@ -45,6 +45,10 @@ const App = {
      * 返回值说明：无
      */
     init() {
+        // 初始化多语言
+        I18nManager.init();
+        I18nManager.render();
+
         UIController.init();
         this.bindEvents();
         // 入口守卫：根据后端状态决定行为（如断点续传或自动跳转）
@@ -79,7 +83,7 @@ const App = {
                 }
             },
             (errorMessage) => {
-                console.error('自检异常:', errorMessage);
+                console.error(I18nManager.t('batch_check.get_status_failed'), errorMessage);
             }
         );
     },
@@ -93,7 +97,7 @@ const App = {
         /** @type {string} 获取并清理输入文本 */
         const rawText = UIController.elements.inputArea.value.trim();
         if (!rawText) {
-            Toast.show('请输入要检测的文件名清单~');
+            Toast.show(I18nManager.t('batch_check.input_empty_hint'));
             return;
         }
 
@@ -109,8 +113,8 @@ const App = {
                 this.startPolling();
             },
             (errorMessage) => { // onError
-                Toast.show(errorMessage || '启动失败');
-                console.error('请求失败:', errorMessage);
+                Toast.show(errorMessage || I18nManager.t('batch_check.start_failed'));
+                console.error(I18nManager.t('batch_check.start_failed'), errorMessage);
             }
         );
     },
@@ -124,7 +128,7 @@ const App = {
         if (State.isChecking) return;
         State.isChecking = true;
 
-        UIComponents.showProgressBar('.repo-content-group', '正在检测中...');
+        UIComponents.showProgressBar('.repo-content-group', I18nManager.t('batch_check.checking_msg'));
 
         State.pollTimer = setInterval(() => {
             BatchEntryRequest.getStatus(
@@ -140,14 +144,14 @@ const App = {
                     } else if (status === 'error') {
                         this.stopPolling();
                         UIComponents.hideProgressBar('.repo-content-group');
-                        Toast.show('运行出错: ' + progress.message);
+                        Toast.show(I18nManager.t('common.error') + ': ' + progress.message);
                     }
                 },
                 (errorMessage) => { // onError
-                    console.error('轮询异常:', errorMessage);
+                    console.error(I18nManager.t('batch_check.get_status_failed'), errorMessage);
                     this.stopPolling();
                     UIComponents.hideProgressBar('.repo-content-group');
-                    Toast.show('轮询任务状态时出错: ' + errorMessage);
+                    Toast.show(I18nManager.t('batch_check.get_status_failed') + ': ' + errorMessage);
                 }
             );
         }, 1000);

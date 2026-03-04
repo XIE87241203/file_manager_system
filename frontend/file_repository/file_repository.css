@@ -84,16 +84,9 @@
     color: #ffffff !important;
 }
 
+/* 移除 CSS 中的硬编码文案，改由 JS 动态控制文本内容 */
 .menu-item.thumbnail-btn-generating:hover span {
-    visibility: hidden;
-}
-
-.menu-item.thumbnail-btn-generating:hover::after {
-    content: "取消生成缩略图";
-    position: absolute;
-    left: 0;
-    right: 0;
-    text-align: center;
+    /* 不再隐藏 span，而是直接在 JS 中改 span 的内容 */
     visibility: visible;
 }
 
@@ -218,4 +211,3 @@
 .file-repository-table {
     min-width: 700px;
 }
-
