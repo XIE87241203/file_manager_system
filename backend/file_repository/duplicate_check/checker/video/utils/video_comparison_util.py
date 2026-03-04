@@ -6,6 +6,8 @@
 from typing import List
 
 import imagehash
+
+from backend.common.i18n_utils import t
 from backend.common.log_utils import LogUtils
 
 
@@ -30,7 +32,7 @@ class VideoComparisonUtil:
         try:
             return [imagehash.hex_to_hash(h.strip()) for h in hash_str.split(',') if h.strip()]
         except Exception as e:
-            LogUtils.error(f"解析视频哈希序列出错: {e}")
+            LogUtils.error(t('dup_video_parse_hash_error', error=str(e)))
             return []
 
     @staticmethod

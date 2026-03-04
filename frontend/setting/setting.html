@@ -20,7 +20,7 @@
         <button id="tab-file-entry" class="tab-btn">文件录入管理</button>
         <button id="tab-dup-check" class="tab-btn">查重设置</button>
         <button id="tab-maintenance" class="tab-btn">数据维护</button>
-        <button id="tab-password" class="tab-btn">修改密码</button>
+        <button id="tab-account" class="tab-btn">账户与系统</button>
     </div>
 
     <!-- 文件仓库分页 -->
@@ -219,34 +219,55 @@
         </div>
     </div>
 
-    <!-- 修改密码分页 -->
-    <div id="content-password" class="tab-content">
+    <!-- 账户与系统分页 -->
+    <div id="content-account" class="tab-content">
         <div id="setting-form" class="settings-grid">
-            <div class="form-group">
-                <label class="label-text" for="username">管理用户名</label>
-                <input type="text" id="username" class="input-field" placeholder="请输入用户名" autocomplete="username">
+            <div class="full-width">
+                <h3 class="mt-0">基本设置</h3>
             </div>
             <div class="form-group">
-                <label class="label-text" for="password">新管理密码</label>
-                <input type="password" id="password" class="input-field" placeholder="若不修改请留空" autocomplete="new-password">
+                <label class="label-text" for="language-select">系统语言</label>
+                <select id="language-select" class="input-field select-field">
+                    <option value="en">English (Default)</option>
+                    <option value="zh">简体中文 (Chinese)</option>
+                </select>
+                <small class="form-hint">提示：更改语言后将立即生效。</small>
+            </div>
+
+            <div class="full-width">
+                <h3 class="mt-20">安全设置</h3>
+            </div>
+            <div class="form-group">
+                <label class="label-text" for="username">用户名</label>
+                <input type="text" id="username" class="input-field" placeholder="请输入用户名" autocomplete="off">
+            </div>
+            <div class="form-group">
+                <!-- 占位，保持网格布局 -->
+            </div>
+            <div class="form-group">
+                <label class="label-text" for="password">新密码</label>
+                <input type="password" id="password" class="input-field" placeholder="不修改请留空" autocomplete="new-password">
             </div>
             <div class="form-group">
                 <label class="label-text" for="confirm-password">确认新密码</label>
                 <input type="password" id="confirm-password" class="input-field" placeholder="请再次输入新密码" autocomplete="new-password">
-                <small class="form-hint">提示：修改密码后需重新登录</small>
             </div>
         </div>
     </div>
-
-    <div id="message" class="message"></div>
 </main>
 
-<!-- 引入公用工具 -->
-<script src="../common/ui_components.js"></script>
+<!-- 底部版权信息 -->
+<footer class="footer">
+    <p>&copy; 2024 文件管理系统 - 让整理更简单</p>
+</footer>
+
+<!-- 引入公用脚本 -->
+<script src="../common/common.js"></script>
 <script src="../common/request.js"></script>
-<script src="../common/toast.js"></script>
-<script src="../common/widget/progress_button.js"></script>
+<script src="../common/ui_components.js"></script>
 <script src="../common/header_toolbar/default/default_header_toolbar.js"></script>
+<script src="../common/widget/progress_button.js"></script>
+<!-- 引入页面逻辑 -->
 <script src="setting.js"></script>
 </body>
 </html>

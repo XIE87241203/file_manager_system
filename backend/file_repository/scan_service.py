@@ -5,6 +5,7 @@ from enum import Enum
 from typing import List, Tuple, Optional
 
 from backend.common.base_async_service import BaseAsyncService
+from backend.common.i18n_utils import t
 from backend.common.log_utils import LogUtils
 from backend.common.progress_manager import ProgressStatus
 from backend.common.thread_pool import ThreadPoolManager
@@ -40,8 +41,8 @@ class ScanService(BaseAsyncService):
         try:
             # --- 初始化逻辑开始 ---
             if cls._progress_manager.get_raw_status() == ProgressStatus.PROCESSING:
-                LogUtils.error("扫描任务已在运行中，拒绝启动")
-                raise RuntimeError("扫描任务已在运行中")
+                LogUtils.error(t('repo_scan_running'))
+                raise RuntimeError(t('repo_scan_running'))
 
             mode: ScanMode = scan_mode if isinstance(scan_mode, ScanMode) else ScanMode.INDEX_SCAN
             
@@ -51,13 +52,13 @@ class ScanService(BaseAsyncService):
             # 重置进度状态
             cls._progress_manager.set_status(ProgressStatus.PROCESSING)
             cls._progress_manager.set_stop_flag(False)
-            cls._progress_manager.reset_progress(message="正在初始化...")
+            cls._progress_manager.reset_progress(message=t('repo_scan_initializing'))
             # --- 初始化逻辑结束 ---
             
             # 调用基类的私有方法启动任务
             return cls._start_task(cls._internal_scan, mode, repo_config)
         except Exception as e:
-            LogUtils.error(f"启动扫描任务失败: {e}")
+            LogUtils.error(t('repo_scan_start_failed', error=str(e)))
             return False
 
     @classmethod
@@ -70,10 +71,10 @@ class ScanService(BaseAsyncService):
             current_scan_time: str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             
             if scan_mode == ScanMode.FULL_SCAN:
-                LogUtils.info("全量扫描模式：清空现有索引...")
+                LogUtils.info(t('repo_scan_full_mode'))
                 FileService.clear_repository(False)
             else:
-                LogUtils.info("增量扫描模式：开始文件扫描...")
+                LogUtils.info(t('repo_scan_incremental_mode'))
 
             # 执行合并后的扫描与特征提取阶段
             new_count, updated_count = cls._combined_scan_logic(scan_mode, current_scan_time, repo_config)
@@ -90,22 +91,22 @@ class ScanService(BaseAsyncService):
 
             # 完成
             cls._progress_manager.set_status(ProgressStatus.COMPLETED)
-            msg: str = f"扫描任务完成。新增: {new_count}, 更新: {updated_count}, 清理失效: {deleted_count}"
+            msg: str = t('repo_scan_completed', new_count=new_count, updated_count=updated_count, deleted_count=deleted_count)
             cls._progress_manager.update_progress(message=msg)
             LogUtils.info(msg)
 
         except Exception as e:
-            LogUtils.error(f"扫描服务运行异常: {e}")
+            LogUtils.error(t('repo_scan_error', error=str(e)))
             cls._progress_manager.set_status(ProgressStatus.ERROR)
-            cls._progress_manager.update_progress(message=f"内部异常: {str(e)}")
+            cls._progress_manager.update_progress(message=t('internal_error', error=str(e)))
 
     @classmethod
     def _combined_scan_logic(cls, scan_mode: ScanMode, current_scan_time: str, repo_config: FileRepositorySettings) -> Tuple[int, int]:
         """
         用途说明：合并阶段 - 在一次目录遍历中完成文件发现、存在校验与特征提取。
         """
-        LogUtils.info("进入综合扫描阶段...")
-        cls._progress_manager.update_progress(message="正在遍历目录并提取特征...")
+        LogUtils.info(t('repo_scan_phase_combined'))
+        cls._progress_manager.update_progress(message=t('repo_scan_traversing'))
 
         directories: List[str] = repo_config.directories
         suffixes: List[str] = [s.replace('.', '').lower() for s in repo_config.scan_suffixes]
@@ -125,7 +126,7 @@ class ScanService(BaseAsyncService):
         for repo_path in directories:
             if cls._progress_manager.is_stopped(): break
             if not os.path.exists(repo_path):
-                LogUtils.error(f"扫描路径不存在: {repo_path}")
+                LogUtils.error(t('repo_scan_path_not_found', path=repo_path))
                 continue
 
             for root, _, files in os.walk(repo_path):
@@ -162,7 +163,7 @@ class ScanService(BaseAsyncService):
                                 info_futures = []
 
                         cls._progress_manager.update_progress(
-                            message=f"已扫描: {new_count + updated_count} (新增: {new_count})"
+                            message=t('repo_scan_progress', count=new_count + updated_count, new=new_count)
                         )
 
         if paths_to_update_time and not cls._progress_manager.is_stopped():
@@ -192,7 +193,7 @@ class ScanService(BaseAsyncService):
                     info_list.append(file_info)
                     success_count += 1
             except Exception as e:
-                LogUtils.error(f"获取文件信息任务异常: {e}")
+                LogUtils.error(t('repo_scan_info_error', error=str(e)))
 
             if len(info_list) >= batch_size:
                 DBOperations.batch_insert_files_index(info_list)
@@ -205,8 +206,8 @@ class ScanService(BaseAsyncService):
         """
         用途说明：清理失效索引。
         """
-        LogUtils.info("进入第三阶段：清理失效索引...")
-        cls._progress_manager.update_progress(message="正在清理失效索引并备份...")
+        LogUtils.info(t('repo_scan_phase_cleanup'))
+        cls._progress_manager.update_progress(message=t('repo_scan_cleaning'))
         deleted_count: int = DBOperations.delete_files_by_not_scan_time(current_scan_time)
         DBOperations.copy_file_index_to_history()
         return deleted_count
@@ -218,5 +219,5 @@ class ScanService(BaseAsyncService):
         """
         cls._progress_manager.set_status(ProgressStatus.IDLE)
         cls._progress_manager.set_stop_flag(False)
-        cls._progress_manager.update_progress(message="任务已手动停止")
-        LogUtils.info("扫描任务已响应停止指令，重置为待机状态")
+        cls._progress_manager.update_progress(message=t('user_stop_task'))
+        LogUtils.info(t('repo_scan_stop_ack'))

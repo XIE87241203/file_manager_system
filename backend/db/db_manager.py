@@ -3,6 +3,7 @@ import sqlite3
 from contextlib import contextmanager
 from typing import Generator
 
+from backend.common.i18n_utils import t
 from backend.common.log_utils import LogUtils
 from backend.common.utils import Utils
 
@@ -40,7 +41,7 @@ class DBManager:
             conn.execute("PRAGMA journal_mode=WAL;")
             conn.execute("PRAGMA synchronous=NORMAL;")
         except Exception as e:
-            LogUtils.error(f"启用 WAL 模式失败: {e}")
+            LogUtils.error(t('db_wal_failed', error=str(e)))
         return conn
 
     @contextmanager
@@ -56,7 +57,7 @@ class DBManager:
             conn.commit()
         except Exception as e:
             conn.rollback()
-            LogUtils.error(f"事务执行失败，已回滚: {e}")
+            LogUtils.error(t('db_transaction_failed', error=str(e)))
             raise e
         finally:
             conn.close()
@@ -83,7 +84,7 @@ class DBManager:
             cursor.execute(f"SELECT {DBConstants.VersionInfo.COL_VERSION} FROM {DBConstants.VersionInfo.TABLE_NAME}")
             row = cursor.fetchone()
             current_db_version: int = row[0] if row else 0
-            LogUtils.info(f"读取数据库版本成功，当前版本: {current_db_version}")
+            LogUtils.info(t('db_version_read_success', version=current_db_version))
 
             # 4. 版本检查与升级
             target_version: int = DBConstants.DB_VERSION
@@ -92,19 +93,19 @@ class DBManager:
                 self._create_tables(cursor)
                 # 新数据库，直接插入当前版本号
                 cursor.execute(f"INSERT INTO {DBConstants.VersionInfo.TABLE_NAME} ({DBConstants.VersionInfo.COL_VERSION}) VALUES (?)", (target_version,))
-                LogUtils.info(f"数据库初始化成功，版本: {target_version}")
+                LogUtils.info(t('db_init_success', version=target_version))
             elif current_db_version < target_version:
                 # 需要升级
-                LogUtils.info(f"检测到数据库版本更新: {current_db_version} -> {target_version}，开始执行适配...")
+                LogUtils.info(t('db_version_update_detected', old=current_db_version, new=target_version))
                 self.migrate_db_version(current_db_version, target_version, cursor)
                 # 更新版本号
                 cursor.execute(f"UPDATE {DBConstants.VersionInfo.TABLE_NAME} SET {DBConstants.VersionInfo.COL_VERSION} = ?", (target_version,))
-                LogUtils.info("数据库版本适配完成")
+                LogUtils.info(t('db_version_update_done'))
 
             conn.commit()
             conn.close()
         except Exception as e:
-            LogUtils.error(f"数据库初始化或升级失败: {e}")
+            LogUtils.error(t('db_init_failed', error=str(e)))
 
     def _create_tables(self, cursor: sqlite3.Cursor) -> None:
         """
@@ -244,9 +245,9 @@ class DBManager:
             try:
                 cursor.execute(f"ALTER TABLE {DBConstants.DuplicateFile.TABLE_FILES} ADD COLUMN {DBConstants.DuplicateFile.COL_SIMILARITY_TYPE} TEXT")
                 cursor.execute(f"ALTER TABLE {DBConstants.DuplicateFile.TABLE_FILES} ADD COLUMN {DBConstants.DuplicateFile.COL_SIMILARITY_RATE} REAL DEFAULT 1.0")
-                LogUtils.info("数据库升级到版本 8: 已为 duplicate_files 添加相似度字段")
+                LogUtils.info(t('db_migrate_v8_success'))
             except Exception as e:
-                LogUtils.error(f"添加相似度字段失败: {e}")
+                LogUtils.error(t('db_migrate_v8_failed', error=str(e)))
 
         if old_version < 9:
             # 升级到版本 9: 添加 batch_check_results 表
@@ -258,7 +259,7 @@ class DBManager:
                     {DBConstants.BatchCheckResult.COL_DETAIL} TEXT
                 )
             ''')
-            LogUtils.info("数据库升级到版本 9: 已创建 batch_check_results 表")
+            LogUtils.info(t('db_migrate_v9_success'))
 
         if old_version < 10:
             # 升级到版本 10: 为 file_index 和 history_file_index 添加 file_name 列
@@ -281,9 +282,9 @@ class DBManager:
                     file_name = os.path.basename(file_path)
                     cursor.execute(f"UPDATE {DBConstants.HistoryFileIndex.TABLE_NAME} SET {DBConstants.HistoryFileIndex.COL_FILE_NAME} = ? WHERE {DBConstants.HistoryFileIndex.COL_ID} = ?", (file_name, row_id))
                 
-                LogUtils.info("数据库升级到版本 10: 已为 file_index 和 history_file_index 添加 file_name 列并完成数据迁移")
+                LogUtils.info(t('db_migrate_v10_success'))
             except Exception as e:
-                LogUtils.error(f"升级到版本 10 失败: {e}")
+                LogUtils.error(t('db_migrate_v10_failed', error=str(e)))
 
         if old_version < 12:
             # 升级到版本 12: 为 duplicate_groups 添加 create_time 列
@@ -320,9 +321,9 @@ class DBManager:
                 # 4. 删除备份表
                 cursor.execute(f"DROP TABLE {temp_table}")
                 
-                LogUtils.info("数据库升级到版本 12: 已通过重建表方式为 duplicate_groups 添加 create_time 列并完成数据迁移")
+                LogUtils.info(t('db_migrate_v12_success'))
             except Exception as e:
-                LogUtils.error(f"升级到版本 12 失败: {e}")
+                LogUtils.error(t('db_migrate_v12_failed', error=str(e)))
                 raise e
 
         if old_version < 13:
@@ -338,9 +339,9 @@ class DBManager:
                 cursor.execute(f"ALTER TABLE {DBConstants.HistoryFileIndex.TABLE_NAME} ADD COLUMN {DBConstants.HistoryFileIndex.COL_VIDEO_DURATION} REAL")
                 cursor.execute(f"ALTER TABLE {DBConstants.HistoryFileIndex.TABLE_NAME} ADD COLUMN {DBConstants.HistoryFileIndex.COL_VIDEO_CODEC} TEXT")
                 
-                LogUtils.info("数据库升级到版本 13: 已为 file_index 和 history_file_index 添加文件类型、视频时长、视频编码列")
+                LogUtils.info(t('db_migrate_v13_success'))
             except Exception as e:
-                LogUtils.error(f"升级到版本 13 失败: {e}")
+                LogUtils.error(t('db_migrate_v13_failed', error=str(e)))
                 raise e
 
         if old_version < 14:
@@ -373,9 +374,9 @@ class DBManager:
                     ON {DBConstants.DuplicateFile.TABLE_FILES} ({DBConstants.DuplicateFile.COL_FILE_PATH})
                 ''')
 
-                LogUtils.info("数据库升级到版本 14: 重置查重关联表并切换为基于路径关联")
+                LogUtils.info(t('db_migrate_v14_success'))
             except Exception as e:
-                LogUtils.error(f"升级到版本 14 失败: {e}")
+                LogUtils.error(t('db_migrate_v14_failed', error=str(e)))
                 raise e
 
 

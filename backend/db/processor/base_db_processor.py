@@ -2,6 +2,7 @@ import sqlite3
 from abc import ABC
 from typing import List, Any, Type, TypeVar, Optional
 
+from backend.common.i18n_utils import t
 from backend.common.log_utils import LogUtils
 from backend.common.utils import Utils
 from backend.db.db_manager import db_manager
@@ -42,10 +43,10 @@ class BaseDBProcessor(ABC):
                     conn.commit()
                 return cursor.rowcount
         except Exception as e:
-            LogUtils.error(f"SQL 执行失败: {query}, 错误: {e}")
+            LogUtils.error(t('db_execute_failed', query=query, error=str(e)))
             if local_conn and conn:
                 conn.rollback()
-            # 优化：重新抛出异常，让上层业务及 API 能够感知错误并返回 500
+            # 重新抛出异常，让上层业务及 API 能够感知错误并返回 500
             raise e
         finally:
             if local_conn and conn:
@@ -68,10 +69,10 @@ class BaseDBProcessor(ABC):
                 conn.commit()
             return cursor.rowcount
         except Exception as e:
-            LogUtils.error(f"批量执行失败: {query}, 错误: {e}")
+            LogUtils.error(t('db_batch_failed', query=query, error=str(e)))
             if local_conn and conn:
                 conn.rollback()
-            # 优化：重新抛出异常
+            # 重新抛出异常
             raise e
         finally:
             if local_conn and conn:
@@ -84,7 +85,7 @@ class BaseDBProcessor(ABC):
         """
         BaseDBProcessor._execute(f'DELETE FROM {table_name}')
         BaseDBProcessor._execute("DELETE FROM sqlite_sequence WHERE name=?", (table_name,))
-        LogUtils.info(f"表 {table_name} 已清空")
+        LogUtils.info(t('db_table_cleared', table_name=table_name))
         return True
 
     @staticmethod

@@ -1,6 +1,7 @@
 from typing import Any, List, Optional
 
 from backend.common.base_async_service import BaseAsyncService
+from backend.common.i18n_utils import t
 from backend.common.log_utils import LogUtils
 from backend.common.progress_manager import ProgressStatus
 from backend.common.utils import Utils
@@ -30,11 +31,11 @@ class DuplicateService(BaseAsyncService):
                 cls._progress_manager.update_progress(
                     current=1,
                     total=1,
-                    message=f"查重完成，共发现 {count} 组重复文件"
+                    message=t('dup_found_count', count=count)
                 )
-                LogUtils.info(f"查重服务初始化：检测到已有 {count} 组重复记录，已自动恢复进度状态")
+                LogUtils.info(t('dup_init_log', count=count))
         except Exception as e:
-            LogUtils.error(f"查重服务初始化失败: {e}")
+            LogUtils.error(t('dup_init_failed', error=str(e)))
 
     @classmethod
     def start_duplicate_check_task(cls) -> bool:
@@ -46,12 +47,12 @@ class DuplicateService(BaseAsyncService):
         try:
             # --- 初始化逻辑开始 ---
             if cls._progress_manager.get_raw_status() == ProgressStatus.PROCESSING:
-                LogUtils.error("查重任务已在运行中，请勿重复启动")
-                raise RuntimeError("查重任务已在运行中")
+                LogUtils.error(t('dup_task_running'))
+                raise RuntimeError(t('dup_task_running'))
 
             cls._progress_manager.set_status(ProgressStatus.PROCESSING)
             cls._progress_manager.set_stop_flag(False)
-            cls._progress_manager.reset_progress(message="正在初始化...")
+            cls._progress_manager.reset_progress(message=t('dup_initializing'))
 
             # 清空旧的重复数据
             DBOperations.clear_duplicate_results()
@@ -60,7 +61,7 @@ class DuplicateService(BaseAsyncService):
             # 使用基类的私有方法提交任务
             return cls._start_task(cls._internal_check)
         except Exception as e:
-            LogUtils.error(f"启动查重任务失败: {e}")
+            LogUtils.error(t('dup_start_failed', error=str(e)))
             return False
 
     @classmethod
@@ -84,16 +85,16 @@ class DuplicateService(BaseAsyncService):
         用途：内部查重逻辑，在独立线程中执行耗时扫描。
         """
         try:
-            LogUtils.info("开始执行文件查重逻辑...")
+            LogUtils.info(t('dup_internal_check_start'))
 
             total_files: int = DBOperations.get_file_index_count()
             if total_files == 0:
-                cls._complete_check([], "未发现可检查的文件")
+                cls._complete_check([], t('dup_no_files'))
                 return
 
             cls._progress_manager.update_progress(
                 total=total_files,
-                message="正在准备分析文件..."
+                message=t('dup_preparing')
             )
 
             helper: DuplicateCheckHelper = DuplicateCheckHelper()
@@ -125,7 +126,7 @@ class DuplicateService(BaseAsyncService):
                     cls._progress_manager.update_progress(
                         current=current_processed,
                         total=total_files,
-                        message=f"正在分析: {file_name}"
+                        message=t('dup_analyzing', file_name=file_name)
                     )
                     helper.add_file(file_info)
 
@@ -135,14 +136,14 @@ class DuplicateService(BaseAsyncService):
                 cls._handle_stopped()
                 return
 
-            cls._progress_manager.update_progress(message="正在生成查重报告，请稍候...")
+            cls._progress_manager.update_progress(message=t('dup_generating_report'))
             results: List[Any] = helper.get_all_results()
-            cls._complete_check(results, f"查重完成，共发现 {len(results)} 组重复文件")
+            cls._complete_check(results, t('dup_found_count', count=len(results)))
 
         except Exception as e:
-            LogUtils.error(f"异步查重任务发生异常: {e}")
+            LogUtils.error(t('dup_async_error', error=str(e)))
             cls._progress_manager.set_status(ProgressStatus.ERROR)
-            cls._progress_manager.update_progress(message=f"查重失败: {str(e)}")
+            cls._progress_manager.update_progress(message=t('dup_failed', error=str(e)))
 
     @classmethod
     def _handle_stopped(cls) -> None:
@@ -151,8 +152,8 @@ class DuplicateService(BaseAsyncService):
         """
         cls._progress_manager.set_status(ProgressStatus.IDLE)
         cls._progress_manager.set_stop_flag(False)
-        cls._progress_manager.update_progress(message="任务已由用户停止")
-        LogUtils.info("查重任务已手动终止并重置状态")
+        cls._progress_manager.update_progress(message=t('user_stop_task'))
+        LogUtils.info(t('dup_stop_ack'))
 
     @staticmethod
     def get_all_duplicate_results(page: int, limit: int, similarity_type: Optional[str] = None) -> PaginationResult[DuplicateGroupResult]:

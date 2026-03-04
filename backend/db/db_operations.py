@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import List, Optional, Tuple, Set
 
+from backend.common.i18n_utils import t
 from backend.common.log_utils import LogUtils
 from backend.db.db_manager import db_manager
 from backend.db.processor_manager import processor_manager
@@ -106,7 +107,7 @@ class DBOperations:
                 res2: bool = processor_manager.duplicate_group_processor.delete_files_by_paths([file_path], conn=conn)
                 return res1 and res2
         except Exception as e:
-            LogUtils.error(f"删除文件索引及重复记录失败: {e}")
+            LogUtils.error(t('repo_delete_crash', error=str(e)))
             return False
 
     @staticmethod
@@ -169,7 +170,7 @@ class DBOperations:
                 processor_manager.duplicate_group_processor.delete_files_by_paths(file_paths, conn=conn)
                 return res1 > 0
         except Exception as e:
-            LogUtils.error(f"批量移入回收站失败: {e}")
+            LogUtils.error(t('repo_clear_error', error=str(e)))
             return False
 
     @staticmethod
@@ -343,7 +344,7 @@ class DBOperations:
                 
                 return count
         except Exception as e:
-            LogUtils.error(f"批量录入待录入文件并差异清理检测结果失败: {e}")
+            LogUtils.error(t('repo_clear_error', error=str(e)))
             return 0
 
     @staticmethod

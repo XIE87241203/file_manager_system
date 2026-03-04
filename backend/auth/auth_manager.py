@@ -1,6 +1,9 @@
-import uuid
 import time
+import uuid
+
+from backend.common.i18n_utils import t
 from backend.setting.setting_service import settingService
+
 
 class AuthManager:
     """
@@ -27,7 +30,7 @@ class AuthManager:
             - (bool, str, str): 第一个值为是否验证成功，第二个值为提示消息，第三个值为 Token (成功时返回)
         """
         if not username or not password_hash_received:
-            return False, "用户名或密码不能为空", None
+            return False, t('auth_user_pass_required'), None
 
         stored_username = settingService.get_config().user_data.username
         # 使用 Setting 类中缓存好的哈希值进行对比
@@ -41,9 +44,9 @@ class AuthManager:
                 "token": new_token,
                 "expire_at": expire_at
             }
-            return True, "登录成功", new_token
+            return True, t('auth_login_success'), new_token
         else:
-            return False, "用户名或密码错误", None
+            return False, t('auth_login_failed'), None
 
     def logout(self, token):
         """
@@ -56,8 +59,8 @@ class AuthManager:
         for user, info in list(self._tokens.items()):
             if info["token"] == token:
                 del self._tokens[user]
-                return True, "注销成功"
-        return False, "无效的 Token 或已注销"
+                return True, t('auth_logout_success')
+        return False, t('auth_invalid_token')
 
     def is_authenticated(self, token):
         """

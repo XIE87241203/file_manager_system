@@ -2,6 +2,7 @@ import threading
 import time
 from typing import Callable, List, Dict, Optional
 
+from backend.common.i18n_utils import t
 from backend.common.log_utils import LogUtils
 from backend.common.thread_pool import ThreadPoolManager
 
@@ -42,10 +43,10 @@ class HeartbeatService:
         """
         with cls._task_lock:
             if name in cls._tasks:
-                LogUtils.debug(f"心跳服务：任务 [{name}] 已存在，无需重复注册")
+                LogUtils.debug(t('hb_task_exists', name=name))
                 return
             cls._tasks[name] = task
-            LogUtils.debug(f"心跳服务：成功注册新任务 [{name}]")
+            LogUtils.debug(t('hb_task_registered', name=name))
 
     @classmethod
     def unregister_task(cls, name: str) -> None:
@@ -58,7 +59,7 @@ class HeartbeatService:
         with cls._task_lock:
             if name in cls._tasks:
                 del cls._tasks[name]
-                LogUtils.debug(f"心跳服务：已移除任务 [{name}]")
+                LogUtils.debug(t('hb_task_removed', name=name))
 
     @classmethod
     def start(cls) -> None:
@@ -72,7 +73,7 @@ class HeartbeatService:
                 return
             cls._running = True
             ThreadPoolManager.submit(cls._run_loop)
-            LogUtils.info("心跳服务已启动")
+            LogUtils.info(t('hb_started'))
 
     @classmethod
     def stop(cls) -> None:
@@ -83,7 +84,7 @@ class HeartbeatService:
         """
         with cls._lock:
             cls._running = False
-            LogUtils.info("心跳服务已停止")
+            LogUtils.info(t('hb_stopped'))
 
     @classmethod
     def _run_loop(cls) -> None:
@@ -103,9 +104,9 @@ class HeartbeatService:
                     try:
                         task()
                     except Exception as e:
-                        LogUtils.error(f"心跳任务执行异常: {e}")
+                        LogUtils.error(t('hb_task_error', error=str(e)))
                 
             except Exception as e:
-                LogUtils.error(f"心跳循环核心异常: {e}")
+                LogUtils.error(t('hb_loop_error', error=str(e)))
             
             time.sleep(cls.HEARTBEAT_INTERVAL)

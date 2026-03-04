@@ -28,6 +28,10 @@ const State = {
     fileNameEntry: {
         file_name_link_prefix: ""
     },
+    userData: {
+        username: "admin",
+        language: "en"
+    },
     // 缩略图同步任务状态
     thumbnailSync: {
         timer: null,
@@ -120,7 +124,7 @@ const UIController = {
             { btn: 'tab-file-entry', content: 'content-file-entry' },
             { btn: 'tab-dup-check', content: 'content-dup-check' },
             { btn: 'tab-maintenance', content: 'content-maintenance' },
-            { btn: 'tab-password', content: 'content-password' }
+            { btn: 'tab-account', content: 'content-account' }
         ];
 
         tabs.forEach(tab => {
@@ -146,8 +150,10 @@ const UIController = {
      */
     fillSettingsForm(data) {
         // 用户数据
-        const userData = data.user_data || {};
+        State.userData = data.user_data || State.userData;
+        const userData = State.userData;
         document.getElementById('username').value = userData.username || '';
+        document.getElementById('language-select').value = userData.language || 'en';
         document.getElementById('password').value = '';
         document.getElementById('confirm-password').value = '';
 
@@ -356,6 +362,7 @@ const App = {
 
         // 4. 采集用户信息数据
         const username = document.getElementById('username').value.trim();
+        const language = document.getElementById('language-select').value;
         const password = document.getElementById('password').value;
         const confirmPassword = document.getElementById('confirm-password').value;
 
@@ -364,7 +371,7 @@ const App = {
             return;
         }
 
-        const userData = { username };
+        const userData = { username, language };
         let isPasswordChanged = false;
         if (password) {
             if (password !== confirmPassword) {
@@ -382,9 +389,10 @@ const App = {
             user_data: userData
         };
 
-        // 5. 查重核心参数变更检查
+        // 5. 检查关键参数变更并执行保存
         const isIntervalChanged = dc.video_interval_seconds !== State.duplicateCheck.video_interval_seconds;
         const isBackwardsChanged = dc.video_backwards !== State.duplicateCheck.video_backwards;
+        const isLanguageChanged = language !== State.userData.language;
 
         if (isIntervalChanged || isBackwardsChanged) {
             UIComponents.showConfirmModal({
@@ -393,21 +401,21 @@ const App = {
                 onConfirm: async () => {
                     const clearRes = await API.clearVideoFeatures();
                     if (clearRes.status === 'success') {
-                        await this.executeGlobalSave(updateData, isPasswordChanged);
+                        await this.executeGlobalSave(updateData, isPasswordChanged, isLanguageChanged);
                     }
                 }
             });
         } else {
-            await this.executeGlobalSave(updateData, isPasswordChanged);
+            await this.executeGlobalSave(updateData, isPasswordChanged, isLanguageChanged);
         }
     },
 
     /**
      * 用途说明：执行全局保存请求
-     * 入参说明：updateData (Object) - 合并后的更新配置数据, isPasswordChanged (boolean) - 标识是否修改了密码
+     * 入参说明：updateData (Object) - 合并后的更新配置数据, isPasswordChanged (boolean), isLanguageChanged (boolean)
      * 返回值说明：无
      */
-    async executeGlobalSave(updateData, isPasswordChanged) {
+    async executeGlobalSave(updateData, isPasswordChanged, isLanguageChanged) {
         try {
             const res = await API.updateSettings(updateData);
             if (res.status === 'success') {
@@ -419,6 +427,9 @@ const App = {
                         Request.eraseCookie('token');
                         window.location.href = '../login/login.html';
                     }, 1000);
+                } else if (isLanguageChanged) {
+                    // 语言变更后，重新刷新页面以应用新语言
+                    window.location.reload();
                 } else {
                     this.loadSettings();
                 }

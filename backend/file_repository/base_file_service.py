@@ -1,5 +1,6 @@
 from typing import Tuple
 
+from backend.common.i18n_utils import t
 from backend.common.utils import Utils
 from backend.db.db_operations import DBOperations
 
@@ -32,6 +33,6 @@ class BaseFileService:
             # 4. 清理数据库记录（包括主索引和重复组关联）
             DBOperations.delete_file_index_by_path(file_path)
 
-            return True, "文件及其关联索引、缩略图已成功删除"
+            return True, t('repo_cleanup_success')
         except Exception as e:
             raise e

@@ -1,6 +1,7 @@
 from abc import ABC
 from typing import Any, Dict, Callable
 
+from backend.common.i18n_utils import t
 from backend.common.log_utils import LogUtils
 from backend.common.progress_manager import ProgressManager, ProgressStatus
 from backend.common.thread_pool import ThreadPoolManager
@@ -35,7 +36,7 @@ class BaseAsyncService(ABC):
         """
         if cls._progress_manager.get_raw_status() == ProgressStatus.PROCESSING:
             cls._progress_manager.set_stop_flag(True)
-            LogUtils.info(f"{cls.__name__}: 用户请求停止任务，已设置停止标志位")
+            LogUtils.info(t('async_stop_requested', name=cls.__name__))
 
     @classmethod
     def _start_task(cls, task_callable: Callable, *args: Any, **kwargs: Any) -> bool:
@@ -49,8 +50,8 @@ class BaseAsyncService(ABC):
         """
         try:
             ThreadPoolManager.submit(task_callable, *args, **kwargs)
-            LogUtils.info(f"{cls.__name__}: 异步任务已成功提交至线程池")
+            LogUtils.info(t('async_task_submitted', name=cls.__name__))
             return True
         except Exception as e:
-            LogUtils.error(f"{cls.__name__}: 提交异步任务失败: {e}")
+            LogUtils.error(t('async_task_submit_failed', name=cls.__name__, error=str(e)))
             return False

@@ -4,6 +4,7 @@ from typing import List
 import imagehash
 from PIL import Image
 
+from backend.common.i18n_utils import t
 from backend.common.log_utils import LogUtils
 from backend.common.utils import Utils
 from backend.db.db_constants import DBConstants
@@ -47,7 +48,7 @@ class ImageChecker(BaseDuplicateChecker):
                     hash_val = imagehash.phash(img)
                     self.image_data.append(ImageData(info=file_info, hash=hash_val))
             except Exception as e:
-                LogUtils.error(f"ImageChecker 处理图片失败: {file_path}, 错误: {str(e)}")
+                LogUtils.error(t('dup_image_checker_failed', path=file_path, error=str(e)))
 
     def get_results(self) -> List[DuplicateGroupDBModel]:
         """
@@ -109,7 +110,7 @@ class ImageChecker(BaseDuplicateChecker):
                     files=current_group_files
                 ))
 
-        LogUtils.info(f"ImageChecker 完成查重，发现 {len(results)} 组重复/相似图片。")
+        LogUtils.info(t('dup_image_checker_completed', count=len(results)))
         return results
 
     def is_supported(self, file_path: str) -> bool:

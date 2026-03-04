@@ -3,7 +3,6 @@ import os
 from datetime import datetime
 from typing import List, Optional
 
-from backend.common.log_utils import LogUtils
 from backend.common.utils import Utils
 
 
@@ -28,7 +27,8 @@ class SystemService:
         log_path: str = os.path.join(log_dir, log_filename)
 
         if not os.path.exists(log_path):
-            return [f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 日志文件不存在: {log_filename}"]
+            now_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            return [t('sys_log_not_found', time=now_time, filename=log_filename)]
 
         try:
             with open(log_path, 'r', encoding='utf-8') as f:
@@ -38,7 +38,9 @@ class SystemService:
             
             # 1. 过滤 API 日志 (通常包含 /api/ 路径的 INFO 日志)
             if exclude_api:
-                filtered_lines = [line for line in filtered_lines if LogUtils.API_START not in line]
+                from backend.common.i18n_utils import t
+                api_start_text = t('log_api_start')
+                filtered_lines = [line for line in filtered_lines if api_start_text not in line]
 
             # 2. 按等级过滤
             if level and level.upper() != 'ALL':
@@ -54,7 +56,7 @@ class SystemService:
             return filtered_lines[-line_count:] if len(filtered_lines) > line_count else filtered_lines
             
         except Exception as e:
-            return [f"读取日志失败: {str(e)}"]
+            return [t('sys_log_read_failed', error=str(e))]
 
     @staticmethod
     def get_available_log_files() -> List[str]:

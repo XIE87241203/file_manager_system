@@ -1,6 +1,7 @@
 import schedule
 
 from backend.common.heartbeat_service import HeartbeatService
+from backend.common.i18n_utils import t
 from backend.common.log_utils import LogUtils
 from backend.file_repository.scan_service import ScanService, ScanMode
 from backend.setting.setting_models import FileRepositorySettings
@@ -22,12 +23,12 @@ class AutoScanService:
         入参说明：无
         返回值说明：无
         """
-        LogUtils.info("定时任务：到达自动刷新时间，准备开始增量扫描...")
+        LogUtils.info(t('repo_auto_scan_trigger'))
         success: bool = ScanService.start_scan_task(ScanMode.INDEX_SCAN)
         if success:
-            LogUtils.info("定时任务：扫描任务已成功启动")
+            LogUtils.info(t('repo_auto_scan_success'))
         else:
-            LogUtils.error("定时任务：启动扫描任务失败（可能已有任务在运行）")
+            LogUtils.error(t('repo_auto_scan_failed'))
 
     @classmethod
     def refresh_config(cls) -> None:
@@ -47,18 +48,18 @@ class AutoScanService:
                 target_time: str = config.auto_refresh_time
                 schedule.every().day.at(target_time).do(cls._trigger_scan).tag('auto_scan')
                 cls._current_time_str = target_time
-                LogUtils.info(f"已更新定时扫描任务配置：每天 {target_time}")
+                LogUtils.info(t('repo_auto_scan_updated', time=target_time))
                 
                 # 注册到心跳服务
                 HeartbeatService.register_task(cls.TASK_NAME, cls._on_heartbeat)
             else:
                 cls._current_time_str = ""
-                LogUtils.info("定时扫描配置已关闭，准备从心跳服务中反注册")
+                LogUtils.info(t('repo_auto_scan_disabled'))
                 # 从心跳服务中反注册
                 HeartbeatService.unregister_task(cls.TASK_NAME)
 
         except Exception as e:
-            LogUtils.error(f"刷新定时任务配置异常: {e}")
+            LogUtils.error(t('repo_auto_scan_config_error', error=str(e)))
 
     @classmethod
     def _on_heartbeat(cls) -> None:
@@ -70,4 +71,4 @@ class AutoScanService:
         try:
             schedule.run_pending()
         except Exception as e:
-            LogUtils.error(f"定时任务调度检查异常: {e}")
+            LogUtils.error(t('repo_auto_scan_schedule_error', error=str(e)))

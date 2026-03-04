@@ -11,6 +11,7 @@ import cv2
 import imagehash
 from PIL import Image
 
+from backend.common.i18n_utils import t
 from backend.common.log_utils import LogUtils
 from backend.db.db_operations import DBOperations
 from backend.model.db.file_index_db_model import FileIndexDBModel
@@ -69,7 +70,7 @@ class VideoAnalyzer:
         frame_count = cap.get(cv2.CAP_PROP_FRAME_COUNT)
 
         if fps <= 0 or frame_count <= 0:
-            LogUtils.info(f"无法解析视频时长信息（FPS 或帧数无效）: {video_path}")
+            LogUtils.info(t('dup_video_duration_error', path=video_path))
             return None
 
         return frame_count / fps
@@ -97,7 +98,7 @@ class VideoAnalyzer:
             image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
             return imagehash.phash(image)
         except Exception as e:
-            LogUtils.debug(f"提取帧哈希失败: {e}")
+            LogUtils.debug(t('dup_video_frame_hash_failed', error=str(e)))
             return None
 
     def generate_hash_sequence(self, cap: cv2.VideoCapture, video_path: str, interval: int,
@@ -128,7 +129,7 @@ class VideoAnalyzer:
             if frame_hash:
                 hashes.append(frame_hash)
             else:
-                LogUtils.info(f"警告: 无法获取 {video_path} 在 {timestamp}s 处的采样哈希。")
+                LogUtils.info(t('dup_video_sample_failed', path=video_path, time=timestamp))
         return hashes
 
     def create_video_info(self, video_path: str, interval_seconds: int, backwards: bool = False) -> Optional[VideoFileInfoResult]:
@@ -144,7 +145,7 @@ class VideoAnalyzer:
             - Optional[VideoInfoCache]: 视频信息对象。
         """
         if not os.path.exists(video_path):
-            LogUtils.error(f"视频文件路径不存在: {video_path}")
+            LogUtils.error(t('video_not_found'))
             return None
 
         try:
@@ -157,7 +158,7 @@ class VideoAnalyzer:
             video_feature = DBOperations.get_video_features_by_md5(file_idx.file_md5)
 
             if video_feature and video_feature.video_hashes:
-                LogUtils.info(f"从特征库中匹配到视频指纹: {video_path}")
+                LogUtils.info(t('dup_video_feature_matched', path=video_path))
                 video_info = VideoFileInfoResult(
                     file_index=file_idx,
                     video_feature=video_feature
@@ -168,19 +169,19 @@ class VideoAnalyzer:
             cap = cv2.VideoCapture(video_path)
             try:
                 if not cap.isOpened():
-                    LogUtils.error(f"无法打开视频文件: {video_path}")
+                    LogUtils.error(t('dup_video_open_failed', path=video_path))
                     return None
 
                 duration = self.get_video_duration(cap, video_path)
                 if duration is None:
                     return None
 
-                LogUtils.info(f"正在为视频生成哈希序列 (倒序: {backwards}): {video_path}")
+                LogUtils.info(t('dup_video_generating_hashes', backwards=backwards, path=video_path))
                 video_hashes_list = self.generate_hash_sequence(cap, video_path, interval_seconds,
                                                                 duration, backwards)
 
                 if not video_hashes_list:
-                    LogUtils.info(f"未能为视频 {video_path} 生成任何有效哈希。")
+                    LogUtils.info(t('dup_video_no_valid_hashes', path=video_path))
                     return None
 
                 video_hashes_str = ",".join(map(str, video_hashes_list))
@@ -203,5 +204,5 @@ class VideoAnalyzer:
                 cap.release()
 
         except Exception as e:
-            LogUtils.error(f"处理视频 {video_path} 时发生异常: {e}")
+            LogUtils.error(t('dup_video_process_error', path=video_path, error=str(e)))
             return None

@@ -6,6 +6,7 @@ from typing import Tuple, List, Optional
 import cv2
 
 from backend.common.file_type_enum import FileType
+from backend.common.i18n_utils import t
 from backend.common.log_utils import LogUtils
 
 
@@ -39,7 +40,7 @@ class Utils:
         hash_md5 = hashlib.md5()
         try:
             if not os.path.exists(file_path):
-                LogUtils.error(f"文件不存在，无法计算 MD5: {file_path}")
+                LogUtils.error(t('utils_file_not_found_md5', path=file_path))
                 return file_path, ""
                 
             # 优化：使用 64KB 的缓冲区提高大文件读取速度
@@ -48,7 +49,7 @@ class Utils:
                     hash_md5.update(chunk)
             return file_path, hash_md5.hexdigest()
         except Exception as e:
-            LogUtils.error(f"计算文件 MD5 失败: {file_path}, 错误: {e}")
+            LogUtils.error(t('utils_md5_failed', path=file_path, error=str(e)))
             return file_path, ""
 
     @staticmethod
@@ -60,10 +61,10 @@ class Utils:
             sample_size (int): 每个采样块的大小（字节），默认 8KB
         返回值说明：Tuple[str, str] - (文件绝对路径, 采样 MD5 十六进制字符串)
         """
-        LogUtils.debug(f"正在计算MD5: {file_path}")
+        LogUtils.debug(t('utils_calculating_md5_log', path=file_path))
         try:
             if not os.path.exists(file_path):
-                LogUtils.error(f"文件不存在，无法计算快速 MD5: {file_path}")
+                LogUtils.error(t('utils_file_not_found_fast_md5', path=file_path))
                 return file_path, ""
 
             file_size: int = os.path.getsize(file_path)
@@ -92,7 +93,7 @@ class Utils:
                     
             return file_path, hash_md5.hexdigest()
         except Exception as e:
-            LogUtils.error(f"计算文件快速 MD5 失败: {file_path}, 错误: {e}")
+            LogUtils.error(t('utils_fast_md5_failed', path=file_path, error=str(e)))
             return file_path, ""
 
     @staticmethod
@@ -157,10 +158,10 @@ class Utils:
             
         try:
             os.remove(file_path)
-            LogUtils.info(f"文件已删除: {file_path}")
+            LogUtils.info(t('utils_file_deleted', path=file_path))
             return True
         except Exception as e:
-            LogUtils.error(f"删除文件失败: {file_path}, 错误: {e}")
+            LogUtils.error(t('utils_delete_failed', path=file_path, error=str(e)))
             raise e
 
     @staticmethod
@@ -229,7 +230,7 @@ class Utils:
                     # 将整数转换为 4 字符编码字符串
                     codec = "".join([chr((fourcc >> 8 * i) & 0xFF) for i in range(4)]).strip()
         except Exception as e:
-            LogUtils.error(f"提取视频参数失败: {file_path}, 错误: {e}")
+            LogUtils.error(t('utils_extract_video_params_failed', path=file_path, error=str(e)))
         finally:
             if cap:
                 cap.release()
@@ -276,5 +277,5 @@ class Utils:
                 video_codec=video_codec
             )
         except Exception as e:
-            LogUtils.error(f"获取文件信息失败: {file_path}, 错误: {e}")
+            LogUtils.error(t('utils_get_file_info_failed', path=file_path, error=str(e)))
             return None

@@ -1,6 +1,7 @@
 from typing import List, Dict, Tuple, Optional
 
 from backend.common.base_async_service import BaseAsyncService
+from backend.common.i18n_utils import t
 from backend.common.log_utils import LogUtils
 from backend.common.progress_manager import ProgressStatus
 from backend.common.utils import Utils
@@ -27,11 +28,11 @@ class BatchCheckService(BaseAsyncService):
                 cls._progress_manager.update_progress(
                     current=1,
                     total=1,
-                    message=f"检测完成，共有 {count} 条检测记录"
+                    message=t('fn_batch_check_init_msg', count=count)
                 )
-                LogUtils.info(f"批量检测服务初始化：检测到已有 {count} 条记录，已自动恢复进度状态")
+                LogUtils.info(t('fn_batch_check_init_log', count=count))
         except Exception as e:
-            LogUtils.error(f"批量检测服务初始化失败: {e}")
+            LogUtils.error(t('fn_batch_check_init_failed', error=str(e)))
 
     @classmethod
     def start_batch_check_task(cls, file_names: List[str]) -> bool:
@@ -43,19 +44,19 @@ class BatchCheckService(BaseAsyncService):
         try:
             # --- 初始化逻辑开始 ---
             if cls._progress_manager.get_raw_status() == ProgressStatus.PROCESSING:
-                LogUtils.error("批量检测任务已在运行中，拒绝启动")
-                raise RuntimeError("批量检测任务已在运行中")
+                LogUtils.error(t('fn_batch_check_running_error'))
+                raise RuntimeError(t('fn_batch_check_running_error'))
 
             # 重置进度和状态
             cls._progress_manager.set_status(ProgressStatus.PROCESSING)
             cls._progress_manager.set_stop_flag(False)
-            cls._progress_manager.reset_progress(message="准备开始检测...", total=len(file_names))
+            cls._progress_manager.reset_progress(message=t('fn_batch_check_preparing'), total=len(file_names))
             # --- 初始化逻辑结束 ---
             
             # 使用基类的私有方法启动任务
             return cls._start_task(cls._internal_check, file_names)
         except Exception as e:
-            LogUtils.error(f"启动批量检测任务失败: {e}")
+            LogUtils.error(t('fn_batch_check_start_failed_log', error=str(e)))
             return False
 
     @classmethod
@@ -74,7 +75,7 @@ class BatchCheckService(BaseAsyncService):
             for i in range(0, total, batch_size):
                 # 检测是否被叫停
                 if cls._progress_manager.is_stopped():
-                    LogUtils.info("批量检测任务已由用户手动停止")
+                    LogUtils.info(t('fn_batch_check_stopped_log'))
                     break
 
                 # 获取当前批次的文件名
@@ -99,7 +100,7 @@ class BatchCheckService(BaseAsyncService):
                         source, detail = "index", index_matches[name]
                     elif name in history_matches:
                         # 曾录入库匹配：返回匹配到的完整名
-                        source, detail = "history", f"匹配到: {history_matches[name]}"
+                        source, detail = "history", t('fn_batch_check_matched_history', name=history_matches[name])
                     elif name in pending_matches:
                         # 待录入库匹配：返回匹配到的名
                         source, detail = "pending", pending_matches[name]
@@ -113,20 +114,20 @@ class BatchCheckService(BaseAsyncService):
                 current_progress = min(i + batch_size, total)
                 cls._progress_manager.update_progress(
                     current=current_progress,
-                    message=f"已完成 {current_progress}/{total}"
+                    message=t('fn_batch_check_progress', current=current_progress, total=total)
                 )
 
             if cls._progress_manager.is_stopped():
                 cls._progress_manager.set_status(ProgressStatus.IDLE)
-                cls._progress_manager.update_progress(message="检测任务已停止")
+                cls._progress_manager.update_progress(message=t('fn_batch_check_stopped_msg'))
             else:
                 cls._progress_manager.set_status(ProgressStatus.COMPLETED)
-                LogUtils.info("批量检测任务已完成")
+                LogUtils.info(t('fn_batch_check_completed_log'))
             
         except Exception as e:
-            LogUtils.error(f"批量检测任务异常: {e}")
+            LogUtils.error(t('fn_batch_check_error', error=str(e)))
             cls._progress_manager.set_status(ProgressStatus.ERROR)
-            cls._progress_manager.update_progress(message=f"内部异常: {str(e)}")
+            cls._progress_manager.update_progress(message=t('fn_batch_check_internal_error', error=str(e)))
 
     @staticmethod
     def get_all_results(sort_by: Optional[str] = None, order_asc: bool = False) -> List[BatchCheckDBModel]:

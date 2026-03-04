@@ -1,5 +1,6 @@
 from typing import List
 
+from backend.common.i18n_utils import t
 from backend.common.log_utils import LogUtils
 from backend.common.utils import Utils
 from backend.file_repository.duplicate_check.checker.base_checker import BaseDuplicateChecker
@@ -50,7 +51,7 @@ class VideoChecker(BaseDuplicateChecker):
             None
         """
         if Utils.is_video_file(file_info.file_path):
-            LogUtils.info(f"VideoChecker 正在处理视频: {file_info.file_path}")
+            LogUtils.info(t('dup_video_checker_processing', path=file_info.file_path))
             # 将视频添加到相似性树中进行分析
             self.tree.add_video(file_info.file_path)
 

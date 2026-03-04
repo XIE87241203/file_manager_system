@@ -21,8 +21,6 @@ class LogUtils:
         datefmt='%Y/%m/%d-%H:%M:%S'
     )
 
-    API_START: str = "接口请求"
-
     @staticmethod
     def get_log_filename(date_str: str) -> str:
         """
@@ -116,7 +114,9 @@ class LogUtils:
     def api(cls, message: str) -> None:
         """用途说明：打印 API 级别日志（自定义等级 25）。"""
         cls._check_and_rotate()
-        if cls._logger: cls._logger.log(LOG_LEVEL_API, f"{cls.API_START} - {message}")
+        if cls._logger:
+            from backend.common.i18n_utils import t
+            cls._logger.log(LOG_LEVEL_API, f"{t('log_api_start')} - {message}")
 
     @classmethod
     def error(cls, message: str) -> None:

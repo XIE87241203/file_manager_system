@@ -4,15 +4,24 @@ import sys
 import traceback
 from typing import Any, Tuple
 
-from backend.common.log_utils import LogUtils
-from backend.db.db_manager import db_manager
-
 # 确保项目根目录在 sys.path 中
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if project_root not in sys.path:
     sys.path.append(project_root)
-# 初始化日志
+
+from backend.common.log_utils import LogUtils
+from backend.db.db_manager import db_manager
+from backend.common.i18n_utils import I18nUtils, t
+from backend.setting.setting_service import settingService
+
+# 1. 优先初始化 i18n 环境
+# 初始化前默认是 en，此处读取配置中的语言
+current_lang = settingService.get_config().user_data.language
+I18nUtils.init(language=current_lang)
+
+# 2. 初始化日志
 LogUtils.init(level=logging.DEBUG)
+
 from flask import Flask, request, send_from_directory
 from flask_cors import CORS
 from waitress import serve
@@ -49,7 +58,7 @@ def log_request_info() -> None:
             data = dict(request.form)
         elif request.args:
             data = dict(request.args)
-        LogUtils.api(f"方法: {request.method}, 路径: {request.path}, Token: {token}, 参数: {data}")
+        LogUtils.api(t('log_api_request', method=request.method, path=request.path, token=token, data=data))
 
 @app.route('/')
 def index() -> Any:
@@ -62,12 +71,12 @@ def index() -> Any:
 
 @app.errorhandler(400)
 def bad_request(e: Any) -> Tuple[Any, int]:
-    return error_response("请求参数错误或格式非法", 400)
+    return error_response(t('request_params_error'), 400)
 
 @app.errorhandler(404)
 def page_not_found(e: Any) -> Any:
     if request.path.startswith('/api'):
-        return error_response("请求的接口不存在", 404)
+        return error_response(t('api_not_found'), 404)
     return "404 Not Found", 404
 
 @app.errorhandler(Exception)
@@ -79,10 +88,10 @@ def handle_global_exception(e: Exception) -> Tuple[Any, int]:
     """
     # 1. 记录详细的错误堆栈到日志文件，方便排查
     error_stack: str = traceback.format_exc()
-    LogUtils.error(f"系统触发未捕获异常 -> 路径: {request.path}\n{error_stack}")
+    LogUtils.error(t('sys_unhandled_exception', path=request.path, stack=error_stack))
     
     # 2. 返回标准错误格式
-    return error_response(f"服务器内部错误: {str(e)}", 500)
+    return error_response(t('internal_error', error=str(e)), 500)
 
 # 注册蓝图
 app.register_blueprint(auth_bp, url_prefix='/api')
@@ -101,8 +110,8 @@ def start_server() -> None:
     from backend.file_repository.auto_scan_service import AutoScanService
     AutoScanService.refresh_config()
     
-    LogUtils.info(f"系统服务正在启动 (Port: {GlobalConfig.SYSTEM_PORT})...")
-    LogUtils.info(f"访问地址: http://localhost:{GlobalConfig.SYSTEM_PORT}")
+    LogUtils.info(t('sys_starting', port=GlobalConfig.SYSTEM_PORT))
+    LogUtils.info(t('sys_address', url=f"http://localhost:{GlobalConfig.SYSTEM_PORT}"))
     serve(app, host='0.0.0.0', port=GlobalConfig.SYSTEM_PORT, threads=8)
 
 if __name__ == '__main__':

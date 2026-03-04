@@ -1,6 +1,7 @@
 from typing import List, Optional
 
 from backend.common.base_async_service import BaseAsyncService
+from backend.common.i18n_utils import t
 from backend.common.log_utils import LogUtils
 from backend.common.progress_manager import ProgressStatus
 from backend.db.db_operations import DBOperations
@@ -25,19 +26,19 @@ class RecycleBinService(BaseAsyncService):
         try:
             # --- 初始化逻辑开始 ---
             if cls._progress_manager.get_raw_status() == ProgressStatus.PROCESSING:
-                LogUtils.error("批量删除任务已在运行中，拒绝启动")
-                raise RuntimeError("批量删除任务已在运行中")
+                LogUtils.error(t('repo_delete_running'))
+                raise RuntimeError(t('repo_delete_running'))
 
             cls._progress_manager.set_status(ProgressStatus.PROCESSING)
             cls._progress_manager.set_stop_flag(False)
-            msg: str = "正在准备删除任务..." if file_paths else "正在准备清空回收站..."
+            msg: str = t('repo_delete_preparing') if file_paths else t('repo_recycle_clear_preparing')
             cls._progress_manager.reset_progress(message=msg)
             # --- 初始化逻辑结束 ---
 
             # 使用基类的私有方法启动删除任务
             return cls._start_task(cls._internal_delete, file_paths)
         except Exception as e:
-            LogUtils.error(f"启动删除任务失败: {e}")
+            LogUtils.error(t('repo_delete_start_failed', error=str(e)))
             return False
 
     @staticmethod
@@ -55,7 +56,7 @@ class RecycleBinService(BaseAsyncService):
         try:
             return DBOperations.batch_move_to_recycle_bin(file_paths)
         except Exception as e:
-            LogUtils.error(f"批量移入回收站失败: {e}")
+            LogUtils.error(t('repo_clear_error', error=str(e)))
             return False
 
     @staticmethod
@@ -66,7 +67,7 @@ class RecycleBinService(BaseAsyncService):
         try:
             return DBOperations.batch_restore_from_recycle_bin(file_paths)
         except Exception as e:
-            LogUtils.error(f"批量恢复文件失败: {e}")
+            LogUtils.error(t('repo_clear_error', error=str(e)))
             return False
 
     @classmethod
@@ -84,11 +85,11 @@ class RecycleBinService(BaseAsyncService):
                     cls._progress_manager.set_status(ProgressStatus.IDLE)
                     return
 
-                cls._progress_manager.update_progress(total=total_to_delete, current=0, message=f"准备删除 {total_to_delete} 个文件...")
+                cls._progress_manager.update_progress(total=total_to_delete, current=0, message=t('repo_delete_ready', count=total_to_delete))
                 
                 for path in file_paths_to_delete:
                     if cls._progress_manager.is_stopped():
-                        LogUtils.info("删除任务已由用户手动停止")
+                        LogUtils.info(t('repo_task_stopped_log', count=total_deleted))
                         break
                         
                     success, _ = BaseFileService.delete_file(path)
@@ -98,9 +99,9 @@ class RecycleBinService(BaseAsyncService):
                     if total_deleted % 10 == 0 or total_deleted == total_to_delete:
                         cls._progress_manager.update_progress(
                             current=total_deleted, 
-                            message=f"正在删除文件: {total_deleted}/{total_to_delete}"
+                            message=t('repo_deleting_progress', current=total_deleted, total=total_to_delete)
                         )
-                msg: str = f"批量删除完成，共计删除 {total_deleted} 个文件"
+                msg: str = t('repo_delete_batch_done', count=total_deleted)
             else:
                 # 情况 B：未指定文件列表（清空回收站）
                 limit: int = 100
@@ -109,10 +110,10 @@ class RecycleBinService(BaseAsyncService):
                 
                 if total_to_delete == 0:
                     cls._progress_manager.set_status(ProgressStatus.IDLE)
-                    cls._progress_manager.update_progress(message="回收站本就是空的哦")
+                    cls._progress_manager.update_progress(message=t('repo_recycle_empty'))
                     return
 
-                cls._progress_manager.update_progress(total=total_to_delete, current=0, message=f"准备清空回收站，共 {total_to_delete} 个文件...")
+                cls._progress_manager.update_progress(total=total_to_delete, current=0, message=t('repo_recycle_clear_ready', count=total_to_delete))
 
                 while not cls._progress_manager.is_stopped():
                     res = DBOperations.search_file_index_list(1, limit, "file_path", True, "", is_in_recycle_bin=True)
@@ -131,15 +132,15 @@ class RecycleBinService(BaseAsyncService):
                         if total_deleted % 10 == 0 or total_deleted == total_to_delete:
                             cls._progress_manager.update_progress(
                                 current=total_deleted, 
-                                message=f"正在清空回收站: {total_deleted}/{total_to_delete}"
+                                message=t('repo_recycle_clearing_progress', current=total_deleted, total=total_to_delete)
                             )
                     
                     if len(batch_paths) < limit:
                         break
-                msg = f"回收站已彻底清空，共计删除 {total_deleted} 个实体及其记录"
+                msg = t('repo_recycle_clear_done', count=total_deleted)
 
             if cls._progress_manager.is_stopped():
-                msg = f"任务已停止。已处理: {total_deleted}"
+                msg = t('repo_task_stopped_log', count=total_deleted)
                 cls._progress_manager.set_status(ProgressStatus.IDLE)
                 cls._progress_manager.set_stop_flag(False)
             else:
@@ -149,7 +150,6 @@ class RecycleBinService(BaseAsyncService):
             LogUtils.info(msg)
             
         except Exception as e:
-            LogUtils.error(f"执行删除任务时发生崩溃: {e}")
+            LogUtils.error(t('repo_delete_crash', error=str(e)))
             cls._progress_manager.set_status(ProgressStatus.ERROR)
-            cls._progress_manager.update_progress(message=f"操作失败: {str(e)}")
-
+            cls._progress_manager.update_progress(message=t('operation_failed', error=str(e)))

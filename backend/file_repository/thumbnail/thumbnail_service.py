@@ -3,6 +3,7 @@ import shutil
 from typing import Any, List
 
 from backend.common.base_async_service import BaseAsyncService
+from backend.common.i18n_utils import t
 from backend.common.log_utils import LogUtils
 from backend.common.progress_manager import ProgressStatus
 from backend.common.utils import Utils
@@ -36,7 +37,7 @@ class ThumbnailService(BaseAsyncService):
         入参说明：无
         返回值说明：无
         """
-        LogUtils.info("正在请求停止所有缩略图相关任务...")
+        LogUtils.info(t('thumb_stop_all_request'))
         ThumbnailGenerator().clear_queue()
 
     @classmethod
@@ -49,7 +50,7 @@ class ThumbnailService(BaseAsyncService):
         try:
             # --- 初始化逻辑开始 ---
             if cls._progress_manager.get_raw_status() == ProgressStatus.PROCESSING:
-                LogUtils.error("物理同步任务已在运行中，拒绝重复启动")
+                LogUtils.error(t('thumb_sync_running'))
                 return False
 
             if not os.path.exists(cls._THUMBNAIL_DIR):
@@ -58,13 +59,13 @@ class ThumbnailService(BaseAsyncService):
             # 重置进度管理器
             cls._progress_manager.set_status(ProgressStatus.PROCESSING)
             cls._progress_manager.set_stop_flag(False)
-            cls._progress_manager.reset_progress(message="正在准备同步...")
+            cls._progress_manager.reset_progress(message=t('thumb_sync_preparing'))
             # --- 初始化逻辑结束 ---
             
             # 使用基类的私有方法启动物理同步任务
             return cls._start_task(cls._internal_sync_logic)
         except Exception as e:
-            LogUtils.error(f"启动物理同步任务失败: {e}")
+            LogUtils.error(t('thumb_sync_start_failed', error=str(e)))
             cls._progress_manager.set_status(ProgressStatus.ERROR)
             return False
 
@@ -76,23 +77,23 @@ class ThumbnailService(BaseAsyncService):
         返回值说明：无
         """
         try:
-            cls._progress_manager.update_progress(message="正在扫描缩略图缓存目录...")
+            cls._progress_manager.update_progress(message=t('thumb_sync_scanning'))
             
             all_files: List[str] = os.listdir(cls._THUMBNAIL_DIR)
             total_files: int = len(all_files)
             
             if total_files == 0:
                 cls._progress_manager.set_status(ProgressStatus.COMPLETED)
-                cls._progress_manager.update_progress(message="缓存目录为空，无需同步")
+                cls._progress_manager.update_progress(message=t('thumb_sync_empty'))
                 return
 
-            cls._progress_manager.reset_progress(total=total_files, message=f"找到 {total_files} 个物理文件，开始校验...")
+            cls._progress_manager.reset_progress(total=total_files, message=t('thumb_sync_found_files', count=total_files))
 
             delete_count: int = 0
             for index, filename in enumerate(all_files):
                 # 检查任务是否被手动停止
                 if cls._progress_manager.is_stopped():
-                    LogUtils.info("物理同步任务被用户手动停止")
+                    LogUtils.info(t('thumb_sync_user_stop'))
                     return
 
                 # 获取文件名（MD5）
@@ -109,17 +110,17 @@ class ThumbnailService(BaseAsyncService):
                 if index % 100 == 0 or index == total_files - 1:
                     cls._progress_manager.update_progress(
                         current=index + 1, 
-                        message=f"已扫描: {index + 1}/{total_files}，已清理失效文件: {delete_count}"
+                        message=t('thumb_sync_progress', current=index + 1, total=total_files, delete_count=delete_count)
                     )
 
             cls._progress_manager.set_status(ProgressStatus.COMPLETED)
-            cls._progress_manager.update_progress(message=f"同步完成！共清理了 {delete_count} 个无效缩略图")
-            LogUtils.info(f"缩略图物理同步执行完毕，共清理文件: {delete_count}")
+            cls._progress_manager.update_progress(message=t('thumb_sync_done', count=delete_count))
+            LogUtils.info(t('thumb_sync_done_log', count=delete_count))
             
         except Exception as e:
-            LogUtils.error(f"执行物理同步任务逻辑异常: {e}")
+            LogUtils.error(t('thumb_sync_logic_error', error=str(e)))
             cls._progress_manager.set_status(ProgressStatus.ERROR)
-            cls._progress_manager.update_progress(message=f"同步异常: {str(e)}")
+            cls._progress_manager.update_progress(message=t('thumb_sync_failed', error=str(e)))
 
     @classmethod
     def dispatch_thumbnail_tasks(cls, rebuild_all: bool) -> bool:
@@ -133,13 +134,14 @@ class ThumbnailService(BaseAsyncService):
         total_count: int = DBOperations.get_file_index_count(only_no_thumbnail=only_no_thumb)
         
         if total_count == 0:
-            LogUtils.info(f"派发缩略图任务：无可处理文件 (模式: {'全部' if rebuild_all else '仅缺失'})")
+            mode_str = t('thumb_dispatch_mode_all') if rebuild_all else t('thumb_dispatch_mode_missing')
+            LogUtils.info(t('thumb_dispatch_no_files', mode=mode_str))
             return True
 
         batch_size: int = 1000
         offset: int = 0
         
-        LogUtils.info(f"开始分派缩略图任务: 预计 {total_count} 个文件")
+        LogUtils.info(t('thumb_dispatch_start', count=total_count))
 
         try:
             while offset < total_count:
@@ -154,10 +156,10 @@ class ThumbnailService(BaseAsyncService):
                 ThumbnailGenerator().add_tasks(batch)
                 offset += len(batch)
 
-            LogUtils.info(f"缩略图分派完毕，共计 {offset} 个任务已进入后台生成队列")
+            LogUtils.info(t('thumb_dispatch_done', count=offset))
             return True
         except Exception as e:
-            LogUtils.error(f"分派缩略图任务时发生异常: {e}")
+            LogUtils.error(t('thumb_dispatch_error', error=str(e)))
             return False
 
     @classmethod
@@ -176,5 +178,5 @@ class ThumbnailService(BaseAsyncService):
             
             return DBOperations.clear_all_thumbnail_records()
         except Exception as e:
-            LogUtils.error(f"全量清除缩略图失败: {e}")
+            LogUtils.error(t('thumb_clear_all_failed', error=str(e)))
             return False

@@ -1,5 +1,6 @@
 from typing import Optional
 
+from backend.common.i18n_utils import t
 from backend.common.log_utils import LogUtils
 from backend.db.db_operations import DBOperations
 from backend.file_repository.base_file_service import BaseFileService
@@ -72,10 +73,10 @@ class FileService(BaseFileService):
             # 4. 同步更新详情统计
             FileService.calculate_repo_detail()
 
-            LogUtils.info(f"文件仓库已清空 (包含历史记录: {clear_history})")
+            LogUtils.info(t('repo_clear_log_full', user='', clear_history=clear_history))
             return True
         except Exception as e:
-            LogUtils.error(f"清理仓库过程发生异常: {e}")
+            LogUtils.error(t('repo_clear_error', error=str(e)))
             return False
 
     @staticmethod
@@ -86,11 +87,11 @@ class FileService(BaseFileService):
         """
         try:
             if DBOperations.clear_history_index():
-                LogUtils.info("历史文件索引库已清空")
+                LogUtils.info(t('repo_clear_history_success'))
                 return True
             return False
         except Exception as e:
-            LogUtils.error(f"清空历史仓库失败: {e}")
+            LogUtils.error(t('repo_clear_history_failed', error=str(e)))
             return False
 
     @staticmethod

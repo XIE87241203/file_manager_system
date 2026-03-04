@@ -6,6 +6,7 @@ from typing import List, Optional, Tuple, Set, Deque
 import cv2
 from PIL import Image
 
+from backend.common.i18n_utils import t
 from backend.common.log_utils import LogUtils
 from backend.common.thread_pool import ThreadPoolManager
 from backend.common.utils import Utils
@@ -58,7 +59,7 @@ class ThumbnailGenerator:
                     added_count += 1
             
             if added_count > 0:
-                LogUtils.info(f"缩略图队列已添加 {added_count} 个新任务，当前等待中: {len(self._queue)}")
+                LogUtils.info(t('thumb_gen_queue_added', added_count=added_count, remaining=len(self._queue)))
             
             if not self._is_processing and self._queue:
                 self._is_processing = True
@@ -82,7 +83,7 @@ class ThumbnailGenerator:
         with self._lock:
             self._queue.clear()
             self._queue_set.clear()
-            LogUtils.info("缩略图生成队列及去重集合已清空")
+            LogUtils.info(t('thumb_gen_queue_cleared'))
 
     def _worker(self) -> None:
         """
@@ -97,7 +98,7 @@ class ThumbnailGenerator:
             if not self._queue:
                 self._is_processing = False
                 self._queue_set.clear() # 任务清空时同步重置集合
-                LogUtils.info("缩略图生成队列处理完毕")
+                LogUtils.info(t('thumb_gen_completed_log'))
                 return
             
             file_info = self._queue.popleft()
@@ -112,7 +113,7 @@ class ThumbnailGenerator:
                 if thumb_path:
                     DBOperations.update_thumbnail_path(actual_path, thumb_path)
             except Exception as e:
-                LogUtils.error(f"处理缩略图失败: {file_info.file_path}, 错误: {e}")
+                LogUtils.error(t('thumb_gen_failed_log', path=file_info.file_path, error=str(e)))
         
         # 3. 异步提交下一次循环，实现非阻塞的串行处理
         ThreadPoolManager.submit(self._worker)
@@ -139,7 +140,7 @@ class ThumbnailGenerator:
             try:
                 os.remove(thumb_path)
             except Exception as e:
-                LogUtils.error(f"删除已存在的缩略图失败: {thumb_path}, 错误: {e}")
+                LogUtils.error(t('thumb_gen_delete_failed_log', path=thumb_path, error=str(e)))
 
         try:
             # 图片处理
@@ -183,6 +184,6 @@ class ThumbnailGenerator:
                     return file_path, thumb_path
                 cap.release()
         except Exception as e:
-            LogUtils.error(f"文件生成缩略图异常: {file_path}, 错误: {e}")
+            LogUtils.error(t('thumb_gen_error_log', path=file_path, error=str(e)))
         
         return file_path, None

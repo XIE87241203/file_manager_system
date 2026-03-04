@@ -1,6 +1,7 @@
 import sqlite3
 from typing import List, Dict, Optional
 
+from backend.common.i18n_utils import t
 from backend.common.log_utils import LogUtils
 from backend.db.db_constants import DBConstants
 from backend.db.db_manager import db_manager
@@ -72,7 +73,7 @@ class DuplicateGroupProcessor(BaseDBProcessor):
         except Exception as e:
             if local_conn and conn:
                 conn.rollback()
-            LogUtils.error(f"批量存储重复分组失败: {e}")
+            LogUtils.error(t('db_execute_failed', query='batch_save_duplicate_groups', error=str(e)))
             return False
         finally:
             if local_conn and conn:
@@ -141,7 +142,7 @@ class DuplicateGroupProcessor(BaseDBProcessor):
                         f"DELETE FROM {DBConstants.DuplicateGroup.TABLE_GROUPS} WHERE {DBConstants.DuplicateGroup.COL_GRP_ID_PK} = ?",
                         (group_id,)
                     )
-                    LogUtils.info(f"由于成员不足2个，已自动解散重复分组 ID: {group_id}")
+                    LogUtils.info(t('dup_group_dissolved_log', id=group_id))
 
             if local_conn:
                 conn.commit()
@@ -149,7 +150,7 @@ class DuplicateGroupProcessor(BaseDBProcessor):
         except Exception as e:
             if local_conn and conn:
                 conn.rollback()
-            LogUtils.error(f"批量根据路径删除重复记录失败: {e}")
+            LogUtils.error(t('db_execute_failed', query='delete_files_by_paths', error=str(e)))
             return False
         finally:
             if local_conn and conn:
@@ -205,7 +206,7 @@ class DuplicateGroupProcessor(BaseDBProcessor):
         except Exception as e:
             if local_conn:
                 conn.rollback()
-            LogUtils.error(f"执行数据库自愈清理失败: {e}")
+            LogUtils.error(t('db_execute_failed', query='_self_heal', error=str(e)))
         finally:
             if local_conn:
                 conn.close()

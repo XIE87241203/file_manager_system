@@ -3,8 +3,9 @@ import json
 import os
 import sys
 from dataclasses import asdict, fields
-from typing import Any, Dict
+from typing import Dict, Any
 
+from backend.common.i18n_utils import I18nUtils, t
 from backend.common.log_utils import LogUtils
 from backend.common.utils import Utils
 from backend.setting.setting_models import AppConfig
@@ -52,8 +53,8 @@ class SettingService:
         if not os.path.exists(self.config_path):
             self.save_config()
             LogUtils.info("--------------------------------------------------")
-            LogUtils.info(f"未检测到配置文件，已自动生成默认配置：\n{self.config_path}")
-            LogUtils.info("请修改 setting.json 中的配置信息后重新运行。")
+            LogUtils.info(t('config_not_found_auto_gen', path=self.config_path))
+            LogUtils.info(t('config_please_modify_and_restart'))
             LogUtils.info("--------------------------------------------------")
             sys.exit(0)
 
@@ -63,12 +64,12 @@ class SettingService:
             
             # 将加载的 JSON 数据映射回数据类
             self._parse_and_merge_config(loaded_json)
-            
+
             # 加载后立即缓存哈希值
             self._cache_password_hash()
             
         except Exception as e:
-            LogUtils.error(f"加载配置文件时发生错误: {e}")
+            LogUtils.error(t('config_load_error', error=str(e)))
             sys.exit(1)
 
     def _parse_and_merge_config(self, loaded_json: Dict[str, Any]) -> None:
@@ -111,7 +112,7 @@ class SettingService:
                 json.dump(config_to_save, f, indent=4, ensure_ascii=False)
             self._cache_password_hash()
         except Exception as e:
-            LogUtils.error(f"保存配置文件时发生错误: {e}")
+            LogUtils.error(t('config_save_error', error=str(e)))
 
     def update_settings(self, data: Dict[str, Any], operator_name: str) -> bool:
         """
@@ -121,6 +122,8 @@ class SettingService:
         返回值：是否更新成功。
         """
         try:
+            old_language: str = self._config.user_data.language
+            
             # 自动遍历 AppConfig 的所有字段进行更新
             for field_info in fields(AppConfig):
                 section_name = field_info.name
@@ -132,11 +135,16 @@ class SettingService:
                         if hasattr(target_obj, key):
                             setattr(target_obj, key, value)
             
+            new_language: str = self._config.user_data.language
+            if old_language != new_language:
+                I18nUtils.reload(new_language)
+                LogUtils.info(f"Language changed from {old_language} to {new_language}, i18n reloaded.")
+
             self.save_config()
-            LogUtils.info(f"用户 {operator_name} 更新了系统配置")
+            LogUtils.info(t('config_updated_log', user=operator_name))
             return True
         except Exception as e:
-            LogUtils.error(f"更新配置逻辑执行失败: {e}")
+            LogUtils.error(t('config_update_logic_error', error=str(e)))
             return False
 
 # 实例化单例

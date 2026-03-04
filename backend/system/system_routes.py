@@ -1,6 +1,7 @@
 from flask import Blueprint, request
 
 from backend.common.auth_middleware import token_required
+from backend.common.i18n_utils import t
 from backend.common.response import success_response
 from backend.system.system_service import SystemService
 from config import GlobalConfig
@@ -27,7 +28,7 @@ def get_logs():
     exclude_api: bool = exclude_api_str.lower() == 'true'
     
     logs: list = SystemService.get_latest_logs(lines, keyword, level, exclude_api)
-    return success_response("获取日志成功", data={"logs": logs}, log=False)
+    return success_response(t('sys_get_logs_success'), data={"logs": logs}, log=False)
 
 @system_bp.route('/logs/files', methods=['GET'])
 @token_required
@@ -37,7 +38,7 @@ def get_log_files():
     返回值说明：JSON 响应，data 字段包含文件名列表。
     """
     files: list = SystemService.get_available_log_files()
-    return success_response("获取日志文件列表成功", data={"files": files})
+    return success_response(t('sys_get_log_files_success'), data={"files": files})
 
 @system_bp.route('/version', methods=['GET'])
 def get_app_version():
@@ -47,4 +48,4 @@ def get_app_version():
     返回值说明：JSON 响应，data 字段包含应用程序版本号。
     """
     app_version: str = GlobalConfig.APP_VERSION
-    return success_response("获取应用版本号成功", data={"version": app_version}, log=False)
+    return success_response(t('sys_get_version_success'), data={"version": app_version}, log=False)

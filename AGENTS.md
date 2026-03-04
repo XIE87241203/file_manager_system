@@ -13,7 +13,7 @@
 - **无损修改**: **约定改动代码时不要影响无关功能**。严禁改动与本次任务无关的现有代码逻辑、功能或格式。
 - **类型声明**: **声明变量时必须显式标注变量类型**（例如 Python 中的 `count: int = 0`）。
 - **数据结构**: **能用数据类（如 Python 中的 `dataclass`）尽量不要用字典（`dict`）**，以增强类型的可追溯性和代码健壮性。
-- **日志规范**: **严禁使用 `print()`**。必须使用 `backend/common/log_utils.py` 中的 `LogUtils` 类（`info`, `debug`, `error`）。
+- **日志规范**: **严禁使用 `print()`**。必须使用 `backend/common/log_utils.py` 中的 `LogUtils` 类（`info`, `debug`, `error`, `api`）。日志中的所有文案内容必须使用 `backend/common/i18n_utils.py` 的 `t` 方法进行适配。
 - **内存敏感**: **严禁一次性读取全表数据到内存中**。涉及大量数据处理（如清理、导出、批量更新）时，必须采用分页查询或分批处理机制（Chunked Processing），单次处理量建议控制在 100-1000 条以内，以防 OOM。
 - **身份验证**: 除登录接口外，所有前后端交互必须通过 Token 验证。Token 存储于浏览器 Cookie，后端通过 `AuthManager` 校验。
 - **工具调用**: AI 在执行修改任务时，必须正确调用 IDE 提供的工具方法（如 `write_file`, `replace_text`）来确保代码修改的准确性。
@@ -40,7 +40,11 @@
 - **API 设计**: 
     - RESTful 风格，返回统一的 JSON 格式（包含 `status` 字段）及正确的 HTTP 状态码。
 - **配置管理**: 在 `Setting` 类中新增变量时，必须同步修改 `save_config` 方法。
-- **异常处理**: **所有捕获到的异常都要使用Logutils打印出来**。
+- **异常处理**: **所有捕获到的异常都要使用 LogUtils 打印出来**。
+- **多语言适配 (i18n)**: 
+    - **严禁硬编码**: 严禁在 Python 代码中直接硬编码文案、错误提示或日志描述。
+    - **统一调用**: 必须使用 `from backend.common.i18n_utils import t` 并调用 `t('key', ...)` 获取文案。
+    - **文件同步**: 所有新增的 Key 必须同步维护在 `backend/i18n/zh.py` (中文) 和 `backend/i18n/en.py` (英文) 中，确保 Key 一致、文案数目始终保持一致且一一对应。
 
 ## 3. 前端开发规范 (JS/HTML/CSS)
 - **模块化模式 (Module Pattern)**: 严禁全局变量/函数。使用对象字面量组织代码：
@@ -60,7 +64,7 @@
     - **搜索头部**: 必须使用 `frontend/common/header_toolbar/search/search_header_toolbar.js`。
 - **API 请求规范**:
     - **文件命名**: 所有 API 请求逻辑必须封装在与 JS 逻辑文件同名且以 **`_request.js`** 结尾的文件中（例如 `file_repository.js` 对应 `file_repository_request.js`）。
-    - **接口形式**: 每个 API 方法必须提供 **成功回调 (onSuccess)** 和 **错误回调 (onError)** 供页面逻辑处理状态。
+    - **接口形式**: 每个 API 方法 must provide **成功回调 (onSuccess)** and **错误回调 (onError)** 供页面逻辑处理状态。
 - **UI 交互约定**: 
     - HTML的控件均使用 `id` 绑定 JS 逻辑，`class` 绑定 CSS 样式。
     - 批量删除列表：复选框位于最右侧，支持点击行自动选中。

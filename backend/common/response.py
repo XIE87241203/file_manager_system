@@ -2,10 +2,11 @@ from typing import Any, Tuple
 
 from flask import request
 
+from backend.common.i18n_utils import t
 from backend.common.log_utils import LogUtils
 
 
-def success_response(message: str = "操作成功", data: Any = None, log: bool = True) -> Tuple[Any, int]:
+def success_response(message: str = None, data: Any = None, log: bool = True) -> Tuple[Any, int]:
     """
     用途：构建成功的 API 响应
     入参说明：
@@ -14,6 +15,9 @@ def success_response(message: str = "操作成功", data: Any = None, log: bool 
         - log: bool, 是否打印日志，默认为 True
     返回值说明：Tuple[Any, int], 包含 JSON 格式的成功响应和 200 状态码的元组
     """
+    if message is None:
+        message = t('operation_success')
+
     response: dict = {
         "status": "success",
         "message": message

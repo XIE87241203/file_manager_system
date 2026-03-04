@@ -1,8 +1,10 @@
 from flask import Blueprint, request
+
 from backend.auth.auth_manager import auth_manager
-from backend.common.response import success_response, error_response
-from backend.common.log_utils import LogUtils
 from backend.common.auth_middleware import token_required
+from backend.common.i18n_utils import t
+from backend.common.log_utils import LogUtils
+from backend.common.response import success_response, error_response
 
 # 创建认证模块的蓝图
 auth_bp = Blueprint('auth', __name__)
@@ -16,22 +18,22 @@ def login():
     """
     data = request.json
     if not data:
-        LogUtils.error("登录失败：请求数据为空")
-        return error_response("请求数据不能为空", 400)
+        LogUtils.error(t('auth_login_data_error'))
+        return error_response(t('request_data_empty'), 400)
 
     username = data.get('username')
     password_hash = data.get('password_hash')
 
-    LogUtils.info(f"用户尝试登录: {username}")
+    LogUtils.info(t('auth_attempt_login', username=username))
 
     # 调用验证管理器处理业务逻辑
     success, message, token = auth_manager.verify_login(username, password_hash)
 
     if success:
-        LogUtils.info(f"用户登录成功: {username}")
+        LogUtils.info(t('auth_login_log_success', username=username))
         return success_response(message, data={"token": token})
     else:
-        LogUtils.error(f"用户登录失败: {username} - {message}")
+        LogUtils.error(t('auth_login_log_failed', username=username, message=message))
         return error_response(message, 401)
 
 @auth_bp.route('/logout', methods=['POST'])
@@ -44,12 +46,12 @@ def logout():
     """
     token = request.headers.get('Authorization') or request.json.get('token')
     
-    LogUtils.info(f"用户尝试注销: {request.username}")
+    LogUtils.info(t('auth_attempt_logout', username=request.username))
     
     success, message = auth_manager.logout(token)
     if success:
-        LogUtils.info(f"用户注销成功: {request.username}")
+        LogUtils.info(t('auth_logout_log_success', username=request.username))
         return success_response(message)
     else:
-        LogUtils.error(f"用户注销失败: {request.username} - {message}")
+        LogUtils.error(t('auth_logout_log_failed', username=request.username, message=message))
         return error_response(message, 401)

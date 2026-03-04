@@ -8,6 +8,7 @@ class UserData:
     """
     username: str = "admin"
     password: str = "admin123"
+    language: str = "en"  # 新增：系统语言设置，支持 'zh' 或 'en'
 
 @dataclass
 class FileRepositorySettings:

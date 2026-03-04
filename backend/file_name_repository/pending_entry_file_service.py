@@ -1,5 +1,6 @@
 from typing import List, Dict, Tuple
 
+from backend.common.i18n_utils import t
 from backend.common.utils import Utils
 from backend.db.db_operations import DBOperations
 from backend.model.batch_check_result import BatchCheckItemResult
@@ -81,7 +82,7 @@ class PendingEntryFileService:
             if name in index_matches:
                 results.append(BatchCheckItemResult(name=name, source="index", detail=index_matches[name]))
             elif name in history_matches:
-                results.append(BatchCheckItemResult(name=name, source="history", detail=f"匹配到: {history_matches[name]}"))
+                results.append(BatchCheckItemResult(name=name, source="history", detail=t('fn_batch_check_matched_history', name=history_matches[name])))
             elif name in pending_matches:
                 results.append(BatchCheckItemResult(name=name, source="pending", detail=pending_matches[name]))
             else:

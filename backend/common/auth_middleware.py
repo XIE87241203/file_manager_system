@@ -1,8 +1,12 @@
 from functools import wraps
+
 from flask import request
+
 from backend.auth.auth_manager import auth_manager
-from backend.common.response import error_response
+from backend.common.i18n_utils import t
 from backend.common.log_utils import LogUtils
+from backend.common.response import error_response
+
 
 def token_required(f):
     """
@@ -23,17 +27,14 @@ def token_required(f):
         
         # 3. 如果还是没有，尝试从 URL 参数中获取 (用于 <img> 标签预览等 GET 请求)
         if not token:
-            token = request.args.get('token')
-        
-        if not token:
-            LogUtils.error(f"API 调用失败：未提供 Token。路径: {request.path}")
-            return error_response("未提供 Token", 401)
+            LogUtils.error(t('auth_token_missing_log', path=request.path))
+            return error_response(t('auth_token_missing'), 401)
         
         # 验证 Token 有效性
         is_valid, username = auth_manager.is_authenticated(token)
         if not is_valid:
-            LogUtils.error(f"API 调用失败：无效的 Token ({token})。路径: {request.path}")
-            return error_response("Token 无效或已过期", 401)
+            LogUtils.error(t('auth_token_invalid_log', token=token, path=request.path))
+            return error_response(t('auth_token_expired'), 401)
         
         # 将解析出的用户名存入 request 对象，方便后续业务逻辑使用
         request.username = username

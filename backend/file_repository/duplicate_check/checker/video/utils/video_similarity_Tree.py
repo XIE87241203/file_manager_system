@@ -4,6 +4,7 @@ from typing import List, Dict
 
 import imagehash
 
+from backend.common.i18n_utils import t
 from backend.common.log_utils import LogUtils
 from backend.common.utils import Utils
 from backend.db.db_constants import DBConstants
@@ -114,7 +115,7 @@ class VideoSimilarityTree:
 
             # 1. 优先进行 MD5 比对
             if current_md5 and current_md5 == representative.file_index.file_md5:
-                LogUtils.info(f"视频 MD5 匹配成功：{Utils.get_filename(current_path)}")
+                LogUtils.info(t('dup_video_md5_matched', name=Utils.get_filename(current_path)))
                 node: VideoSimilarityNode = VideoSimilarityNode(
                     path=current_path,
                     similarity_type=DBConstants.SimilarityType.MD5,
@@ -141,7 +142,7 @@ class VideoSimilarityTree:
             if similarity >= self.frame_similarity_rate:
                 video_name: str = Utils.get_filename(current_path)
                 representative_name: str = Utils.get_filename(representative_path)
-                LogUtils.info(f"视频指纹匹配成功：{video_name} -> 组 {representative_name} (相似度: {similarity:.2%})")
+                LogUtils.info(t('dup_video_fingerprint_matched', name=video_name, representative=representative_name, similarity=f"{similarity:.2%}"))
 
                 # 创建新节点
                 node: VideoSimilarityNode = VideoSimilarityNode(
