@@ -27,6 +27,7 @@ docker run -d \
 
 ## ✨ What can it do for you?
 
+*   **Multi-language Support**: Support both **Chinese** and **English** interfaces.
 *   **Build Index**: Build a file index by scanning the repository for fast searching.
 *   **Media Preview**: Preview images and videos after generating thumbnails.
 *   **File Deduplication**: Identify identical files and similar video/image content through MD5 and Perceptual Hashing (pHash) to find duplicates for you.
