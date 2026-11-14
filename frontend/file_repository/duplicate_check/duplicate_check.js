@@ -9,7 +9,9 @@ const State = {
     limit: 20,
     total: 0,
     similarityType: '', // 存储当前的筛选类型
+    fileType: '', // 存储当前的文件类型筛选 (image / video)
     lastCheckTime: '--',
+    lastCheckDuration: null,
     pollingInterval: null,
     settings: null, // 存储系统设置
     previousExpandedStates: null, // 用途说明：存储上一页结果的展开/收起状态，用于刷新后保留状态
@@ -58,6 +60,7 @@ const UIController = {
             summaryBar: document.getElementById('results-summary-bar'),
             summaryGroups: document.getElementById('summary-groups'),
             summaryTime: document.getElementById('summary-time'),
+            summaryDuration: document.getElementById('summary-duration'),
             globalDeleteBtn: document.getElementById('btn-delete-selected-global'),
             filterSimilarityType: document.getElementById('filter-similarity-type')
         };
@@ -112,7 +115,7 @@ const UIController = {
             scanningContainer.classList.add('hidden');
             UIComponents.hideProgressBar('#scanning-container');
 
-            if (status === ProgressStatus.COMPLETED || (State.results && State.results.length > 0) || State.similarityType !== '') {
+            if (status === ProgressStatus.COMPLETED || (State.results && State.results.length > 0) || State.similarityType !== '' || State.fileType !== '') {
                 resultsGroup.classList.remove('hidden');
                 emptyHint.classList.add('hidden');
             } else {
@@ -136,12 +139,28 @@ const UIController = {
     },
 
     /**
+     * 用途说明：将查重耗时秒数格式化为可读文本（不满一小时显示分钟，满一小时显示小时+分钟，满一天显示天+小时+分钟）。
+     * 入参说明：seconds (Number|null) - 耗时秒数，可为空。
+     * 返回值说明：String - 格式化后的耗时文本，空值返回 '--'。
+     */
+    formatDuration(seconds) {
+        if (seconds === null || seconds === undefined || isNaN(seconds)) return '--';
+        const total = Math.max(0, Math.floor(seconds));
+        const days = Math.floor(total / 86400);
+        const hours = Math.floor((total % 86400) / 3600);
+        const minutes = Math.floor((total % 3600) / 60);
+        if (days > 0) return I18nManager.t('duplicate_check.duration_days', { days, hours, minutes });
+        if (hours > 0) return I18nManager.t('duplicate_check.duration_hours', { hours, minutes });
+        return I18nManager.t('duplicate_check.duration_minutes', { minutes });
+    },
+
+    /**
      * 用途说明：全量渲染查重结果列表及统计栏
      * 入参说明：无
      * 返回值说明：无
      */
     renderResults() {
-        const { wrapper, summaryBar, summaryGroups, summaryTime } = this.elements;
+        const { wrapper, summaryBar, summaryGroups, summaryDuration, summaryTime } = this.elements;
         wrapper.innerHTML = '';
 
         const results = State.results;
@@ -161,6 +180,7 @@ const UIController = {
 
         summaryBar.classList.remove('hidden');
         summaryGroups.textContent = I18nManager.t('duplicate_check.summary_groups', { total: State.total });
+        summaryDuration.textContent = I18nManager.t('duplicate_check.summary_duration', { duration: this.formatDuration(State.lastCheckDuration) });
         summaryTime.textContent = I18nManager.t('duplicate_check.summary_time', { time: State.lastCheckTime || '--' });
 
         results.forEach(group => {
@@ -227,6 +247,12 @@ const UIController = {
                             const durationStr = info.file_type === 'video' ? CommonUtils.formatDuration(info.video_duration) : '-';
                             const codecStr = (info.file_type === 'video' && info.video_codec) ? info.video_codec : '-';
 
+                            // 视频行展示播放按钮，图片行展示预览图标（与文件仓库页面保持一致）
+                            const isVideo = info.file_type === 'video';
+                            const playBtnHtml = isVideo ? `<span class="play-btn" title="${I18nManager.t('file_repo.play_video')}"><i class="play-icon">▶</i></span>` : '';
+                            const isImage = info.file_type === 'image';
+                            const previewBtnHtml = isImage ? `<span class="preview-btn" title="${I18nManager.t('file_repo.preview_image')}"><i class="preview-icon"><svg viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg></i></span>` : '';
+
                             const typeMap = {
                                 'md5': I18nManager.t('duplicate_check.type_md5'),
                                 'hash': I18nManager.t('duplicate_check.type_image'),
@@ -238,7 +264,7 @@ const UIController = {
 
                             return `
                                 <tr class="clickable-row ${isChecked ? 'selected-row' : ''}" data-path="${info.file_path}" data-thumbnail="${info.thumbnail_path || ''}">
-                                    <td class="col-dup-name" title="${fileName}">${fileName}</td>
+                                    <td class="col-dup-name" title="${fileName}">${playBtnHtml}${previewBtnHtml}${fileName}</td>
                                     <td class="col-dup-duration">${durationStr}</td>
                                     <td class="col-dup-codec">${codecStr}</td>
                                     <td class="col-dup-similarity">${similarityDisplay}</td>
@@ -288,8 +314,36 @@ const UIController = {
         });
 
         tbody.querySelectorAll('.clickable-row').forEach(tr => {
+            const filePath = tr.getAttribute('data-path');
+            const thumbnailPath = tr.getAttribute('data-thumbnail');
+
+            // 视频播放按钮：点击跳转至专用播放页面（阻止冒泡避免触发行选中）
+            const playBtn = tr.querySelector('.play-btn');
+            if (playBtn) {
+                playBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    App.handlePlayVideo(filePath);
+                };
+            }
+
+            // 图片预览图标：悬停时在鼠标右侧弹出缩略图预览，移开后关闭
+            const previewBtn = tr.querySelector('.preview-btn');
+            if (previewBtn) {
+                previewBtn.addEventListener('mouseenter', (e) => UIComponents.showQuickPreview(e, thumbnailPath));
+                previewBtn.addEventListener('mousemove', (e) => UIComponents.moveQuickPreview(e));
+                previewBtn.addEventListener('mouseleave', (e) => {
+                    // 鼠标仍在行内且开启了行级快速预览时保持预览，避免覆盖已有的整行悬停预览功能
+                    if (State.settings && State.settings.file_repository.quick_view_thumbnail && tr.contains(e.relatedTarget)) {
+                        UIComponents.showQuickPreview(e, thumbnailPath);
+                    } else {
+                        UIComponents.hideQuickPreview();
+                    }
+                });
+                previewBtn.onclick = (e) => e.stopPropagation();
+            }
+
             if (State.settings && State.settings.file_repository.quick_view_thumbnail) {
-                tr.addEventListener('mouseenter', (e) => UIComponents.showQuickPreview(e, tr.getAttribute('data-thumbnail')));
+                tr.addEventListener('mouseenter', (e) => UIComponents.showQuickPreview(e, thumbnailPath));
                 tr.addEventListener('mousemove', (e) => UIComponents.moveQuickPreview(e));
                 tr.addEventListener('mouseleave', () => UIComponents.hideQuickPreview());
             }
@@ -314,6 +368,51 @@ const UIController = {
         } else {
             globalDeleteBtn.classList.add('hidden');
         }
+    },
+
+    /**
+     * 用途说明：弹出查重模式选择弹窗，供用户选择全局查重或新增查重
+     * 入参说明：onSelect (Function) - 选择模式后的回调，参数为模式字符串 ('global' / 'incremental')
+     * 返回值说明：无
+     */
+    showModeSelectModal(onSelect) {
+        let modal = document.getElementById('duplicate-mode-modal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'duplicate-mode-modal';
+            modal.className = 'modal-mask hidden';
+            document.body.appendChild(modal);
+        }
+
+        modal.innerHTML = `
+            <div class="modal-content mode-select-content">
+                <h3 class="title">${I18nManager.t('duplicate_check.mode_modal_title')}</h3>
+                <button type="button" class="mode-option" data-mode="global">
+                    <span class="mode-option-title">${I18nManager.t('duplicate_check.mode_global')}</span>
+                    <span class="mode-option-desc">${I18nManager.t('duplicate_check.mode_global_desc')}</span>
+                </button>
+                <button type="button" class="mode-option" data-mode="incremental">
+                    <span class="mode-option-title">${I18nManager.t('duplicate_check.mode_incremental')}</span>
+                    <span class="mode-option-desc">${I18nManager.t('duplicate_check.mode_incremental_desc')}</span>
+                </button>
+                <div class="flex-gap-5">
+                    <button type="button" id="mode-modal-cancel-btn" class="btn-secondary mt-0 flex-1">${I18nManager.t('common.cancel')}</button>
+                </div>
+            </div>
+        `;
+
+        modal.classList.remove('hidden');
+
+        modal.querySelectorAll('.mode-option').forEach(btn => {
+            btn.onclick = () => {
+                modal.classList.add('hidden');
+                onSelect(btn.getAttribute('data-mode'));
+            };
+        });
+
+        document.getElementById('mode-modal-cancel-btn').onclick = () => {
+            modal.classList.add('hidden');
+        };
     }
 };
 
@@ -384,19 +483,36 @@ const App = {
         // 绑定筛选事件
         if (filterSimilarityType) {
             filterSimilarityType.onchange = () => {
-                State.similarityType = filterSimilarityType.value;
+                const value = filterSimilarityType.value;
+                // 仅图片 / 仅视频 按文件实际类型筛选，其余按相似度类型筛选，两者互斥
+                if (value === 'image' || value === 'video') {
+                    State.fileType = value;
+                    State.similarityType = '';
+                } else {
+                    State.fileType = '';
+                    State.similarityType = value;
+                }
                 this.loadResults(1);
             };
         }
     },
 
     /**
-     * 用途说明：处理开始查重逻辑
+     * 用途说明：处理开始查重逻辑，先弹出模式选择弹窗
      * 入参说明：无
      * 返回值说明：无
      */
     handleStart() {
-        DuplicateCheckAPI.startCheck(
+        UIController.showModeSelectModal((mode) => this.startCheckWithMode(mode));
+    },
+
+    /**
+     * 用途说明：按指定模式启动查重任务
+     * 入参说明：mode (String) - 查重模式 ('global' / 'incremental')
+     * 返回值说明：无
+     */
+    startCheckWithMode(mode) {
+        DuplicateCheckAPI.startCheck(mode,
             () => {
                 Toast.show(I18nManager.t('duplicate_check.check_started'));
                 State.results = [];
@@ -435,7 +551,8 @@ const App = {
         const params = {
             page: page,
             limit: State.limit,
-            similarity_type: State.similarityType
+            similarity_type: State.similarityType,
+            file_type: State.fileType
         };
         DuplicateCheckAPI.getDuplicateList(
             params,
@@ -446,7 +563,8 @@ const App = {
                 // 结果加载成功后，获取最新的查重时间
                 DuplicateCheckAPI.getLatestCheckTime(
                     (timeData) => {
-                        State.lastCheckTime = timeData;
+                        State.lastCheckTime = (timeData && timeData.time) ? timeData.time : '--';
+                        State.lastCheckDuration = timeData ? timeData.duration : null;
                         UIController.toggleView(ProgressStatus.COMPLETED);
                         UIController.renderResults();
                     },
@@ -474,6 +592,16 @@ const App = {
         State.previousExpandedStates = expandedStatesMap;
         this.loadResults(page);
         window.scrollTo(0, 0);
+    },
+
+    /**
+     * 用途说明：处理视频播放请求，跳转到专用播放页面
+     * @param {string} filePath - 入参说明：视频文件路径
+     * @returns {void} - 返回值说明：无
+     */
+    handlePlayVideo(filePath) {
+        const playPageUrl = `../../video_player/video_player.html?path=${encodeURIComponent(filePath)}`;
+        window.location.href = playPageUrl;
     },
 
     /**

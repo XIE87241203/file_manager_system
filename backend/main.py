@@ -30,6 +30,9 @@ from backend.setting.setting_routes import setting_bp
 from backend.file_repository.file_repository_routes import file_repo_bp
 from backend.file_name_repository.file_name_repository_routes import file_name_repo_bp
 from backend.system.system_routes import system_bp
+from backend.repository.repository_routes import repository_bp
+from backend.repository.repository_service import repositoryService
+from backend.common.repo_context import set_current_repo_id, DEFAULT_REPO_ID
 from backend.common.response import error_response
 from backend.common.heartbeat_service import HeartbeatService
 from config import GlobalConfig
@@ -40,7 +43,23 @@ frontend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../front
 app = Flask(__name__, static_folder=frontend_dir, static_url_path='')
 
 # 允许跨域
-CORS(app, resources={r"/api/*": {"origins": "*"}}, allow_headers=["Content-Type", "Authorization"])
+CORS(app, resources={r"/api/*": {"origins": "*"}}, allow_headers=["Content-Type", "Authorization", "X-Repo-Id"])
+
+@app.before_request
+def inject_repo_context() -> None:
+    """
+    用途说明：从请求头 X-Repo-Id 解析当前仓库 ID 并注入请求上下文，缺省回退到默认仓库。
+    入参说明：无
+    返回值说明：无
+    """
+    repo_id: int = DEFAULT_REPO_ID
+    header_value = request.headers.get('X-Repo-Id')
+    if header_value:
+        try:
+            repo_id = int(header_value)
+        except (ValueError, TypeError):
+            repo_id = DEFAULT_REPO_ID
+    set_current_repo_id(repo_id)
 
 @app.before_request
 def log_request_info() -> None:
@@ -102,17 +121,26 @@ app.register_blueprint(setting_bp, url_prefix='/api/setting')
 app.register_blueprint(file_repo_bp, url_prefix='/api/file_repository')
 app.register_blueprint(file_name_repo_bp, url_prefix='/api/file_name_repository')
 app.register_blueprint(system_bp, url_prefix='/api/system')
+app.register_blueprint(repository_bp, url_prefix='/api/repository')
 
 def start_server() -> None:
+    # 初始化主数据库（仓库元数据）与默认仓库
+    db_manager.init_master()
+    repositoryService.init_default_repo()
+    # 初始化默认仓库业务库
     db_manager.init_db()
-    
+
     # 启动心跳服务
     HeartbeatService.start()
-    
-    # 启动后台定时任务调度器
+
+    # 启动后台定时任务调度器（按仓库独立调度）
     from backend.file_repository.auto_scan_service import AutoScanService
     AutoScanService.refresh_config()
-    
+    # 以观察者方式监听配置变更，使设置模块与文件仓库模块解耦
+    settingService.register_change_callback(AutoScanService.on_config_changed)
+    repositoryService.register_config_change_callback(AutoScanService.on_repo_config_changed)
+    repositoryService.register_delete_callback(AutoScanService.on_repo_deleted)
+
     LogUtils.info(t('sys_starting', port=GlobalConfig.SYSTEM_PORT))
     LogUtils.info(t('sys_address', url=f"http://localhost:{GlobalConfig.SYSTEM_PORT}"))
     serve(app, host='0.0.0.0', port=GlobalConfig.SYSTEM_PORT, threads=8)

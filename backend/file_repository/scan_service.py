@@ -2,7 +2,7 @@ import os
 from concurrent.futures import as_completed, Future
 from datetime import datetime
 from enum import Enum
-from typing import List, Tuple, Optional
+from typing import Callable, List, Tuple, Optional
 
 from backend.common.base_async_service import BaseAsyncService
 from backend.common.i18n_utils import t
@@ -11,10 +11,11 @@ from backend.common.progress_manager import ProgressStatus
 from backend.common.thread_pool import ThreadPoolManager
 from backend.common.utils import Utils
 from backend.db.db_operations import DBOperations
+from backend.file_repository.file_info_service import FileInfoService
 from backend.file_repository.file_service import FileService
 from backend.model.db.file_index_db_model import FileIndexDBModel
+from backend.repository.repository_service import repositoryService
 from backend.setting.setting_models import FileRepositorySettings
-from backend.setting.setting_service import settingService
 
 
 class ScanMode(Enum):
@@ -31,11 +32,13 @@ class ScanService(BaseAsyncService):
     """
 
     @classmethod
-    def start_scan_task(cls, scan_mode: ScanMode = ScanMode.INDEX_SCAN) -> bool:
+    def start_scan_task(cls, scan_mode: ScanMode = ScanMode.INDEX_SCAN,
+                        on_complete: Optional[Callable[[], None]] = None) -> bool:
         """
         用途说明：启动异步扫描任务。包含初始化逻辑与线程池提交。
         入参说明：
             scan_mode (ScanMode): 扫描模式。
+            on_complete (Optional[Callable[[], None]]): 扫描成功完成后的回调函数，可为空。
         返回值说明：bool - 是否成功启动。
         """
         try:
@@ -46,8 +49,8 @@ class ScanService(BaseAsyncService):
 
             mode: ScanMode = scan_mode if isinstance(scan_mode, ScanMode) else ScanMode.INDEX_SCAN
             
-            # 获取配置快照
-            repo_config: FileRepositorySettings = settingService.get_config().file_repository
+            # 获取当前仓库配置快照
+            repo_config: FileRepositorySettings = repositoryService.get_current_config()
 
             # 重置进度状态
             cls._progress_manager.set_status(ProgressStatus.PROCESSING)
@@ -56,15 +59,21 @@ class ScanService(BaseAsyncService):
             # --- 初始化逻辑结束 ---
             
             # 调用基类的私有方法启动任务
-            return cls._start_task(cls._internal_scan, mode, repo_config)
+            return cls._start_task(cls._internal_scan, mode, repo_config, on_complete)
         except Exception as e:
             LogUtils.error(t('repo_scan_start_failed', error=str(e)))
             return False
 
     @classmethod
-    def _internal_scan(cls, scan_mode: ScanMode, repo_config: FileRepositorySettings) -> None:
+    def _internal_scan(cls, scan_mode: ScanMode, repo_config: FileRepositorySettings,
+                       on_complete: Optional[Callable[[], None]] = None) -> None:
         """
         用途说明：扫描任务调度核心逻辑。
+        入参说明：
+            scan_mode (ScanMode): 扫描模式。
+            repo_config (FileRepositorySettings): 本次扫描的仓库配置快照。
+            on_complete (Optional[Callable[[], None]]): 扫描成功完成后的回调函数，可为空。
+        返回值说明：无
         """
         try:
             # 初始化：获取本次扫描的时间戳
@@ -94,6 +103,13 @@ class ScanService(BaseAsyncService):
             msg: str = t('repo_scan_completed', new_count=new_count, updated_count=updated_count, deleted_count=deleted_count)
             cls._progress_manager.update_progress(message=msg)
             LogUtils.info(msg)
+
+            # 扫描成功完成后触发回调（如自动新增查重），回调异常不影响扫描结果
+            if on_complete is not None:
+                try:
+                    on_complete()
+                except Exception as e:
+                    LogUtils.error(t('repo_scan_callback_error', error=str(e)))
 
         except Exception as e:
             LogUtils.error(t('repo_scan_error', error=str(e)))
@@ -156,7 +172,7 @@ class ScanService(BaseAsyncService):
                                 paths_to_update_time = []
                         else:
                             # 修改点：改调用 getFileInfo
-                            info_futures.append(ThreadPoolManager.submit(Utils.get_file_info, full_path))
+                            info_futures.append(ThreadPoolManager.submit(FileInfoService.get_file_info, full_path))
                             
                             if len(info_futures) >= max_concurrent_tasks:
                                 new_count += cls._process_info_futures(info_futures, all_files_info, current_scan_time, batch_insert_size)

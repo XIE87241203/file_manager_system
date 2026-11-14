@@ -15,7 +15,8 @@ const State = {
         thumbnail_size: 256,
         quick_view_thumbnail: false,
         auto_refresh_enabled: false,
-        auto_refresh_time: "04:00"
+        auto_refresh_time: "04:00",
+        auto_duplicate_check_enabled: false
     },
     duplicateCheck: {
         image_threshold: 8,
@@ -37,7 +38,10 @@ const State = {
         timer: null,
         widget: null,
         status: 'idle' // 记录同步任务的内部状态，初始为 idle
-    }
+    },
+    // 多仓库管理状态
+    repos: [], // 仓库列表缓存
+    currentRepoId: 1 // 当前编辑/激活的仓库 ID
 };
 
 // --- UI 控制模块 ---
@@ -99,22 +103,6 @@ const UIController = {
             menuCallback: () => App.handleGlobalSave()
         });
 
-        // 文件仓库配置同步到 State
-        State.fileRepository = data.file_repository || State.fileRepository;
-        const fr = State.fileRepository;
-        document.getElementById('scan-suffixes').value = (fr.scan_suffixes || ["*"]).join(', ');
-        document.getElementById('thumbnail-size').value = fr.thumbnail_size || 256;
-        document.getElementById('quick-view-thumbnail').checked = fr.quick_view_thumbnail || false;
-        document.getElementById('ignore-filenames').value = (fr.ignore_filenames || []).join(', ');
-        document.getElementById('ignore-filenames-case-insensitive').checked = fr.ignore_filenames_case_insensitive;
-        document.getElementById('ignore-paths').value = (fr.ignore_paths || []).join(', ');
-        document.getElementById('ignore-paths-case-insensitive').checked = fr.ignore_paths_case_insensitive;
-        document.getElementById('search-replace-chars').value = (fr.search_replace_chars || []).join(', ');
-
-        // 自动刷新配置
-        document.getElementById('auto-refresh-enabled').checked = fr.auto_refresh_enabled || false;
-        document.getElementById('auto-refresh-time').value = fr.auto_refresh_time || "04:00";
-
         // 文件录入配置同步到 State
         State.fileNameEntry = data.file_name_entry || State.fileNameEntry;
         document.getElementById('file-name-link-prefix').value = State.fileNameEntry.file_name_link_prefix || '';
@@ -128,8 +116,47 @@ const UIController = {
         document.getElementById('video-interval-seconds').value = dc.video_interval_seconds;
         document.getElementById('video-max-duration-diff-ratio').value = dc.video_max_duration_diff_ratio;
         document.getElementById('video-backwards').checked = dc.video_backwards || false;
+    },
 
+    /**
+     * @description 用途说明：将指定仓库的独立配置填充到仓库配置表单。
+     * @param {Object} fr - 入参说明：仓库配置对象 (FileRepositorySettings)。
+     * @returns {void} - 返回值说明：无
+     */
+    fillRepoForm(fr) {
+        State.fileRepository = fr || State.fileRepository;
+        const repo = State.fileRepository;
+        document.getElementById('scan-suffixes').value = (repo.scan_suffixes || ["*"]).join(', ');
+        document.getElementById('thumbnail-size').value = repo.thumbnail_size || 256;
+        document.getElementById('quick-view-thumbnail').checked = repo.quick_view_thumbnail || false;
+        document.getElementById('ignore-filenames').value = (repo.ignore_filenames || []).join(', ');
+        document.getElementById('ignore-filenames-case-insensitive').checked = repo.ignore_filenames_case_insensitive;
+        document.getElementById('ignore-paths').value = (repo.ignore_paths || []).join(', ');
+        document.getElementById('ignore-paths-case-insensitive').checked = repo.ignore_paths_case_insensitive;
+        document.getElementById('search-replace-chars').value = (repo.search_replace_chars || []).join(', ');
+        document.getElementById('auto-refresh-enabled').checked = repo.auto_refresh_enabled || false;
+        document.getElementById('auto-refresh-time').value = repo.auto_refresh_time || "04:00";
+        document.getElementById('auto-duplicate-check-enabled').checked = repo.auto_duplicate_check_enabled || false;
         this.renderRepositoryList();
+    },
+
+    /**
+     * @description 用途说明：构建仓库配置页的仓库选择下拉框。
+     * @param {Array} repos - 入参说明：仓库列表 [{id, name}]。
+     * @param {number} currentId - 入参说明：当前选中的仓库 ID。
+     * @returns {void} - 返回值说明：无
+     */
+    buildRepoSelector(repos, currentId) {
+        const select = document.getElementById('repo-config-selector');
+        if (!select) return;
+        select.innerHTML = '';
+        repos.forEach(repo => {
+            const opt = document.createElement('option');
+            opt.value = String(repo.id);
+            opt.textContent = repo.name;
+            select.appendChild(opt);
+        });
+        select.value = String(currentId);
     },
 
     /**
@@ -142,21 +169,31 @@ const UIController = {
         const directories = State.fileRepository.directories;
 
         if (!directories || directories.length === 0) {
-            listContainer.innerHTML = `<div class="empty-hint-text">${I18nManager.t('common.no_data')}</div>`;
+            const empty = document.createElement('div');
+            empty.className = 'empty-hint-text';
+            empty.textContent = I18nManager.t('common.no_data');
+            listContainer.appendChild(empty);
             return;
         }
 
         directories.forEach((path, index) => {
             const item = document.createElement('div');
             item.className = 'repo-item';
-            item.innerHTML = `
-                <div class="repo-path">${path}</div>
-                <div class="repo-actions">
-                    <button class="btn-delete" data-index="${index}">${I18nManager.t('common.delete')}</button>
-                </div>
-            `;
-            // 绑定删除按钮点击事件
-            item.querySelector('.btn-delete').onclick = () => App.handleDeleteRepository(index);
+
+            const pathEl = document.createElement('div');
+            pathEl.className = 'repo-path';
+            pathEl.textContent = path;
+
+            const actions = document.createElement('div');
+            actions.className = 'repo-actions';
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'btn-delete';
+            deleteBtn.textContent = I18nManager.t('common.delete');
+            deleteBtn.onclick = () => App.handleDeleteRepository(index);
+            actions.appendChild(deleteBtn);
+
+            item.appendChild(pathEl);
+            item.appendChild(actions);
             listContainer.appendChild(item);
         });
     },
@@ -201,9 +238,95 @@ const App = {
         UIController.initTabs();
         UIController.initThumbnailSyncButton();
         this.loadSettings();
+        this.initRepoSelector();
         this.bindEvents();
         // 初始化时检查一次同步任务状态
         this.syncThumbnailProgress();
+    },
+
+    /**
+     * @description 用途说明：加载仓库列表并初始化仓库配置选择器，默认选中当前激活仓库。
+     * @returns {void} - 返回值说明：无
+     */
+    initRepoSelector() {
+        RepositoryRequest.list(
+            (repos) => {
+                State.repos = repos;
+                let currentId = RepoContext.get();
+                if (!repos.some(r => r.id === currentId)) {
+                    currentId = repos.length ? repos[0].id : RepoContext.DEFAULT_REPO_ID;
+                    RepoContext.set(currentId);
+                }
+                State.currentRepoId = currentId;
+                UIController.buildRepoSelector(repos, currentId);
+                this.loadRepoConfig(currentId);
+            },
+            (msg) => {
+                Toast.show(I18nManager.t('repo.load_failed') + ': ' + msg);
+            }
+        );
+    },
+
+    /**
+     * @description 用途说明：加载指定仓库的独立配置并填充表单。
+     * @param {number} repoId - 入参说明：仓库 ID。
+     * @returns {void} - 返回值说明：无
+     */
+    loadRepoConfig(repoId) {
+        RepositoryRequest.getConfig(repoId,
+            (config) => {
+                UIController.fillRepoForm(config);
+            },
+            (msg) => {
+                Toast.show(I18nManager.t('common.error') + ': ' + msg);
+            }
+        );
+    },
+
+    /**
+     * @description 用途说明：处理仓库配置选择器切换，更新激活仓库并加载其配置。
+     * @param {number} repoId - 入参说明：选中的仓库 ID。
+     * @returns {void} - 返回值说明：无
+     */
+    onRepoChange(repoId) {
+        State.currentRepoId = repoId;
+        RepoContext.set(repoId);
+        this.loadRepoConfig(repoId);
+    },
+
+    /**
+     * @description 用途说明：删除当前选中仓库，需二次确认；仅删除配置与索引，保留磁盘文件。
+     * @returns {void} - 返回值说明：无
+     */
+    handleDeleteRepo() {
+        if (State.repos.length <= 1) {
+            Toast.show(I18nManager.t('repo.delete_last_blocked'));
+            return;
+        }
+        const repo = State.repos.find(r => r.id === State.currentRepoId);
+        const name = repo ? repo.name : '';
+        UIComponents.showConfirmModal({
+            title: I18nManager.t('repo.delete_title'),
+            message: I18nManager.t('repo.delete_confirm', { name }),
+            onConfirm: () => {
+                // 二次确认
+                UIComponents.showConfirmModal({
+                    title: I18nManager.t('repo.delete_title'),
+                    message: I18nManager.t('repo.delete_confirm_again'),
+                    onConfirm: () => {
+                        RepositoryRequest.delete(State.currentRepoId,
+                            () => {
+                                Toast.show(I18nManager.t('repo.delete_success'));
+                                this.initRepoSelector();
+                            },
+                            (msg) => {
+                                Toast.show(msg || I18nManager.t('repo.delete_failed'));
+                            }
+                        );
+                    }
+                });
+            }
+        });
     },
 
     /**
@@ -212,6 +335,11 @@ const App = {
      */
     bindEvents() {
         document.getElementById('add-repo-btn').onclick = () => this.handleAddRepository();
+        document.getElementById('delete-repo-btn').onclick = () => this.handleDeleteRepo();
+        const repoSelector = document.getElementById('repo-config-selector');
+        if (repoSelector) {
+            repoSelector.onchange = () => this.onRepoChange(parseInt(repoSelector.value, 10));
+        }
 
         // 危险操作按钮
         document.getElementById('clear-already-entered-btn').onclick = () => this.confirmClear('already_entered');
@@ -288,6 +416,7 @@ const App = {
         // 自动刷新字段采集
         fr.auto_refresh_enabled = document.getElementById('auto-refresh-enabled').checked;
         fr.auto_refresh_time = document.getElementById('auto-refresh-time').value;
+        fr.auto_duplicate_check_enabled = document.getElementById('auto-duplicate-check-enabled').checked;
 
         if (fr.scan_suffixes.length === 0) {
             Toast.show(I18nManager.t('setting.repo.scan_suffixes_empty'));
@@ -332,7 +461,6 @@ const App = {
         }
 
         const updateData = {
-            file_repository: fr,
             duplicate_check: dc,
             file_name_entry: fe,
             user_data: userData
@@ -369,26 +497,35 @@ const App = {
      * @returns {void} - 返回值说明：无
      */
     executeGlobalSave(updateData, isPasswordChanged, isLanguageChanged) {
-        SettingRequest.updateSettings(
-            updateData,
+        // 先保存当前仓库的独立配置，成功后再保存全局配置
+        RepositoryRequest.updateConfig(State.currentRepoId, State.fileRepository,
             () => {
-                Toast.show(I18nManager.t('common.success'));
+                SettingRequest.updateSettings(
+                    updateData,
+                    () => {
+                        Toast.show(I18nManager.t('common.success'));
 
-                if (isPasswordChanged) {
-                    setTimeout(() => {
-                        Request.eraseCookie('token');
-                        window.location.href = '../login/login.html';
-                    }, 1000);
-                } else if (isLanguageChanged) {
-                    // 语言变更后，重新刷新页面以应用新语言
-                    I18nManager.init(updateData.user_data.language);
-                    window.location.href = '../home/home.html';
-                } else {
-                    this.loadSettings();
-                }
+                        if (isPasswordChanged) {
+                            setTimeout(() => {
+                                Request.eraseCookie('token');
+                                window.location.href = '../login/login.html';
+                            }, 1000);
+                        } else if (isLanguageChanged) {
+                            // 语言变更后，重新刷新页面以应用新语言
+                            I18nManager.init(updateData.user_data.language);
+                            window.location.href = '../home/home.html';
+                        } else {
+                            this.loadSettings();
+                            this.loadRepoConfig(State.currentRepoId);
+                        }
+                    },
+                    (msg) => {
+                        Toast.show(I18nManager.t('common.error') + ': ' + msg);
+                    }
+                );
             },
             (msg) => {
-                Toast.show(I18nManager.t('common.error') + ': ' + msg);
+                Toast.show(I18nManager.t('repo.config_save_failed') + ': ' + msg);
             }
         );
     },

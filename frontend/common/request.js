@@ -108,6 +108,11 @@ const Request = {
             headers['Authorization'] = token;
         }
 
+        // 携带当前仓库 ID，后端据此路由到对应仓库的独立数据库
+        if (typeof RepoContext !== 'undefined') {
+            headers['X-Repo-Id'] = String(RepoContext.get());
+        }
+
         const config = { ...options, headers };
 
         try {

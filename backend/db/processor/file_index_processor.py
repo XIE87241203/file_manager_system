@@ -144,6 +144,21 @@ class FileIndexProcessor(BaseDBProcessor):
         return bool(result and result > 0)
 
     @staticmethod
+    def update_thumbnail_path_by_md5(file_md5: str, thumbnail_path: str, conn: Optional[sqlite3.Connection] = None) -> int:
+        """
+        用途说明：按文件 MD5 批量回填缩略图路径。缩略图按内容 MD5 命名，同内容文件共享同一缩略图，
+                  因此生成一次缩略图后需同步回填所有同 MD5 文件（含副本），避免副本因路径为空而无法预览。
+        入参说明：
+            file_md5 (str): 文件 MD5 哈希值。
+            thumbnail_path (str): 缩略图路径。
+            conn (Optional[sqlite3.Connection]): 数据库连接对象。
+        返回值说明：int - 受影响的记录数。
+        """
+        query: str = f"UPDATE {DBConstants.FileIndex.TABLE_NAME} SET {DBConstants.FileIndex.COL_THUMBNAIL_PATH} = ? WHERE {DBConstants.FileIndex.COL_FILE_MD5} = ?"
+        result: int = BaseDBProcessor._execute(query, (thumbnail_path, file_md5), conn=conn)
+        return result or 0
+
+    @staticmethod
     def clear_all_thumbnails(conn: Optional[sqlite3.Connection] = None) -> int:
         """
         用途说明：清空所有文件的缩略图记录。
@@ -255,6 +270,31 @@ class FileIndexProcessor(BaseDBProcessor):
         query: str = f"SELECT COUNT(*) as total FROM {DBConstants.FileIndex.TABLE_NAME} {where_clause}"
         res: Optional[dict] = BaseDBProcessor._execute(query, is_query=True, fetch_one=True)
         return res['total'] if res else 0
+
+    @staticmethod
+    def get_files_by_scan_time(checkpoint: Optional[str], newer: bool) -> List[FileIndexDBModel]:
+        """
+        用途说明：按扫描时间与查重时间点的关系获取文件列表（均排除回收站内的文件）。
+        入参说明：
+            checkpoint (Optional[str]): 查重时间点。为 None 时，newer=True 返回全部文件，newer=False 返回空列表。
+            newer (bool): True 获取扫描时间晚于时间点的新文件；False 获取不晚于时间点的旧文件。
+        返回值说明：List[FileIndexDBModel]: 符合条件的文件索引列表。
+        """
+        col_recycle = DBConstants.FileIndex.COL_RECYCLE_BIN_TIME
+        conditions: List[str] = [f"({col_recycle} IS NULL OR {col_recycle} = '')"]
+        params: List[str] = []
+        if checkpoint is None:
+            if not newer:
+                return []
+        else:
+            operator: str = '>' if newer else '<='
+            conditions.append(f"{DBConstants.FileIndex.COL_SCAN_TIME} {operator} ?")
+            params.append(checkpoint)
+
+        where_clause: str = "WHERE " + " AND ".join(conditions)
+        query: str = f"SELECT * FROM {DBConstants.FileIndex.TABLE_NAME} {where_clause}"
+        rows: List[dict] = BaseDBProcessor._execute(query, tuple(params), is_query=True)
+        return [FileIndexDBModel(**row) for row in rows]
 
     @staticmethod
     def check_md5_exists(file_md5: str) -> bool:

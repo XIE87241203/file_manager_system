@@ -1,23 +1,34 @@
 import os
 import sqlite3
 from contextlib import contextmanager
-from typing import Generator
+from typing import Generator, Optional, Dict
 
 from backend.common.i18n_utils import t
 from backend.common.log_utils import LogUtils
 from backend.common.utils import Utils
+from backend.common.repo_context import get_current_repo_id
 
 
 class DBManager:
     """
-    用途：数据库管理类，负责数据库的连接、初始化、版本管理、事务管理和表结构维护
+    用途：数据库管理类，负责数据库的连接、初始化、版本管理、事务管理和表结构维护。
+    多仓库支持：每个仓库对应一个独立 SQLite 库文件，连接按当前仓库上下文路由；
+    仓库元数据集中存放于独立主数据库 repositories.db。
     """
     _instance = None
 
-    # 数据库名
+    # 默认仓库数据库名（承载历史数据）
     DB_NAME: str = 'file_manager.db'
+    # 仓库元数据主数据库名
+    MASTER_DB_NAME: str = 'repositories.db'
 
     _db_path: str = os.path.join(Utils.get_runtime_path(), DB_NAME)
+    _master_db_path: str = os.path.join(Utils.get_runtime_path(), MASTER_DB_NAME)
+
+    # 仓库 ID -> 库文件绝对路径 缓存
+    _repo_path_cache: Dict[int, str] = {}
+    # 主数据库是否已初始化（确保早期 DB 访问前 repositories 表已就绪）
+    _master_ready: bool = False
 
     def __new__(cls):
         """
@@ -29,13 +40,90 @@ class DBManager:
             cls._instance = super(DBManager, cls).__new__(cls)
         return cls._instance
 
+    def get_master_connection(self) -> sqlite3.Connection:
+        """
+        用途说明：获取仓库元数据主数据库连接（独立于各仓库业务库）。
+        入参说明：无
+        返回值说明：sqlite3.Connection: 主数据库连接对象，行工厂为 sqlite3.Row。
+        """
+        conn: sqlite3.Connection = sqlite3.connect(DBManager._master_db_path)
+        conn.row_factory = sqlite3.Row
+        return conn
+
+    def init_master(self) -> None:
+        """
+        用途说明：初始化仓库元数据主数据库，创建 repositories 表（若不存在）。
+        入参说明：无
+        返回值说明：无
+        """
+        from backend.db.db_constants import DBConstants
+        try:
+            conn: sqlite3.Connection = self.get_master_connection()
+            cursor: sqlite3.Cursor = conn.cursor()
+            cursor.execute(f'''
+                CREATE TABLE IF NOT EXISTS {DBConstants.Repository.TABLE_NAME} (
+                    {DBConstants.Repository.COL_ID} INTEGER PRIMARY KEY AUTOINCREMENT,
+                    {DBConstants.Repository.COL_NAME} TEXT NOT NULL UNIQUE,
+                    {DBConstants.Repository.COL_CONFIG} TEXT NOT NULL,
+                    {DBConstants.Repository.COL_DB_FILE} TEXT NOT NULL,
+                    {DBConstants.Repository.COL_CREATE_TIME} DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            conn.commit()
+            conn.close()
+            DBManager._master_ready = True
+        except Exception as e:
+            LogUtils.error(t('db_init_failed', error=str(e)))
+
+    def resolve_db_path(self, repo_id: int) -> str:
+        """
+        用途说明：根据仓库 ID 解析其业务库文件的绝对路径（带缓存）。
+        入参说明：repo_id (int): 仓库 ID。
+        返回值说明：str - 库文件绝对路径；仓库不存在时回退到默认仓库库文件。
+        """
+        if repo_id in DBManager._repo_path_cache:
+            return DBManager._repo_path_cache[repo_id]
+
+        # 确保主数据库表已就绪（兼容应用初始化前的早期 DB 访问）
+        if not DBManager._master_ready:
+            self.init_master()
+
+        from backend.db.db_constants import DBConstants
+        abs_path: str = DBManager._db_path
+        try:
+            conn: sqlite3.Connection = self.get_master_connection()
+            cursor: sqlite3.Cursor = conn.cursor()
+            cursor.execute(
+                f"SELECT {DBConstants.Repository.COL_DB_FILE} FROM {DBConstants.Repository.TABLE_NAME} "
+                f"WHERE {DBConstants.Repository.COL_ID} = ?",
+                (repo_id,)
+            )
+            row = cursor.fetchone()
+            conn.close()
+            if row:
+                abs_path = os.path.join(Utils.get_runtime_path(), row[0])
+        except Exception as e:
+            LogUtils.error(t('db_init_failed', error=str(e)))
+
+        DBManager._repo_path_cache[repo_id] = abs_path
+        return abs_path
+
+    def clear_repo_path_cache(self) -> None:
+        """
+        用途说明：清空仓库库文件路径缓存，在仓库新增/删除后调用以刷新路由。
+        入参说明：无
+        返回值说明：无
+        """
+        DBManager._repo_path_cache.clear()
+
     def get_connection(self) -> sqlite3.Connection:
         """
-        用途说明：获取数据库连接，并启用 WAL 模式及同步设置以优化并发性能。
+        用途说明：获取当前仓库上下文对应的业务库连接，并启用 WAL 模式及同步设置以优化并发性能。
         入参说明：无
         返回值说明：sqlite3.Connection: 数据库连接对象
         """
-        conn: sqlite3.Connection = sqlite3.connect(DBManager._db_path)
+        db_path: str = self.resolve_db_path(get_current_repo_id())
+        conn: sqlite3.Connection = sqlite3.connect(db_path)
         # 启用 WAL (Write-Ahead Logging) 模式
         try:
             conn.execute("PRAGMA journal_mode=WAL;")
@@ -62,15 +150,16 @@ class DBManager:
         finally:
             conn.close()
 
-    def init_db(self) -> None:
+    def init_db(self, db_path: Optional[str] = None) -> None:
         """
-        用途说明：初始化数据库和数据表，并执行版本检查与升级逻辑。
-        入参说明：无
+        用途说明：初始化指定仓库数据库和数据表，并执行版本检查与升级逻辑。
+        入参说明：db_path (Optional[str]): 目标库文件绝对路径；为 None 时使用当前仓库上下文对应的库。
         返回值说明：无
         """
         from backend.db.db_constants import DBConstants
+        target_path: str = db_path or self.resolve_db_path(get_current_repo_id())
         try:
-            conn: sqlite3.Connection = self.get_connection()
+            conn: sqlite3.Connection = sqlite3.connect(target_path)
             cursor: sqlite3.Cursor = conn.cursor()
 
             # 1. 创建版本信息表
@@ -159,6 +248,24 @@ class DBManager:
                 {DBConstants.VideoFeature.COL_FILE_MD5} TEXT NOT NULL UNIQUE,
                 {DBConstants.VideoFeature.COL_VIDEO_HASHES} TEXT NOT NULL,
                 {DBConstants.VideoFeature.COL_DURATION} REAL
+            )
+        ''')
+
+        # 3.1 创建 image_features 表（图片感知哈希缓存）
+        cursor.execute(f'''
+            CREATE TABLE IF NOT EXISTS {DBConstants.ImageFeature.TABLE_NAME} (
+                {DBConstants.ImageFeature.COL_ID} INTEGER PRIMARY KEY AUTOINCREMENT,
+                {DBConstants.ImageFeature.COL_FILE_MD5} TEXT NOT NULL UNIQUE,
+                {DBConstants.ImageFeature.COL_IMAGE_HASH} TEXT NOT NULL
+            )
+        ''')
+
+        # 3.2 创建 duplicate_check_meta 表（记录最近一次查重完成时间与耗时）
+        cursor.execute(f'''
+            CREATE TABLE IF NOT EXISTS {DBConstants.DuplicateCheckMeta.TABLE_NAME} (
+                {DBConstants.DuplicateCheckMeta.COL_ID} INTEGER PRIMARY KEY AUTOINCREMENT,
+                {DBConstants.DuplicateCheckMeta.COL_LAST_CHECK_TIME} DATETIME,
+                {DBConstants.DuplicateCheckMeta.COL_LAST_CHECK_DURATION} REAL DEFAULT 0
             )
         ''')
 
@@ -377,6 +484,36 @@ class DBManager:
                 LogUtils.info(t('db_migrate_v14_success'))
             except Exception as e:
                 LogUtils.error(t('db_migrate_v14_failed', error=str(e)))
+                raise e
+
+        if old_version < 15:
+            # 升级到版本 15: 新增图片特征缓存表与查重时间元数据表
+            try:
+                cursor.execute(f'''
+                    CREATE TABLE IF NOT EXISTS {DBConstants.ImageFeature.TABLE_NAME} (
+                        {DBConstants.ImageFeature.COL_ID} INTEGER PRIMARY KEY AUTOINCREMENT,
+                        {DBConstants.ImageFeature.COL_FILE_MD5} TEXT NOT NULL UNIQUE,
+                        {DBConstants.ImageFeature.COL_IMAGE_HASH} TEXT NOT NULL
+                    )
+                ''')
+                cursor.execute(f'''
+                    CREATE TABLE IF NOT EXISTS {DBConstants.DuplicateCheckMeta.TABLE_NAME} (
+                        {DBConstants.DuplicateCheckMeta.COL_ID} INTEGER PRIMARY KEY AUTOINCREMENT,
+                        {DBConstants.DuplicateCheckMeta.COL_LAST_CHECK_TIME} DATETIME
+                    )
+                ''')
+                LogUtils.info(t('db_migrate_v15_success'))
+            except Exception as e:
+                LogUtils.error(t('db_migrate_v15_failed', error=str(e)))
+                raise e
+
+        if old_version < 16:
+            # 升级到版本 16: 为 duplicate_check_meta 添加查重耗时列
+            try:
+                cursor.execute(f"ALTER TABLE {DBConstants.DuplicateCheckMeta.TABLE_NAME} ADD COLUMN {DBConstants.DuplicateCheckMeta.COL_LAST_CHECK_DURATION} REAL DEFAULT 0")
+                LogUtils.info(t('db_migrate_v16_success'))
+            except Exception as e:
+                LogUtils.error(t('db_migrate_v16_failed', error=str(e)))
                 raise e
 
 

@@ -2,7 +2,7 @@ from dataclasses import asdict
 
 from flask import Blueprint, request
 
-from backend.common.auth_middleware import token_required
+from backend.auth.auth_middleware import token_required
 from backend.common.i18n_utils import t
 from backend.common.log_utils import LogUtils
 from backend.common.response import success_response, error_response
@@ -44,15 +44,6 @@ def update_setting():
 
     # 调用 SettingService 的封装逻辑处理配置更新及相关业务逻辑
     if settingService.update_settings(data, request.username):
-        # 检查是否修改了自动刷新相关的配置
-        file_repo_data = data.get('file_repository')
-        if isinstance(file_repo_data, dict):
-            if 'auto_refresh_time' in file_repo_data or 'auto_refresh_enabled' in file_repo_data:
-                # 动态导入以避免循环依赖
-                from backend.file_repository.auto_scan_service import AutoScanService
-                AutoScanService.refresh_config()
-                LogUtils.info(t('repo_auto_scan_updated', time=file_repo_data.get('auto_refresh_time', '')))
-
         LogUtils.info(t('config_updated_log', user=request.username))
         return success_response(t('config_update_success'))
     else:

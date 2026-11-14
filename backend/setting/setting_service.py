@@ -3,7 +3,7 @@ import json
 import os
 import sys
 from dataclasses import asdict, fields
-from typing import Dict, Any
+from typing import Dict, Any, Callable, List
 
 from backend.common.i18n_utils import I18nUtils, t
 from backend.common.log_utils import LogUtils
@@ -32,6 +32,9 @@ class SettingService:
         self._config: AppConfig = AppConfig()
         
         self.password_hash: str = "" # 缓存哈希后的密码
+
+        # 配置变更观察者回调列表，供其他模块以观察者方式监听配置更新
+        self._change_callbacks: List[Callable[[Dict[str, Any]], None]] = []
         
         # 2. 配置文件路径
         runtime_path = Utils.get_runtime_path()
@@ -142,10 +145,31 @@ class SettingService:
 
             self.save_config()
             LogUtils.info(t('config_updated_log', user=operator_name))
+            self._notify_change(data)
             return True
         except Exception as e:
             LogUtils.error(t('config_update_logic_error', error=str(e)))
             return False
+
+    def register_change_callback(self, callback: Callable[[Dict[str, Any]], None]) -> None:
+        """
+        用途：注册配置变更回调，供其他模块以观察者方式监听配置更新，避免设置模块反向依赖业务模块。
+        入参：callback: 回调函数，接收本次更新的配置字典 data。
+        返回值：无。
+        """
+        self._change_callbacks.append(callback)
+
+    def _notify_change(self, data: Dict[str, Any]) -> None:
+        """
+        用途：通知所有已注册的配置变更回调。单个回调异常不影响其他回调及主流程。
+        入参：data: 本次更新的配置字典。
+        返回值：无。
+        """
+        for callback in self._change_callbacks:
+            try:
+                callback(data)
+            except Exception as e:
+                LogUtils.error(t('config_change_callback_error', error=str(e)))
 
 # 实例化单例
 settingService = SettingService()

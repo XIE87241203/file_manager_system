@@ -146,7 +146,7 @@ const UIController = {
     },
 
     /**
-     * 用途说明：渲染文件表格内容
+     * 用途说明：渲染文件表格内容，视频行展示播放按钮，图片行展示预览图标（悬停图标时在鼠标右侧弹出缩略图预览，移开后关闭）
      * 入参说明：list (Array) - 文件数据列表
      * 返回值说明：无
      */
@@ -178,8 +178,11 @@ const UIController = {
             const isVideo = file.file_type === 'video';
             const playBtnHtml = isVideo ? `<span class="play-btn" title="${I18nManager.t('file_repo.play_video')}"><i class="play-icon">▶</i></span>` : '';
 
+            const isImage = file.file_type === 'image';
+            const previewBtnHtml = isImage ? `<span class="preview-btn" title="${I18nManager.t('file_repo.preview_image')}"><i class="preview-icon"><svg viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg></i></span>` : '';
+
             let html = `
-                <td class="col-name" title="${fileName}">${playBtnHtml}${fileName}</td>
+                <td class="col-name" title="${fileName}">${playBtnHtml}${previewBtnHtml}${fileName}</td>
                 <td class="col-size">${fileSizeStr}</td>
                 <td class="col-path" title="${file.file_path}">${file.file_path}</td>
                 <td class="col-type">${file.file_type || I18nManager.t('file_repo.unknown')}</td>
@@ -204,6 +207,21 @@ const UIController = {
                     e.stopPropagation();
                     App.handlePlayVideo(file.file_path);
                 };
+            }
+
+            if (isImage) {
+                const previewBtn = tr.querySelector('.preview-btn');
+                previewBtn.addEventListener('mouseenter', (e) => UIComponents.showQuickPreview(e, file.thumbnail_path));
+                previewBtn.addEventListener('mousemove', (e) => UIComponents.moveQuickPreview(e));
+                previewBtn.addEventListener('mouseleave', (e) => {
+                    // 鼠标仍在行内且开启了行级快速预览时保持预览，避免覆盖已有的整行悬停预览功能
+                    if (State.settings && State.settings.file_repository.quick_view_thumbnail && tr.contains(e.relatedTarget)) {
+                        UIComponents.showQuickPreview(e, file.thumbnail_path);
+                    } else {
+                        UIComponents.hideQuickPreview();
+                    }
+                });
+                previewBtn.onclick = (e) => e.stopPropagation();
             }
 
             if (State.settings && State.settings.file_repository.quick_view_thumbnail) {

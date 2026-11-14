@@ -4,8 +4,8 @@ from backend.common.base_async_service import BaseAsyncService
 from backend.common.i18n_utils import t
 from backend.common.log_utils import LogUtils
 from backend.common.progress_manager import ProgressStatus
-from backend.common.utils import Utils
 from backend.db.processor_manager import processor_manager
+from backend.db.search_query_helper import SearchQueryHelper
 from backend.model.db.batch_check_db_model import BatchCheckDBModel
 
 
@@ -82,7 +82,7 @@ class BatchCheckService(BaseAsyncService):
                 current_batch = file_names[i : i + batch_size]
                 
                 # 批量构建搜索模式 (模糊匹配模式)
-                name_patterns: List[Tuple[str, str]] = [(name, Utils.process_search_query(name)) for name in current_batch]
+                name_patterns: List[Tuple[str, str]] = [(name, SearchQueryHelper.process_search_query(name)) for name in current_batch]
                 
                 # 2. 调用处理器进行批量搜索 (注：FileIndexProcessor.get_paths_by_patterns 已调整为搜索文件名而非路径)
                 index_matches: Dict[str, str] = processor_manager.file_index_processor.get_paths_by_patterns(name_patterns)
