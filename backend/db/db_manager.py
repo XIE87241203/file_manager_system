@@ -162,6 +162,23 @@ class DBManager:
             )
         ''')
 
+        # 3.1 创建 image_features 表（图片感知哈希缓存）
+        cursor.execute(f'''
+            CREATE TABLE IF NOT EXISTS {DBConstants.ImageFeature.TABLE_NAME} (
+                {DBConstants.ImageFeature.COL_ID} INTEGER PRIMARY KEY AUTOINCREMENT,
+                {DBConstants.ImageFeature.COL_FILE_MD5} TEXT NOT NULL UNIQUE,
+                {DBConstants.ImageFeature.COL_IMAGE_HASH} TEXT NOT NULL
+            )
+        ''')
+
+        # 3.2 创建 duplicate_check_meta 表（记录最近一次查重完成时间）
+        cursor.execute(f'''
+            CREATE TABLE IF NOT EXISTS {DBConstants.DuplicateCheckMeta.TABLE_NAME} (
+                {DBConstants.DuplicateCheckMeta.COL_ID} INTEGER PRIMARY KEY AUTOINCREMENT,
+                {DBConstants.DuplicateCheckMeta.COL_LAST_CHECK_TIME} DATETIME
+            )
+        ''')
+
         # 4. 创建 duplicate_groups 表
         cursor.execute(f'''
             CREATE TABLE IF NOT EXISTS {DBConstants.DuplicateGroup.TABLE_GROUPS} (
@@ -377,6 +394,27 @@ class DBManager:
                 LogUtils.info(t('db_migrate_v14_success'))
             except Exception as e:
                 LogUtils.error(t('db_migrate_v14_failed', error=str(e)))
+                raise e
+
+        if old_version < 15:
+            # 升级到版本 15: 新增图片特征缓存表与查重时间元数据表
+            try:
+                cursor.execute(f'''
+                    CREATE TABLE IF NOT EXISTS {DBConstants.ImageFeature.TABLE_NAME} (
+                        {DBConstants.ImageFeature.COL_ID} INTEGER PRIMARY KEY AUTOINCREMENT,
+                        {DBConstants.ImageFeature.COL_FILE_MD5} TEXT NOT NULL UNIQUE,
+                        {DBConstants.ImageFeature.COL_IMAGE_HASH} TEXT NOT NULL
+                    )
+                ''')
+                cursor.execute(f'''
+                    CREATE TABLE IF NOT EXISTS {DBConstants.DuplicateCheckMeta.TABLE_NAME} (
+                        {DBConstants.DuplicateCheckMeta.COL_ID} INTEGER PRIMARY KEY AUTOINCREMENT,
+                        {DBConstants.DuplicateCheckMeta.COL_LAST_CHECK_TIME} DATETIME
+                    )
+                ''')
+                LogUtils.info(t('db_migrate_v15_success'))
+            except Exception as e:
+                LogUtils.error(t('db_migrate_v15_failed', error=str(e)))
                 raise e
 
 

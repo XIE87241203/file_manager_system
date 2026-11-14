@@ -10,6 +10,7 @@ from backend.model.db.duplicate_group_db_model import DuplicateGroupDBModel
 from backend.model.db.file_index_db_model import FileIndexDBModel
 from backend.model.db.file_repo_detail_db_model import FileRepoDetailDBModel
 from backend.model.db.history_file_index_db_model import HistoryFileIndexDBModule
+from backend.model.db.image_feature_db_model import ImageFeatureDBModel
 from backend.model.db.pending_entry_file_db_model import PendingEntryFileDBModel
 from backend.model.db.video_feature_db_model import VideoFeatureDBModel
 from backend.model.duplicate_group_result import DuplicateGroupResult
@@ -143,6 +144,17 @@ class DBOperations:
         return processor_manager.file_index_processor.get_count(only_no_thumbnail)
 
     @staticmethod
+    def get_files_by_scan_time(checkpoint: Optional[str], newer: bool) -> List[FileIndexDBModel]:
+        """
+        用途说明：按扫描时间与查重时间点的关系获取文件列表（排除回收站文件）。
+        入参说明：
+            checkpoint (Optional[str]): 查重时间点，为 None 时 newer=True 返回全部、newer=False 返回空。
+            newer (bool): True 取新索引文件，False 取旧索引文件。
+        返回值说明：List[FileIndexDBModel]: 文件索引模型列表。
+        """
+        return processor_manager.file_index_processor.get_files_by_scan_time(checkpoint, newer)
+
+    @staticmethod
     def check_file_md5_exists(file_md5: str) -> bool:
         """
         用途说明：检查 MD5 是否已存在。
@@ -216,6 +228,26 @@ class DBOperations:
             return None
         return VideoFileInfoResult(file_index=file_index, video_feature=video_feature)
 
+    # --- 图片特征相关操作 (Image Features) ---
+
+    @staticmethod
+    def add_image_feature(features: ImageFeatureDBModel) -> bool:
+        """
+        用途说明：添加或更新图片感知哈希特征。
+        入参说明：features (ImageFeatureDBModel): 图片特征模型。
+        返回值说明：bool: 是否成功。
+        """
+        return processor_manager.image_feature_processor.add_or_update_feature(features)
+
+    @staticmethod
+    def get_image_feature_by_md5(md5: str) -> Optional[ImageFeatureDBModel]:
+        """
+        用途说明：根据 MD5 获取图片感知哈希特征。
+        入参说明：md5 (str): 文件 MD5 值。
+        返回值说明：Optional[ImageFeatureDBModel]: 图片特征模型，不存在则返回 None。
+        """
+        return processor_manager.image_feature_processor.get_feature_by_md5(md5)
+
     # --- 查重结果相关操作 (Duplicate Results) ---
 
     @staticmethod
@@ -231,6 +263,43 @@ class DBOperations:
         用途说明：批量保存查重结果.
         """
         return processor_manager.duplicate_group_processor.batch_save_duplicate_groups(results)
+
+    @staticmethod
+    def save_incremental_results(results: List[DuplicateGroupDBModel], new_file_paths: List[str]) -> bool:
+        """
+        用途说明：保存新增查重结果，仅保留涉及新文件的分组并取代受影响的旧分组。
+        入参说明：
+            results (List[DuplicateGroupDBModel]): 查重器产出的全部分组。
+            new_file_paths (List[str]): 本次新增查重的新文件路径列表。
+        返回值说明：bool: 是否成功保存。
+        """
+        return processor_manager.duplicate_group_processor.save_incremental_results(results, new_file_paths)
+
+    @staticmethod
+    def self_heal_duplicate_results() -> None:
+        """
+        用途说明：清理失效的查重结果（删除已不存在文件的关联并解散残缺分组）。
+        入参说明：无
+        返回值说明：无
+        """
+        processor_manager.duplicate_group_processor.cleanup_invalid_results()
+
+    @staticmethod
+    def get_last_check_time() -> Optional[str]:
+        """
+        用途说明：获取最近一次查重完成的时间点。
+        返回值说明：Optional[str]: 时间字符串，若从未查重则返回 None。
+        """
+        return processor_manager.duplicate_group_processor.get_last_check_time()
+
+    @staticmethod
+    def set_last_check_time(check_time: str) -> bool:
+        """
+        用途说明：记录最近一次查重完成的时间点。
+        入参说明：check_time (str): 查重完成时间字符串。
+        返回值说明：bool: 是否成功。
+        """
+        return processor_manager.duplicate_group_processor.set_last_check_time(check_time)
 
     @staticmethod
     def get_all_duplicate_results(page: int, limit: int, similarity_type: Optional[str] = None) -> PaginationResult[DuplicateGroupResult]:

@@ -172,6 +172,41 @@
     margin-left: 2px; /* 微调三角位置 */
 }
 
+/* 10.1 图片预览图标样式 (与播放按钮保持一致) */
+.preview-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    margin-right: 8px;
+    cursor: pointer;
+    color: #1a73e8;
+    background-color: #e8f0fe;
+    border-radius: 50%;
+    transition: background-color 0.2s, transform 0.1s;
+    user-select: none;
+    vertical-align: middle;
+}
+
+.preview-btn:hover {
+    background-color: #d2e3fc;
+    transform: scale(1.1);
+}
+
+.preview-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.preview-icon svg {
+    width: 14px;
+    height: 14px;
+    fill: currentColor;
+    display: block;
+}
+
 /* 11. 批量删除按钮图标化样式 */
 .btn-delete-icon {
     width: 40px;

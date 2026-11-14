@@ -1,7 +1,7 @@
 from flask import Blueprint, request
 
 from backend.auth.auth_manager import auth_manager
-from backend.common.auth_middleware import token_required
+from backend.auth.auth_middleware import token_required
 from backend.common.i18n_utils import t
 from backend.common.log_utils import LogUtils
 from backend.common.response import success_response, error_response

@@ -9,6 +9,7 @@ const State = {
     limit: 20,
     total: 0,
     similarityType: '', // 存储当前的筛选类型
+    fileType: '', // 存储当前的文件类型筛选 (image / video)
     lastCheckTime: '--',
     pollingInterval: null,
     settings: null, // 存储系统设置
@@ -112,7 +113,7 @@ const UIController = {
             scanningContainer.classList.add('hidden');
             UIComponents.hideProgressBar('#scanning-container');
 
-            if (status === ProgressStatus.COMPLETED || (State.results && State.results.length > 0) || State.similarityType !== '') {
+            if (status === ProgressStatus.COMPLETED || (State.results && State.results.length > 0) || State.similarityType !== '' || State.fileType !== '') {
                 resultsGroup.classList.remove('hidden');
                 emptyHint.classList.add('hidden');
             } else {
@@ -314,6 +315,51 @@ const UIController = {
         } else {
             globalDeleteBtn.classList.add('hidden');
         }
+    },
+
+    /**
+     * 用途说明：弹出查重模式选择弹窗，供用户选择全局查重或新增查重
+     * 入参说明：onSelect (Function) - 选择模式后的回调，参数为模式字符串 ('global' / 'incremental')
+     * 返回值说明：无
+     */
+    showModeSelectModal(onSelect) {
+        let modal = document.getElementById('duplicate-mode-modal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'duplicate-mode-modal';
+            modal.className = 'modal-mask hidden';
+            document.body.appendChild(modal);
+        }
+
+        modal.innerHTML = `
+            <div class="modal-content mode-select-content">
+                <h3 class="title">${I18nManager.t('duplicate_check.mode_modal_title')}</h3>
+                <button type="button" class="mode-option" data-mode="global">
+                    <span class="mode-option-title">${I18nManager.t('duplicate_check.mode_global')}</span>
+                    <span class="mode-option-desc">${I18nManager.t('duplicate_check.mode_global_desc')}</span>
+                </button>
+                <button type="button" class="mode-option" data-mode="incremental">
+                    <span class="mode-option-title">${I18nManager.t('duplicate_check.mode_incremental')}</span>
+                    <span class="mode-option-desc">${I18nManager.t('duplicate_check.mode_incremental_desc')}</span>
+                </button>
+                <div class="flex-gap-5">
+                    <button type="button" id="mode-modal-cancel-btn" class="btn-secondary mt-0 flex-1">${I18nManager.t('common.cancel')}</button>
+                </div>
+            </div>
+        `;
+
+        modal.classList.remove('hidden');
+
+        modal.querySelectorAll('.mode-option').forEach(btn => {
+            btn.onclick = () => {
+                modal.classList.add('hidden');
+                onSelect(btn.getAttribute('data-mode'));
+            };
+        });
+
+        document.getElementById('mode-modal-cancel-btn').onclick = () => {
+            modal.classList.add('hidden');
+        };
     }
 };
 
@@ -384,19 +430,36 @@ const App = {
         // 绑定筛选事件
         if (filterSimilarityType) {
             filterSimilarityType.onchange = () => {
-                State.similarityType = filterSimilarityType.value;
+                const value = filterSimilarityType.value;
+                // 仅图片 / 仅视频 按文件实际类型筛选，其余按相似度类型筛选，两者互斥
+                if (value === 'image' || value === 'video') {
+                    State.fileType = value;
+                    State.similarityType = '';
+                } else {
+                    State.fileType = '';
+                    State.similarityType = value;
+                }
                 this.loadResults(1);
             };
         }
     },
 
     /**
-     * 用途说明：处理开始查重逻辑
+     * 用途说明：处理开始查重逻辑，先弹出模式选择弹窗
      * 入参说明：无
      * 返回值说明：无
      */
     handleStart() {
-        DuplicateCheckAPI.startCheck(
+        UIController.showModeSelectModal((mode) => this.startCheckWithMode(mode));
+    },
+
+    /**
+     * 用途说明：按指定模式启动查重任务
+     * 入参说明：mode (String) - 查重模式 ('global' / 'incremental')
+     * 返回值说明：无
+     */
+    startCheckWithMode(mode) {
+        DuplicateCheckAPI.startCheck(mode,
             () => {
                 Toast.show(I18nManager.t('duplicate_check.check_started'));
                 State.results = [];
@@ -435,7 +498,8 @@ const App = {
         const params = {
             page: page,
             limit: State.limit,
-            similarity_type: State.similarityType
+            similarity_type: State.similarityType,
+            file_type: State.fileType
         };
         DuplicateCheckAPI.getDuplicateList(
             params,

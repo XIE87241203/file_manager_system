@@ -4,8 +4,8 @@ from typing import List, Any, Type, TypeVar, Optional
 
 from backend.common.i18n_utils import t
 from backend.common.log_utils import LogUtils
-from backend.common.utils import Utils
 from backend.db.db_manager import db_manager
+from backend.db.search_query_helper import SearchQueryHelper
 from backend.model.pagination_result import PaginationResult
 
 T = TypeVar('T')
@@ -109,8 +109,8 @@ class BaseDBProcessor(ABC):
             extra_where: 额外的过滤条件 (例如 "AND status = ?")
             extra_params: 额外过滤条件的参数
         """
-        # 1. 处理搜索关键词：调用 Utils 工具类进行统一预处理
-        sql_search_param: str = Utils.process_search_query(search_query)
+        # 1. 处理搜索关键词：调用搜索助手进行统一预处理
+        sql_search_param: str = SearchQueryHelper.process_search_query(search_query)
 
         # 2. 校验排序字段
         if sort_by not in allowed_sort_columns:

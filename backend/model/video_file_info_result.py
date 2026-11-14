@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from backend.db.db_constants import DBConstants
+from backend.common.similarity_type import SimilarityType
 from backend.model.db.file_index_db_model import FileIndexDBModel
 from backend.model.db.video_feature_db_model import VideoFeatureDBModel
 
@@ -18,5 +18,5 @@ class VideoFileInfoResult:
     """
     file_index: FileIndexDBModel
     video_feature: VideoFeatureDBModel
-    similarity_type: str = DBConstants.SimilarityType.VIDEO_FEATURE
+    similarity_type: str = SimilarityType.VIDEO_FEATURE
     similarity_rate: float = 1.0

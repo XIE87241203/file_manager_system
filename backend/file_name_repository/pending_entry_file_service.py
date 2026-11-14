@@ -1,8 +1,8 @@
 from typing import List, Dict, Tuple
 
 from backend.common.i18n_utils import t
-from backend.common.utils import Utils
 from backend.db.db_operations import DBOperations
+from backend.db.search_query_helper import SearchQueryHelper
 from backend.model.batch_check_result import BatchCheckItemResult
 from backend.model.db.pending_entry_file_db_model import PendingEntryFileDBModel
 from backend.model.pagination_result import PaginationResult
@@ -65,7 +65,7 @@ class PendingEntryFileService:
         from backend.db.processor_manager import processor_manager
         
         # 1. 批量预处理搜索模式
-        name_patterns: List[Tuple[str, str]] = [(name, Utils.process_search_query(name)) for name in file_names]
+        name_patterns: List[Tuple[str, str]] = [(name, SearchQueryHelper.process_search_query(name)) for name in file_names]
         
         # 2. 调用处理器进行批量搜索
         # 检测文件索引库 (获取路径)

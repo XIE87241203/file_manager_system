@@ -246,6 +246,8 @@ const I18nEn = {
         "filter_md5": "MD5 Identical",
         "filter_image": "Image Similarity",
         "filter_video": "Video Similarity",
+        "filter_image_only": "Images Only",
+        "filter_video_only": "Videos Only",
         "summary_groups": "Total Groups: {total}",
         "summary_time": "Check Time: {time}",
         "empty_results": "No duplicate files found",
@@ -272,7 +274,12 @@ const I18nEn = {
         "type_video": "Video Feature",
         "move_to_recycle_count": "Move to Recycle Bin ({count})",
         "delete_confirm_title": "Move to Recycle Bin",
-        "delete_confirm_msg": "Are you sure you want to move the selected {count} files to the recycle bin?"
+        "delete_confirm_msg": "Are you sure you want to move the selected {count} files to the recycle bin?",
+        "mode_modal_title": "Select Check Mode",
+        "mode_global": "Full Check",
+        "mode_global_desc": "Clear old results and rescan all files in the repository",
+        "mode_incremental": "Incremental Check",
+        "mode_incremental_desc": "Scan only new files; quickly match duplicates against existing repository files and among the new files"
     },
     "recycle_bin": {
         "title": "Recycle Bin",
@@ -317,6 +324,7 @@ const I18nEn = {
         "search_hint": "Search filename (Regex fuzzy match)...",
         "empty_hint": "No indexed files",
         "play_video": "Click to play video",
+        "preview_image": "Hover to preview image",
         "unknown_file": "Unknown filename",
         "unknown": "Unknown",
         "menu_start_scan": "Start Indexing",

@@ -4,12 +4,13 @@
 const DuplicateCheckAPI = {
     /**
      * @description 用途说明：向后端发送请求开始查重任务
+     * @param {string} mode - 入参说明：查重模式 ('global' 全局查重 / 'incremental' 新增查重)
      * @param {Function} onSuccess - 入参说明：成功回调
      * @param {Function} onError - 入参说明：失败回调
      * @returns {void} - 返回值说明：无
      */
-    startCheck(onSuccess, onError) {
-        Request.post('/api/file_repository/duplicate/check', {}, {}, true)
+    startCheck(mode, onSuccess, onError) {
+        Request.post('/api/file_repository/duplicate/check', { mode: mode }, {}, true)
             .then(res => {
                 if (res.status === 'success') onSuccess(res);
                 else onError(res.message);
@@ -49,7 +50,7 @@ const DuplicateCheckAPI = {
 
     /**
      * @description 用途说明：分页获取查重结果数据
-     * @param {Object} params - 入参说明：查询参数 (page, limit, similarity_type)
+     * @param {Object} params - 入参说明：查询参数 (page, limit, similarity_type, file_type)
      * @param {Function} onSuccess - 入参说明：成功回调，参数为分页数据列表
      * @param {Function} onError - 入参说明：失败回调
      * @returns {void} - 返回值说明：无

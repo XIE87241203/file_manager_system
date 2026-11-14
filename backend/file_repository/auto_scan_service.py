@@ -1,5 +1,7 @@
 import schedule
 
+from typing import Dict, Any
+
 from backend.common.heartbeat_service import HeartbeatService
 from backend.common.i18n_utils import t
 from backend.common.log_utils import LogUtils
@@ -60,6 +62,18 @@ class AutoScanService:
 
         except Exception as e:
             LogUtils.error(t('repo_auto_scan_config_error', error=str(e)))
+
+    @classmethod
+    def on_config_changed(cls, data: Dict[str, Any]) -> None:
+        """
+        用途说明：配置变更观察者回调。仅当文件仓库自动刷新相关配置发生变化时刷新定时扫描任务。
+        入参说明：data (Dict[str, Any]): 本次更新的配置字典。
+        返回值说明：无
+        """
+        file_repo_data = data.get('file_repository')
+        if isinstance(file_repo_data, dict):
+            if 'auto_refresh_time' in file_repo_data or 'auto_refresh_enabled' in file_repo_data:
+                cls.refresh_config()
 
     @classmethod
     def _on_heartbeat(cls) -> None:

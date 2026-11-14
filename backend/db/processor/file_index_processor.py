@@ -257,6 +257,31 @@ class FileIndexProcessor(BaseDBProcessor):
         return res['total'] if res else 0
 
     @staticmethod
+    def get_files_by_scan_time(checkpoint: Optional[str], newer: bool) -> List[FileIndexDBModel]:
+        """
+        用途说明：按扫描时间与查重时间点的关系获取文件列表（均排除回收站内的文件）。
+        入参说明：
+            checkpoint (Optional[str]): 查重时间点。为 None 时，newer=True 返回全部文件，newer=False 返回空列表。
+            newer (bool): True 获取扫描时间晚于时间点的新文件；False 获取不晚于时间点的旧文件。
+        返回值说明：List[FileIndexDBModel]: 符合条件的文件索引列表。
+        """
+        col_recycle = DBConstants.FileIndex.COL_RECYCLE_BIN_TIME
+        conditions: List[str] = [f"({col_recycle} IS NULL OR {col_recycle} = '')"]
+        params: List[str] = []
+        if checkpoint is None:
+            if not newer:
+                return []
+        else:
+            operator: str = '>' if newer else '<='
+            conditions.append(f"{DBConstants.FileIndex.COL_SCAN_TIME} {operator} ?")
+            params.append(checkpoint)
+
+        where_clause: str = "WHERE " + " AND ".join(conditions)
+        query: str = f"SELECT * FROM {DBConstants.FileIndex.TABLE_NAME} {where_clause}"
+        rows: List[dict] = BaseDBProcessor._execute(query, tuple(params), is_query=True)
+        return [FileIndexDBModel(**row) for row in rows]
+
+    @staticmethod
     def check_md5_exists(file_md5: str) -> bool:
         """
         用途说明：检查指定 MD5 是否已存在于数据库中。

@@ -246,6 +246,8 @@ const I18nZh = {
         "filter_md5": "MD5完全一致",
         "filter_image": "图片相似",
         "filter_video": "视频相似",
+        "filter_image_only": "仅图片",
+        "filter_video_only": "仅视频",
         "summary_groups": "重复组总数: {total}",
         "summary_time": "查重时间: {time}",
         "empty_results": "未发现重复文件",
@@ -272,7 +274,12 @@ const I18nZh = {
         "type_video": "视频指纹",
         "move_to_recycle_count": "移入回收站 ({count})",
         "delete_confirm_title": "移入回收站",
-        "delete_confirm_msg": "确定要将选中的 {count} 个文件移入回收站吗？"
+        "delete_confirm_msg": "确定要将选中的 {count} 个文件移入回收站吗？",
+        "mode_modal_title": "选择查重模式",
+        "mode_global": "全局查重",
+        "mode_global_desc": "清空旧结果，重新扫描仓库中的全部文件",
+        "mode_incremental": "新增查重",
+        "mode_incremental_desc": "仅扫描新增文件，快速比对新文件与仓库已有文件、以及新文件之间的重复"
     },
     "recycle_bin": {
         "title": "回收站",
@@ -317,6 +324,7 @@ const I18nZh = {
         "search_hint": "搜索文件名 (正则模糊匹配)...",
         "empty_hint": "暂无索引文件",
         "play_video": "点击播放视频",
+        "preview_image": "悬停预览图片",
         "unknown_file": "未知文件名",
         "unknown": "未知",
         "menu_start_scan": "建立索引",

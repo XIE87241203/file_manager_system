@@ -179,6 +179,9 @@ TRANSLATIONS = {
     "dup_initializing": "正在初始化...",
     "dup_start_failed": "启动查重任务失败: {error}",
     "dup_internal_check_start": "开始执行文件查重逻辑...",
+    "dup_incremental_check_start": "开始执行新增查重逻辑...",
+    "dup_no_new_files": "没有新增文件需要查重",
+    "dup_comparing_existing": "正在比对仓库已有文件...",
     "dup_no_files": "未发现可检查的文件",
     "dup_preparing": "正在准备分析文件...",
     "dup_analyzing": "正在分析: {file_name}",
@@ -214,6 +217,7 @@ TRANSLATIONS = {
     "config_save_error": "保存配置文件时发生错误: {error}",
     "config_updated_log": "用户 {user} 更新了系统配置",
     "config_update_logic_error": "更新配置逻辑执行失败: {error}",
+    "config_change_callback_error": "配置变更回调执行失败: {error}",
 
     # --- 系统 (System) ---
     "sys_log_not_found": "[{time}] 日志文件不存在: {filename}",
@@ -249,6 +253,8 @@ TRANSLATIONS = {
     "db_migrate_v13_failed": "升级到版本 13 失败: {error}",
     "db_migrate_v14_success": "数据库升级到版本 14: 重置查重表结构，从关联 ID 改为关联路径",
     "db_migrate_v14_failed": "升级到版本 14 失败: {error}",
+    "db_migrate_v15_success": "数据库升级到版本 15: 新增图片特征缓存表与查重时间元数据表",
+    "db_migrate_v15_failed": "升级到版本 15 失败: {error}",
 
     # --- 日志 & API (Log & API) ---
     "log_api_request": "接口请求 - 方法: {method}, 路径: {path}, Token: {token}, 参数: {data}",

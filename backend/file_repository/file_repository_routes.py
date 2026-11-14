@@ -4,7 +4,7 @@ from typing import Optional
 
 from flask import Blueprint, request, send_file
 
-from backend.common.auth_middleware import token_required
+from backend.auth.auth_middleware import token_required
 from backend.common.i18n_utils import t
 from backend.common.log_utils import LogUtils
 from backend.common.progress_manager import ProgressStatus
@@ -232,8 +232,12 @@ def restore_from_recycle_bin():
 @file_repo_bp.route('/duplicate/check', methods=['POST'])
 @token_required
 def start_duplicate_check():
+    data: dict = request.get_json(silent=True) or {}
+    mode: str = data.get('mode', 'global')
+    if mode not in ('global', 'incremental'):
+        mode = 'global'
     LogUtils.info(t('dup_start_log', user=_get_current_user()))
-    if DuplicateService.start_duplicate_check_task():
+    if DuplicateService.start_duplicate_check_task(mode):
         return success_response(t('dup_task_started'))
     else:
         return error_response(t('dup_task_running'), 400)
@@ -258,12 +262,13 @@ def get_duplicate_progress():
 @token_required
 def list_duplicate_results():
     """
-    用途说明：分页获取查重结果数据，支持相似类型筛选。
+    用途说明：分页获取查重结果数据，支持相似类型及文件类型筛选。
     """
     page: int = request.args.get('page', default=1, type=int)
     limit: int = request.args.get('limit', default=100, type=int)
     similarity_type: str = request.args.get('similarity_type', default=None)
-    data = DuplicateService.get_all_duplicate_results(page, limit, similarity_type)
+    file_type: str = request.args.get('file_type', default=None)
+    data = DuplicateService.get_all_duplicate_results(page, limit, similarity_type, file_type)
     return success_response(t('dup_get_list_success'), data=asdict(data))
 
 

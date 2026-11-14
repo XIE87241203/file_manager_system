@@ -262,3 +262,41 @@
 .file-path {
     color: #70757a;
 }
+
+/* 查重模式选择弹窗 */
+.mode-select-content {
+    max-width: 460px;
+}
+
+.mode-option {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 14px 16px;
+    margin-bottom: 12px;
+    border: 1px solid #dadce0;
+    border-radius: 8px;
+    background: #fff;
+    cursor: pointer;
+    transition: border-color 0.2s, background-color 0.2s;
+}
+
+.mode-option:hover {
+    border-color: #1a73e8;
+    background-color: #f5f9ff;
+}
+
+.mode-option-title {
+    display: block;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #202124;
+    margin-bottom: 4px;
+}
+
+.mode-option-desc {
+    display: block;
+    font-size: 0.85rem;
+    color: #5f6368;
+    line-height: 1.4;
+}

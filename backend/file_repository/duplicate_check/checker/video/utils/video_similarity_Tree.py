@@ -7,7 +7,7 @@ import imagehash
 from backend.common.i18n_utils import t
 from backend.common.log_utils import LogUtils
 from backend.common.utils import Utils
-from backend.db.db_constants import DBConstants
+from backend.common.similarity_type import SimilarityType
 from backend.db.db_operations import DBOperations
 from backend.file_repository.duplicate_check.checker.video.utils.video_analyzer import VideoAnalyzer
 from backend.file_repository.duplicate_check.checker.video.utils.video_comparison_util import \
@@ -100,7 +100,7 @@ class VideoSimilarityTree:
             # 异常情况处理：作为独立组，第一个入组 similarity 默认为 0.0
             self.video_groups.append([VideoSimilarityNode(
                 path=current_path, 
-                similarity_type=DBConstants.SimilarityType.VIDEO_FEATURE, 
+                similarity_type=SimilarityType.VIDEO_FEATURE, 
                 similarity=0.0
             )])
             return
@@ -118,7 +118,7 @@ class VideoSimilarityTree:
                 LogUtils.info(t('dup_video_md5_matched', name=Utils.get_filename(current_path)))
                 node: VideoSimilarityNode = VideoSimilarityNode(
                     path=current_path,
-                    similarity_type=DBConstants.SimilarityType.MD5,
+                    similarity_type=SimilarityType.MD5,
                     similarity=1.0  # MD5 匹配时，与代表视频完全一致
                 )
                 group.append(node)
@@ -147,7 +147,7 @@ class VideoSimilarityTree:
                 # 创建新节点
                 node: VideoSimilarityNode = VideoSimilarityNode(
                     path=current_path, 
-                    similarity_type=DBConstants.SimilarityType.VIDEO_FEATURE,
+                    similarity_type=SimilarityType.VIDEO_FEATURE,
                     similarity=similarity
                 )
 
@@ -164,7 +164,7 @@ class VideoSimilarityTree:
         # 无匹配组，作为新组的代表，第一个入组 similarity 默认为 0.0
         self.video_groups.append([VideoSimilarityNode(
             path=current_path, 
-            similarity_type=DBConstants.SimilarityType.VIDEO_FEATURE, 
+            similarity_type=SimilarityType.VIDEO_FEATURE, 
             similarity=0.0
         )])
 

@@ -11,6 +11,7 @@ from backend.common.progress_manager import ProgressStatus
 from backend.common.thread_pool import ThreadPoolManager
 from backend.common.utils import Utils
 from backend.db.db_operations import DBOperations
+from backend.file_repository.file_info_service import FileInfoService
 from backend.file_repository.file_service import FileService
 from backend.model.db.file_index_db_model import FileIndexDBModel
 from backend.setting.setting_models import FileRepositorySettings
@@ -156,7 +157,7 @@ class ScanService(BaseAsyncService):
                                 paths_to_update_time = []
                         else:
                             # 修改点：改调用 getFileInfo
-                            info_futures.append(ThreadPoolManager.submit(Utils.get_file_info, full_path))
+                            info_futures.append(ThreadPoolManager.submit(FileInfoService.get_file_info, full_path))
                             
                             if len(info_futures) >= max_concurrent_tasks:
                                 new_count += cls._process_info_futures(info_futures, all_files_info, current_scan_time, batch_insert_size)

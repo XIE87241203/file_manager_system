@@ -3,13 +3,7 @@ class DBConstants:
     用途：数据库表名及列名常量类，统一管理所有数据库结构相关的硬编码字符串
     """
 
-    DB_VERSION: int = 14  # 当前数据库版本，升级至 14 以支持 duplicate_files 使用 file_path 关联
-
-    class SimilarityType:
-        """用途：查重相似度类型常量"""
-        MD5: str = 'md5'
-        HASH: str = 'hash'
-        VIDEO_FEATURE: str = 'video_feature'
+    DB_VERSION: int = 15  # 当前数据库版本，升级至 15 以支持图片特征缓存与查重时间元数据
 
     class VersionInfo:
         """用途：version_info 表相关的常量"""
@@ -52,6 +46,19 @@ class DBConstants:
         COL_FILE_MD5: str = 'file_md5'
         COL_VIDEO_HASHES: str = 'video_hashes'
         COL_DURATION: str = 'duration'
+
+    class ImageFeature:
+        """用途：image_features 表相关的常量（图片感知哈希缓存）"""
+        TABLE_NAME: str = 'image_features'
+        COL_ID: str = 'id'
+        COL_FILE_MD5: str = 'file_md5'
+        COL_IMAGE_HASH: str = 'image_hash'
+
+    class DuplicateCheckMeta:
+        """用途：duplicate_check_meta 表相关的常量（记录最近一次查重完成时间）"""
+        TABLE_NAME: str = 'duplicate_check_meta'
+        COL_ID: str = 'id'
+        COL_LAST_CHECK_TIME: str = 'last_check_time'
 
     class DuplicateGroup:
         """用途：duplicate_groups 表相关的常量"""

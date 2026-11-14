@@ -1,8 +1,9 @@
 import sqlite3
-from typing import List, Dict, Optional
+from typing import Any, List, Dict, Optional, Set
 
 from backend.common.i18n_utils import t
 from backend.common.log_utils import LogUtils
+from backend.common.similarity_type import SimilarityType
 from backend.db.db_constants import DBConstants
 from backend.db.db_manager import db_manager
 from backend.db.processor.base_db_processor import BaseDBProcessor
@@ -212,6 +213,15 @@ class DuplicateGroupProcessor(BaseDBProcessor):
                 conn.close()
 
     @staticmethod
+    def cleanup_invalid_results() -> None:
+        """
+        用途说明：清理失效的查重结果（删除文件索引中已不存在的关联，并解散成员不足 2 个的分组）。
+        入参说明：无
+        返回值说明：无
+        """
+        DuplicateGroupProcessor._self_heal()
+
+    @staticmethod
     def clear_all_table() -> bool:
         """
         用途：清空重复文件相关的两张表
@@ -227,7 +237,8 @@ class DuplicateGroupProcessor(BaseDBProcessor):
     def get_duplicate_groups_paged(
             page: int,
             limit: int,
-            similarity_type: Optional[str] = None
+            similarity_type: Optional[str] = None,
+            file_type: Optional[str] = None
     ) -> PaginationResult[DuplicateGroupResult]:
         """
         用途说明：分页获取重复文件分组数据（基于先自愈后查询的优化方案）。
@@ -241,20 +252,37 @@ class DuplicateGroupProcessor(BaseDBProcessor):
             page (int): 当前页码。
             limit (int): 每页条数。
             similarity_type (Optional[str]): 相似度类型。
+            file_type (Optional[str]): 文件类型 (如 image, video)，按组内文件的实际类型筛选。
         返回值说明：
             PaginationResult[DuplicateGroupResult]: 清理后的准确分页结果。
         """
         # 1. 执行全表自愈，确保 total 计算前数据是干净的
         DuplicateGroupProcessor._self_heal()
 
-        # 2. 获取准确的总分组数
+        # 2. 构建筛选条件（相似度类型 / 文件类型），并统计准确的总分组数
+        conditions: List[str] = []
+        condition_params: List[Any] = []
+        join_clause: str = ""
         if similarity_type:
+            conditions.append(f"df.{DBConstants.DuplicateFile.COL_SIMILARITY_TYPE} = ?")
+            condition_params.append(similarity_type)
+        if file_type:
+            join_clause = (
+                f"INNER JOIN {DBConstants.FileIndex.TABLE_NAME} fi "
+                f"ON fi.{DBConstants.FileIndex.COL_FILE_PATH} = df.{DBConstants.DuplicateFile.COL_FILE_PATH}"
+            )
+            conditions.append(f"fi.{DBConstants.FileIndex.COL_FILE_TYPE} = ?")
+            condition_params.append(file_type)
+
+        if conditions:
+            where_clause: str = "WHERE " + " AND ".join(conditions)
             count_query: str = f"""
-                SELECT COUNT(DISTINCT {DBConstants.DuplicateFile.COL_FILE_GROUP_ID}) as total 
-                FROM {DBConstants.DuplicateFile.TABLE_FILES}
-                WHERE {DBConstants.DuplicateFile.COL_SIMILARITY_TYPE} = ?
+                SELECT COUNT(DISTINCT df.{DBConstants.DuplicateFile.COL_FILE_GROUP_ID}) as total
+                FROM {DBConstants.DuplicateFile.TABLE_FILES} df
+                {join_clause}
+                {where_clause}
             """
-            count_res = BaseDBProcessor._execute(count_query, (similarity_type,), is_query=True, fetch_one=True)
+            count_res = BaseDBProcessor._execute(count_query, tuple(condition_params), is_query=True, fetch_one=True)
             total: int = count_res['total'] if count_res else 0
         else:
             total: int = DuplicateGroupProcessor.get_group_count()
@@ -264,18 +292,19 @@ class DuplicateGroupProcessor(BaseDBProcessor):
 
         # 3. 分页查询分组列表
         offset: int = max(0, (page - 1) * limit)
-        if similarity_type:
+        if conditions:
             group_query: str = f"""
                 SELECT g.* FROM {DBConstants.DuplicateGroup.TABLE_GROUPS} g
                 JOIN (
-                    SELECT DISTINCT {DBConstants.DuplicateFile.COL_FILE_GROUP_ID} 
-                    FROM {DBConstants.DuplicateFile.TABLE_FILES} 
-                    WHERE {DBConstants.DuplicateFile.COL_SIMILARITY_TYPE} = ?
+                    SELECT DISTINCT df.{DBConstants.DuplicateFile.COL_FILE_GROUP_ID}
+                    FROM {DBConstants.DuplicateFile.TABLE_FILES} df
+                    {join_clause}
+                    {where_clause}
                 ) f ON g.{DBConstants.DuplicateGroup.COL_GRP_ID_PK} = f.{DBConstants.DuplicateFile.COL_FILE_GROUP_ID}
                 ORDER BY g.{DBConstants.DuplicateGroup.COL_GRP_CREATE_TIME} DESC
                 LIMIT ? OFFSET ?
             """
-            group_rows: List[dict] = BaseDBProcessor._execute(group_query, (similarity_type, limit, offset), is_query=True)
+            group_rows: List[dict] = BaseDBProcessor._execute(group_query, tuple(condition_params) + (limit, offset), is_query=True)
         else:
             group_query: str = f"""
                 SELECT * FROM {DBConstants.DuplicateGroup.TABLE_GROUPS}
@@ -315,7 +344,7 @@ class DuplicateGroupProcessor(BaseDBProcessor):
                 group_files_map[gid] = []
             group_files_map[gid].append(DuplicateFileResult(
                 file_info=file_info,
-                similarity_type=sim_type or DBConstants.SimilarityType.MD5,
+                similarity_type=sim_type or SimilarityType.MD5,
                 similarity_rate=sim_rate if sim_rate is not None else 1.0
             ))
 
@@ -348,3 +377,116 @@ class DuplicateGroupProcessor(BaseDBProcessor):
         count_query: str = f"SELECT COUNT(*) as total FROM {DBConstants.DuplicateGroup.TABLE_GROUPS}"
         count_res: Optional[dict] = BaseDBProcessor._execute(count_query, (), is_query=True, fetch_one=True)
         return count_res['total'] if count_res else 0
+
+    @staticmethod
+    def get_last_check_time() -> Optional[str]:
+        """
+        用途说明：获取最近一次查重完成的时间点（用于新增查重判断新索引文件）。
+        入参说明：无
+        返回值说明：Optional[str]: 时间字符串，若从未查重则返回 None。
+        """
+        query: str = (
+            f"SELECT {DBConstants.DuplicateCheckMeta.COL_LAST_CHECK_TIME} "
+            f"FROM {DBConstants.DuplicateCheckMeta.TABLE_NAME} "
+            f"WHERE {DBConstants.DuplicateCheckMeta.COL_ID} = 1"
+        )
+        row: Optional[dict] = BaseDBProcessor._execute(query, (), is_query=True, fetch_one=True)
+        if row:
+            return row[DBConstants.DuplicateCheckMeta.COL_LAST_CHECK_TIME]
+        return None
+
+    @staticmethod
+    def set_last_check_time(check_time: str) -> bool:
+        """
+        用途说明：记录最近一次查重完成的时间点（固定使用 id=1 的单行记录）。
+        入参说明：check_time (str): 查重完成时间字符串。
+        返回值说明：bool: 是否成功。
+        """
+        query: str = f"""
+            INSERT INTO {DBConstants.DuplicateCheckMeta.TABLE_NAME} (
+                {DBConstants.DuplicateCheckMeta.COL_ID},
+                {DBConstants.DuplicateCheckMeta.COL_LAST_CHECK_TIME}
+            )
+            VALUES (1, ?)
+            ON CONFLICT({DBConstants.DuplicateCheckMeta.COL_ID}) DO UPDATE SET
+                {DBConstants.DuplicateCheckMeta.COL_LAST_CHECK_TIME} = EXCLUDED.{DBConstants.DuplicateCheckMeta.COL_LAST_CHECK_TIME}
+        """
+        result: int = BaseDBProcessor._execute(query, (check_time,))
+        return result is not None and result > 0
+
+    @staticmethod
+    def save_incremental_results(groups: List[DuplicateGroupDBModel], new_file_paths: List[str]) -> bool:
+        """
+        用途说明：保存新增查重结果。仅保留涉及新文件的分组，并用其取代受影响的旧分组（事务保证原子性）。
+        流程说明：
+            1. 从所有分组中筛选出至少包含一个新文件的候选分组。
+            2. 收集候选分组涉及的全部文件路径，删除与之关联的旧分组（这些分组将被重新计算的结果取代）。
+            3. 插入候选分组及其成员详情。
+        入参说明：
+            groups (List[DuplicateGroupDBModel]): 查重器产出的全部分组。
+            new_file_paths (List[str]): 本次新增查重的新文件路径列表。
+        返回值说明：bool: 是否成功保存。
+        """
+        new_set: Set[str] = set(new_file_paths)
+        candidates: List[DuplicateGroupDBModel] = [
+            g for g in groups if any(f.file_path in new_set for f in g.files)
+        ]
+
+        affected_paths: Set[str] = set()
+        for group in candidates:
+            for f in group.files:
+                affected_paths.add(f.file_path)
+
+        try:
+            with db_manager.transaction() as conn:
+                cursor: sqlite3.Cursor = conn.cursor()
+
+                # 1. 删除受影响的旧分组（先删成员关联，再删分组）
+                if affected_paths:
+                    placeholders: str = ','.join(['?'] * len(affected_paths))
+                    cursor.execute(
+                        f"SELECT DISTINCT {DBConstants.DuplicateFile.COL_FILE_GROUP_ID} "
+                        f"FROM {DBConstants.DuplicateFile.TABLE_FILES} "
+                        f"WHERE {DBConstants.DuplicateFile.COL_FILE_PATH} IN ({placeholders})",
+                        tuple(affected_paths)
+                    )
+                    affected_group_ids: List[int] = [row[0] for row in cursor.fetchall()]
+                    if affected_group_ids:
+                        group_placeholders: str = ','.join(['?'] * len(affected_group_ids))
+                        cursor.execute(
+                            f"DELETE FROM {DBConstants.DuplicateFile.TABLE_FILES} "
+                            f"WHERE {DBConstants.DuplicateFile.COL_FILE_GROUP_ID} IN ({group_placeholders})",
+                            tuple(affected_group_ids)
+                        )
+                        cursor.execute(
+                            f"DELETE FROM {DBConstants.DuplicateGroup.TABLE_GROUPS} "
+                            f"WHERE {DBConstants.DuplicateGroup.COL_GRP_ID_PK} IN ({group_placeholders})",
+                            tuple(affected_group_ids)
+                        )
+
+                # 2. 插入候选分组及其成员详情
+                for group in candidates:
+                    cursor.execute(
+                        f"INSERT INTO {DBConstants.DuplicateGroup.TABLE_GROUPS} "
+                        f"({DBConstants.DuplicateGroup.COL_GRP_GROUP_NAME}) VALUES (?)",
+                        (group.group_name,)
+                    )
+                    group_id: int = cursor.lastrowid
+                    files_data: List[tuple] = [
+                        (group_id, f.file_path, f.similarity_type, f.similarity_rate)
+                        for f in group.files
+                    ]
+                    if files_data:
+                        cursor.executemany(
+                            f"INSERT INTO {DBConstants.DuplicateFile.TABLE_FILES} "
+                            f"({DBConstants.DuplicateFile.COL_FILE_GROUP_ID}, "
+                            f"{DBConstants.DuplicateFile.COL_FILE_PATH}, "
+                            f"{DBConstants.DuplicateFile.COL_SIMILARITY_TYPE}, "
+                            f"{DBConstants.DuplicateFile.COL_SIMILARITY_RATE}) "
+                            f"VALUES (?, ?, ?, ?)",
+                            files_data
+                        )
+            return True
+        except Exception as e:
+            LogUtils.error(t('db_execute_failed', query='save_incremental_results', error=str(e)))
+            return False

@@ -112,6 +112,8 @@ def start_server() -> None:
     # 启动后台定时任务调度器
     from backend.file_repository.auto_scan_service import AutoScanService
     AutoScanService.refresh_config()
+    # 以观察者方式监听配置变更，使设置模块与文件仓库模块解耦
+    settingService.register_change_callback(AutoScanService.on_config_changed)
     
     LogUtils.info(t('sys_starting', port=GlobalConfig.SYSTEM_PORT))
     LogUtils.info(t('sys_address', url=f"http://localhost:{GlobalConfig.SYSTEM_PORT}"))

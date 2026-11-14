@@ -179,6 +179,9 @@ TRANSLATIONS = {
     "dup_initializing": "Initializing...",
     "dup_start_failed": "Failed to start duplicate check task: {error}",
     "dup_internal_check_start": "Starting file duplicate check logic...",
+    "dup_incremental_check_start": "Starting incremental duplicate check logic...",
+    "dup_no_new_files": "No new files to check",
+    "dup_comparing_existing": "Comparing with existing repository files...",
     "dup_no_files": "No files found to check",
     "dup_preparing": "Preparing to analyze files...",
     "dup_analyzing": "Analyzing: {file_name}",
@@ -214,6 +217,7 @@ TRANSLATIONS = {
     "config_save_error": "Error saving configuration file: {error}",
     "config_updated_log": "User {user} updated system configuration",
     "config_update_logic_error": "Update configuration logic failed: {error}",
+    "config_change_callback_error": "Configuration change callback failed: {error}",
 
     # --- System ---
     "sys_log_not_found": "[{time}] Log file does not exist: {filename}",
@@ -249,6 +253,8 @@ TRANSLATIONS = {
     "db_migrate_v13_failed": "Failed to upgrade to version 13: {error}",
     "db_migrate_v14_success": "Database upgraded to version 14: Reset duplicate check table structure and switched to path-based association",
     "db_migrate_v14_failed": "Failed to upgrade to version 14: {error}",
+    "db_migrate_v15_success": "Database upgraded to version 15: Added image feature cache table and duplicate check time metadata table",
+    "db_migrate_v15_failed": "Failed to upgrade to version 15: {error}",
 
     # --- Log & API ---
     "log_api_request": "API Request - Method: {method}, Path: {path}, Token: {token}, Params: {data}",
