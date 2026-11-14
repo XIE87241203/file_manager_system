@@ -10,18 +10,63 @@
 
 ---
 
-## 🚀 1分钟快速启动 (Docker)
+## 🚀 部署教程
 
-想直接体验？只需一行命令（记得把`${pwd}`替换为用于存放数据的目录， `xxx` 换成你电脑里存文件的文件夹路径）：
+镜像发布在 GitHub Container Registry：`ghcr.io/xie87241203/file_manager_system`。
+
+> **端口说明**：容器内服务固定监听 **5000** 端口。下面示例统一用 `-p 8080:5000`（宿主机 8080 → 容器 5000），访问地址为 `http://localhost:8080`。宿主机端口可按需修改，但容器侧端口必须保持 5000。
+
+### 方式一：Docker CLI（最快）
 
 ```bash
 docker run -d \
   --name file-manager-system \
-  -p 8080:8080 \
-  -v ${pwd}/data:/app/data \
-  -v xxx:/file_repository \
+  -p 8080:5000 \
+  -v $(pwd)/data:/app/data \
+  -v /path/to/your/files:/file_repository \
+  --restart unless-stopped \
   ghcr.io/xie87241203/file_manager_system:latest
 ```
+
+- `$(pwd)/data`：在当前目录创建 `data` 文件夹存放数据（Linux/macOS）；也可换成任意绝对路径，例如 NAS 上的 `/volume1/docker/file-manager/data`。
+- `/path/to/your/files`：替换为你要管理的文件目录。
+- 启动后浏览器访问 `http://localhost:8080`（NAS 部署则为 `http://NAS_IP:8080`）。
+
+### 方式二：Docker Compose
+
+新建 `docker-compose.yml`：
+
+```yaml
+services:
+  file-manager-system:
+    image: ghcr.io/xie87241203/file_manager_system:latest
+    container_name: file-manager-system
+    ports:
+      - "8080:5000"
+    volumes:
+      - ./data:/app/data
+      - /path/to/your/files:/file_repository
+    restart: unless-stopped
+```
+
+执行 `docker compose up -d` 启动。
+
+### 方式三：Portainer（推荐 NAS 用户）
+
+Portainer 通过 **Stack** 部署，直接复用上面的 Compose 内容：
+
+1. 登录 Portainer，进入目标环境（Environment）。
+2. 左侧菜单 **Stacks** → **Add stack**。
+3. 名称填 `file-manager-system`，构建方式选择 **Web editor**，粘贴上面的 `docker-compose.yml` 内容。
+4. 将 `volumes` 中的路径改为 NAS 上的**绝对路径**，例如：
+   - `/volume1/docker/file-manager/data:/app/data`
+   - `/volume1/media:/file_repository`
+5. 点击 **Deploy the stack**，等待镜像拉取并启动。
+6. 浏览器访问 `http://NAS_IP:8080`。
+
+> 若改用 **Containers → Add container** 手动创建：Image 填 `ghcr.io/xie87241203/file_manager_system:latest`，端口映射 `8080 → 5000`，并分别绑定 `/app/data` 与 `/file_repository` 两个卷。
+
+> **权限提示**：容器以 UID `1000` 运行。若出现无法写入数据或读取文件的问题，请确保映射目录对该 UID 可读写，例如 `chown -R 1000:1000 /volume1/docker/file-manager/data`。
 
 ---
 
@@ -36,11 +81,13 @@ docker run -d \
 
 ## 📖 怎么开始玩？
 
-1.  **启动并登录**: 容器跑起来后，在浏览器输入地址进入。默认账号为 `admin`，默认密码为 `admin123`。
+1.  **启动并登录**: 浏览器访问 `http://localhost:8080`（NAS 为 `http://NAS_IP:8080`）。默认账号为 `admin`，默认密码为 `admin123`。
 2.  **安全第一**: 登录后，请务必通过系统设置修改你的用户名和密码。
-3.  **扫一扫**: 在“系统设置”里填好路径，然后去“文件仓库”点一下扫描。
-4.  **造预览**: 点击下方的“生成缩略图”，系统就会在后台默默为你准备预览图。
-5.  **去重**: 感觉硬盘快满了？跑一遍“文件去重”，把那些没用的“分身”全删了。
+3.  **创建仓库**: 在首页顶部的仓库下拉框中创建一个文件仓库。
+4.  **填路径**: 在“系统设置”的“仓库目录”中为该仓库添加文件目录（如 `/file_repository`）。
+5.  **扫一扫**: 进入“文件仓库”点一下扫描，构建文件索引。
+6.  **造预览**: 点击“生成缩略图”，系统就会在后台默默为你准备预览图。
+7.  **去重**: 感觉硬盘快满了？跑一遍“文件查重”，把那些没用的“分身”全删了。
 
 ---
 
@@ -48,8 +95,10 @@ docker run -d \
 
 | 容器内路径 | 它是干嘛的 | 建议 |
 | :--- | :--- | :--- |
-| `/app/data` | 存数据库和缓存 | 必须映射，否则重启后数据会丢 |
-| `/file_repository` | 你的文件库 | 映射到你想管理文件的那个文件夹 |
+| `/app/data` | 数据库、缩略图缓存、系统配置与日志 | 必须映射，否则重启后数据会丢 |
+| `/file_repository` | 文件库（示例挂载点） | 映射到你想管理文件的那个文件夹，并在“系统设置 → 仓库目录”中加入该路径 |
+
+> 服务端口：容器内固定监听 `5000`，通过 `-p 宿主机端口:5000` 映射（示例用 `8080:5000`）。
 
 ---
 
