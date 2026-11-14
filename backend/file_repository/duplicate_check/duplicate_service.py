@@ -60,7 +60,7 @@ class DuplicateService(BaseAsyncService):
             cls._check_start_time = datetime.now()
 
             if mode == 'incremental':
-                # 新增查重：保留旧结果，仅清理失效数据并扫描新索引文件
+                # 新增查重：保留旧结果，仅扫描新索引文件
                 return cls._start_task(cls._internal_incremental_check)
 
             # 全局查重：清空旧的重复数据后全量扫描
@@ -176,16 +176,13 @@ class DuplicateService(BaseAsyncService):
     @classmethod
     def _internal_incremental_check(cls) -> None:
         """
-        用途：新增查重内部逻辑。先清理失效结果，再按查重时间点筛选新索引文件，
+        用途：新增查重内部逻辑。按查重时间点筛选新索引文件，
         仅对新文件进行特征分析，并与仓库已有文件及新文件之间比对，最后合并入库。
         """
         try:
             LogUtils.info(t('dup_incremental_check_start'))
 
-            # 1. 清理失效的查重结果（删除已不存在文件的关联，解散成员不足 2 个的分组）
-            DBOperations.self_heal_duplicate_results()
-
-            # 2. 依据最近查重时间点筛选新索引文件
+            # 1. 依据最近查重时间点筛选新索引文件
             last_check_time: Optional[str] = DBOperations.get_last_check_time()
             new_files: List[FileIndexDBModel] = DBOperations.get_files_by_scan_time(last_check_time, newer=True)
             if not new_files:
@@ -197,7 +194,7 @@ class DuplicateService(BaseAsyncService):
 
             helper: DuplicateCheckHelper = DuplicateCheckHelper()
 
-            # 3. 分析新文件（计算特征）
+            # 2. 分析新文件（计算特征）
             for index, file_info in enumerate(new_files):
                 if cls._progress_manager.is_stopped():
                     cls._handle_stopped()
@@ -214,7 +211,7 @@ class DuplicateService(BaseAsyncService):
                 cls._handle_stopped()
                 return
 
-            # 4. 载入仓库已有文件作为比对参考（图片/视频全量，其余仅 MD5 命中者）
+            # 3. 载入仓库已有文件作为比对参考（图片/视频全量，其余仅 MD5 命中者）
             cls._progress_manager.update_progress(message=t('dup_comparing_existing'))
             old_files: List[FileIndexDBModel] = DBOperations.get_files_by_scan_time(last_check_time, newer=False)
             new_md5_set: Set[str] = {f.file_md5 for f in new_files if f.file_md5}
@@ -227,7 +224,7 @@ class DuplicateService(BaseAsyncService):
                 elif file_info.file_md5 in new_md5_set:
                     helper.add_file(file_info)
 
-            # 5. 汇总结果并合并入库（仅统计涉及新文件的分组）
+            # 4. 汇总结果并合并入库（仅统计涉及新文件的分组）
             cls._progress_manager.update_progress(message=t('dup_generating_report'))
             results: List[Any] = helper.get_all_results()
             new_file_paths: List[str] = [f.file_path for f in new_files]
