@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 # 第一阶段：构建阶段 (Builder)
 # 用途说明：安装编译工具并构建 Python 轮子 (wheels)，避免将编译工具链带入最终镜像
 FROM python:3.11-slim AS builder
@@ -33,22 +34,20 @@ ARG GROUP_ID=1000
 
 WORKDIR /app
 
-# 仅安装运行时的系统库（移除 gcc 和 python3-dev）
-# libmagic1: 用于文件类型检测
-# libglib2.0-0, libxcb1, libgl1: 用于 OpenCV 等图像处理库
+# 仅安装运行时必需的系统库（移除 gcc 和 python3-dev）
+# libstdc++6: opencv-python-headless 的 cv2 动态库依赖（DT_NEEDED 含 libstdc++.so.6）
+# 说明：改用 headless 版 OpenCV 后无需 GUI 库（libgl1/libglib2.0-0/libxcb1）；
+#       文件类型检测按扩展名实现，无需 libmagic1
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libmagic1 \
-    libglib2.0-0 \
-    libxcb1 \
-    libgl1 \
+    libstdc++6 \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd -g ${GROUP_ID} appgroup \
     && useradd -l -u ${USER_ID} -g appgroup -m appuser
 
-# 从构建阶段复制编译好的 wheels 并安装
-COPY --from=builder /app/wheels /wheels
+# 通过 BuildKit 临时挂载构建阶段的 wheels 并安装，避免将 wheel 安装包固化进镜像层（节省约 77MB）
 COPY requirements.txt .
-RUN pip install --no-cache-dir /wheels/*
+RUN --mount=from=builder,source=/app/wheels,target=/wheels \
+    pip install --no-cache-dir /wheels/*
 
 # 复制项目代码
 COPY --chown=appuser:appgroup backend/ ./backend/
