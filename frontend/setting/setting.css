@@ -76,6 +76,41 @@ body {
     margin: 0;
 }
 
+/* 仓库配置分页：纵向堆叠，让选择仓库工具栏固定在顶部 */
+#content-repo {
+    flex-direction: column;
+}
+
+/* 仓库配置页：仓库选择与删除工具栏（顶部横向布局） */
+.repo-config-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 15px;
+    flex-wrap: wrap;
+    width: 100%;
+}
+
+.repo-config-toolbar .label-text {
+    margin: 0;
+    white-space: nowrap;
+}
+
+.repo-config-select {
+    flex: 1;
+    min-width: 160px;
+    max-width: 320px;
+    border-radius: 0;
+    background-color: #ffffff;
+}
+
+.repo-config-toolbar .btn-danger {
+    margin: 0;
+    white-space: nowrap;
+    width: auto;
+    flex: 0 0 auto;
+}
+
 /* 仓库列表样式 */
 .repo-list {
     margin-bottom: 15px;

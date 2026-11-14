@@ -19,6 +19,9 @@ class DuplicateService(BaseAsyncService):
     继承自 BaseAsyncService 以支持标准的异步任务控制。
     """
 
+    # 本次查重任务的开始时间，用于在完成时计算耗时
+    _check_start_time: Optional[datetime] = None
+
     @classmethod
     def init_service(cls) -> None:
         """
@@ -54,6 +57,7 @@ class DuplicateService(BaseAsyncService):
             cls._progress_manager.set_status(ProgressStatus.PROCESSING)
             cls._progress_manager.set_stop_flag(False)
             cls._progress_manager.reset_progress(message=t('dup_initializing'))
+            cls._check_start_time = datetime.now()
 
             if mode == 'incremental':
                 # 新增查重：保留旧结果，仅清理失效数据并扫描新索引文件
@@ -82,7 +86,8 @@ class DuplicateService(BaseAsyncService):
             current=current_info.total,
             message=status_text
         )
-        DBOperations.set_last_check_time(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+        duration: float = (datetime.now() - cls._check_start_time).total_seconds() if cls._check_start_time else 0.0
+        DBOperations.set_last_check_time(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), duration)
         LogUtils.info(status_text)
 
     @classmethod
@@ -164,7 +169,8 @@ class DuplicateService(BaseAsyncService):
             current=current_info.total,
             message=status_text
         )
-        DBOperations.set_last_check_time(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+        duration: float = (datetime.now() - cls._check_start_time).total_seconds() if cls._check_start_time else 0.0
+        DBOperations.set_last_check_time(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), duration)
         LogUtils.info(status_text)
 
     @classmethod
@@ -259,6 +265,14 @@ class DuplicateService(BaseAsyncService):
         返回值说明：Optional[str]: 格式化后的时间字符串。
         """
         return DBOperations.get_latest_duplicate_check_time()
+
+    @staticmethod
+    def get_last_check_duration() -> Optional[float]:
+        """
+        用途说明：获取最近一次查重的耗时（秒）。
+        返回值说明：Optional[float]: 耗时秒数，若从未查重则返回 None。
+        """
+        return DBOperations.get_last_check_duration()
 
 
 # 在模块加载时执行初始化

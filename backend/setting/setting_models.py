@@ -26,6 +26,7 @@ class FileRepositorySettings:
     quick_view_thumbnail: bool = False
     auto_refresh_enabled: bool = False  # 是否启用自动刷新
     auto_refresh_time: str = "04:00"  # 自动刷新时间 (HH:mm)
+    auto_duplicate_check_enabled: bool = False  # 自动刷新完成后是否执行自动新增查重
 
 @dataclass
 class DuplicateCheckSettings:

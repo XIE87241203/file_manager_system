@@ -11,6 +11,7 @@ const State = {
     similarityType: '', // 存储当前的筛选类型
     fileType: '', // 存储当前的文件类型筛选 (image / video)
     lastCheckTime: '--',
+    lastCheckDuration: null,
     pollingInterval: null,
     settings: null, // 存储系统设置
     previousExpandedStates: null, // 用途说明：存储上一页结果的展开/收起状态，用于刷新后保留状态
@@ -59,6 +60,7 @@ const UIController = {
             summaryBar: document.getElementById('results-summary-bar'),
             summaryGroups: document.getElementById('summary-groups'),
             summaryTime: document.getElementById('summary-time'),
+            summaryDuration: document.getElementById('summary-duration'),
             globalDeleteBtn: document.getElementById('btn-delete-selected-global'),
             filterSimilarityType: document.getElementById('filter-similarity-type')
         };
@@ -137,12 +139,28 @@ const UIController = {
     },
 
     /**
+     * 用途说明：将查重耗时秒数格式化为可读文本（不满一小时显示分钟，满一小时显示小时+分钟，满一天显示天+小时+分钟）。
+     * 入参说明：seconds (Number|null) - 耗时秒数，可为空。
+     * 返回值说明：String - 格式化后的耗时文本，空值返回 '--'。
+     */
+    formatDuration(seconds) {
+        if (seconds === null || seconds === undefined || isNaN(seconds)) return '--';
+        const total = Math.max(0, Math.floor(seconds));
+        const days = Math.floor(total / 86400);
+        const hours = Math.floor((total % 86400) / 3600);
+        const minutes = Math.floor((total % 3600) / 60);
+        if (days > 0) return I18nManager.t('duplicate_check.duration_days', { days, hours, minutes });
+        if (hours > 0) return I18nManager.t('duplicate_check.duration_hours', { hours, minutes });
+        return I18nManager.t('duplicate_check.duration_minutes', { minutes });
+    },
+
+    /**
      * 用途说明：全量渲染查重结果列表及统计栏
      * 入参说明：无
      * 返回值说明：无
      */
     renderResults() {
-        const { wrapper, summaryBar, summaryGroups, summaryTime } = this.elements;
+        const { wrapper, summaryBar, summaryGroups, summaryDuration, summaryTime } = this.elements;
         wrapper.innerHTML = '';
 
         const results = State.results;
@@ -162,6 +180,7 @@ const UIController = {
 
         summaryBar.classList.remove('hidden');
         summaryGroups.textContent = I18nManager.t('duplicate_check.summary_groups', { total: State.total });
+        summaryDuration.textContent = I18nManager.t('duplicate_check.summary_duration', { duration: this.formatDuration(State.lastCheckDuration) });
         summaryTime.textContent = I18nManager.t('duplicate_check.summary_time', { time: State.lastCheckTime || '--' });
 
         results.forEach(group => {
@@ -510,7 +529,8 @@ const App = {
                 // 结果加载成功后，获取最新的查重时间
                 DuplicateCheckAPI.getLatestCheckTime(
                     (timeData) => {
-                        State.lastCheckTime = timeData;
+                        State.lastCheckTime = (timeData && timeData.time) ? timeData.time : '--';
+                        State.lastCheckDuration = timeData ? timeData.duration : null;
                         UIController.toggleView(ProgressStatus.COMPLETED);
                         UIController.renderResults();
                     },

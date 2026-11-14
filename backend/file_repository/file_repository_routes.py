@@ -276,10 +276,12 @@ def list_duplicate_results():
 @token_required
 def get_latest_duplicate_check_time():
     """
-    用途说明：获取最近一次查重的完成时间。
+    用途说明：获取最近一次查重的完成时间与耗时。
+    返回值说明：JSON，data 为 {time: 完成时间字符串, duration: 耗时秒数}。
     """
     time_str = DuplicateService.get_latest_check_time()
-    return success_response(t('dup_get_last_time_success'), data=time_str)
+    duration = DuplicateService.get_last_check_duration()
+    return success_response(t('dup_get_last_time_success'), data={"time": time_str, "duration": duration})
 
 
 # --- 缩略图相关路由 ---

@@ -67,7 +67,7 @@ const DuplicateCheckAPI = {
 
     /**
      * @description 用途说明：获取最近一次查重的完成时间
-     * @param {Function} onSuccess - 入参说明：成功回调，参数为时间字符串
+     * @param {Function} onSuccess - 入参说明：成功回调，参数为 {time, duration} 对象
      * @param {Function} onError - 入参说明：失败回调
      * @returns {void} - 返回值说明：无
      */

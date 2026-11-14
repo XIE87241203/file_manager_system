@@ -3,7 +3,7 @@ class DBConstants:
     用途：数据库表名及列名常量类，统一管理所有数据库结构相关的硬编码字符串
     """
 
-    DB_VERSION: int = 15  # 当前数据库版本，升级至 15 以支持图片特征缓存与查重时间元数据
+    DB_VERSION: int = 16  # 当前数据库版本，升级至 16 以支持查重耗时元数据
 
     class VersionInfo:
         """用途：version_info 表相关的常量"""
@@ -55,10 +55,11 @@ class DBConstants:
         COL_IMAGE_HASH: str = 'image_hash'
 
     class DuplicateCheckMeta:
-        """用途：duplicate_check_meta 表相关的常量（记录最近一次查重完成时间）"""
+        """用途：duplicate_check_meta 表相关的常量（记录最近一次查重完成时间与耗时）"""
         TABLE_NAME: str = 'duplicate_check_meta'
         COL_ID: str = 'id'
         COL_LAST_CHECK_TIME: str = 'last_check_time'
+        COL_LAST_CHECK_DURATION: str = 'last_check_duration'
 
     class DuplicateGroup:
         """用途：duplicate_groups 表相关的常量"""
@@ -105,3 +106,12 @@ class DBConstants:
         COL_NAME: str = 'name'
         COL_SOURCE: str = 'source'
         COL_DETAIL: str = 'detail'
+
+    class Repository:
+        """用途：repositories 主表相关的常量（多仓库元数据，存于独立主数据库）"""
+        TABLE_NAME: str = 'repositories'
+        COL_ID: str = 'id'
+        COL_NAME: str = 'name'
+        COL_CONFIG: str = 'config'
+        COL_DB_FILE: str = 'db_file'
+        COL_CREATE_TIME: str = 'create_time'

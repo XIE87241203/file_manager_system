@@ -293,13 +293,23 @@ class DBOperations:
         return processor_manager.duplicate_group_processor.get_last_check_time()
 
     @staticmethod
-    def set_last_check_time(check_time: str) -> bool:
+    def set_last_check_time(check_time: str, duration_seconds: float = 0.0) -> bool:
         """
-        用途说明：记录最近一次查重完成的时间点。
-        入参说明：check_time (str): 查重完成时间字符串。
+        用途说明：记录最近一次查重完成的时间点与耗时。
+        入参说明：
+            check_time (str): 查重完成时间字符串。
+            duration_seconds (float): 本次查重耗时（秒）。
         返回值说明：bool: 是否成功。
         """
-        return processor_manager.duplicate_group_processor.set_last_check_time(check_time)
+        return processor_manager.duplicate_group_processor.set_last_check_time(check_time, duration_seconds)
+
+    @staticmethod
+    def get_last_check_duration() -> Optional[float]:
+        """
+        用途说明：获取最近一次查重的耗时（秒）。
+        返回值说明：Optional[float]: 耗时秒数，若从未查重则返回 None。
+        """
+        return processor_manager.duplicate_group_processor.get_last_check_duration()
 
     @staticmethod
     def get_all_duplicate_results(page: int, limit: int, similarity_type: Optional[str] = None) -> PaginationResult[DuplicateGroupResult]:

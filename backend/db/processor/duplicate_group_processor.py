@@ -396,23 +396,44 @@ class DuplicateGroupProcessor(BaseDBProcessor):
         return None
 
     @staticmethod
-    def set_last_check_time(check_time: str) -> bool:
+    def set_last_check_time(check_time: str, duration_seconds: float = 0.0) -> bool:
         """
-        用途说明：记录最近一次查重完成的时间点（固定使用 id=1 的单行记录）。
-        入参说明：check_time (str): 查重完成时间字符串。
+        用途说明：记录最近一次查重完成的时间点与耗时（固定使用 id=1 的单行记录）。
+        入参说明：
+            check_time (str): 查重完成时间字符串。
+            duration_seconds (float): 本次查重耗时（秒）。
         返回值说明：bool: 是否成功。
         """
         query: str = f"""
             INSERT INTO {DBConstants.DuplicateCheckMeta.TABLE_NAME} (
                 {DBConstants.DuplicateCheckMeta.COL_ID},
-                {DBConstants.DuplicateCheckMeta.COL_LAST_CHECK_TIME}
+                {DBConstants.DuplicateCheckMeta.COL_LAST_CHECK_TIME},
+                {DBConstants.DuplicateCheckMeta.COL_LAST_CHECK_DURATION}
             )
-            VALUES (1, ?)
+            VALUES (1, ?, ?)
             ON CONFLICT({DBConstants.DuplicateCheckMeta.COL_ID}) DO UPDATE SET
-                {DBConstants.DuplicateCheckMeta.COL_LAST_CHECK_TIME} = EXCLUDED.{DBConstants.DuplicateCheckMeta.COL_LAST_CHECK_TIME}
+                {DBConstants.DuplicateCheckMeta.COL_LAST_CHECK_TIME} = EXCLUDED.{DBConstants.DuplicateCheckMeta.COL_LAST_CHECK_TIME},
+                {DBConstants.DuplicateCheckMeta.COL_LAST_CHECK_DURATION} = EXCLUDED.{DBConstants.DuplicateCheckMeta.COL_LAST_CHECK_DURATION}
         """
-        result: int = BaseDBProcessor._execute(query, (check_time,))
+        result: int = BaseDBProcessor._execute(query, (check_time, duration_seconds))
         return result is not None and result > 0
+
+    @staticmethod
+    def get_last_check_duration() -> Optional[float]:
+        """
+        用途说明：获取最近一次查重的耗时（秒）。
+        入参说明：无
+        返回值说明：Optional[float]: 耗时秒数，若从未查重则返回 None。
+        """
+        query: str = (
+            f"SELECT {DBConstants.DuplicateCheckMeta.COL_LAST_CHECK_DURATION} "
+            f"FROM {DBConstants.DuplicateCheckMeta.TABLE_NAME} "
+            f"WHERE {DBConstants.DuplicateCheckMeta.COL_ID} = 1"
+        )
+        row: Optional[dict] = BaseDBProcessor._execute(query, (), is_query=True, fetch_one=True)
+        if row and row[DBConstants.DuplicateCheckMeta.COL_LAST_CHECK_DURATION] is not None:
+            return float(row[DBConstants.DuplicateCheckMeta.COL_LAST_CHECK_DURATION])
+        return None
 
     @staticmethod
     def save_incremental_results(groups: List[DuplicateGroupDBModel], new_file_paths: List[str]) -> bool:

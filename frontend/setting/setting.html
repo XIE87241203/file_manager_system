@@ -23,8 +23,14 @@
         <button id="tab-account" class="tab-btn" data-i18n="setting.tabs.account"></button>
     </div>
 
-    <!-- 文件仓库分页 -->
+    <!-- 仓库配置分页 -->
     <div id="content-repo" class="tab-content active">
+        <!-- 仓库选择与删除工具栏 -->
+        <div class="repo-config-toolbar">
+            <label class="label-text" for="repo-config-selector" data-i18n="repo.select_repo"></label>
+            <select id="repo-config-selector" class="input-field select-field repo-config-select"></select>
+            <button id="delete-repo-btn" class="btn-danger" data-i18n="repo.delete_btn"></button>
+        </div>
         <div class="settings-grid">
             <div>
                 <div class="section-header mt-0">
@@ -71,6 +77,10 @@
                 <div class="checkbox-item">
                     <input type="checkbox" id="auto-refresh-enabled" class="checkbox-field">
                     <label class="label-text" for="auto-refresh-enabled" data-i18n="setting.repo.auto_refresh"></label>
+                </div>
+                <div class="checkbox-item">
+                    <input type="checkbox" id="auto-duplicate-check-enabled" class="checkbox-field">
+                    <label class="label-text" for="auto-duplicate-check-enabled" data-i18n="setting.repo.auto_duplicate_check"></label>
                 </div>
                 <div class="time-setting-item">
                     <label class="label-text" for="auto-refresh-time" data-i18n="setting.repo.refresh_time"></label>
@@ -263,7 +273,9 @@
 
 <!-- 引入公用脚本 -->
 <script src="../common/common.js"></script>
+<script src="../common/repo_context.js"></script>
 <script src="../common/request.js"></script>
+<script src="../common/repository_request.js"></script>
 <script src="../common/ui_components.js"></script>
 <script src="../common/toast.js"></script>
 <script src="../common/header_toolbar/default/default_header_toolbar.js"></script>

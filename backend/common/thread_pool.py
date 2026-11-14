@@ -1,4 +1,5 @@
 import os
+import contextvars
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Callable
 
@@ -36,7 +37,9 @@ class ThreadPoolManager:
         返回值说明：Future - 返回一个 Future 对象，用于获取任务执行结果或状态。
         """
         manager = ThreadPoolManager()
-        return manager._executor.submit(fn, *args, **kwargs)
+        # 复制当前上下文（含仓库 ID），使后台任务继承提交者的仓库上下文
+        ctx = contextvars.copy_context()
+        return manager._executor.submit(ctx.run, fn, *args, **kwargs)
 
     @staticmethod
     def shutdown(wait: bool = True) -> None:

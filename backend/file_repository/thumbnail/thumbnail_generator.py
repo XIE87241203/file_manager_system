@@ -8,11 +8,12 @@ from PIL import Image
 
 from backend.common.i18n_utils import t
 from backend.common.log_utils import LogUtils
+from backend.common.repo_context import get_current_repo_id, set_current_repo_id
 from backend.common.thread_pool import ThreadPoolManager
 from backend.common.utils import Utils
 from backend.db.db_operations import DBOperations
 from backend.model.db.file_index_db_model import FileIndexDBModel
-from backend.setting.setting_service import settingService
+from backend.repository.repository_service import repositoryService
 
 
 class ThumbnailGenerator:
@@ -25,8 +26,8 @@ class ThumbnailGenerator:
     """
     _instance = None
     _lock = threading.Lock()
-    _queue: Deque[FileIndexDBModel] = deque()  # 任务队列，存储模型对象
-    _queue_set: Set[str] = set()    # 去重集合，存储文件路径
+    _queue: Deque[Tuple[int, FileIndexDBModel]] = deque()  # 任务队列，存储 (仓库ID, 模型对象)
+    _queue_set: Set[Tuple[int, str]] = set()    # 去重集合，存储 (仓库ID, 文件路径)
     _is_processing: bool = False
     _THUMBNAIL_DIR: str = os.path.join(Utils.get_runtime_path(), "cache", "thumbnail")
 
@@ -52,10 +53,12 @@ class ThumbnailGenerator:
         """
         with self._lock:
             added_count: int = 0
+            repo_id: int = get_current_repo_id()
             for task in tasks:
-                if task.file_path not in self._queue_set:
-                    self._queue.append(task)
-                    self._queue_set.add(task.file_path)
+                key: Tuple[int, str] = (repo_id, task.file_path)
+                if key not in self._queue_set:
+                    self._queue.append((repo_id, task))
+                    self._queue_set.add(key)
                     added_count += 1
             
             if added_count > 0:
@@ -92,7 +95,8 @@ class ThumbnailGenerator:
         返回值说明：无。
         """
         file_info: Optional[FileIndexDBModel] = None
-        
+        repo_id: int = get_current_repo_id()
+
         # 1. 提取任务（临界区：轻量级操作）
         with self._lock:
             if not self._queue:
@@ -100,15 +104,19 @@ class ThumbnailGenerator:
                 self._queue_set.clear() # 任务清空时同步重置集合
                 LogUtils.info(t('thumb_gen_completed_log'))
                 return
-            
-            file_info = self._queue.popleft()
-            if file_info.file_path in self._queue_set:
-                self._queue_set.remove(file_info.file_path)
+
+            repo_id, file_info = self._queue.popleft()
+            key: Tuple[int, str] = (repo_id, file_info.file_path)
+            if key in self._queue_set:
+                self._queue_set.remove(key)
+
+        # 切换到任务所属仓库上下文，确保配置读取与索引更新落到正确的业务库
+        set_current_repo_id(repo_id)
 
         # 2. 锁外执行耗时任务（磁盘IO与图像处理，预防死锁）
         if file_info:
             try:
-                thumb_size: int = settingService.get_config().file_repository.thumbnail_size
+                thumb_size: int = repositoryService.get_current_config().thumbnail_size
                 actual_path, thumb_path = self._generate_single_thumbnail(file_info, thumb_size)
                 if thumb_path:
                     DBOperations.update_thumbnail_path(actual_path, thumb_path)
