@@ -76,6 +76,12 @@ class FileInfoService:
             elif Utils.is_image_file(file_path):
                 file_type = FileType.IMAGE.value
 
+            # 3. 复用同 MD5 文件已生成的缩略图（缩略图按内容 MD5 命名，同内容文件共享，避免副本无法预览）
+            thumbnail_path: Optional[str] = None
+            if file_type in (FileType.IMAGE.value, FileType.VIDEO.value):
+                from backend.file_repository.thumbnail.thumbnail_generator import ThumbnailGenerator
+                thumbnail_path = ThumbnailGenerator.get_existing_thumbnail_path(f_md5)
+
             return FileIndexDBModel(
                 file_path=file_path,
                 file_name=f_name,
@@ -83,7 +89,8 @@ class FileInfoService:
                 file_size=f_size,
                 file_type=file_type,
                 video_duration=video_duration,
-                video_codec=video_codec
+                video_codec=video_codec,
+                thumbnail_path=thumbnail_path
             )
         except Exception as e:
             LogUtils.error(t('utils_get_file_info_failed', path=file_path, error=str(e)))

@@ -351,6 +351,17 @@ class DBOperations:
         return processor_manager.file_index_processor.update_thumbnail_path(file_path, thumbnail_path)
 
     @staticmethod
+    def update_thumbnail_path_by_md5(file_md5: str, thumbnail_path: str) -> int:
+        """
+        用途说明：按文件 MD5 批量回填缩略图路径，使同内容文件（含副本）共享同一缩略图。
+        入参说明：
+            file_md5 (str): 文件 MD5 哈希值。
+            thumbnail_path (str): 缩略图文件路径。
+        返回值说明：int - 受影响的记录数。
+        """
+        return processor_manager.file_index_processor.update_thumbnail_path_by_md5(file_md5, thumbnail_path)
+
+    @staticmethod
     def get_files_without_thumbnail() -> List[FileIndexDBModel]:
         """
         用途说明：获取所有缺失缩略图的文件。

@@ -88,6 +88,18 @@ class ThumbnailGenerator:
             self._queue_set.clear()
             LogUtils.info(t('thumb_gen_queue_cleared'))
 
+    @staticmethod
+    def get_existing_thumbnail_path(file_md5: str) -> Optional[str]:
+        """
+        用途说明：根据文件 MD5 获取已存在的缩略图物理路径。缩略图以内容 MD5 命名，同内容文件可共享同一缩略图。
+        入参说明：file_md5 (str): 文件 MD5 哈希值。
+        返回值说明：Optional[str]: 缩略图物理文件存在则返回其绝对路径，否则返回 None。
+        """
+        if not file_md5:
+            return None
+        thumb_path: str = os.path.join(ThumbnailGenerator._THUMBNAIL_DIR, file_md5 + ".jpg")
+        return thumb_path if os.path.exists(thumb_path) else None
+
     def _worker(self) -> None:
         """
         用途：工作循环。从队列提取任务并在锁外执行耗时生成逻辑，避免阻塞主线程或产生死锁。
@@ -119,7 +131,8 @@ class ThumbnailGenerator:
                 thumb_size: int = repositoryService.get_current_config().thumbnail_size
                 actual_path, thumb_path = self._generate_single_thumbnail(file_info, thumb_size)
                 if thumb_path:
-                    DBOperations.update_thumbnail_path(actual_path, thumb_path)
+                    # 按 MD5 回填所有同内容文件（含副本）的缩略图路径，确保副本也能预览
+                    DBOperations.update_thumbnail_path_by_md5(file_info.file_md5, thumb_path)
             except Exception as e:
                 LogUtils.error(t('thumb_gen_failed_log', path=file_info.file_path, error=str(e)))
         

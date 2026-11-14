@@ -247,6 +247,12 @@ const UIController = {
                             const durationStr = info.file_type === 'video' ? CommonUtils.formatDuration(info.video_duration) : '-';
                             const codecStr = (info.file_type === 'video' && info.video_codec) ? info.video_codec : '-';
 
+                            // 视频行展示播放按钮，图片行展示预览图标（与文件仓库页面保持一致）
+                            const isVideo = info.file_type === 'video';
+                            const playBtnHtml = isVideo ? `<span class="play-btn" title="${I18nManager.t('file_repo.play_video')}"><i class="play-icon">▶</i></span>` : '';
+                            const isImage = info.file_type === 'image';
+                            const previewBtnHtml = isImage ? `<span class="preview-btn" title="${I18nManager.t('file_repo.preview_image')}"><i class="preview-icon"><svg viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg></i></span>` : '';
+
                             const typeMap = {
                                 'md5': I18nManager.t('duplicate_check.type_md5'),
                                 'hash': I18nManager.t('duplicate_check.type_image'),
@@ -258,7 +264,7 @@ const UIController = {
 
                             return `
                                 <tr class="clickable-row ${isChecked ? 'selected-row' : ''}" data-path="${info.file_path}" data-thumbnail="${info.thumbnail_path || ''}">
-                                    <td class="col-dup-name" title="${fileName}">${fileName}</td>
+                                    <td class="col-dup-name" title="${fileName}">${playBtnHtml}${previewBtnHtml}${fileName}</td>
                                     <td class="col-dup-duration">${durationStr}</td>
                                     <td class="col-dup-codec">${codecStr}</td>
                                     <td class="col-dup-similarity">${similarityDisplay}</td>
@@ -308,8 +314,36 @@ const UIController = {
         });
 
         tbody.querySelectorAll('.clickable-row').forEach(tr => {
+            const filePath = tr.getAttribute('data-path');
+            const thumbnailPath = tr.getAttribute('data-thumbnail');
+
+            // 视频播放按钮：点击跳转至专用播放页面（阻止冒泡避免触发行选中）
+            const playBtn = tr.querySelector('.play-btn');
+            if (playBtn) {
+                playBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    App.handlePlayVideo(filePath);
+                };
+            }
+
+            // 图片预览图标：悬停时在鼠标右侧弹出缩略图预览，移开后关闭
+            const previewBtn = tr.querySelector('.preview-btn');
+            if (previewBtn) {
+                previewBtn.addEventListener('mouseenter', (e) => UIComponents.showQuickPreview(e, thumbnailPath));
+                previewBtn.addEventListener('mousemove', (e) => UIComponents.moveQuickPreview(e));
+                previewBtn.addEventListener('mouseleave', (e) => {
+                    // 鼠标仍在行内且开启了行级快速预览时保持预览，避免覆盖已有的整行悬停预览功能
+                    if (State.settings && State.settings.file_repository.quick_view_thumbnail && tr.contains(e.relatedTarget)) {
+                        UIComponents.showQuickPreview(e, thumbnailPath);
+                    } else {
+                        UIComponents.hideQuickPreview();
+                    }
+                });
+                previewBtn.onclick = (e) => e.stopPropagation();
+            }
+
             if (State.settings && State.settings.file_repository.quick_view_thumbnail) {
-                tr.addEventListener('mouseenter', (e) => UIComponents.showQuickPreview(e, tr.getAttribute('data-thumbnail')));
+                tr.addEventListener('mouseenter', (e) => UIComponents.showQuickPreview(e, thumbnailPath));
                 tr.addEventListener('mousemove', (e) => UIComponents.moveQuickPreview(e));
                 tr.addEventListener('mouseleave', () => UIComponents.hideQuickPreview());
             }
@@ -558,6 +592,16 @@ const App = {
         State.previousExpandedStates = expandedStatesMap;
         this.loadResults(page);
         window.scrollTo(0, 0);
+    },
+
+    /**
+     * 用途说明：处理视频播放请求，跳转到专用播放页面
+     * @param {string} filePath - 入参说明：视频文件路径
+     * @returns {void} - 返回值说明：无
+     */
+    handlePlayVideo(filePath) {
+        const playPageUrl = `../../video_player/video_player.html?path=${encodeURIComponent(filePath)}`;
+        window.location.href = playPageUrl;
     },
 
     /**

@@ -263,6 +263,72 @@
     color: #70757a;
 }
 
+/* 视频播放按钮样式 (与文件仓库页面保持一致) */
+.play-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    margin-right: 8px;
+    cursor: pointer;
+    color: #1a73e8;
+    background-color: #e8f0fe;
+    border-radius: 50%;
+    transition: background-color 0.2s, transform 0.1s;
+    user-select: none;
+    vertical-align: middle;
+}
+
+.play-btn:hover {
+    background-color: #d2e3fc;
+    transform: scale(1.1);
+}
+
+.play-btn:active {
+    transform: scale(0.95);
+}
+
+.play-icon {
+    font-size: 12px;
+    margin-left: 2px; /* 微调三角位置 */
+}
+
+/* 图片预览图标样式 (与播放按钮保持一致) */
+.preview-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    margin-right: 8px;
+    cursor: pointer;
+    color: #1a73e8;
+    background-color: #e8f0fe;
+    border-radius: 50%;
+    transition: background-color 0.2s, transform 0.1s;
+    user-select: none;
+    vertical-align: middle;
+}
+
+.preview-btn:hover {
+    background-color: #d2e3fc;
+    transform: scale(1.1);
+}
+
+.preview-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.preview-icon svg {
+    width: 14px;
+    height: 14px;
+    fill: currentColor;
+    display: block;
+}
+
 /* 查重模式选择弹窗 */
 .mode-select-content {
     max-width: 460px;

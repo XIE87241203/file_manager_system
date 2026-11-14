@@ -144,6 +144,21 @@ class FileIndexProcessor(BaseDBProcessor):
         return bool(result and result > 0)
 
     @staticmethod
+    def update_thumbnail_path_by_md5(file_md5: str, thumbnail_path: str, conn: Optional[sqlite3.Connection] = None) -> int:
+        """
+        用途说明：按文件 MD5 批量回填缩略图路径。缩略图按内容 MD5 命名，同内容文件共享同一缩略图，
+                  因此生成一次缩略图后需同步回填所有同 MD5 文件（含副本），避免副本因路径为空而无法预览。
+        入参说明：
+            file_md5 (str): 文件 MD5 哈希值。
+            thumbnail_path (str): 缩略图路径。
+            conn (Optional[sqlite3.Connection]): 数据库连接对象。
+        返回值说明：int - 受影响的记录数。
+        """
+        query: str = f"UPDATE {DBConstants.FileIndex.TABLE_NAME} SET {DBConstants.FileIndex.COL_THUMBNAIL_PATH} = ? WHERE {DBConstants.FileIndex.COL_FILE_MD5} = ?"
+        result: int = BaseDBProcessor._execute(query, (thumbnail_path, file_md5), conn=conn)
+        return result or 0
+
+    @staticmethod
     def clear_all_thumbnails(conn: Optional[sqlite3.Connection] = None) -> int:
         """
         用途说明：清空所有文件的缩略图记录。
