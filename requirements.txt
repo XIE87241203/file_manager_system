@@ -1,6 +1,7 @@
 flask
 flask_cors
 imagehash
+numpy
 Pillow
 opencv-python-headless
 waitress

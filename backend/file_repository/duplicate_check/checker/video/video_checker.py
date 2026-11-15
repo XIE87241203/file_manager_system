@@ -52,8 +52,8 @@ class VideoChecker(BaseDuplicateChecker):
         """
         if Utils.is_video_file(file_info.file_path):
             LogUtils.info(t('dup_video_checker_processing', path=file_info.file_path))
-            # 将视频添加到相似性树中进行分析
-            self.tree.add_video(file_info.file_path)
+            # 将视频添加到相似性树中进行分析（直接传入索引对象，避免按路径重复查库）
+            self.tree.add_video(file_info.file_path, file_index=file_info)
 
     def get_results(self) -> List[DuplicateGroupDBModel]:
         """

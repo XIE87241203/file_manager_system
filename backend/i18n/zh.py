@@ -223,6 +223,8 @@ TRANSLATIONS = {
     "dup_group_dissolved_log": "由于成员不足2个，已自动解散重复分组 ID: {id}",
     "dup_video_checker_processing": "VideoChecker 正在处理视频: {path}",
     "dup_image_checker_failed": "ImageChecker 处理图片失败: {path}, 错误: {error}",
+    "dup_image_report_start": "ImageChecker 开始生成图片查重报告，共 {count} 张图片。",
+    "dup_image_report_progress": "ImageChecker 图片查重报告生成中: {current}/{total}",
     "dup_image_checker_completed": "ImageChecker 完成查重，发现 {count} 组重复/相似图片。",
     "dup_video_duration_error": "无法解析视频时长信息（FPS 或帧数无效）: {path}",
     "dup_video_frame_hash_failed": "提取帧哈希失败: {error}",

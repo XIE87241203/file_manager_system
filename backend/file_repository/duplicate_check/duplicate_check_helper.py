@@ -36,6 +36,17 @@ class DuplicateCheckHelper:
         
         # 维护一个检查器列表，注意顺序：专用检查器在前，兜底检查器在后
         self.checkers = [video_checker, image_checker, MD5Checker()]
+        # 保留图片检查器引用，供批量预取特征使用
+        self.image_checker: ImageChecker = image_checker
+
+    def preload_features(self, file_infos: List[FileIndexDBModel]) -> None:
+        """
+        用途：按批预取本批文件的图片感知哈希特征到内存缓存，减少逐文件查库的连接开销。
+        入参说明：
+            file_infos (List[FileIndexDBModel]): 本批待录入的文件索引列表（可含非图片，内部自动过滤）。
+        返回值说明：无
+        """
+        self.image_checker.preload_features(file_infos)
 
     def add_file(self, file_info: FileIndexDBModel) -> None:
         """

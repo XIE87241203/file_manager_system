@@ -223,6 +223,8 @@ TRANSLATIONS = {
     "dup_group_dissolved_log": "Automatically dissolved duplicate group ID: {id} due to insufficient members",
     "dup_video_checker_processing": "VideoChecker is processing video: {path}",
     "dup_image_checker_failed": "ImageChecker failed to process image: {path}, Error: {error}",
+    "dup_image_report_start": "ImageChecker started generating image duplicate report, {count} images in total.",
+    "dup_image_report_progress": "ImageChecker image duplicate report in progress: {current}/{total}",
     "dup_image_checker_completed": "ImageChecker completed duplicate check, found {count} groups of duplicate/similar images.",
     "dup_video_duration_error": "Unable to parse video duration (invalid FPS or frame count): {path}",
     "dup_video_frame_hash_failed": "Failed to extract frame hash: {error}",

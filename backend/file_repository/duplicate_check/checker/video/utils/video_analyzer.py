@@ -132,7 +132,8 @@ class VideoAnalyzer:
                 LogUtils.info(t('dup_video_sample_failed', path=video_path, time=timestamp))
         return hashes
 
-    def create_video_info(self, video_path: str, interval_seconds: int, backwards: bool = False) -> Optional[VideoFileInfoResult]:
+    def create_video_info(self, video_path: str, interval_seconds: int, backwards: bool = False,
+                          file_index: Optional[FileIndexDBModel] = None) -> Optional[VideoFileInfoResult]:
         """
         用途：根据视频路径生成 VideoInfoCache 对象。
 
@@ -140,6 +141,8 @@ class VideoAnalyzer:
             - video_path (str): 视频文件路径。
             - interval_seconds (int): 哈希采样间隔。
             - backwards (bool): 是否从视频结尾倒叙生成。
+            - file_index (Optional[FileIndexDBModel]): 调用方已持有的文件索引对象；
+              传入时直接复用，避免按路径重复查库。
 
         返回值说明：
             - Optional[VideoInfoCache]: 视频信息对象。
@@ -149,8 +152,10 @@ class VideoAnalyzer:
             return None
 
         try:
-            # 修复点 3：优先从数据库索引获取 MD5，避免重复计算大文件的 MD5 (耗时 IO)
-            file_idx: Optional[FileIndexDBModel] = DBOperations.get_file_by_path(video_path)
+            # 修复点 3：优先复用调用方传入的索引，其次从数据库索引获取 MD5，避免重复计算大文件的 MD5 (耗时 IO)
+            file_idx: Optional[FileIndexDBModel] = file_index
+            if file_idx is None:
+                file_idx = DBOperations.get_file_by_path(video_path)
             if file_idx is None:
                 return None
 
