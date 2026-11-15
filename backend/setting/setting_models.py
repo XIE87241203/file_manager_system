@@ -39,6 +39,7 @@ class DuplicateCheckSettings:
     video_interval_seconds: int = 30
     video_max_duration_diff_ratio: float = 0.6
     video_backwards: bool = False  # 是否从视频结尾倒序生成特征
+    video_max_frames: int = 60  # 单个视频最大抽帧数量（按采样方向截取前 N 帧，保持锚点对齐），-1 表示不限
 
 @dataclass
 class FileNameEntrySettings:

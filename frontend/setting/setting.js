@@ -24,7 +24,8 @@ const State = {
         video_frame_similarity_rate: 0.7,
         video_interval_seconds: 30,
         video_max_duration_diff_ratio: 0.6,
-        video_backwards: false
+        video_backwards: false,
+        video_max_frames: 60
     },
     fileNameEntry: {
         file_name_link_prefix: ""
@@ -114,6 +115,7 @@ const UIController = {
         document.getElementById('video-frame-similar-distance').value = dc.video_frame_similar_distance;
         document.getElementById('video-frame-similarity-rate').value = dc.video_frame_similarity_rate;
         document.getElementById('video-interval-seconds').value = dc.video_interval_seconds;
+        document.getElementById('video-max-frames').value = dc.video_max_frames ?? 60;
         document.getElementById('video-max-duration-diff-ratio').value = dc.video_max_duration_diff_ratio;
         document.getElementById('video-backwards').checked = dc.video_backwards || false;
     },
@@ -424,13 +426,20 @@ const App = {
         }
 
         // 2. 采集查重配置数据
+        const maxFrames = parseInt(document.getElementById('video-max-frames').value);
+        // 限张校验：必须为整数，且为 -1（不限）或正整数
+        if (isNaN(maxFrames) || (maxFrames !== -1 && maxFrames < 1)) {
+            Toast.show(I18nManager.t('setting.dup_check.video_max_frames_invalid'));
+            return;
+        }
         const dc = {
             image_threshold: parseInt(document.getElementById('image-threshold').value),
             video_frame_similar_distance: parseInt(document.getElementById('video-frame-similar-distance').value),
             video_frame_similarity_rate: parseFloat(document.getElementById('video-frame-similarity-rate').value),
             video_interval_seconds: parseInt(document.getElementById('video-interval-seconds').value),
             video_max_duration_diff_ratio: parseFloat(document.getElementById('video-max-duration-diff-ratio').value),
-            video_backwards: document.getElementById('video-backwards').checked
+            video_backwards: document.getElementById('video-backwards').checked,
+            video_max_frames: maxFrames
         };
 
         // 3. 采集文件录入配置数据

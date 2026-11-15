@@ -19,7 +19,8 @@ class VideoChecker(BaseDuplicateChecker):
 
     def __init__(self, frame_similar_distance: int = 5,
                  frame_similarity_rate: float = 0.7, interval_seconds: int = 30,
-                 max_duration_diff_ratio: float = 0.6, backwards: bool = False):
+                 max_duration_diff_ratio: float = 0.6, backwards: bool = False,
+                 max_frames: int = -1):
         """
         用途：初始化视频检查器，配置分析引擎。
         入参说明：
@@ -28,6 +29,7 @@ class VideoChecker(BaseDuplicateChecker):
             - interval_seconds (int): 采样间隔（秒）。
             - max_duration_diff_ratio (float): 最大时长比例阈值。
             - backwards (bool): 是否从视频结尾倒序生成特征。
+            - max_frames (int): 单个视频最大抽帧数量，-1 表示不限。
         """
         # 获取 VideoAnalyzer 单例
         self.analyzer: VideoAnalyzer = VideoAnalyzer()
@@ -39,7 +41,8 @@ class VideoChecker(BaseDuplicateChecker):
             frame_similarity_rate=frame_similarity_rate,
             interval_seconds=interval_seconds,
             max_duration_diff_ratio=max_duration_diff_ratio,
-            backwards=backwards
+            backwards=backwards,
+            max_frames=max_frames
         )
 
     def add_file(self, file_info: FileIndexDBModel) -> None:

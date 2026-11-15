@@ -37,7 +37,8 @@ class VideoSimilarityTree:
 
     def __init__(self, video_analyzer: VideoAnalyzer, frame_similar_distance: int = 5,
                  frame_similarity_rate: float = 0.7, interval_seconds: int = 30,
-                 max_duration_diff_ratio: float = 0.6, backwards: bool = False):
+                 max_duration_diff_ratio: float = 0.6, backwards: bool = False,
+                 max_frames: int = -1):
         """
         用途说明：初始化视频相似性树配置。
         入参说明：
@@ -47,6 +48,7 @@ class VideoSimilarityTree:
             interval_seconds (int): 采样间隔（秒）。
             max_duration_diff_ratio (float): 最大时长比例阈值。
             backwards (bool): 是否从视频结尾倒序生成特征。
+            max_frames (int): 单个视频最大抽帧数量，-1 表示不限。
         返回值说明：无
         """
         # self.video_groups 存储的是相似组列表。
@@ -63,6 +65,7 @@ class VideoSimilarityTree:
         self.interval_seconds: int = interval_seconds
         self.max_duration_diff_ratio: float = max_duration_diff_ratio
         self.backwards: bool = backwards
+        self.max_frames: int = max_frames
         self.video_analyzer: VideoAnalyzer = video_analyzer
 
     def add_video(self, video_path: str, file_index: Optional[FileIndexDBModel] = None) -> None:
@@ -74,7 +77,7 @@ class VideoSimilarityTree:
         返回值说明：无
         """
         video_info: VideoFileInfoResult = self.video_analyzer.create_video_info(
-            video_path, self.interval_seconds, self.backwards, file_index=file_index)
+            video_path, self.interval_seconds, self.backwards, file_index=file_index, max_frames=self.max_frames)
         if video_info:
             # 缓存视频详情，供后续组代表比对与结果汇总复用
             self._video_info_cache[video_path] = video_info
