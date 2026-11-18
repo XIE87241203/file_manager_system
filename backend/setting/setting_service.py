@@ -105,7 +105,8 @@ class SettingService:
         返回值说明：无
         """
         current: str = self._config.user_data.password
-        if is_hashed(current):
+        # 空值（用户凭据已迁移至 users 表）或已是哈希则无需迁移
+        if not current or is_hashed(current):
             return
         client_hash: str = hashlib.sha256(current.encode('utf-8')).hexdigest()
         self._config.user_data.password = hash_password(client_hash)
@@ -155,14 +156,11 @@ class SettingService:
                 if isinstance(section_data, dict):
                     target_obj = getattr(self._config, section_name)
                     for key, value in section_data.items():
+                        # 用户凭据已统一由 users 表管理，设置接口不再接受用户名/密码变更
+                        if section_name == 'user_data' and key in ('username', 'password'):
+                            continue
                         if hasattr(target_obj, key):
                             setattr(target_obj, key, value)
-
-            # 密码字段特殊处理：前端传来的是新密码的 SHA-256 哈希，
-            # 后端再做 PBKDF2 加盐慢哈希后存储，确保配置文件中不落明文
-            user_data_section = data.get('user_data')
-            if isinstance(user_data_section, dict) and user_data_section.get('password'):
-                self._config.user_data.password = hash_password(user_data_section['password'])
 
             new_language: str = self._config.user_data.language
             if old_language != new_language:

@@ -73,11 +73,16 @@ class AuthManager:
         if not username or not password_hash_received:
             return False, t('auth_user_pass_required'), None
 
-        stored_username: str = settingService.get_config().user_data.username
-        # 使用加盐慢哈希校验前端传来的 SHA-256 哈希，配置文件中不存明文
-        if username == stored_username and verify_password(password_hash_received, settingService.password_hash):
+        # 多用户支持：按登录名从全局 users 表查找用户，用加盐慢哈希校验前端传来的 SHA-256 哈希
+        # 延迟导入避免与用户服务模块形成循环依赖
+        from backend.user.user_service import userService
+        user = userService.get_user_by_username(username)
+        if user and verify_password(password_hash_received, user.password_hash):
             # 登录成功，清除该组合的失败记录
             self._login_attempts.pop((ip, username), None)
+
+            # 记录本次成功登录的历史（时间与来源 IP），供用户管理页追溯
+            userService.record_login(user.id, username, ip)
 
             # 生成新 Token
             new_token: str = str(uuid.uuid4())
@@ -119,6 +124,15 @@ class AuthManager:
         if attempt.fails >= max_attempts:
             attempt.locked_until = time.time() + lockout_minutes * 60
             LogUtils.error(t('auth_login_locked_log', username=username, ip=ip, minutes=lockout_minutes))
+
+    def invalidate_user(self, username: str) -> None:
+        """
+        用途：使指定用户的现有登录 Token 立即失效（删除用户或修改其密码后调用，强制重新登录）
+        入参说明：
+            - username: 目标用户登录名
+        返回值说明：无
+        """
+        self._tokens.pop(username, None)
 
     def logout(self, token: str) -> Tuple[bool, str]:
         """

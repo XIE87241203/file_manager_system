@@ -124,3 +124,22 @@ class DBConstants:
         COL_CONFIG: str = 'config'
         COL_DB_FILE: str = 'db_file'
         COL_CREATE_TIME: str = 'create_time'
+
+    class User:
+        """用途：users 主表相关的常量（全局用户账户，存于独立主数据库，登录不分仓库）"""
+        TABLE_NAME: str = 'users'
+        COL_ID: str = 'id'
+        COL_USERNAME: str = 'username'              # 登录名（唯一）
+        COL_PASSWORD_HASH: str = 'password_hash'    # PBKDF2 加盐慢哈希
+        COL_IS_ADMIN: str = 'is_admin'              # 是否管理员（1 是 / 0 否）
+        COL_CREATE_TIME: str = 'create_time'
+        COL_UPDATE_TIME: str = 'update_time'
+
+    class LoginHistory:
+        """用途：login_history 表相关的常量（全局用户登录历史，存于独立主数据库，按用户追溯登录记录）"""
+        TABLE_NAME: str = 'login_history'
+        COL_ID: str = 'id'
+        COL_USER_ID: str = 'user_id'                # 关联 users.id（无物理外键，删除用户时同步清理）
+        COL_USERNAME: str = 'username'              # 登录名快照（便于追溯）
+        COL_LOGIN_TIME: str = 'login_time'          # 登录成功时间
+        COL_IP: str = 'ip'                          # 登录来源 IP

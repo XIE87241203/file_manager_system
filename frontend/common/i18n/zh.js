@@ -6,6 +6,7 @@ const I18nZh = {
     "common": {
         "save": "保存",
         "cancel": "取消",
+        "close": "关闭",
         "confirm": "确定",
         "delete": "删除",
         "loading": "加载中...",
@@ -125,7 +126,8 @@ const I18nZh = {
             "file_entry": "文件录入管理",
             "dup_check": "查重设置",
             "maintenance": "数据维护",
-            "account": "账户与系统"
+            "account": "账户与系统",
+            "user": "用户管理"
         },
         "repo": {
             "repo_dir": "仓库目录",
@@ -219,6 +221,34 @@ const I18nZh = {
             "login_lockout_minutes": "登录锁定时长（分钟）",
             "login_lockout_minutes_hint": "触发锁定后禁止该 IP 和用户名登录的时长",
             "security_params_invalid": "登录失败锁定次数和锁定时长必须为不小于 1 的整数"
+        },
+        "user": {
+            "add_btn": "新增用户",
+            "username": "登录名",
+            "username_placeholder": "请输入登录名",
+            "role": "角色",
+            "create_time": "创建时间",
+            "actions": "操作",
+            "role_admin": "管理员",
+            "role_normal": "普通用户",
+            "edit_password": "修改密码",
+            "add_title": "新增用户",
+            "edit_password_title": "修改密码",
+            "password": "密码",
+            "password_placeholder": "请输入密码",
+            "confirm_password": "确认密码",
+            "confirm_password_placeholder": "请再次输入密码",
+            "username_required": "登录名不能为空",
+            "password_required": "密码不能为空",
+            "password_mismatch": "两次输入的密码不一致",
+            "delete_confirm": "确定要删除用户 {username} 吗？此操作不可恢复。",
+            "last_login": "最后登录",
+            "login_history": "登录历史",
+            "login_history_title": "登录历史 - {username}",
+            "history_time": "登录时间",
+            "history_ip": "登录 IP",
+            "history_empty": "暂无登录记录",
+            "never_login": "从未登录"
         }
     },
     "already_entered": {

@@ -136,5 +136,104 @@ const SettingRequest = {
                 else onError(res.message);
             })
             .catch(err => onError(err.message || I18nManager.t('common.network_error')));
+    },
+
+    /**
+     * @description 用途说明：获取当前登录用户信息（登录名与是否管理员）
+     * @param {Function} onSuccess - 入参说明：成功回调，参数为 {username, is_admin}
+     * @param {Function} onError - 入参说明：失败回调，参数为错误信息字符串
+     * @returns {void} - 返回值说明：无
+     */
+    getCurrentUser(onSuccess, onError) {
+        Request.get('/api/user/me')
+            .then(res => {
+                if (res.status === 'success') onSuccess(res.data);
+                else onError(res.message);
+            })
+            .catch(err => onError(err.message || I18nManager.t('common.network_error')));
+    },
+
+    /**
+     * @description 用途说明：获取用户列表（仅管理员）
+     * @param {Function} onSuccess - 入参说明：成功回调，参数为用户数组 [{id, username, is_admin, create_time}]
+     * @param {Function} onError - 入参说明：失败回调，参数为错误信息字符串
+     * @returns {void} - 返回值说明：无
+     */
+    getUserList(onSuccess, onError) {
+        Request.get('/api/user/list')
+            .then(res => {
+                if (res.status === 'success') onSuccess(res.data);
+                else onError(res.message);
+            })
+            .catch(err => onError(err.message || I18nManager.t('common.network_error')));
+    },
+
+    /**
+     * @description 用途说明：新增用户（仅管理员），密码以 SHA-256 哈希传输
+     * @param {string} username - 入参说明：登录名
+     * @param {string} passwordHash - 入参说明：密码的 SHA-256 哈希
+     * @param {Function} onSuccess - 入参说明：成功回调
+     * @param {Function} onError - 入参说明：失败回调，参数为错误信息字符串
+     * @returns {void} - 返回值说明：无
+     */
+    addUser(username, passwordHash, onSuccess, onError) {
+        Request.post('/api/user/add', { username: username, password_hash: passwordHash })
+            .then(res => {
+                if (res.status === 'success') onSuccess(res);
+                else onError(res.message);
+            })
+            .catch(err => onError(err.message || I18nManager.t('common.network_error')));
+    },
+
+    /**
+     * @description 用途说明：删除用户（仅管理员）
+     * @param {number} id - 入参说明：待删除用户 ID
+     * @param {Function} onSuccess - 入参说明：成功回调
+     * @param {Function} onError - 入参说明：失败回调，参数为错误信息字符串
+     * @returns {void} - 返回值说明：无
+     */
+    deleteUser(id, onSuccess, onError) {
+        Request.post('/api/user/delete', { id: id })
+            .then(res => {
+                if (res.status === 'success') onSuccess(res);
+                else onError(res.message);
+            })
+            .catch(err => onError(err.message || I18nManager.t('common.network_error')));
+    },
+
+    /**
+     * @description 用途说明：修改指定用户密码（仅管理员），新密码以 SHA-256 哈希传输
+     * @param {number} id - 入参说明：目标用户 ID
+     * @param {string} passwordHash - 入参说明：新密码的 SHA-256 哈希
+     * @param {Function} onSuccess - 入参说明：成功回调
+     * @param {Function} onError - 入参说明：失败回调，参数为错误信息字符串
+     * @returns {void} - 返回值说明：无
+     */
+    updateUserPassword(id, passwordHash, onSuccess, onError) {
+        Request.post('/api/user/update_password', { id: id, password_hash: passwordHash })
+            .then(res => {
+                if (res.status === 'success') onSuccess(res);
+                else onError(res.message);
+            })
+            .catch(err => onError(err.message || I18nManager.t('common.network_error')));
+    },
+
+    /**
+     * @description 用途说明：分页获取指定用户的登录历史（仅管理员）
+     * @param {number} id - 入参说明：目标用户 ID
+     * @param {number} page - 入参说明：页码（从 1 开始）
+     * @param {number} pageSize - 入参说明：每页条数
+     * @param {Function} onSuccess - 入参说明：成功回调，参数为 {total, page, page_size, list:[{login_time, ip}]}
+     * @param {Function} onError - 入参说明：失败回调，参数为错误信息字符串
+     * @returns {void} - 返回值说明：无
+     */
+    getLoginHistory(id, page, pageSize, onSuccess, onError) {
+        const query = new URLSearchParams({ id: id, page: page, page_size: pageSize }).toString();
+        Request.get('/api/user/login_history?' + query, {}, false)
+            .then(res => {
+                if (res.status === 'success') onSuccess(res.data);
+                else onError(res.message);
+            })
+            .catch(err => onError(err.message || I18nManager.t('common.network_error')));
     }
 };

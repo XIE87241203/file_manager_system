@@ -341,3 +341,92 @@ body {
     font-weight: 600;
     color: #1a73e8;
 }
+
+/* --- 用户管理分页 --- */
+.user-toolbar {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 12px;
+}
+
+.user-table th,
+.user-table td {
+    text-align: left;
+}
+
+/* 角色徽标 */
+.role-badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.role-badge.admin {
+    background-color: #e8f0fe;
+    color: #1a73e8;
+}
+
+.role-badge.normal {
+    background-color: #f1f3f4;
+    color: #5f6368;
+}
+
+/* 行内操作按钮：统一宽度并居中，按钮之间留出间距防止误触 */
+.user-action-btn {
+    width: 88px;
+    box-sizing: border-box;
+    padding: 4px 8px;
+    margin-right: 12px;
+    border: none;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    background-color: #f1f3f4;
+    color: #3c4043;
+    text-align: center;
+}
+
+.user-action-btn:last-child {
+    margin-right: 0;
+}
+
+.user-action-btn:hover {
+    background-color: #e8eaed;
+}
+
+.user-action-btn.danger {
+    background-color: #fce8e6;
+    color: #d93025;
+}
+
+.user-action-btn.danger:hover {
+    background-color: #fad2cf;
+}
+
+/* 用户表格列宽：角色/时间列定宽，操作列容纳三个等宽按钮，登录名列自适应剩余宽度 */
+.user-table .col-role { width: 100px; }
+.user-table .col-time { width: 160px; }
+.user-table .col-actions { width: 300px; }
+
+/* --- 登录历史弹窗 --- */
+.login-history-modal-content {
+    width: 90%;
+    max-width: 600px;
+}
+
+.login-history-table-wrapper {
+    max-height: 320px;
+    overflow-y: auto;
+    margin-bottom: 10px;
+}
+
+.login-history-table th,
+.login-history-table td {
+    text-align: left;
+}
+
+#login-history-pagination {
+    margin-bottom: 12px;
+}
