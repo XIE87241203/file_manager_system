@@ -32,6 +32,7 @@ from backend.file_name_repository.file_name_repository_routes import file_name_r
 from backend.system.system_routes import system_bp
 from backend.repository.repository_routes import repository_bp
 from backend.repository.repository_service import repositoryService
+from backend.organize.organize_routes import organize_bp
 from backend.common.repo_context import set_current_repo_id, DEFAULT_REPO_ID
 from backend.common.response import error_response
 from backend.common.heartbeat_service import HeartbeatService
@@ -122,6 +123,7 @@ app.register_blueprint(file_repo_bp, url_prefix='/api/file_repository')
 app.register_blueprint(file_name_repo_bp, url_prefix='/api/file_name_repository')
 app.register_blueprint(system_bp, url_prefix='/api/system')
 app.register_blueprint(repository_bp, url_prefix='/api/repository')
+app.register_blueprint(organize_bp, url_prefix='/api/organize')
 
 def start_server() -> None:
     # 初始化主数据库（仓库元数据）与默认仓库

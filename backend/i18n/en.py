@@ -252,6 +252,17 @@ TRANSLATIONS = {
     "config_update_logic_error": "Update configuration logic failed: {error}",
     "config_change_callback_error": "Configuration change callback failed: {error}",
 
+    # --- Organize ---
+    "organize_setting_get_success": "Organize settings retrieved successfully",
+    "organize_setting_update_success": "Organize settings updated successfully",
+    "organize_setting_update_failed": "Failed to update organize settings, please check backend logs",
+    "organize_setting_get_log": "User {user} attempted to get organize settings",
+    "organize_setting_update_log": "User {user} requested to update organize settings",
+    "organize_setting_updated_log": "User {user} updated organize settings",
+    "organize_setting_save_error": "Failed to save organize settings: {error}",
+    "organize_setting_parse_error": "Failed to parse organize settings data: {error}",
+    "organize_setting_ext_invalid": "Invalid file extension: {ext}",
+
     # --- System ---
     "sys_log_not_found": "[{time}] Log file does not exist: {filename}",
     "sys_log_read_failed": "Failed to read log: {error}",
@@ -290,6 +301,8 @@ TRANSLATIONS = {
     "db_migrate_v15_failed": "Failed to upgrade to version 15: {error}",
     "db_migrate_v16_success": "Database upgraded to version 16: Added duplicate check duration metadata column",
     "db_migrate_v16_failed": "Failed to upgrade to version 16: {error}",
+    "db_migrate_v17_success": "Database upgraded to version 17: Added organize_settings table for the organize module",
+    "db_migrate_v17_failed": "Failed to upgrade to version 17: {error}",
 
     # --- Log & API ---
     "log_api_request": "API Request - Method: {method}, Path: {path}, Token: {token}, Params: {data}",

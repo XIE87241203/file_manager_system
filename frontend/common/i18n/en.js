@@ -56,6 +56,7 @@ const I18nEn = {
     "home": {
         "title": "Home",
         "group_file_entry": "File Entry Management",
+        "group_organize": "File Organizing",
         "group_file_manage": "File Management",
         "group_sys_manage": "System Management",
         "menu_pending": "Pending Entry Files",
@@ -63,6 +64,10 @@ const I18nEn = {
         "menu_repo": "File Repository",
         "menu_dup": "Duplicate Check",
         "menu_recycle": "Recycle Bin",
+        "menu_organize_start": "Start Organizing",
+        "menu_organize_records": "Organize Records",
+        "menu_organize_setting": "Organize Settings",
+        "organize_coming_soon": "This feature is under development. Stay tuned!",
         "menu_setting": "System Settings",
         "menu_logs": "System Logs",
         "menu_logout": "Logout",
@@ -73,6 +78,22 @@ const I18nEn = {
         "stats_refresh_tip": "Recalculate statistics",
         "stats_updated": "Repository statistics updated",
         "version": "Version"
+    },
+    "organize": {
+        "setting": {
+            "title": "Organize Settings",
+            "pending_dirs": "Directories to Organize",
+            "pending_dirs_hint": "Tip: The organize process scans these directories and all their subdirectories.",
+            "add_dir": "Add Directory",
+            "add_dir_placeholder": "Enter the full path of the directory to organize",
+            "organized_dir": "Organized Directory",
+            "organized_dir_placeholder": "Enter the directory for organized files",
+            "organized_dir_hint": "Note: Organized files will be moved to this directory.",
+            "extensions": "Extensions to Organize",
+            "extensions_placeholder": "e.g. .mp4, .mkv, .avi (comma separated)",
+            "extensions_hint": "Tip: Separate multiple extensions with commas. All files in the directories to organize (including subdirectories) matching these extensions will enter the organize process.",
+            "ext_invalid": "Extension cannot contain spaces or path separators"
+        }
     },
     "repo": {
         "selector_title": "Switch repository",

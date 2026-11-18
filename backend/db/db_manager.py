@@ -336,6 +336,17 @@ class DBManager:
             )
         ''')
 
+        # 10. 创建 organize_settings 表（整理模块专用设置，单行记录）
+        cursor.execute(f'''
+            CREATE TABLE IF NOT EXISTS {DBConstants.OrganizeSetting.TABLE_NAME} (
+                {DBConstants.OrganizeSetting.COL_ID} INTEGER PRIMARY KEY AUTOINCREMENT,
+                {DBConstants.OrganizeSetting.COL_PENDING_DIRS} TEXT NOT NULL DEFAULT '[]',
+                {DBConstants.OrganizeSetting.COL_ORGANIZED_DIR} TEXT NOT NULL DEFAULT '',
+                {DBConstants.OrganizeSetting.COL_EXTENSIONS} TEXT NOT NULL DEFAULT '[]',
+                {DBConstants.OrganizeSetting.COL_UPDATE_TIME} DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
     def migrate_db_version(self, old_version: int, new_version: int, cursor: sqlite3.Cursor) -> None:
         """
         用途说明：数据库版本迁移适配逻辑，处理不同版本间的结构差异。
@@ -514,6 +525,23 @@ class DBManager:
                 LogUtils.info(t('db_migrate_v16_success'))
             except Exception as e:
                 LogUtils.error(t('db_migrate_v16_failed', error=str(e)))
+                raise e
+
+        if old_version < 17:
+            # 升级到版本 17: 新增整理模块专用设置表
+            try:
+                cursor.execute(f'''
+                    CREATE TABLE IF NOT EXISTS {DBConstants.OrganizeSetting.TABLE_NAME} (
+                        {DBConstants.OrganizeSetting.COL_ID} INTEGER PRIMARY KEY AUTOINCREMENT,
+                        {DBConstants.OrganizeSetting.COL_PENDING_DIRS} TEXT NOT NULL DEFAULT '[]',
+                        {DBConstants.OrganizeSetting.COL_ORGANIZED_DIR} TEXT NOT NULL DEFAULT '',
+                        {DBConstants.OrganizeSetting.COL_EXTENSIONS} TEXT NOT NULL DEFAULT '[]',
+                        {DBConstants.OrganizeSetting.COL_UPDATE_TIME} DATETIME DEFAULT CURRENT_TIMESTAMP
+                    )
+                ''')
+                LogUtils.info(t('db_migrate_v17_success'))
+            except Exception as e:
+                LogUtils.error(t('db_migrate_v17_failed', error=str(e)))
                 raise e
 
 

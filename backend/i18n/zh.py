@@ -252,6 +252,17 @@ TRANSLATIONS = {
     "config_update_logic_error": "更新配置逻辑执行失败: {error}",
     "config_change_callback_error": "配置变更回调执行失败: {error}",
 
+    # --- 整理模块 (Organize) ---
+    "organize_setting_get_success": "获取整理设置成功",
+    "organize_setting_update_success": "整理设置更新成功",
+    "organize_setting_update_failed": "整理设置更新失败，请检查后端日志",
+    "organize_setting_get_log": "用户 {user} 尝试获取整理设置",
+    "organize_setting_update_log": "用户 {user} 请求更新整理设置",
+    "organize_setting_updated_log": "用户 {user} 更新了整理设置",
+    "organize_setting_save_error": "保存整理设置失败: {error}",
+    "organize_setting_parse_error": "解析整理设置数据失败: {error}",
+    "organize_setting_ext_invalid": "非法的后缀名: {ext}",
+
     # --- 系统 (System) ---
     "sys_log_not_found": "[{time}] 日志文件不存在: {filename}",
     "sys_log_read_failed": "读取日志失败: {error}",
@@ -290,6 +301,8 @@ TRANSLATIONS = {
     "db_migrate_v15_failed": "升级到版本 15 失败: {error}",
     "db_migrate_v16_success": "数据库升级到版本 16: 新增查重耗时元数据列",
     "db_migrate_v16_failed": "升级到版本 16 失败: {error}",
+    "db_migrate_v17_success": "数据库升级到版本 17: 新增整理模块专用设置表 organize_settings",
+    "db_migrate_v17_failed": "升级到版本 17 失败: {error}",
 
     # --- 日志 & API (Log & API) ---
     "log_api_request": "接口请求 - 方法: {method}, 路径: {path}, Token: {token}, 参数: {data}",

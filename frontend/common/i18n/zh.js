@@ -56,6 +56,7 @@ const I18nZh = {
     "home": {
         "title": "首页",
         "group_file_entry": "文件录入管理",
+        "group_organize": "整理文件",
         "group_file_manage": "文件管理",
         "group_sys_manage": "系统管理",
         "menu_pending": "待录入文件名库",
@@ -63,6 +64,10 @@ const I18nZh = {
         "menu_repo": "文件仓库",
         "menu_dup": "文件去重",
         "menu_recycle": "回收站",
+        "menu_organize_start": "开始整理",
+        "menu_organize_records": "整理记录",
+        "menu_organize_setting": "整理设置",
+        "organize_coming_soon": "该功能正在开发中，敬请期待",
         "menu_setting": "系统设置",
         "menu_logs": "运行日志",
         "menu_logout": "退出登录",
@@ -73,6 +78,22 @@ const I18nZh = {
         "stats_refresh_tip": "重新计算统计信息",
         "stats_updated": "仓库数据统计已更新",
         "version": "版本"
+    },
+    "organize": {
+        "setting": {
+            "title": "整理设置",
+            "pending_dirs": "待整理目录",
+            "pending_dirs_hint": "提示：整理流程将扫描这些目录及其所有子目录。",
+            "add_dir": "添加目录",
+            "add_dir_placeholder": "请输入待整理目录的完整路径",
+            "organized_dir": "已整理目录",
+            "organized_dir_placeholder": "请输入已整理文件的存放目录",
+            "organized_dir_hint": "说明：整理完成的文件将被转移到此目录。",
+            "extensions": "需要整理的后缀名",
+            "extensions_placeholder": "例如: .mp4, .mkv, .avi (逗号分隔)",
+            "extensions_hint": "提示：多个后缀名请用英文逗号分隔。待整理目录（含子目录）中所有匹配这些后缀名的文件都会进入整理流程。",
+            "ext_invalid": "后缀名不能包含空格或路径分隔符"
+        }
     },
     "repo": {
         "selector_title": "切换仓库",

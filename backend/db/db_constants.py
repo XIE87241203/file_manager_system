@@ -3,7 +3,7 @@ class DBConstants:
     用途：数据库表名及列名常量类，统一管理所有数据库结构相关的硬编码字符串
     """
 
-    DB_VERSION: int = 16  # 当前数据库版本，升级至 16 以支持查重耗时元数据
+    DB_VERSION: int = 17  # 当前数据库版本，升级至 17 以支持整理专用设置表
 
     class VersionInfo:
         """用途：version_info 表相关的常量"""
@@ -106,6 +106,15 @@ class DBConstants:
         COL_NAME: str = 'name'
         COL_SOURCE: str = 'source'
         COL_DETAIL: str = 'detail'
+
+    class OrganizeSetting:
+        """用途：organize_settings 表相关的常量（整理模块专用设置，单行记录，列表字段以 JSON 文本存储）"""
+        TABLE_NAME: str = 'organize_settings'
+        COL_ID: str = 'id'
+        COL_PENDING_DIRS: str = 'pending_dirs'      # 待整理目录列表 (JSON 数组文本)
+        COL_ORGANIZED_DIR: str = 'organized_dir'    # 已整理目录 (整理完成后文件转移至此)
+        COL_EXTENSIONS: str = 'extensions'          # 需要整理的后缀名列表 (JSON 数组文本)
+        COL_UPDATE_TIME: str = 'update_time'
 
     class Repository:
         """用途：repositories 主表相关的常量（多仓库元数据，存于独立主数据库）"""

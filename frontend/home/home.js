@@ -350,6 +350,9 @@ const App = {
                     'menu-pending-entry': '../file_name_repository/pending_entry_file/pending_entry_file.html',
                     'menu-ignore-file': '../file_name_repository/already_entered_file/already_entered_file.html',
                     'menu-recycle-bin': '../file_repository/recycle_bin/recycle_bin.html',
+                    'menu-organize-setting': '../organize/organize_setting.html',
+                    'menu-organize-start': 'ORGANIZE_START', // 特殊标识：开始整理（功能开发中）
+                    'menu-organize-records': 'ORGANIZE_RECORDS', // 特殊标识：整理记录（功能开发中）
                     'menu-setting': '../setting/setting.html',
                     'menu-logs': '../system/logs/logs.html',
                     'menu-test-page': '../test_page/test_progress_button.html',
@@ -358,6 +361,9 @@ const App = {
                 const target = map[card.id];
                 if (target === 'LOGOUT') {
                     this.logout();
+                } else if (target === 'ORGANIZE_START' || target === 'ORGANIZE_RECORDS') {
+                    // 开始整理与整理记录页面尚未实现，先给出开发中提示
+                    Toast.show(I18nManager.t('home.organize_coming_soon'));
                 } else if (target) {
                     window.location.href = target;
                 }
