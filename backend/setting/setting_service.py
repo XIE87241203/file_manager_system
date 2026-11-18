@@ -69,6 +69,9 @@ class SettingService:
             # 将加载的 JSON 数据映射回数据类
             self._parse_and_merge_config(loaded_json)
 
+            # 校正登录锁定参数，保证最小值为 1（旧版本曾允许 <=0 表示禁用）
+            self._normalize_security_params()
+
             # 旧版明文密码自动升级为加盐哈希存储
             self._migrate_plain_password()
 
@@ -95,6 +98,35 @@ class SettingService:
                 for key, value in section_data.items():
                     if hasattr(target_obj, key):
                         setattr(target_obj, key, value)
+
+    def _normalize_security_params(self) -> None:
+        """
+        用途：加载配置后校正登录锁定参数，保证锁定次数与锁定时长最小为 1。
+        说明：旧版本允许以 <=0 表示禁用锁定，现已不允许；发现非法值时自动调整为 1 并持久化。
+        入参说明：无
+        返回值说明：无
+        """
+        user_data = self._config.user_data
+        changed: bool = False
+        for attr_name in ('login_max_attempts', 'login_lockout_minutes'):
+            value = getattr(user_data, attr_name)
+            if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+                setattr(user_data, attr_name, 1)
+                changed = True
+        if changed:
+            self.save_config()
+            LogUtils.info(t('config_security_params_normalized',
+                            attempts=user_data.login_max_attempts,
+                            minutes=user_data.login_lockout_minutes))
+
+    @staticmethod
+    def _is_valid_security_param(value: Any) -> bool:
+        """
+        用途：判断单个登录锁定参数是否合法（必须为不小于 1 的整数，布尔值视为非法）。
+        入参说明：value: 待校验的参数值，来自更新请求的 user_data 段。
+        返回值说明：bool，合法返回 True，否则返回 False。
+        """
+        return isinstance(value, int) and not isinstance(value, bool) and value >= 1
 
     def _migrate_plain_password(self) -> None:
         """
@@ -141,11 +173,22 @@ class SettingService:
     def update_settings(self, data: Dict[str, Any], operator_name: str) -> bool:
         """
         用途：批量更新配置项并持久化。
+        说明：登录锁定参数（login_max_attempts / login_lockout_minutes）必须为不小于 1 的整数，
+        任一非法则拒绝本次更新并返回 False。
         入参：data: 包含更新项的字典，其一级键名应与 AppConfig 字段名一致（如 'user_data', 'file_repository'）。
         入参：operator_name: 执行更新操作的用户。
         返回值：是否更新成功。
         """
         try:
+            # 登录锁定参数校验：次数与时长必须为不小于 1 的整数，非法则整体拒绝更新
+            user_section = data.get('user_data')
+            if isinstance(user_section, dict):
+                for param_key in ('login_max_attempts', 'login_lockout_minutes'):
+                    if param_key in user_section and not self._is_valid_security_param(user_section[param_key]):
+                        LogUtils.error(t('config_security_params_invalid',
+                                         key=param_key, value=user_section[param_key]))
+                        return False
+
             old_language: str = self._config.user_data.language
             
             # 自动遍历 AppConfig 的所有字段进行更新

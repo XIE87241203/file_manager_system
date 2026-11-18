@@ -108,11 +108,9 @@ class AuthManager:
         返回值说明：无
         """
         user_data = settingService.get_config().user_data
-        max_attempts: int = user_data.login_max_attempts
-        lockout_minutes: int = user_data.login_lockout_minutes
-        # 任一参数 <=0 表示不启用失败锁定
-        if max_attempts <= 0 or lockout_minutes <= 0:
-            return
+        # 锁定参数最小为 1（配置层已校验并校正，此处兜底防止非法值导致锁定失效）
+        max_attempts: int = max(1, user_data.login_max_attempts)
+        lockout_minutes: int = max(1, user_data.login_lockout_minutes)
 
         key: Tuple[str, str] = (ip, username)
         attempt: LoginAttemptInfo = self._login_attempts.get(key) or LoginAttemptInfo()

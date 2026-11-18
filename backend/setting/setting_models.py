@@ -9,8 +9,8 @@ class UserData:
     username: str = "admin"
     password: str = "admin123"  # 存储为 PBKDF2 加盐哈希（旧版明文在加载时自动迁移）
     language: str = "en"  # 新增：系统语言设置，支持 'zh' 或 'en'
-    login_max_attempts: int = 3  # 同一 IP 连续登录失败达到此次数后触发锁定，<=0 表示不限制
-    login_lockout_minutes: int = 5  # 触发锁定后的禁止登录时长（分钟），<=0 表示不锁定
+    login_max_attempts: int = 3  # 同一 IP 连续登录失败达到此次数后触发锁定，最小为 1
+    login_lockout_minutes: int = 5  # 触发锁定后的禁止登录时长（分钟），最小为 1
 
 @dataclass
 class FileRepositorySettings:

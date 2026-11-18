@@ -255,6 +255,8 @@ TRANSLATIONS = {
     "config_update_logic_error": "Update configuration logic failed: {error}",
     "config_change_callback_error": "Configuration change callback failed: {error}",
     "config_password_migrated": "Legacy plaintext password detected and automatically upgraded to salted hash storage",
+    "config_security_params_invalid": "Invalid login lockout parameter ({key}={value}); must be an integer no less than 1",
+    "config_security_params_normalized": "Login lockout parameters below the minimum were automatically raised to 1 (threshold: {attempts}, duration: {minutes} minutes)",
     "password_verify_error": "Error occurred during password verification: {error}",
 
     # --- User Management ---

@@ -255,6 +255,8 @@ TRANSLATIONS = {
     "config_update_logic_error": "更新配置逻辑执行失败: {error}",
     "config_change_callback_error": "配置变更回调执行失败: {error}",
     "config_password_migrated": "检测到旧版明文密码，已自动升级为加盐哈希存储",
+    "config_security_params_invalid": "登录锁定参数非法（{key}={value}），必须为不小于 1 的整数",
+    "config_security_params_normalized": "登录锁定参数低于最小值，已自动调整为最小值 1（次数: {attempts}, 时长: {minutes} 分钟）",
     "password_verify_error": "密码校验过程发生错误: {error}",
 
     # --- 用户管理 (User) ---
