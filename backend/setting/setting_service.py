@@ -3,12 +3,13 @@ import json
 import os
 import sys
 from dataclasses import asdict, fields
-from typing import Dict, Any, Callable, List
+from typing import Dict, Any, Callable, List, Optional
 
 from backend.common.i18n_utils import I18nUtils, t
 from backend.common.log_utils import LogUtils
-from backend.common.password_utils import hash_password, is_hashed
+from backend.common.password_utils import ALGORITHM, hash_password, is_hashed
 from backend.common.utils import Utils
+from backend.model.db.user_db_model import UserDBModel
 from backend.setting.setting_models import AppConfig
 
 
@@ -72,9 +73,6 @@ class SettingService:
             # 校正登录锁定参数，保证最小值为 1（旧版本曾允许 <=0 表示禁用）
             self._normalize_security_params()
 
-            # 旧版明文密码自动升级为加盐哈希存储
-            self._migrate_plain_password()
-
             # 加载后立即缓存哈希值
             self._cache_password_hash()
             
@@ -128,22 +126,70 @@ class SettingService:
         """
         return isinstance(value, int) and not isinstance(value, bool) and value >= 1
 
-    def _migrate_plain_password(self) -> None:
+    @staticmethod
+    def _is_valid_stored_hash(stored: str) -> bool:
         """
-        用途：检测到旧版明文密码时，自动升级为 PBKDF2 加盐哈希存储并持久化。
-        说明：前端登录传输的是密码的 SHA-256 哈希，因此迁移时先对明文做 SHA-256，
-        再做加盐慢哈希，保证迁移后原有登录方式不受影响。
+        用途：校验密码密文是否为合法的存储格式（pbkdf2_sha256$迭代次数$盐hex$哈希hex）。
+        入参说明：stored: 从 setting.json 读到的密码字段值。
+        返回值说明：bool - 格式合法返回 True，否则返回 False。
+        """
+        parts: List[str] = stored.split('$')
+        if len(parts) != 4 or parts[0] != ALGORITHM or not parts[1].isdigit():
+            return False
+        hex_chars: str = '0123456789abcdefABCDEF'
+        salt_hex: str = parts[2]
+        dk_hex: str = parts[3]
+        if not salt_hex or not dk_hex or len(salt_hex) % 2 != 0 or len(dk_hex) % 2 != 0:
+            return False
+        return all(c in hex_chars for c in salt_hex + dk_hex)
+
+    def apply_password_reset(self) -> None:
+        """
+        用途：密码恢复通道——setting.json 中的密码字段发生变化时，据此重设初始管理员的密码。
+        说明：须在userService.init_admin_user() 之后调用（启动阶段），规则如下：
+            - 空值：不处理（凭据由 users 表管理）；
+            - 明文：先 SHA-256 再加盐慢哈希，重设初始管理员密码，并把文件中的明文替换为密文；
+            - 密文且与管理员当前密码不同：视为重设的新密码，直接应用；
+            - 密文且与管理员当前密码相同：不处理；
+            - 密文格式非法：记录错误并忽略，不应用；
+            - 尚无管理员（首次运行）：沿用旧迁移行为，把明文哈希化留存供初始管理员种子使用。
         入参说明：无
         返回值说明：无
         """
-        current: str = self._config.user_data.password
-        # 空值（用户凭据已迁移至 users 表）或已是哈希则无需迁移
-        if not current or is_hashed(current):
+        value: str = self._config.user_data.password
+        if not value:
             return
-        client_hash: str = hashlib.sha256(current.encode('utf-8')).hexdigest()
-        self._config.user_data.password = hash_password(client_hash)
-        self.save_config()
-        LogUtils.info(t('config_password_migrated'))
+
+        # 确定目标密文：明文转为加盐慢哈希；密文校验格式后直接使用
+        if is_hashed(value):
+            if not self._is_valid_stored_hash(value):
+                LogUtils.error(t('config_password_reset_invalid'))
+                return
+            target_hash: str = value
+        else:
+            client_hash: str = hashlib.sha256(value.encode('utf-8')).hexdigest()
+            target_hash = hash_password(client_hash)
+
+        # 延迟导入避免与用户服务模块形成循环依赖
+        from backend.user.user_service import userService
+        admin: Optional[UserDBModel] = userService.get_first_admin()
+        if admin is None:
+            # 尚无管理员（首次运行）：把明文哈希化留存，供后续初始管理员种子使用
+            if not is_hashed(value):
+                self._config.user_data.password = target_hash
+                self.save_config()
+                LogUtils.info(t('config_password_migrated'))
+            return
+
+        if admin.password_hash == target_hash:
+            # 密文与管理员当前密码一致，无需重设
+            return
+
+        if userService.reset_password_hash(admin.id, target_hash):
+            # 重设成功后把文件中的密码替换为密文，避免明文遗留磁盘
+            self._config.user_data.password = target_hash
+            self.save_config()
+            LogUtils.info(t('config_password_reset_applied', username=admin.username))
 
     def _cache_password_hash(self) -> None:
         """

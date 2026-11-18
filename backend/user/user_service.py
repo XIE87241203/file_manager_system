@@ -54,7 +54,7 @@ class UserService:
             user_data = settingService.get_config().user_data
             username: str = (user_data.username or 'admin').strip() or 'admin'
             stored: str = user_data.password or ''
-            # 配置加载阶段已把明文迁移为加盐哈希；此处兜底处理空值或残留明文
+            # 兜底处理空值或残留明文（密码恢复通道在种子初始化之后才执行）
             if is_hashed(stored):
                 password_hash: str = stored
             else:
@@ -144,6 +144,28 @@ class UserService:
             LogUtils.error(t('user_query_error', error=str(e)))
             return None
 
+    def get_first_admin(self) -> Optional[UserDBModel]:
+        """
+        用途：查询最早创建的管理员（ID 最小的管理员），作为 setting.json 密码恢复通道的重设目标。
+        说明：配置加载阶段可能早于主库建表，查询异常（如表不存在）时返回 None，由调用方兜底处理。
+        入参说明：无
+        返回值说明：Optional[UserDBModel] - 初始管理员模型，无管理员或查询失败返回 None。
+        """
+        try:
+            conn: sqlite3.Connection = db_manager.get_master_connection()
+            cursor: sqlite3.Cursor = conn.cursor()
+            cursor.execute(
+                f"SELECT * FROM {DBConstants.User.TABLE_NAME} "
+                f"WHERE {DBConstants.User.COL_IS_ADMIN} = 1 "
+                f"ORDER BY {DBConstants.User.COL_ID} ASC LIMIT 1"
+            )
+            row = cursor.fetchone()
+            conn.close()
+            return self._row_to_model(row) if row else None
+        except Exception as e:
+            LogUtils.error(t('user_query_error', error=str(e)))
+            return None
+
     def is_admin(self, username: str) -> bool:
         """
         用途：判断指定登录名是否为管理员。
@@ -220,6 +242,8 @@ class UserService:
             return False, t('user_delete_self')
         if user.is_admin and self.count_admins() <= 1:
             return False, t('user_delete_last_admin')
+        # 记录删除前的初始管理员，用于判断是否需要同步清空 setting.json 中的密码密文镜像
+        first_admin: Optional[UserDBModel] = self.get_first_admin()
         try:
             conn: sqlite3.Connection = db_manager.get_master_connection()
             cursor: sqlite3.Cursor = conn.cursor()
@@ -236,6 +260,12 @@ class UserService:
             conn.close()
             self._invalidate_tokens(user.username)
             LogUtils.info(t('user_delete_log', username=user.username, operator=operator_username))
+            # 被删除的是初始管理员时，清空 setting.json 中的密码密文镜像，
+            # 避免重启时把旧管理员的密码误重设到新的初始管理员身上
+            if first_admin and first_admin.id == user_id:
+                settingService.get_config().user_data.password = ''
+                settingService.save_config()
+                LogUtils.info(t('user_password_mirror_cleared', username=user.username))
             return True, t('user_delete_success')
         except Exception as e:
             LogUtils.error(t('user_delete_error', error=str(e)))
@@ -269,10 +299,46 @@ class UserService:
             conn.close()
             self._invalidate_tokens(user.username)
             LogUtils.info(t('user_password_log', username=user.username))
+            # 初始管理员的密码密文在 setting.json 中留有镜像（密码恢复通道），改密后同步更新，
+            # 避免重启时旧密文被误判为"用户重设密码"而回滚
+            first_admin: Optional[UserDBModel] = self.get_first_admin()
+            if first_admin and first_admin.id == user_id:
+                settingService.get_config().user_data.password = password_hash
+                settingService.save_config()
+                LogUtils.debug(t('user_password_config_synced', username=user.username))
             return True, t('user_password_success')
         except Exception as e:
             LogUtils.error(t('user_password_error', error=str(e)))
             return False, t('user_password_error', error=str(e))
+
+    def reset_password_hash(self, user_id: int, stored_hash: str) -> bool:
+        """
+        用途：密码恢复通道专用——把指定用户的密码直接重设为给定的存储哈希（PBKDF2 加盐格式），
+        并使该用户现有 Token 立即失效。与 update_password 的区别：入参已是存储哈希，不再二次哈希。
+        入参说明：
+            user_id (int): 目标用户 ID。
+            stored_hash (str): 存储格式的密码哈希（pbkdf2_sha256$迭代次数$盐hex$哈希hex）。
+        返回值说明：bool - 重设成功返回 True，用户不存在或异常返回 False。
+        """
+        user: Optional[UserDBModel] = self.get_user_by_id(user_id)
+        if not user:
+            return False
+        try:
+            conn: sqlite3.Connection = db_manager.get_master_connection()
+            cursor: sqlite3.Cursor = conn.cursor()
+            cursor.execute(
+                f"UPDATE {DBConstants.User.TABLE_NAME} "
+                f"SET {DBConstants.User.COL_PASSWORD_HASH} = ?, {DBConstants.User.COL_UPDATE_TIME} = CURRENT_TIMESTAMP "
+                f"WHERE {DBConstants.User.COL_ID} = ?",
+                (stored_hash, user_id)
+            )
+            conn.commit()
+            conn.close()
+            self._invalidate_tokens(user.username)
+            return True
+        except Exception as e:
+            LogUtils.error(t('user_password_error', error=str(e)))
+            return False
 
     def record_login(self, user_id: int, username: str, ip: str) -> None:
         """

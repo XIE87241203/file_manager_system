@@ -167,6 +167,8 @@ def start_server() -> None:
     repositoryService.init_default_repo()
     # 初始化全局用户账户（首次启动把现有配置用户迁移为初始管理员）
     userService.init_admin_user()
+    # 密码恢复通道：setting.json 中的密码被改动时据此重设初始管理员密码（须在用户初始化之后执行）
+    settingService.apply_password_reset()
     # 初始化默认仓库业务库
     db_manager.init_db()
 
