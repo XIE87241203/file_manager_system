@@ -343,10 +343,24 @@ body {
 }
 
 /* --- 用户管理分页 --- */
+/* 用户管理分页整体纵向布局：新增按钮与表格上下垂直排列，不再左右并排 */
+.user-tab-content.active {
+    flex-direction: column;
+    align-items: stretch;
+}
+
+/* 工具栏独占一行位于表格上方，新增按钮靠右 */
 .user-toolbar {
     display: flex;
-    justify-content: flex-end;
+    flex-direction: column;
+    align-items: flex-end;
     margin-bottom: 12px;
+}
+
+/* 新增按钮改为自适应宽度，避免撑满整行 */
+.user-toolbar .btn-primary {
+    width: auto;
+    padding: 8px 24px;
 }
 
 .user-table th,
@@ -373,12 +387,19 @@ body {
     color: #5f6368;
 }
 
-/* 行内操作按钮：统一宽度并居中，按钮之间留出间距防止误触 */
+/* 行内操作按钮容器：垂直排列，按钮之间留出间距防止误触 */
+.user-action-group {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+/* 行内操作按钮：统一宽度并居中，删除按钮固定排在最下 */
 .user-action-btn {
     width: 88px;
     box-sizing: border-box;
     padding: 4px 8px;
-    margin-right: 12px;
     border: none;
     border-radius: 4px;
     font-size: 12px;
@@ -386,10 +407,6 @@ body {
     background-color: #f1f3f4;
     color: #3c4043;
     text-align: center;
-}
-
-.user-action-btn:last-child {
-    margin-right: 0;
 }
 
 .user-action-btn:hover {
@@ -405,10 +422,14 @@ body {
     background-color: #fad2cf;
 }
 
-/* 用户表格列宽：角色/时间列定宽，操作列容纳三个等宽按钮，登录名列自适应剩余宽度 */
+/* 用户表格最小宽度：固定列宽合计 540px，另留 140px 给登录名列；
+   窄屏（手机）下表格不被压缩，超出部分由 .table-wrapper 横向滚动 */
+.user-table { min-width: 680px; }
+
+/* 用户表格列宽：角色/时间列定宽，操作列按钮垂直排列只需容纳单个按钮宽度，登录名列自适应剩余宽度 */
 .user-table .col-role { width: 100px; }
 .user-table .col-time { width: 160px; }
-.user-table .col-actions { width: 300px; }
+.user-table .col-actions { width: 120px; }
 
 /* --- 登录历史弹窗 --- */
 .login-history-modal-content {

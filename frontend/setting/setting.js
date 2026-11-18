@@ -95,7 +95,7 @@ const UIController = {
     },
 
     /**
-     * @description 用途说明：渲染用户列表表格（登录名、角色徽标、创建时间、最后登录时间、操作按钮）
+     * @description 用途说明：渲染用户列表表格（登录名、角色徽标、创建时间、最后登录时间、操作按钮；操作按钮垂直排列，删除按钮在最下）
      * @returns {void} - 返回值说明：无
      */
     renderUserTable() {
@@ -131,18 +131,21 @@ const UIController = {
             tr.appendChild(tdLastLogin);
 
             const tdActions = document.createElement('td');
+            // 操作按钮垂直排列：修改密码、登录历史在上，删除按钮固定在最下
+            const actionGroup = document.createElement('div');
+            actionGroup.className = 'user-action-group';
             const pwdBtn = document.createElement('button');
             pwdBtn.className = 'user-action-btn';
             pwdBtn.textContent = I18nManager.t('setting.user.edit_password');
             pwdBtn.onclick = (e) => { e.stopPropagation(); App.openUserModal(user.id); };
-            tdActions.appendChild(pwdBtn);
+            actionGroup.appendChild(pwdBtn);
 
             // 登录历史按钮：所有用户行均可查看
             const historyBtn = document.createElement('button');
             historyBtn.className = 'user-action-btn';
             historyBtn.textContent = I18nManager.t('setting.user.login_history');
             historyBtn.onclick = (e) => { e.stopPropagation(); App.openLoginHistory(user); };
-            tdActions.appendChild(historyBtn);
+            actionGroup.appendChild(historyBtn);
 
             // 不能删除自己，故当前登录用户行不显示删除按钮
             if (user.username !== State.currentUsername) {
@@ -150,8 +153,9 @@ const UIController = {
                 delBtn.className = 'user-action-btn danger';
                 delBtn.textContent = I18nManager.t('common.delete');
                 delBtn.onclick = (e) => { e.stopPropagation(); App.handleDeleteUser(user); };
-                tdActions.appendChild(delBtn);
+                actionGroup.appendChild(delBtn);
             }
+            tdActions.appendChild(actionGroup);
             tr.appendChild(tdActions);
 
             tbody.appendChild(tr);
