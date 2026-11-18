@@ -24,7 +24,10 @@ def get_setting():
     # 获取完整的配置对象并转换为字典返回
     config = settingService.get_config()
     data = asdict(config)
-    
+
+    # 安全处理：密码哈希不允许返回给前端，避免敏感信息泄露
+    data.get('user_data', {}).pop('password', None)
+
     return success_response(t('config_get_success'), data=data)
 
 @setting_bp.route('/update', methods=['POST'])

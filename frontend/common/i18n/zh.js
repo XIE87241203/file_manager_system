@@ -213,7 +213,12 @@ const I18nZh = {
             "password_placeholder": "不修改请留空",
             "confirm_password": "确认新密码",
             "confirm_password_placeholder": "请再次输入新密码",
-            "password_mismatch": "两次输入的密码不一致"
+            "password_mismatch": "两次输入的密码不一致",
+            "login_max_attempts": "登录失败锁定次数",
+            "login_max_attempts_hint": "同一 IP 连续登录失败达到此次数后禁止登录",
+            "login_lockout_minutes": "登录锁定时长（分钟）",
+            "login_lockout_minutes_hint": "触发锁定后禁止该 IP 和用户名登录的时长",
+            "security_params_invalid": "登录失败锁定次数和锁定时长必须为不小于 1 的整数"
         }
     },
     "already_entered": {

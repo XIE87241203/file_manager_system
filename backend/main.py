@@ -62,10 +62,42 @@ def inject_repo_context() -> None:
             repo_id = DEFAULT_REPO_ID
     set_current_repo_id(repo_id)
 
+# 日志脱敏：命中以下字段名的值一律以掩码代替，防止密码/Token 泄露到日志
+_SENSITIVE_LOG_KEYS = {'password', 'password_hash', 'old_password', 'new_password', 'token'}
+
+
+def _mask_token(token: Any) -> str:
+    """
+    用途：对日志中的 Token 做脱敏，仅保留前 8 位便于排查，其余以 *** 代替
+    入参说明：token: 原始 Token 值（可能为 None 或其他类型）
+    返回值说明：脱敏后的字符串，空值返回空字符串
+    """
+    if not token:
+        return ''
+    token_str: str = str(token)
+    return token_str[:8] + '***'
+
+
+def _sanitize_log_data(data: Any) -> Any:
+    """
+    用途：递归复制请求数据并对敏感字段脱敏，不修改原始请求对象
+    入参说明：data: 请求体/查询参数字典（或列表、标量）
+    返回值说明：脱敏后的同结构数据副本
+    """
+    if isinstance(data, dict):
+        return {
+            key: ('******' if key in _SENSITIVE_LOG_KEYS else _sanitize_log_data(value))
+            for key, value in data.items()
+        }
+    if isinstance(data, list):
+        return [_sanitize_log_data(item) for item in data]
+    return data
+
+
 @app.before_request
 def log_request_info() -> None:
     """
-    用途：记录接口请求信息
+    用途：记录接口请求信息（Token 与密码类字段脱敏后落日志）
     """
     if request.path.startswith('/api'):
         token = request.headers.get('Authorization')
@@ -78,7 +110,8 @@ def log_request_info() -> None:
             data = dict(request.form)
         elif request.args:
             data = dict(request.args)
-        LogUtils.api(t('log_api_request', method=request.method, path=request.path, token=token, data=data))
+        LogUtils.api(t('log_api_request', method=request.method, path=request.path,
+                       token=_mask_token(token), data=_sanitize_log_data(data)))
 
 @app.route('/')
 def index() -> Any:

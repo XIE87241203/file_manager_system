@@ -24,6 +24,9 @@ TRANSLATIONS = {
     "auth_user_pass_required": "用户名或密码不能为空",
     "auth_login_success": "登录成功",
     "auth_login_failed": "用户名或密码错误",
+    "auth_login_locked": "登录失败次数过多，请 {minutes} 分钟后再试",
+    "auth_login_fail_count_log": "登录失败计数: 用户 {username} (IP: {ip}) 已连续失败 {count}/{max_attempts} 次",
+    "auth_login_locked_log": "登录锁定已触发: 用户 {username} (IP: {ip}) 被禁止登录 {minutes} 分钟",
     "auth_logout_success": "注销成功",
     "auth_invalid_token": "无效的 Token 或已注销",
     "auth_token_missing": "未提供 Token",
@@ -251,6 +254,8 @@ TRANSLATIONS = {
     "config_updated_log": "用户 {user} 更新了系统配置",
     "config_update_logic_error": "更新配置逻辑执行失败: {error}",
     "config_change_callback_error": "配置变更回调执行失败: {error}",
+    "config_password_migrated": "检测到旧版明文密码，已自动升级为加盐哈希存储",
+    "password_verify_error": "密码校验过程发生错误: {error}",
 
     # --- 整理模块 (Organize) ---
     "organize_setting_get_success": "获取整理设置成功",

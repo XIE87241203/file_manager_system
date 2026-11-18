@@ -267,6 +267,16 @@
                 <label class="label-text" for="confirm-password" data-i18n="setting.account.confirm_password"></label>
                 <input type="password" id="confirm-password" class="input-field" placeholder="" data-i18n-placeholder="setting.account.confirm_password_placeholder" autocomplete="new-password">
             </div>
+            <div class="form-group">
+                <label class="label-text" for="login-max-attempts" data-i18n="setting.account.login_max_attempts"></label>
+                <input type="number" id="login-max-attempts" class="input-field" min="1" step="1" autocomplete="off">
+                <small class="form-hint" data-i18n="setting.account.login_max_attempts_hint"></small>
+            </div>
+            <div class="form-group">
+                <label class="label-text" for="login-lockout-minutes" data-i18n="setting.account.login_lockout_minutes"></label>
+                <input type="number" id="login-lockout-minutes" class="input-field" min="1" step="1" autocomplete="off">
+                <small class="form-hint" data-i18n="setting.account.login_lockout_minutes_hint"></small>
+            </div>
         </div>
     </div>
 </main>
@@ -275,6 +285,9 @@
 <script src="../common/i18n/zh.js"></script>
 <script src="../common/i18n/en.js"></script>
 <script src="../common/i18n/i18n_utils.js"></script>
+
+<!-- 引入 SHA-256 加密库（改密码时前端先哈希再传输，与登录页保持一致） -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
 
 <!-- 引入公用脚本 -->
 <script src="../common/common.js"></script>

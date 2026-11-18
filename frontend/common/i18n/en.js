@@ -213,7 +213,12 @@ const I18nEn = {
             "password_placeholder": "Leave empty if not changing",
             "confirm_password": "Confirm New Password",
             "confirm_password_placeholder": "Please enter new password again",
-            "password_mismatch": "Passwords do not match"
+            "password_mismatch": "Passwords do not match",
+            "login_max_attempts": "Failed Login Lockout Threshold",
+            "login_max_attempts_hint": "Block login after this many consecutive failures from the same IP",
+            "login_lockout_minutes": "Lockout Duration (minutes)",
+            "login_lockout_minutes_hint": "How long the IP and username are blocked after lockout is triggered",
+            "security_params_invalid": "Lockout threshold and duration must be integers no less than 1"
         }
     },
     "already_entered": {

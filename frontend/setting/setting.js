@@ -32,7 +32,9 @@ const State = {
     },
     userData: {
         username: "admin",
-        language: "en"
+        language: "en",
+        login_max_attempts: 3,
+        login_lockout_minutes: 5
     },
     // 缩略图同步任务状态
     thumbnailSync: {
@@ -92,6 +94,9 @@ const UIController = {
         document.getElementById('language-select').value = userData.language || 'en';
         document.getElementById('password').value = '';
         document.getElementById('confirm-password').value = '';
+        // 登录失败锁定参数（后端未返回时使用默认值）
+        document.getElementById('login-max-attempts').value = userData.login_max_attempts ?? 3;
+        document.getElementById('login-lockout-minutes').value = userData.login_lockout_minutes ?? 5;
 
         // 根据后端配置初始化多语言并渲染
         I18nManager.init(userData.language);
@@ -452,20 +457,35 @@ const App = {
         const language = document.getElementById('language-select').value;
         const password = document.getElementById('password').value;
         const confirmPassword = document.getElementById('confirm-password').value;
+        // 登录失败锁定参数：必须为 >=1 的整数
+        const loginMaxAttempts = parseInt(document.getElementById('login-max-attempts').value, 10);
+        const loginLockoutMinutes = parseInt(document.getElementById('login-lockout-minutes').value, 10);
 
         if (!username) {
             Toast.show(I18nManager.t('login.username_placeholder'));
             return;
         }
 
-        const userData = { username, language };
+        if (!Number.isInteger(loginMaxAttempts) || loginMaxAttempts < 1 ||
+            !Number.isInteger(loginLockoutMinutes) || loginLockoutMinutes < 1) {
+            Toast.show(I18nManager.t('setting.account.security_params_invalid'));
+            return;
+        }
+
+        const userData = {
+            username,
+            language,
+            login_max_attempts: loginMaxAttempts,
+            login_lockout_minutes: loginLockoutMinutes
+        };
         let isPasswordChanged = false;
         if (password) {
             if (password !== confirmPassword) {
                 Toast.show(I18nManager.t('setting.account.password_mismatch'));
                 return;
             }
-            userData.password = password;
+            // 与登录页一致：前端先做 SHA-256 哈希再传输，避免明文密码出现在请求与日志中
+            userData.password = CryptoJS.SHA256(password).toString();
             isPasswordChanged = true;
         }
 

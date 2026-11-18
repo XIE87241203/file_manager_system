@@ -24,6 +24,9 @@ TRANSLATIONS = {
     "auth_user_pass_required": "Username or password cannot be empty",
     "auth_login_success": "Login successful",
     "auth_login_failed": "Invalid username or password",
+    "auth_login_locked": "Too many failed login attempts. Please try again in {minutes} minute(s)",
+    "auth_login_fail_count_log": "Login failure count: user {username} (IP: {ip}) has failed {count}/{max_attempts} times in a row",
+    "auth_login_locked_log": "Login lockout triggered: user {username} (IP: {ip}) is blocked from logging in for {minutes} minute(s)",
     "auth_logout_success": "Logout successful",
     "auth_invalid_token": "Invalid or expired token",
     "auth_token_missing": "Token not provided",
@@ -251,6 +254,8 @@ TRANSLATIONS = {
     "config_updated_log": "User {user} updated system configuration",
     "config_update_logic_error": "Update configuration logic failed: {error}",
     "config_change_callback_error": "Configuration change callback failed: {error}",
+    "config_password_migrated": "Legacy plaintext password detected and automatically upgraded to salted hash storage",
+    "password_verify_error": "Error occurred during password verification: {error}",
 
     # --- Organize ---
     "organize_setting_get_success": "Organize settings retrieved successfully",
