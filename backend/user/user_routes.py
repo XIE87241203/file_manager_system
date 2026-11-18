@@ -7,7 +7,7 @@ from backend.auth.auth_middleware import token_required, admin_required
 from backend.common.i18n_utils import t
 from backend.common.log_utils import LogUtils
 from backend.common.response import success_response, error_response
-from backend.user.user_models import CurrentUserResult
+from backend.user.user_models import CurrentUserResult, LoginHistoryPageResult
 from backend.user.user_service import userService
 
 # 创建用户管理模块的蓝图
@@ -113,3 +113,26 @@ def update_password() -> Tuple[Any, int]:
     if success:
         return success_response(message)
     return error_response(message, 400)
+
+
+@user_bp.route('/login_history', methods=['GET'])
+@admin_required
+def get_login_history() -> Tuple[Any, int]:
+    """
+    用途说明：分页查询指定用户的登录历史（仅管理员，按登录时间倒序）。
+    入参说明：Query 参数：
+        id (int): 目标用户 ID，必填；
+        page (int): 页码，默认 1；
+        page_size (int): 每页条数，默认 10。
+    返回值说明：Tuple[Any, int] - 统一 JSON 响应，data 为 LoginHistoryPageResult 字典
+        （total: 总条数, page: 当前页, page_size: 每页条数, list: [{login_time, ip}]）。
+    """
+    user_id = request.args.get('id', type=int)
+    if user_id is None:
+        return error_response(t('request_params_error'), 400)
+    page: int = request.args.get('page', default=1, type=int)
+    page_size: int = request.args.get('page_size', default=10, type=int)
+
+    LogUtils.debug(t('user_login_history_log', user=request.username, target_id=user_id))
+    result: LoginHistoryPageResult = userService.get_login_history(user_id, page, page_size)
+    return success_response(t('user_login_history_success'), data=asdict(result))

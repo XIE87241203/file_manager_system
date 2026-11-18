@@ -216,5 +216,24 @@ const SettingRequest = {
                 else onError(res.message);
             })
             .catch(err => onError(err.message || I18nManager.t('common.network_error')));
+    },
+
+    /**
+     * @description 用途说明：分页获取指定用户的登录历史（仅管理员）
+     * @param {number} id - 入参说明：目标用户 ID
+     * @param {number} page - 入参说明：页码（从 1 开始）
+     * @param {number} pageSize - 入参说明：每页条数
+     * @param {Function} onSuccess - 入参说明：成功回调，参数为 {total, page, page_size, list:[{login_time, ip}]}
+     * @param {Function} onError - 入参说明：失败回调，参数为错误信息字符串
+     * @returns {void} - 返回值说明：无
+     */
+    getLoginHistory(id, page, pageSize, onSuccess, onError) {
+        const query = new URLSearchParams({ id: id, page: page, page_size: pageSize }).toString();
+        Request.get('/api/user/login_history?' + query, {}, false)
+            .then(res => {
+                if (res.status === 'success') onSuccess(res.data);
+                else onError(res.message);
+            })
+            .catch(err => onError(err.message || I18nManager.t('common.network_error')));
     }
 };

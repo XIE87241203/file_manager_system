@@ -285,6 +285,11 @@ TRANSLATIONS = {
     "user_password_error": "修改密码失败: {error}",
     "user_seed_admin_log": "已初始化初始管理员: {username}",
     "user_seed_admin_error": "初始化初始管理员失败: {error}",
+    "user_login_record_log": "已记录用户登录: {username}",
+    "user_login_record_error": "记录登录历史失败: {error}",
+    "user_login_history_log": "查询登录历史: 操作者={user}, 目标用户ID={target_id}",
+    "user_login_history_success": "获取登录历史成功",
+    "user_login_history_error": "查询登录历史失败: {error}",
 
     # --- 整理模块 (Organize) ---
     "organize_setting_get_success": "获取整理设置成功",

@@ -9,7 +9,7 @@ from backend.db.db_constants import DBConstants
 from backend.db.db_manager import db_manager
 from backend.model.db.user_db_model import UserDBModel
 from backend.setting.setting_service import settingService
-from backend.user.user_models import UserResult
+from backend.user.user_models import LoginHistoryPageResult, LoginHistoryResult, UserResult
 
 
 class UserService:
@@ -79,7 +79,7 @@ class UserService:
 
     def list_users(self) -> List[UserResult]:
         """
-        用途：获取所有用户列表（按 ID 升序，不含密码哈希）。
+        用途：获取所有用户列表（按 ID 升序，不含密码哈希，附带各用户最后一次登录时间）。
         入参说明：无
         返回值说明：List[UserResult] - 用户信息列表。
         """
@@ -89,12 +89,15 @@ class UserService:
             cursor: sqlite3.Cursor = conn.cursor()
             cursor.execute(
                 f"SELECT {DBConstants.User.COL_ID}, {DBConstants.User.COL_USERNAME}, "
-                f"{DBConstants.User.COL_IS_ADMIN}, {DBConstants.User.COL_CREATE_TIME} "
+                f"{DBConstants.User.COL_IS_ADMIN}, {DBConstants.User.COL_CREATE_TIME}, "
+                f"(SELECT MAX(h.{DBConstants.LoginHistory.COL_LOGIN_TIME}) "
+                f"FROM {DBConstants.LoginHistory.TABLE_NAME} h "
+                f"WHERE h.{DBConstants.LoginHistory.COL_USER_ID} = {DBConstants.User.TABLE_NAME}.{DBConstants.User.COL_ID}) AS last_login "
                 f"FROM {DBConstants.User.TABLE_NAME} ORDER BY {DBConstants.User.COL_ID} ASC"
             )
             for row in cursor.fetchall():
                 results.append(UserResult(
-                    id=row[0], username=row[1], is_admin=bool(row[2]), create_time=row[3]
+                    id=row[0], username=row[1], is_admin=bool(row[2]), create_time=row[3], last_login=row[4]
                 ))
             conn.close()
         except Exception as e:
@@ -204,7 +207,7 @@ class UserService:
 
     def delete_user(self, user_id: int, operator_username: str) -> Tuple[bool, str]:
         """
-        用途：删除用户。禁止删除自己，禁止删除最后一个管理员；删除成功后使该用户 Token 立即失效。
+        用途：删除用户。禁止删除自己，禁止删除最后一个管理员；删除成功后使该用户 Token 立即失效，并同步清理其登录历史。
         入参说明：
             user_id (int): 待删除用户 ID。
             operator_username (str): 执行操作的管理员登录名。
@@ -222,6 +225,11 @@ class UserService:
             cursor: sqlite3.Cursor = conn.cursor()
             cursor.execute(
                 f"DELETE FROM {DBConstants.User.TABLE_NAME} WHERE {DBConstants.User.COL_ID} = ?",
+                (user_id,)
+            )
+            # 同步清理该用户的登录历史，避免遗留孤儿记录
+            cursor.execute(
+                f"DELETE FROM {DBConstants.LoginHistory.TABLE_NAME} WHERE {DBConstants.LoginHistory.COL_USER_ID} = ?",
                 (user_id,)
             )
             conn.commit()
@@ -265,6 +273,67 @@ class UserService:
         except Exception as e:
             LogUtils.error(t('user_password_error', error=str(e)))
             return False, t('user_password_error', error=str(e))
+
+    def record_login(self, user_id: int, username: str, ip: str) -> None:
+        """
+        用途：记录一次成功登录的历史（登录时间由数据库自动生成，同时记录来源 IP）。
+        入参说明：
+            user_id (int): 登录用户 ID。
+            username (str): 登录用户登录名。
+            ip (str): 登录请求来源 IP。
+        返回值说明：无
+        """
+        try:
+            conn: sqlite3.Connection = db_manager.get_master_connection()
+            cursor: sqlite3.Cursor = conn.cursor()
+            cursor.execute(
+                f"INSERT INTO {DBConstants.LoginHistory.TABLE_NAME} "
+                f"({DBConstants.LoginHistory.COL_USER_ID}, {DBConstants.LoginHistory.COL_USERNAME}, {DBConstants.LoginHistory.COL_IP}) "
+                f"VALUES (?, ?, ?)",
+                (user_id, username, ip or '')
+            )
+            conn.commit()
+            conn.close()
+            LogUtils.debug(t('user_login_record_log', username=username))
+        except Exception as e:
+            LogUtils.error(t('user_login_record_error', error=str(e)))
+
+    def get_login_history(self, user_id: int, page: int, page_size: int) -> LoginHistoryPageResult:
+        """
+        用途：分页查询某用户的登录历史（按登录时间倒序）。仅读取当前页数据，避免一次性载入全表导致 OOM。
+        入参说明：
+            user_id (int): 目标用户 ID。
+            page (int): 页码（从 1 开始，小于 1 按 1 处理）。
+            page_size (int): 每页条数（限制在 1-100 之间）。
+        返回值说明：LoginHistoryPageResult - 含 total、page、page_size、list 的分页结果。
+        """
+        page = max(1, page)
+        page_size = min(100, max(1, page_size))
+        result = LoginHistoryPageResult(page=page, page_size=page_size)
+        try:
+            conn: sqlite3.Connection = db_manager.get_master_connection()
+            cursor: sqlite3.Cursor = conn.cursor()
+            cursor.execute(
+                f"SELECT COUNT(*) FROM {DBConstants.LoginHistory.TABLE_NAME} "
+                f"WHERE {DBConstants.LoginHistory.COL_USER_ID} = ?",
+                (user_id,)
+            )
+            result.total = cursor.fetchone()[0]
+            offset: int = (page - 1) * page_size
+            cursor.execute(
+                f"SELECT {DBConstants.LoginHistory.COL_LOGIN_TIME}, {DBConstants.LoginHistory.COL_IP} "
+                f"FROM {DBConstants.LoginHistory.TABLE_NAME} "
+                f"WHERE {DBConstants.LoginHistory.COL_USER_ID} = ? "
+                f"ORDER BY {DBConstants.LoginHistory.COL_LOGIN_TIME} DESC, {DBConstants.LoginHistory.COL_ID} DESC "
+                f"LIMIT ? OFFSET ?",
+                (user_id, page_size, offset)
+            )
+            for row in cursor.fetchall():
+                result.list.append(LoginHistoryResult(login_time=row[0], ip=row[1] or ''))
+            conn.close()
+        except Exception as e:
+            LogUtils.error(t('user_login_history_error', error=str(e)))
+        return result
 
     @staticmethod
     def _invalidate_tokens(username: str) -> None:

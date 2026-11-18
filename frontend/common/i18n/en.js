@@ -6,6 +6,7 @@ const I18nEn = {
     "common": {
         "save": "Save",
         "cancel": "Cancel",
+        "close": "Close",
         "confirm": "Confirm",
         "delete": "Delete",
         "loading": "Loading...",
@@ -240,7 +241,14 @@ const I18nEn = {
             "username_required": "Username cannot be empty",
             "password_required": "Password cannot be empty",
             "password_mismatch": "The two passwords do not match",
-            "delete_confirm": "Are you sure you want to delete user {username}? This action cannot be undone."
+            "delete_confirm": "Are you sure you want to delete user {username}? This action cannot be undone.",
+            "last_login": "Last Login",
+            "login_history": "Login History",
+            "login_history_title": "Login History - {username}",
+            "history_time": "Login Time",
+            "history_ip": "Login IP",
+            "history_empty": "No login records",
+            "never_login": "Never logged in"
         }
     },
     "already_entered": {

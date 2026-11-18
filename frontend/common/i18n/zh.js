@@ -6,6 +6,7 @@ const I18nZh = {
     "common": {
         "save": "保存",
         "cancel": "取消",
+        "close": "关闭",
         "confirm": "确定",
         "delete": "删除",
         "loading": "加载中...",
@@ -240,7 +241,14 @@ const I18nZh = {
             "username_required": "登录名不能为空",
             "password_required": "密码不能为空",
             "password_mismatch": "两次输入的密码不一致",
-            "delete_confirm": "确定要删除用户 {username} 吗？此操作不可恢复。"
+            "delete_confirm": "确定要删除用户 {username} 吗？此操作不可恢复。",
+            "last_login": "最后登录",
+            "login_history": "登录历史",
+            "login_history_title": "登录历史 - {username}",
+            "history_time": "登录时间",
+            "history_ip": "登录 IP",
+            "history_empty": "暂无登录记录",
+            "never_login": "从未登录"
         }
     },
     "already_entered": {

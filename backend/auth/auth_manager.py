@@ -81,6 +81,9 @@ class AuthManager:
             # 登录成功，清除该组合的失败记录
             self._login_attempts.pop((ip, username), None)
 
+            # 记录本次成功登录的历史（时间与来源 IP），供用户管理页追溯
+            userService.record_login(user.id, username, ip)
+
             # 生成新 Token
             new_token: str = str(uuid.uuid4())
             expire_at: float = time.time() + self._expire_seconds

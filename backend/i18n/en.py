@@ -285,6 +285,11 @@ TRANSLATIONS = {
     "user_password_error": "Failed to change password: {error}",
     "user_seed_admin_log": "Initial administrator initialized: {username}",
     "user_seed_admin_error": "Failed to initialize initial administrator: {error}",
+    "user_login_record_log": "Recorded user login: {username}",
+    "user_login_record_error": "Failed to record login history: {error}",
+    "user_login_history_log": "Query login history: operator={user}, target_user_id={target_id}",
+    "user_login_history_success": "Login history retrieved successfully",
+    "user_login_history_error": "Failed to query login history: {error}",
 
     # --- Organize ---
     "organize_setting_get_success": "Organize settings retrieved successfully",

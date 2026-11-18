@@ -48,7 +48,13 @@ const State = {
     users: [], // 用户列表缓存
     isAdmin: false, // 当前登录用户是否管理员
     currentUsername: '', // 当前登录名
-    editingUserId: null // 弹窗正在修改密码的用户 ID（null 表示新增用户）
+    editingUserId: null, // 弹窗正在修改密码的用户 ID（null 表示新增用户）
+    // 登录历史弹窗状态
+    historyUserId: null, // 正在查看登录历史的用户 ID
+    historyUsername: '', // 正在查看登录历史的用户登录名（用于弹窗标题）
+    historyPage: 1, // 登录历史当前页码
+    historyPageSize: 10, // 登录历史每页条数
+    historyTotal: 0 // 登录历史总条数
 };
 
 // --- UI 控制模块 ---
@@ -89,7 +95,7 @@ const UIController = {
     },
 
     /**
-     * @description 用途说明：渲染用户列表表格（登录名、角色徽标、创建时间、操作按钮）
+     * @description 用途说明：渲染用户列表表格（登录名、角色徽标、创建时间、最后登录时间、操作按钮）
      * @returns {void} - 返回值说明：无
      */
     renderUserTable() {
@@ -98,7 +104,7 @@ const UIController = {
         tbody.innerHTML = '';
         const users = State.users;
         if (!users.length) {
-            tbody.innerHTML = UIComponents.getEmptyTableHtml(4);
+            tbody.innerHTML = UIComponents.getEmptyTableHtml(5);
             return;
         }
         users.forEach(user => {
@@ -119,12 +125,24 @@ const UIController = {
             tdTime.textContent = user.create_time || '';
             tr.appendChild(tdTime);
 
+            // 最后登录时间：无记录时显示“从未登录”
+            const tdLastLogin = document.createElement('td');
+            tdLastLogin.textContent = user.last_login || I18nManager.t('setting.user.never_login');
+            tr.appendChild(tdLastLogin);
+
             const tdActions = document.createElement('td');
             const pwdBtn = document.createElement('button');
             pwdBtn.className = 'user-action-btn';
             pwdBtn.textContent = I18nManager.t('setting.user.edit_password');
             pwdBtn.onclick = (e) => { e.stopPropagation(); App.openUserModal(user.id); };
             tdActions.appendChild(pwdBtn);
+
+            // 登录历史按钮：所有用户行均可查看
+            const historyBtn = document.createElement('button');
+            historyBtn.className = 'user-action-btn';
+            historyBtn.textContent = I18nManager.t('setting.user.login_history');
+            historyBtn.onclick = (e) => { e.stopPropagation(); App.openLoginHistory(user); };
+            tdActions.appendChild(historyBtn);
 
             // 不能删除自己，故当前登录用户行不显示删除按钮
             if (user.username !== State.currentUsername) {
@@ -173,6 +191,52 @@ const UIController = {
     hideUserModal() {
         const modal = document.getElementById('user-modal');
         if (modal) modal.classList.add('hidden');
+    },
+
+    /**
+     * @description 用途说明：显示登录历史弹窗并设置标题（含目标用户登录名）
+     * @param {string} username - 入参说明：目标用户登录名
+     * @returns {void} - 返回值说明：无
+     */
+    showLoginHistoryModal(username) {
+        const modal = document.getElementById('login-history-modal');
+        const title = document.getElementById('login-history-title');
+        if (title) title.textContent = I18nManager.t('setting.user.login_history_title', { username: username });
+        if (modal) modal.classList.remove('hidden');
+    },
+
+    /**
+     * @description 用途说明：隐藏登录历史弹窗
+     * @returns {void} - 返回值说明：无
+     */
+    hideLoginHistoryModal() {
+        const modal = document.getElementById('login-history-modal');
+        if (modal) modal.classList.add('hidden');
+    },
+
+    /**
+     * @description 用途说明：渲染登录历史表格当前页数据（登录时间、来源 IP），无数据时显示空提示
+     * @param {Array} list - 入参说明：当前页登录历史数组 [{login_time, ip}]
+     * @returns {void} - 返回值说明：无
+     */
+    renderLoginHistory(list) {
+        const tbody = document.getElementById('login-history-body');
+        if (!tbody) return;
+        tbody.innerHTML = '';
+        if (!list || !list.length) {
+            tbody.innerHTML = UIComponents.getEmptyTableHtml(2, I18nManager.t('setting.user.history_empty'));
+            return;
+        }
+        list.forEach(item => {
+            const tr = document.createElement('tr');
+            const tdTime = document.createElement('td');
+            tdTime.textContent = item.login_time || '';
+            tr.appendChild(tdTime);
+            const tdIp = document.createElement('td');
+            tdIp.textContent = item.ip || '';
+            tr.appendChild(tdIp);
+            tbody.appendChild(tr);
+        });
     },
 
     /**
@@ -392,6 +456,9 @@ const App = {
 
         const cancelBtn = document.getElementById('user-modal-cancel-btn');
         if (cancelBtn) cancelBtn.onclick = () => UIController.hideUserModal();
+
+        const historyCloseBtn = document.getElementById('login-history-close-btn');
+        if (historyCloseBtn) historyCloseBtn.onclick = () => UIController.hideLoginHistoryModal();
     },
 
     /**
@@ -464,6 +531,45 @@ const App = {
                 );
             }
         });
+    },
+
+    /**
+     * @description 用途说明：打开某用户的登录历史弹窗，重置到第一页并加载数据
+     * @param {Object} user - 入参说明：目标用户对象 {id, username}
+     * @returns {void} - 返回值说明：无
+     */
+    openLoginHistory(user) {
+        State.historyUserId = user.id;
+        State.historyUsername = user.username;
+        State.historyPage = 1;
+        UIController.showLoginHistoryModal(user.username);
+        this.loadLoginHistory();
+    },
+
+    /**
+     * @description 用途说明：按当前页码加载登录历史，渲染表格并初始化分页栏
+     * @returns {void} - 返回值说明：无
+     */
+    loadLoginHistory() {
+        if (State.historyUserId === null) return;
+        SettingRequest.getLoginHistory(
+            State.historyUserId, State.historyPage, State.historyPageSize,
+            (data) => {
+                State.historyTotal = data.total || 0;
+                UIController.renderLoginHistory(data.list);
+                PageBar.init({
+                    containerId: 'login-history-pagination',
+                    totalItems: State.historyTotal,
+                    pageSize: State.historyPageSize,
+                    currentPage: data.page || State.historyPage,
+                    onPageChange: (newPage) => {
+                        State.historyPage = newPage;
+                        this.loadLoginHistory();
+                    }
+                });
+            },
+            (msg) => Toast.show(msg)
+        );
     },
 
     /**
