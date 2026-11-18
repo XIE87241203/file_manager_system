@@ -6,6 +6,7 @@ from backend.auth.auth_manager import auth_manager
 from backend.common.i18n_utils import t
 from backend.common.log_utils import LogUtils
 from backend.common.response import error_response
+from backend.user.user_service import userService
 
 
 def token_required(f):
@@ -41,5 +42,21 @@ def token_required(f):
         
         # 将解析出的用户名存入 request 对象，方便后续业务逻辑使用
         request.username = username
+        return f(*args, **kwargs)
+    return decorated
+
+
+def admin_required(f):
+    """
+    用途：装饰器，在 Token 验证的基础上进一步校验当前用户是否为管理员，非管理员返回 403。
+    入参说明：f - 被装饰的函数
+    返回值说明：返回装饰后的函数，验证失败返回 401（未登录）或 403（非管理员）错误响应
+    """
+    @wraps(f)
+    @token_required
+    def decorated(*args, **kwargs):
+        if not userService.is_admin(request.username):
+            LogUtils.error(t('user_admin_required_log', username=request.username, path=request.path))
+            return error_response(t('user_admin_required'), 403)
         return f(*args, **kwargs)
     return decorated

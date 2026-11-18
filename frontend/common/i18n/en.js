@@ -125,7 +125,8 @@ const I18nEn = {
             "file_entry": "File Entry Management",
             "dup_check": "Duplicate Check",
             "maintenance": "Data Maintenance",
-            "account": "Account & System"
+            "account": "Account & System",
+            "user": "User Management"
         },
         "repo": {
             "repo_dir": "Repository Directory",
@@ -219,6 +220,27 @@ const I18nEn = {
             "login_lockout_minutes": "Lockout Duration (minutes)",
             "login_lockout_minutes_hint": "How long the IP and username are blocked after lockout is triggered",
             "security_params_invalid": "Lockout threshold and duration must be integers no less than 1"
+        },
+        "user": {
+            "add_btn": "Add User",
+            "username": "Username",
+            "username_placeholder": "Please enter username",
+            "role": "Role",
+            "create_time": "Created At",
+            "actions": "Actions",
+            "role_admin": "Admin",
+            "role_normal": "Normal User",
+            "edit_password": "Change Password",
+            "add_title": "Add User",
+            "edit_password_title": "Change Password",
+            "password": "Password",
+            "password_placeholder": "Please enter password",
+            "confirm_password": "Confirm Password",
+            "confirm_password_placeholder": "Please enter password again",
+            "username_required": "Username cannot be empty",
+            "password_required": "Password cannot be empty",
+            "password_mismatch": "The two passwords do not match",
+            "delete_confirm": "Are you sure you want to delete user {username}? This action cannot be undone."
         }
     },
     "already_entered": {

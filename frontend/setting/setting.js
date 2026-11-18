@@ -31,7 +31,6 @@ const State = {
         file_name_link_prefix: ""
     },
     userData: {
-        username: "admin",
         language: "en",
         login_max_attempts: 3,
         login_lockout_minutes: 5
@@ -44,7 +43,12 @@ const State = {
     },
     // 多仓库管理状态
     repos: [], // 仓库列表缓存
-    currentRepoId: 1 // 当前编辑/激活的仓库 ID
+    currentRepoId: 1, // 当前编辑/激活的仓库 ID
+    // 用户管理状态
+    users: [], // 用户列表缓存
+    isAdmin: false, // 当前登录用户是否管理员
+    currentUsername: '', // 当前登录名
+    editingUserId: null // 弹窗正在修改密码的用户 ID（null 表示新增用户）
 };
 
 // --- UI 控制模块 ---
@@ -61,7 +65,8 @@ const UIController = {
             { btn: 'tab-file-entry', content: 'content-file-entry' },
             { btn: 'tab-dup-check', content: 'content-dup-check' },
             { btn: 'tab-maintenance', content: 'content-maintenance' },
-            { btn: 'tab-account', content: 'content-account' }
+            { btn: 'tab-account', content: 'content-account' },
+            { btn: 'tab-user', content: 'content-user' }
         ];
 
         tabs.forEach(tab => {
@@ -76,9 +81,98 @@ const UIController = {
                     });
                     document.getElementById(tab.btn).classList.add('active');
                     document.getElementById(tab.content).classList.add('active');
+                    // 切到用户管理分页时刷新用户列表
+                    if (tab.btn === 'tab-user') App.loadUsers();
                 };
             }
         });
+    },
+
+    /**
+     * @description 用途说明：渲染用户列表表格（登录名、角色徽标、创建时间、操作按钮）
+     * @returns {void} - 返回值说明：无
+     */
+    renderUserTable() {
+        const tbody = document.getElementById('user-table-body');
+        if (!tbody) return;
+        tbody.innerHTML = '';
+        const users = State.users;
+        if (!users.length) {
+            tbody.innerHTML = UIComponents.getEmptyTableHtml(4);
+            return;
+        }
+        users.forEach(user => {
+            const tr = document.createElement('tr');
+
+            const tdName = document.createElement('td');
+            tdName.textContent = user.username;
+            tr.appendChild(tdName);
+
+            const tdRole = document.createElement('td');
+            const badge = document.createElement('span');
+            badge.className = 'role-badge ' + (user.is_admin ? 'admin' : 'normal');
+            badge.textContent = I18nManager.t(user.is_admin ? 'setting.user.role_admin' : 'setting.user.role_normal');
+            tdRole.appendChild(badge);
+            tr.appendChild(tdRole);
+
+            const tdTime = document.createElement('td');
+            tdTime.textContent = user.create_time || '';
+            tr.appendChild(tdTime);
+
+            const tdActions = document.createElement('td');
+            const pwdBtn = document.createElement('button');
+            pwdBtn.className = 'user-action-btn';
+            pwdBtn.textContent = I18nManager.t('setting.user.edit_password');
+            pwdBtn.onclick = (e) => { e.stopPropagation(); App.openUserModal(user.id); };
+            tdActions.appendChild(pwdBtn);
+
+            // 不能删除自己，故当前登录用户行不显示删除按钮
+            if (user.username !== State.currentUsername) {
+                const delBtn = document.createElement('button');
+                delBtn.className = 'user-action-btn danger';
+                delBtn.textContent = I18nManager.t('common.delete');
+                delBtn.onclick = (e) => { e.stopPropagation(); App.handleDeleteUser(user); };
+                tdActions.appendChild(delBtn);
+            }
+            tr.appendChild(tdActions);
+
+            tbody.appendChild(tr);
+        });
+    },
+
+    /**
+     * @description 用途说明：显示用户弹窗。userId 为 null 时是新增用户（显示登录名输入），否则为修改密码（隐藏登录名）
+     * @param {number|null} userId - 入参说明：目标用户 ID（null 表示新增）
+     * @returns {void} - 返回值说明：无
+     */
+    showUserModal(userId) {
+        const modal = document.getElementById('user-modal');
+        const title = document.getElementById('user-modal-title');
+        const usernameGroup = document.getElementById('user-modal-username-group');
+        const usernameInput = document.getElementById('user-modal-username');
+        document.getElementById('user-modal-password').value = '';
+        document.getElementById('user-modal-confirm').value = '';
+        if (userId === null) {
+            title.textContent = I18nManager.t('setting.user.add_title');
+            usernameGroup.classList.remove('hidden');
+            usernameInput.value = '';
+        } else {
+            title.textContent = I18nManager.t('setting.user.edit_password_title');
+            usernameGroup.classList.add('hidden');
+            const user = State.users.find(u => u.id === userId);
+            usernameInput.value = user ? user.username : '';
+        }
+        modal.classList.remove('hidden');
+        (userId === null ? usernameInput : document.getElementById('user-modal-password')).focus();
+    },
+
+    /**
+     * @description 用途说明：隐藏用户弹窗
+     * @returns {void} - 返回值说明：无
+     */
+    hideUserModal() {
+        const modal = document.getElementById('user-modal');
+        if (modal) modal.classList.add('hidden');
     },
 
     /**
@@ -87,13 +181,10 @@ const UIController = {
      * @returns {void} - 返回值说明：无
      */
     fillSettingsForm(data) {
-        // 用户数据
+        // 用户数据（登录名与密码已移至用户管理，此处仅语言与锁定参数）
         State.userData = data.user_data || State.userData;
         const userData = State.userData;
-        document.getElementById('username').value = userData.username || '';
         document.getElementById('language-select').value = userData.language || 'en';
-        document.getElementById('password').value = '';
-        document.getElementById('confirm-password').value = '';
         // 登录失败锁定参数（后端未返回时使用默认值）
         document.getElementById('login-max-attempts').value = userData.login_max_attempts ?? 3;
         document.getElementById('login-lockout-minutes').value = userData.login_lockout_minutes ?? 5;
@@ -247,8 +338,132 @@ const App = {
         this.loadSettings();
         this.initRepoSelector();
         this.bindEvents();
+        // 加载当前用户信息，决定是否展示用户管理入口，并绑定用户管理交互
+        this.loadCurrentUser();
+        this.bindUserEvents();
         // 初始化时检查一次同步任务状态
         this.syncThumbnailProgress();
+    },
+
+    /**
+     * @description 用途说明：加载当前登录用户信息，管理员则显示用户管理选项卡
+     * @returns {void} - 返回值说明：无
+     */
+    loadCurrentUser() {
+        SettingRequest.getCurrentUser(
+            (data) => {
+                State.currentUsername = data.username || '';
+                State.isAdmin = !!data.is_admin;
+                const tabBtn = document.getElementById('tab-user');
+                if (tabBtn) tabBtn.classList.toggle('hidden', !State.isAdmin);
+            },
+            (msg) => {
+                // 获取失败时保持用户管理入口隐藏，不影响其他设置功能
+                console.error('loadCurrentUser failed:', msg);
+            }
+        );
+    },
+
+    /**
+     * @description 用途说明：加载用户列表并渲染（仅管理员）
+     * @returns {void} - 返回值说明：无
+     */
+    loadUsers() {
+        if (!State.isAdmin) return;
+        SettingRequest.getUserList(
+            (users) => {
+                State.users = users || [];
+                UIController.renderUserTable();
+            },
+            (msg) => Toast.show(msg)
+        );
+    },
+
+    /**
+     * @description 用途说明：绑定用户管理分页的按钮与弹窗事件
+     * @returns {void} - 返回值说明：无
+     */
+    bindUserEvents() {
+        const addBtn = document.getElementById('add-user-btn');
+        if (addBtn) addBtn.onclick = () => this.openUserModal(null);
+
+        const confirmBtn = document.getElementById('user-modal-confirm-btn');
+        if (confirmBtn) confirmBtn.onclick = () => this.submitUserModal();
+
+        const cancelBtn = document.getElementById('user-modal-cancel-btn');
+        if (cancelBtn) cancelBtn.onclick = () => UIController.hideUserModal();
+    },
+
+    /**
+     * @description 用途说明：打开用户弹窗。userId 为 null 表示新增用户，否则为修改该用户密码
+     * @param {number|null} userId - 入参说明：目标用户 ID（null 表示新增）
+     * @returns {void} - 返回值说明：无
+     */
+    openUserModal(userId) {
+        State.editingUserId = userId;
+        UIController.showUserModal(userId);
+    },
+
+    /**
+     * @description 用途说明：提交用户弹窗（新增用户或修改密码），校验后哈希密码并调用 API
+     * @returns {void} - 返回值说明：无
+     */
+    submitUserModal() {
+        const username = document.getElementById('user-modal-username').value.trim();
+        const password = document.getElementById('user-modal-password').value;
+        const confirm = document.getElementById('user-modal-confirm').value;
+
+        // 新增用户时校验登录名
+        if (State.editingUserId === null && !username) {
+            Toast.show(I18nManager.t('setting.user.username_required'));
+            return;
+        }
+        if (!password) {
+            Toast.show(I18nManager.t('setting.user.password_required'));
+            return;
+        }
+        if (password !== confirm) {
+            Toast.show(I18nManager.t('setting.user.password_mismatch'));
+            return;
+        }
+
+        // 与登录页一致：前端先做 SHA-256 哈希再传输
+        const passwordHash = CryptoJS.SHA256(password).toString();
+        const onSuccess = () => {
+            UIController.hideUserModal();
+            Toast.show(I18nManager.t('common.success'));
+            this.loadUsers();
+        };
+        const onError = (msg) => Toast.show(msg);
+
+        if (State.editingUserId === null) {
+            SettingRequest.addUser(username, passwordHash, onSuccess, onError);
+        } else {
+            SettingRequest.updateUserPassword(State.editingUserId, passwordHash, onSuccess, onError);
+        }
+    },
+
+    /**
+     * @description 用途说明：删除用户（二次确认）
+     * @param {Object} user - 入参说明：目标用户对象 {id, username}
+     * @returns {void} - 返回值说明：无
+     */
+    handleDeleteUser(user) {
+        UIComponents.showConfirmModal({
+            title: I18nManager.t('common.hint'),
+            message: I18nManager.t('setting.user.delete_confirm', { username: user.username }),
+            confirmText: I18nManager.t('common.delete'),
+            onConfirm: () => {
+                SettingRequest.deleteUser(
+                    user.id,
+                    () => {
+                        Toast.show(I18nManager.t('common.success'));
+                        this.loadUsers();
+                    },
+                    (msg) => Toast.show(msg)
+                );
+            }
+        });
     },
 
     /**
@@ -452,19 +667,11 @@ const App = {
             file_name_link_prefix: document.getElementById('file-name-link-prefix').value.trim()
         };
 
-        // 4. 采集用户信息数据
-        const username = document.getElementById('username').value.trim();
+        // 4. 采集用户信息数据（登录名与密码改由用户管理维护，此处仅语言与锁定参数）
         const language = document.getElementById('language-select').value;
-        const password = document.getElementById('password').value;
-        const confirmPassword = document.getElementById('confirm-password').value;
         // 登录失败锁定参数：必须为 >=1 的整数
         const loginMaxAttempts = parseInt(document.getElementById('login-max-attempts').value, 10);
         const loginLockoutMinutes = parseInt(document.getElementById('login-lockout-minutes').value, 10);
-
-        if (!username) {
-            Toast.show(I18nManager.t('login.username_placeholder'));
-            return;
-        }
 
         if (!Number.isInteger(loginMaxAttempts) || loginMaxAttempts < 1 ||
             !Number.isInteger(loginLockoutMinutes) || loginLockoutMinutes < 1) {
@@ -473,21 +680,10 @@ const App = {
         }
 
         const userData = {
-            username,
             language,
             login_max_attempts: loginMaxAttempts,
             login_lockout_minutes: loginLockoutMinutes
         };
-        let isPasswordChanged = false;
-        if (password) {
-            if (password !== confirmPassword) {
-                Toast.show(I18nManager.t('setting.account.password_mismatch'));
-                return;
-            }
-            // 与登录页一致：前端先做 SHA-256 哈希再传输，避免明文密码出现在请求与日志中
-            userData.password = CryptoJS.SHA256(password).toString();
-            isPasswordChanged = true;
-        }
 
         const updateData = {
             duplicate_check: dc,
@@ -507,25 +703,24 @@ const App = {
                 onConfirm: () => {
                     SettingRequest.clearVideoFeatures(
                         () => {
-                            this.executeGlobalSave(updateData, isPasswordChanged, isLanguageChanged);
+                            this.executeGlobalSave(updateData, isLanguageChanged);
                         },
                         (msg) => Toast.show(msg)
                     );
                 }
             });
         } else {
-            this.executeGlobalSave(updateData, isPasswordChanged, isLanguageChanged);
+            this.executeGlobalSave(updateData, isLanguageChanged);
         }
     },
 
     /**
-     * @description 用途说明：发起 API 请求执行全站设置更新，并根据变更项（如密码或语言）处理后续逻辑
+     * @description 用途说明：发起 API 请求执行全站设置更新，并根据语言变更处理后续跳转逻辑
      * @param {Object} updateData - 入参说明：包含所有配置分类的更新对象
-     * @param {boolean} isPasswordChanged - 入参说明：标记密码是否已更改，用于重定向至登录页
      * @param {boolean} isLanguageChanged - 入参说明：标记语言是否已更改，用于重定向至首页以应用新语言
      * @returns {void} - 返回值说明：无
      */
-    executeGlobalSave(updateData, isPasswordChanged, isLanguageChanged) {
+    executeGlobalSave(updateData, isLanguageChanged) {
         // 先保存当前仓库的独立配置，成功后再保存全局配置
         RepositoryRequest.updateConfig(State.currentRepoId, State.fileRepository,
             () => {
@@ -534,12 +729,7 @@ const App = {
                     () => {
                         Toast.show(I18nManager.t('common.success'));
 
-                        if (isPasswordChanged) {
-                            setTimeout(() => {
-                                Request.eraseCookie('token');
-                                window.location.href = '../login/login.html';
-                            }, 1000);
-                        } else if (isLanguageChanged) {
+                        if (isLanguageChanged) {
                             // 语言变更后，重新刷新页面以应用新语言
                             I18nManager.init(updateData.user_data.language);
                             window.location.href = '../home/home.html';

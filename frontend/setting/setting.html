@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title data-i18n="setting.title"></title>
     <link rel="stylesheet" href="../common/common.css">
+    <link rel="stylesheet" href="../common/table.css">
     <link rel="stylesheet" href="../common/header_toolbar/default/default_header_toolbar.css">
     <link rel="stylesheet" href="../common/widget/progress_button.css">
     <link rel="stylesheet" href="setting.css">
@@ -21,6 +22,7 @@
         <button id="tab-dup-check" class="tab-btn" data-i18n="setting.tabs.dup_check"></button>
         <button id="tab-maintenance" class="tab-btn" data-i18n="setting.tabs.maintenance"></button>
         <button id="tab-account" class="tab-btn" data-i18n="setting.tabs.account"></button>
+        <button id="tab-user" class="tab-btn hidden" data-i18n="setting.tabs.user"></button>
     </div>
 
     <!-- 仓库配置分页 -->
@@ -253,21 +255,6 @@
                 <h3 class="mt-20" data-i18n="setting.account.security_title"></h3>
             </div>
             <div class="form-group">
-                <label class="label-text" for="username" data-i18n="setting.account.username"></label>
-                <input type="text" id="username" class="input-field" placeholder="" data-i18n-placeholder="setting.account.username_placeholder" autocomplete="off">
-            </div>
-            <div class="form-group">
-                <!-- 占位，保持网格布局 -->
-            </div>
-            <div class="form-group">
-                <label class="label-text" for="password" data-i18n="setting.account.password"></label>
-                <input type="password" id="password" class="input-field" placeholder="" data-i18n-placeholder="setting.account.password_placeholder" autocomplete="new-password">
-            </div>
-            <div class="form-group">
-                <label class="label-text" for="confirm-password" data-i18n="setting.account.confirm_password"></label>
-                <input type="password" id="confirm-password" class="input-field" placeholder="" data-i18n-placeholder="setting.account.confirm_password_placeholder" autocomplete="new-password">
-            </div>
-            <div class="form-group">
                 <label class="label-text" for="login-max-attempts" data-i18n="setting.account.login_max_attempts"></label>
                 <input type="number" id="login-max-attempts" class="input-field" min="1" step="1" autocomplete="off">
                 <small class="form-hint" data-i18n="setting.account.login_max_attempts_hint"></small>
@@ -279,7 +266,50 @@
             </div>
         </div>
     </div>
+
+    <!-- 用户管理分页（仅管理员可见） -->
+    <div id="content-user" class="tab-content">
+        <div class="user-toolbar">
+            <button id="add-user-btn" class="btn-primary" data-i18n="setting.user.add_btn"></button>
+        </div>
+        <div class="table-wrapper">
+            <table class="file-table user-table">
+                <thead>
+                    <tr>
+                        <th data-i18n="setting.user.username"></th>
+                        <th data-i18n="setting.user.role"></th>
+                        <th data-i18n="setting.user.create_time"></th>
+                        <th data-i18n="setting.user.actions"></th>
+                    </tr>
+                </thead>
+                <tbody id="user-table-body"></tbody>
+            </table>
+        </div>
+    </div>
 </main>
+
+<!-- 用户弹窗（新增用户 / 修改密码共用） -->
+<div id="user-modal" class="modal-mask hidden">
+    <div class="modal-content">
+        <h3 id="user-modal-title" class="title"></h3>
+        <div class="form-group" id="user-modal-username-group">
+            <label class="label-text" for="user-modal-username" data-i18n="setting.user.username"></label>
+            <input type="text" id="user-modal-username" class="input-field" autocomplete="off" data-i18n-placeholder="setting.user.username_placeholder">
+        </div>
+        <div class="form-group">
+            <label class="label-text" for="user-modal-password" data-i18n="setting.user.password"></label>
+            <input type="password" id="user-modal-password" class="input-field" autocomplete="new-password" data-i18n-placeholder="setting.user.password_placeholder">
+        </div>
+        <div class="form-group">
+            <label class="label-text" for="user-modal-confirm" data-i18n="setting.user.confirm_password"></label>
+            <input type="password" id="user-modal-confirm" class="input-field" autocomplete="new-password" data-i18n-placeholder="setting.user.confirm_password_placeholder">
+        </div>
+        <div class="flex-gap-5">
+            <button id="user-modal-confirm-btn" class="btn-primary mt-0 flex-1" data-i18n="common.confirm"></button>
+            <button id="user-modal-cancel-btn" class="btn-secondary mt-0 flex-1" data-i18n="common.cancel"></button>
+        </div>
+    </div>
+</div>
 
 <!-- 引入多语言资源包 -->
 <script src="../common/i18n/zh.js"></script>

@@ -124,3 +124,13 @@ class DBConstants:
         COL_CONFIG: str = 'config'
         COL_DB_FILE: str = 'db_file'
         COL_CREATE_TIME: str = 'create_time'
+
+    class User:
+        """用途：users 主表相关的常量（全局用户账户，存于独立主数据库，登录不分仓库）"""
+        TABLE_NAME: str = 'users'
+        COL_ID: str = 'id'
+        COL_USERNAME: str = 'username'              # 登录名（唯一）
+        COL_PASSWORD_HASH: str = 'password_hash'    # PBKDF2 加盐慢哈希
+        COL_IS_ADMIN: str = 'is_admin'              # 是否管理员（1 是 / 0 否）
+        COL_CREATE_TIME: str = 'create_time'
+        COL_UPDATE_TIME: str = 'update_time'

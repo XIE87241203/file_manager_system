@@ -52,7 +52,7 @@ class DBManager:
 
     def init_master(self) -> None:
         """
-        用途说明：初始化仓库元数据主数据库，创建 repositories 表（若不存在）。
+        用途说明：初始化仓库元数据主数据库，创建 repositories 表与全局 users 表（若不存在）。
         入参说明：无
         返回值说明：无
         """
@@ -67,6 +67,17 @@ class DBManager:
                     {DBConstants.Repository.COL_CONFIG} TEXT NOT NULL,
                     {DBConstants.Repository.COL_DB_FILE} TEXT NOT NULL,
                     {DBConstants.Repository.COL_CREATE_TIME} DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            # 全局用户账户表（登录不分仓库，故存于主库；用户名唯一，密码存加盐慢哈希）
+            cursor.execute(f'''
+                CREATE TABLE IF NOT EXISTS {DBConstants.User.TABLE_NAME} (
+                    {DBConstants.User.COL_ID} INTEGER PRIMARY KEY AUTOINCREMENT,
+                    {DBConstants.User.COL_USERNAME} TEXT NOT NULL UNIQUE,
+                    {DBConstants.User.COL_PASSWORD_HASH} TEXT NOT NULL,
+                    {DBConstants.User.COL_IS_ADMIN} INTEGER NOT NULL DEFAULT 0,
+                    {DBConstants.User.COL_CREATE_TIME} DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    {DBConstants.User.COL_UPDATE_TIME} DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
             ''')
             conn.commit()

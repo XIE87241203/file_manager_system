@@ -341,3 +341,59 @@ body {
     font-weight: 600;
     color: #1a73e8;
 }
+
+/* --- 用户管理分页 --- */
+.user-toolbar {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 12px;
+}
+
+.user-table th,
+.user-table td {
+    text-align: left;
+}
+
+/* 角色徽标 */
+.role-badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.role-badge.admin {
+    background-color: #e8f0fe;
+    color: #1a73e8;
+}
+
+.role-badge.normal {
+    background-color: #f1f3f4;
+    color: #5f6368;
+}
+
+/* 行内操作按钮 */
+.user-action-btn {
+    padding: 4px 12px;
+    margin-right: 8px;
+    border: none;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    background-color: #f1f3f4;
+    color: #3c4043;
+}
+
+.user-action-btn:hover {
+    background-color: #e8eaed;
+}
+
+.user-action-btn.danger {
+    background-color: #fce8e6;
+    color: #d93025;
+}
+
+.user-action-btn.danger:hover {
+    background-color: #fad2cf;
+}
