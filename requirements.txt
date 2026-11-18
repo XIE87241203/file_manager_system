@@ -1,7 +1,8 @@
 flask
 flask_cors
 imagehash
+numpy
 Pillow
-opencv-python
+opencv-python-headless
 waitress
 schedule

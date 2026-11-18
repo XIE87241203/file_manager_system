@@ -35,11 +35,14 @@
                             <option value="md5" data-i18n="duplicate_check.filter_md5"></option>
                             <option value="hash" data-i18n="duplicate_check.filter_image"></option>
                             <option value="video_feature" data-i18n="duplicate_check.filter_video"></option>
+                            <option value="image" data-i18n="duplicate_check.filter_image_only"></option>
+                            <option value="video" data-i18n="duplicate_check.filter_video_only"></option>
                         </select>
                     </div>
                     <span class="summary-divider">|</span>
                     <div class="summary-stats">
                         <span id="summary-groups"></span>
+                        <span id="summary-duration"></span>
                         <span id="summary-time"></span>
                     </div>
                 </div>
@@ -75,6 +78,7 @@
     <script src="../../common/i18n/i18n_utils.js"></script>
     <script src="../../common/common.js"></script>
     <script src="../../common/ui_components.js"></script>
+    <script src="../../common/repo_context.js"></script>
     <script src="../../common/request.js"></script>
     <script src="../../common/toast.js"></script>
     <!-- 引入分页组件脚本 -->

@@ -4,7 +4,9 @@
 
 // --- 状态管理 ---
 const HomeState = {
-    titleClickCount: 0 // 用于记录标题点击次数，开启隐藏入口
+    titleClickCount: 0, // 用于记录标题点击次数，开启隐藏入口
+    repos: [], // 仓库列表缓存
+    currentRepoId: 1 // 当前选中的仓库 ID
 };
 
 // --- UI 控制模块 ---
@@ -97,6 +99,46 @@ const UIController = {
             this.elements.testPageMenu.classList.remove('hidden');
             Toast.show('Debug mode enabled~');
         }
+    },
+
+    /**
+     * @description 用途说明：在顶部工具栏右侧构建仓库切换下拉框，最后一项为“新增仓库”。
+     * @param {Array} repos - 入参说明：仓库列表 [{id, name}]。
+     * @param {number} currentId - 入参说明：当前选中的仓库 ID。
+     * @returns {void} - 返回值说明：无
+     */
+    buildRepoSelector(repos, currentId) {
+        const headerRight = document.querySelector('.header-right');
+        if (!headerRight) return;
+
+        const old = document.getElementById('repo-selector-container');
+        if (old) old.remove();
+
+        const container = document.createElement('div');
+        container.id = 'repo-selector-container';
+        container.className = 'repo-selector-container';
+
+        const select = document.createElement('select');
+        select.id = 'repo-selector';
+        select.className = 'repo-selector';
+        select.title = I18nManager.t('repo.selector_title');
+
+        repos.forEach(repo => {
+            const opt = document.createElement('option');
+            opt.value = String(repo.id);
+            opt.textContent = repo.name;
+            select.appendChild(opt);
+        });
+
+        const addOpt = document.createElement('option');
+        addOpt.value = '__add__';
+        addOpt.textContent = I18nManager.t('repo.add_new');
+        select.appendChild(addOpt);
+
+        select.value = String(currentId);
+        container.appendChild(select);
+        headerRight.insertBefore(container, headerRight.firstChild);
+        this.elements.repoSelector = select;
     }
 };
 
@@ -109,8 +151,104 @@ const App = {
     init() {
         UIController.init();
         this.bindEvents();
+        this.initRepoSelector();
         this.loadRepoStats();
         this.fetchAndDisplayAppVersion();
+    },
+
+    /**
+     * @description 用途说明：加载仓库列表并初始化右上角仓库切换下拉框。
+     * @returns {void} - 返回值说明：无
+     */
+    initRepoSelector() {
+        RepositoryRequest.list(
+            (repos) => {
+                HomeState.repos = repos;
+                let currentId = RepoContext.get();
+                // 当前仓库已被删除时回退到列表首个仓库
+                if (!repos.some(r => r.id === currentId)) {
+                    currentId = repos.length ? repos[0].id : RepoContext.DEFAULT_REPO_ID;
+                    RepoContext.set(currentId);
+                }
+                HomeState.currentRepoId = currentId;
+                UIController.buildRepoSelector(repos, currentId);
+                this.bindRepoSelector();
+            },
+            (msg) => {
+                console.error('Failed to load repositories:', msg);
+            }
+        );
+    },
+
+    /**
+     * @description 用途说明：绑定仓库下拉框的切换事件。
+     * @returns {void} - 返回值说明：无
+     */
+    bindRepoSelector() {
+        const select = UIController.elements.repoSelector;
+        if (!select) return;
+        select.onchange = () => this.onRepoSelectorChange(select.value);
+    },
+
+    /**
+     * @description 用途说明：处理仓库下拉框选择变更，切换仓库或触发新增仓库流程。
+     * @param {string} value - 入参说明：选中项的值（仓库 ID 字符串或 '__add__'）。
+     * @returns {void} - 返回值说明：无
+     */
+    onRepoSelectorChange(value) {
+        if (value === '__add__') {
+            this.createRepoFlow();
+            return;
+        }
+        const id = parseInt(value, 10);
+        RepoContext.set(id);
+        HomeState.currentRepoId = id;
+        const repo = HomeState.repos.find(r => r.id === id);
+        Toast.show(I18nManager.t('repo.switch_success', { name: repo ? repo.name : '' }));
+        this.loadRepoStats();
+    },
+
+    /**
+     * @description 用途说明：新增仓库流程，弹窗要求输入仓库名，创建成功后切换到新仓库。
+     * @returns {void} - 返回值说明：无
+     */
+    createRepoFlow() {
+        const select = UIController.elements.repoSelector;
+        const resetSelector = () => {
+            if (select) select.value = String(HomeState.currentRepoId);
+        };
+
+        UIComponents.showInputModal({
+            title: I18nManager.t('repo.add_title'),
+            placeholder: I18nManager.t('repo.add_placeholder'),
+            isSmall: true,
+            onConfirm: (name) => {
+                if (!name) {
+                    Toast.show(I18nManager.t('repo.name_required'));
+                    resetSelector();
+                    return;
+                }
+                RepositoryRequest.create(name,
+                    (data) => {
+                        Toast.show(I18nManager.t('repo.add_success'));
+                        RepoContext.set(data.id);
+                        HomeState.currentRepoId = data.id;
+                        this.initRepoSelector();
+                        this.loadRepoStats();
+                    },
+                    (msg) => {
+                        Toast.show(msg || I18nManager.t('repo.add_failed'));
+                        resetSelector();
+                    }
+                );
+            }
+        });
+
+        // 取消新增时恢复下拉框选中项
+        const cancelBtn = document.getElementById('common-modal-input-cancel-btn');
+        if (cancelBtn) {
+            cancelBtn.addEventListener('click', resetSelector);
+        }
     },
 
     /**
@@ -212,6 +350,9 @@ const App = {
                     'menu-pending-entry': '../file_name_repository/pending_entry_file/pending_entry_file.html',
                     'menu-ignore-file': '../file_name_repository/already_entered_file/already_entered_file.html',
                     'menu-recycle-bin': '../file_repository/recycle_bin/recycle_bin.html',
+                    'menu-organize-setting': '../organize/organize_setting.html',
+                    'menu-organize-start': 'ORGANIZE_START', // 特殊标识：开始整理（功能开发中）
+                    'menu-organize-records': 'ORGANIZE_RECORDS', // 特殊标识：整理记录（功能开发中）
                     'menu-setting': '../setting/setting.html',
                     'menu-logs': '../system/logs/logs.html',
                     'menu-test-page': '../test_page/test_progress_button.html',
@@ -220,6 +361,9 @@ const App = {
                 const target = map[card.id];
                 if (target === 'LOGOUT') {
                     this.logout();
+                } else if (target === 'ORGANIZE_START' || target === 'ORGANIZE_RECORDS') {
+                    // 开始整理与整理记录页面尚未实现，先给出开发中提示
+                    Toast.show(I18nManager.t('home.organize_coming_soon'));
                 } else if (target) {
                     window.location.href = target;
                 }

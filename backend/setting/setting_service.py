@@ -3,10 +3,11 @@ import json
 import os
 import sys
 from dataclasses import asdict, fields
-from typing import Dict, Any
+from typing import Dict, Any, Callable, List
 
 from backend.common.i18n_utils import I18nUtils, t
 from backend.common.log_utils import LogUtils
+from backend.common.password_utils import hash_password, is_hashed
 from backend.common.utils import Utils
 from backend.setting.setting_models import AppConfig
 
@@ -32,6 +33,9 @@ class SettingService:
         self._config: AppConfig = AppConfig()
         
         self.password_hash: str = "" # 缓存哈希后的密码
+
+        # 配置变更观察者回调列表，供其他模块以观察者方式监听配置更新
+        self._change_callbacks: List[Callable[[Dict[str, Any]], None]] = []
         
         # 2. 配置文件路径
         runtime_path = Utils.get_runtime_path()
@@ -65,6 +69,9 @@ class SettingService:
             # 将加载的 JSON 数据映射回数据类
             self._parse_and_merge_config(loaded_json)
 
+            # 旧版明文密码自动升级为加盐哈希存储
+            self._migrate_plain_password()
+
             # 加载后立即缓存哈希值
             self._cache_password_hash()
             
@@ -89,13 +96,29 @@ class SettingService:
                     if hasattr(target_obj, key):
                         setattr(target_obj, key, value)
 
+    def _migrate_plain_password(self) -> None:
+        """
+        用途：检测到旧版明文密码时，自动升级为 PBKDF2 加盐哈希存储并持久化。
+        说明：前端登录传输的是密码的 SHA-256 哈希，因此迁移时先对明文做 SHA-256，
+        再做加盐慢哈希，保证迁移后原有登录方式不受影响。
+        入参说明：无
+        返回值说明：无
+        """
+        current: str = self._config.user_data.password
+        if is_hashed(current):
+            return
+        client_hash: str = hashlib.sha256(current.encode('utf-8')).hexdigest()
+        self._config.user_data.password = hash_password(client_hash)
+        self.save_config()
+        LogUtils.info(t('config_password_migrated'))
+
     def _cache_password_hash(self) -> None:
         """
-        用途：计算并缓存当前配置中的密码哈希值。
+        用途：缓存当前配置中的密码哈希值（存储字段本身即加盐哈希，直接缓存供登录校验使用）。
+        入参说明：无
+        返回值说明：无
         """
-        # 结构调整：通过 user_data 访问密码
-        password_plain = self._config.user_data.password
-        self.password_hash = hashlib.sha256(password_plain.encode('utf-8')).hexdigest()
+        self.password_hash = self._config.user_data.password
 
     def save_config(self) -> None:
         """
@@ -134,7 +157,13 @@ class SettingService:
                     for key, value in section_data.items():
                         if hasattr(target_obj, key):
                             setattr(target_obj, key, value)
-            
+
+            # 密码字段特殊处理：前端传来的是新密码的 SHA-256 哈希，
+            # 后端再做 PBKDF2 加盐慢哈希后存储，确保配置文件中不落明文
+            user_data_section = data.get('user_data')
+            if isinstance(user_data_section, dict) and user_data_section.get('password'):
+                self._config.user_data.password = hash_password(user_data_section['password'])
+
             new_language: str = self._config.user_data.language
             if old_language != new_language:
                 I18nUtils.reload(new_language)
@@ -142,10 +171,31 @@ class SettingService:
 
             self.save_config()
             LogUtils.info(t('config_updated_log', user=operator_name))
+            self._notify_change(data)
             return True
         except Exception as e:
             LogUtils.error(t('config_update_logic_error', error=str(e)))
             return False
+
+    def register_change_callback(self, callback: Callable[[Dict[str, Any]], None]) -> None:
+        """
+        用途：注册配置变更回调，供其他模块以观察者方式监听配置更新，避免设置模块反向依赖业务模块。
+        入参：callback: 回调函数，接收本次更新的配置字典 data。
+        返回值：无。
+        """
+        self._change_callbacks.append(callback)
+
+    def _notify_change(self, data: Dict[str, Any]) -> None:
+        """
+        用途：通知所有已注册的配置变更回调。单个回调异常不影响其他回调及主流程。
+        入参：data: 本次更新的配置字典。
+        返回值：无。
+        """
+        for callback in self._change_callbacks:
+            try:
+                callback(data)
+            except Exception as e:
+                LogUtils.error(t('config_change_callback_error', error=str(e)))
 
 # 实例化单例
 settingService = SettingService()

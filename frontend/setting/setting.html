@@ -23,8 +23,14 @@
         <button id="tab-account" class="tab-btn" data-i18n="setting.tabs.account"></button>
     </div>
 
-    <!-- 文件仓库分页 -->
+    <!-- 仓库配置分页 -->
     <div id="content-repo" class="tab-content active">
+        <!-- 仓库选择与删除工具栏 -->
+        <div class="repo-config-toolbar">
+            <label class="label-text" for="repo-config-selector" data-i18n="repo.select_repo"></label>
+            <select id="repo-config-selector" class="input-field select-field repo-config-select"></select>
+            <button id="delete-repo-btn" class="btn-danger" data-i18n="repo.delete_btn"></button>
+        </div>
         <div class="settings-grid">
             <div>
                 <div class="section-header mt-0">
@@ -71,6 +77,10 @@
                 <div class="checkbox-item">
                     <input type="checkbox" id="auto-refresh-enabled" class="checkbox-field">
                     <label class="label-text" for="auto-refresh-enabled" data-i18n="setting.repo.auto_refresh"></label>
+                </div>
+                <div class="checkbox-item">
+                    <input type="checkbox" id="auto-duplicate-check-enabled" class="checkbox-field">
+                    <label class="label-text" for="auto-duplicate-check-enabled" data-i18n="setting.repo.auto_duplicate_check"></label>
                 </div>
                 <div class="time-setting-item">
                     <label class="label-text" for="auto-refresh-time" data-i18n="setting.repo.refresh_time"></label>
@@ -132,6 +142,11 @@
                 <label class="label-text" for="video-interval-seconds" data-i18n="setting.dup_check.video_interval"></label>
                 <input type="number" id="video-interval-seconds" class="input-field" placeholder="" data-i18n-placeholder="setting.dup_check.video_interval_placeholder">
                 <small class="form-hint" data-i18n="setting.dup_check.video_interval_hint"></small>
+            </div>
+            <div class="form-group">
+                <label class="label-text" for="video-max-frames" data-i18n="setting.dup_check.video_max_frames"></label>
+                <input type="number" id="video-max-frames" class="input-field" step="1" min="-1" placeholder="" data-i18n-placeholder="setting.dup_check.video_max_frames_placeholder">
+                <small class="form-hint" data-i18n="setting.dup_check.video_max_frames_hint"></small>
             </div>
             <div class="form-group">
                 <div class="checkbox-item">
@@ -252,6 +267,16 @@
                 <label class="label-text" for="confirm-password" data-i18n="setting.account.confirm_password"></label>
                 <input type="password" id="confirm-password" class="input-field" placeholder="" data-i18n-placeholder="setting.account.confirm_password_placeholder" autocomplete="new-password">
             </div>
+            <div class="form-group">
+                <label class="label-text" for="login-max-attempts" data-i18n="setting.account.login_max_attempts"></label>
+                <input type="number" id="login-max-attempts" class="input-field" min="1" step="1" autocomplete="off">
+                <small class="form-hint" data-i18n="setting.account.login_max_attempts_hint"></small>
+            </div>
+            <div class="form-group">
+                <label class="label-text" for="login-lockout-minutes" data-i18n="setting.account.login_lockout_minutes"></label>
+                <input type="number" id="login-lockout-minutes" class="input-field" min="1" step="1" autocomplete="off">
+                <small class="form-hint" data-i18n="setting.account.login_lockout_minutes_hint"></small>
+            </div>
         </div>
     </div>
 </main>
@@ -261,9 +286,14 @@
 <script src="../common/i18n/en.js"></script>
 <script src="../common/i18n/i18n_utils.js"></script>
 
+<!-- 引入本地自托管的 SHA-256 加密库（改密码时前端先哈希再传输，与登录页保持一致） -->
+<script src="../common/lib/crypto-js.min.js"></script>
+
 <!-- 引入公用脚本 -->
 <script src="../common/common.js"></script>
+<script src="../common/repo_context.js"></script>
 <script src="../common/request.js"></script>
+<script src="../common/repository_request.js"></script>
 <script src="../common/ui_components.js"></script>
 <script src="../common/toast.js"></script>
 <script src="../common/header_toolbar/default/default_header_toolbar.js"></script>

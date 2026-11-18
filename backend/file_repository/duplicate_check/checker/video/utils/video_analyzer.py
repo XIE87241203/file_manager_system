@@ -102,7 +102,8 @@ class VideoAnalyzer:
             return None
 
     def generate_hash_sequence(self, cap: cv2.VideoCapture, video_path: str, interval: int,
-                               duration: float, backwards: bool = False) -> List[imagehash.ImageHash]:
+                               duration: float, backwards: bool = False,
+                               max_frames: int = -1) -> List[imagehash.ImageHash]:
         """
         用途：按固定时间间隔为视频生成哈希序列（指纹）。
 
@@ -112,6 +113,9 @@ class VideoAnalyzer:
             - interval (int): 采样间隔（秒）。
             - duration (float): 视频时长。
             - backwards (bool): 是否从视频结尾倒序生成特征。
+            - max_frames (int): 最大抽帧数量，-1 表示不限。仅截取采样序列的前 N 个时间点
+              （倒序时即片尾 N 帧、正序时即片头 N 帧），保持固定间隔与锚点方向不变，
+              确保不同时长版本（如片头插广告）的帧网格依然对齐。
 
         返回值说明：
             - List[imagehash.ImageHash]: 哈希序列。
@@ -119,10 +123,14 @@ class VideoAnalyzer:
         hashes = []
         if backwards:
             # 倒序采样：从总时长开始，步长为 -interval，直到 0
-            time_range = range(int(duration), -1, -interval)
+            time_range = list(range(int(duration), -1, -interval))
         else:
             # 正序采样：从 0 开始，步长为 interval，直到总时长
-            time_range = range(0, int(duration), interval)
+            time_range = list(range(0, int(duration), interval))
+
+        # 限张：仅保留采样方向上的前 N 个时间点，不改变间隔与锚点
+        if max_frames > 0:
+            time_range = time_range[:max_frames]
 
         for timestamp in time_range:
             frame_hash = self.extract_frame_hash(cap, float(timestamp))
@@ -132,7 +140,9 @@ class VideoAnalyzer:
                 LogUtils.info(t('dup_video_sample_failed', path=video_path, time=timestamp))
         return hashes
 
-    def create_video_info(self, video_path: str, interval_seconds: int, backwards: bool = False) -> Optional[VideoFileInfoResult]:
+    def create_video_info(self, video_path: str, interval_seconds: int, backwards: bool = False,
+                          file_index: Optional[FileIndexDBModel] = None,
+                          max_frames: int = -1) -> Optional[VideoFileInfoResult]:
         """
         用途：根据视频路径生成 VideoInfoCache 对象。
 
@@ -140,6 +150,10 @@ class VideoAnalyzer:
             - video_path (str): 视频文件路径。
             - interval_seconds (int): 哈希采样间隔。
             - backwards (bool): 是否从视频结尾倒叙生成。
+            - file_index (Optional[FileIndexDBModel]): 调用方已持有的文件索引对象；
+              传入时直接复用，避免按路径重复查库。
+            - max_frames (int): 最大抽帧数量，-1 表示不限（仅对新分析的视频生效，
+              已缓存特征沿用生成时的序列）。
 
         返回值说明：
             - Optional[VideoInfoCache]: 视频信息对象。
@@ -149,8 +163,10 @@ class VideoAnalyzer:
             return None
 
         try:
-            # 修复点 3：优先从数据库索引获取 MD5，避免重复计算大文件的 MD5 (耗时 IO)
-            file_idx: Optional[FileIndexDBModel] = DBOperations.get_file_by_path(video_path)
+            # 修复点 3：优先复用调用方传入的索引，其次从数据库索引获取 MD5，避免重复计算大文件的 MD5 (耗时 IO)
+            file_idx: Optional[FileIndexDBModel] = file_index
+            if file_idx is None:
+                file_idx = DBOperations.get_file_by_path(video_path)
             if file_idx is None:
                 return None
 
@@ -178,7 +194,7 @@ class VideoAnalyzer:
 
                 LogUtils.info(t('dup_video_generating_hashes', backwards=backwards, path=video_path))
                 video_hashes_list = self.generate_hash_sequence(cap, video_path, interval_seconds,
-                                                                duration, backwards)
+                                                                duration, backwards, max_frames)
 
                 if not video_hashes_list:
                     LogUtils.info(t('dup_video_no_valid_hashes', path=video_path))

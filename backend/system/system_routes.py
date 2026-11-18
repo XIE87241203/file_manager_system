@@ -1,6 +1,6 @@
 from flask import Blueprint, request
 
-from backend.common.auth_middleware import token_required
+from backend.auth.auth_middleware import token_required
 from backend.common.i18n_utils import t
 from backend.common.response import success_response
 from backend.system.system_service import SystemService

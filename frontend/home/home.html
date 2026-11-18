@@ -29,6 +29,26 @@
                 </div>
             </div>
             
+            <!-- 整理文件分组 -->
+            <div class="menu-group-title" data-i18n="home.group_organize"></div>
+            <div class="menu-grid">
+                <!-- 开始整理入口 -->
+                <div id="menu-organize-start" class="menu-item">
+                    <div class="menu-icon">🧹</div>
+                    <div class="menu-label" data-i18n="home.menu_organize_start"></div>
+                </div>
+                <!-- 整理记录入口 -->
+                <div id="menu-organize-records" class="menu-item">
+                    <div class="menu-icon">📋</div>
+                    <div class="menu-label" data-i18n="home.menu_organize_records"></div>
+                </div>
+                <!-- 整理设置入口 -->
+                <div id="menu-organize-setting" class="menu-item">
+                    <div class="menu-icon">🛠️</div>
+                    <div class="menu-label" data-i18n="home.menu_organize_setting"></div>
+                </div>
+            </div>
+
             <!-- 文件管理分组 -->
             <div class="menu-group-title">
                 <span data-i18n="home.group_file_manage"></span>
@@ -99,7 +119,9 @@
     <!-- 引入公用工具 -->
     <script src="../common/common.js"></script>
     <script src="../common/ui_components.js"></script>
+    <script src="../common/repo_context.js"></script>
     <script src="../common/request.js"></script>
+    <script src="../common/repository_request.js"></script>
     <script src="../common/toast.js"></script>
     <script src="../common/header_toolbar/default/default_header_toolbar.js"></script>
     <script src="home_request.js"></script>

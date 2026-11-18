@@ -1,17 +1,18 @@
 # -*- coding: utf-8 -*-
 from dataclasses import dataclass
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 import imagehash
 
 from backend.common.i18n_utils import t
 from backend.common.log_utils import LogUtils
 from backend.common.utils import Utils
-from backend.db.db_constants import DBConstants
+from backend.common.similarity_type import SimilarityType
 from backend.db.db_operations import DBOperations
 from backend.file_repository.duplicate_check.checker.video.utils.video_analyzer import VideoAnalyzer
 from backend.file_repository.duplicate_check.checker.video.utils.video_comparison_util import \
     VideoComparisonUtil
+from backend.model.db.file_index_db_model import FileIndexDBModel
 from backend.model.video_file_info_result import VideoFileInfoResult
 
 
@@ -36,7 +37,8 @@ class VideoSimilarityTree:
 
     def __init__(self, video_analyzer: VideoAnalyzer, frame_similar_distance: int = 5,
                  frame_similarity_rate: float = 0.7, interval_seconds: int = 30,
-                 max_duration_diff_ratio: float = 0.6, backwards: bool = False):
+                 max_duration_diff_ratio: float = 0.6, backwards: bool = False,
+                 max_frames: int = -1):
         """
         用途说明：初始化视频相似性树配置。
         入参说明：
@@ -46,6 +48,7 @@ class VideoSimilarityTree:
             interval_seconds (int): 采样间隔（秒）。
             max_duration_diff_ratio (float): 最大时长比例阈值。
             backwards (bool): 是否从视频结尾倒序生成特征。
+            max_frames (int): 单个视频最大抽帧数量，-1 表示不限。
         返回值说明：无
         """
         # self.video_groups 存储的是相似组列表。
@@ -53,24 +56,47 @@ class VideoSimilarityTree:
         self.video_groups: List[List[VideoSimilarityNode]] = []
         # 性能优化：缓存已解析的哈希列表
         self._parsed_hash_cache: Dict[str, List[imagehash.ImageHash]] = {}
+        # 性能优化：缓存视频详情（路径 -> VideoFileInfoResult），
+        # 避免每次归类/汇总时对组代表重复查库（原实现为 O(视频数×分组数) 次数据库查询）
+        self._video_info_cache: Dict[str, VideoFileInfoResult] = {}
 
         self.frame_similar_distance: int = frame_similar_distance
         self.frame_similarity_rate: float = frame_similarity_rate
         self.interval_seconds: int = interval_seconds
         self.max_duration_diff_ratio: float = max_duration_diff_ratio
         self.backwards: bool = backwards
+        self.max_frames: int = max_frames
         self.video_analyzer: VideoAnalyzer = video_analyzer
 
-    def add_video(self, video_path: str) -> None:
+    def add_video(self, video_path: str, file_index: Optional[FileIndexDBModel] = None) -> None:
         """
         用途说明：分析指定视频文件并将其归类到合适的相似组中。
         入参说明：
             video_path (str): 视频文件的磁盘路径。
+            file_index (Optional[FileIndexDBModel]): 调用方已持有的文件索引对象，传入时避免重复查库。
         返回值说明：无
         """
-        video_info: VideoFileInfoResult = self.video_analyzer.create_video_info(video_path, self.interval_seconds, self.backwards)
+        video_info: VideoFileInfoResult = self.video_analyzer.create_video_info(
+            video_path, self.interval_seconds, self.backwards, file_index=file_index, max_frames=self.max_frames)
         if video_info:
+            # 缓存视频详情，供后续组代表比对与结果汇总复用
+            self._video_info_cache[video_path] = video_info
             self._compare_video_and_group(video_info)
+
+    def _get_video_info(self, video_path: str) -> Optional[VideoFileInfoResult]:
+        """
+        用途说明：获取视频详情，优先命中内存缓存，未命中时回退查库并写入缓存。
+        入参说明：
+            video_path (str): 视频文件的磁盘路径。
+        返回值说明：
+            Optional[VideoFileInfoResult]: 视频详情对象，不存在时返回 None。
+        """
+        if video_path in self._video_info_cache:
+            return self._video_info_cache[video_path]
+        info: Optional[VideoFileInfoResult] = DBOperations.get_video_file_info(video_path)
+        if info:
+            self._video_info_cache[video_path] = info
+        return info
 
     def _get_or_parse_hashes(self, video_info: VideoFileInfoResult) -> List[imagehash.ImageHash]:
         """
@@ -100,7 +126,7 @@ class VideoSimilarityTree:
             # 异常情况处理：作为独立组，第一个入组 similarity 默认为 0.0
             self.video_groups.append([VideoSimilarityNode(
                 path=current_path, 
-                similarity_type=DBConstants.SimilarityType.VIDEO_FEATURE, 
+                similarity_type=SimilarityType.VIDEO_FEATURE, 
                 similarity=0.0
             )])
             return
@@ -108,7 +134,7 @@ class VideoSimilarityTree:
         for group in self.video_groups:
             # 每一组的第一个元素约定为该组最长的视频（代表视频）
             representative_path: str = group[0].path
-            representative: VideoFileInfoResult = DBOperations.get_video_file_info(representative_path)
+            representative: Optional[VideoFileInfoResult] = self._get_video_info(representative_path)
 
             if not representative:
                 continue
@@ -118,7 +144,7 @@ class VideoSimilarityTree:
                 LogUtils.info(t('dup_video_md5_matched', name=Utils.get_filename(current_path)))
                 node: VideoSimilarityNode = VideoSimilarityNode(
                     path=current_path,
-                    similarity_type=DBConstants.SimilarityType.MD5,
+                    similarity_type=SimilarityType.MD5,
                     similarity=1.0  # MD5 匹配时，与代表视频完全一致
                 )
                 group.append(node)
@@ -147,7 +173,7 @@ class VideoSimilarityTree:
                 # 创建新节点
                 node: VideoSimilarityNode = VideoSimilarityNode(
                     path=current_path, 
-                    similarity_type=DBConstants.SimilarityType.VIDEO_FEATURE,
+                    similarity_type=SimilarityType.VIDEO_FEATURE,
                     similarity=similarity
                 )
 
@@ -164,7 +190,7 @@ class VideoSimilarityTree:
         # 无匹配组，作为新组的代表，第一个入组 similarity 默认为 0.0
         self.video_groups.append([VideoSimilarityNode(
             path=current_path, 
-            similarity_type=DBConstants.SimilarityType.VIDEO_FEATURE, 
+            similarity_type=SimilarityType.VIDEO_FEATURE, 
             similarity=0.0
         )])
 
@@ -181,7 +207,7 @@ class VideoSimilarityTree:
             if len(group) >= min_group_size:
                 info_group: List[VideoFileInfoResult] = []
                 for item in group:
-                    info: VideoFileInfoResult = DBOperations.get_video_file_info(item.path)
+                    info: Optional[VideoFileInfoResult] = self._get_video_info(item.path)
                     if info:
                         info.similarity_rate = item.similarity
                         info.similarity_type = item.similarity_type

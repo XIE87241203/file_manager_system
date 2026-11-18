@@ -144,6 +144,21 @@ class FileIndexProcessor(BaseDBProcessor):
         return bool(result and result > 0)
 
     @staticmethod
+    def update_thumbnail_path_by_md5(file_md5: str, thumbnail_path: str, conn: Optional[sqlite3.Connection] = None) -> int:
+        """
+        用途说明：按文件 MD5 批量回填缩略图路径。缩略图按内容 MD5 命名，同内容文件共享同一缩略图，
+                  因此生成一次缩略图后需同步回填所有同 MD5 文件（含副本），避免副本因路径为空而无法预览。
+        入参说明：
+            file_md5 (str): 文件 MD5 哈希值。
+            thumbnail_path (str): 缩略图路径。
+            conn (Optional[sqlite3.Connection]): 数据库连接对象。
+        返回值说明：int - 受影响的记录数。
+        """
+        query: str = f"UPDATE {DBConstants.FileIndex.TABLE_NAME} SET {DBConstants.FileIndex.COL_THUMBNAIL_PATH} = ? WHERE {DBConstants.FileIndex.COL_FILE_MD5} = ?"
+        result: int = BaseDBProcessor._execute(query, (thumbnail_path, file_md5), conn=conn)
+        return result or 0
+
+    @staticmethod
     def clear_all_thumbnails(conn: Optional[sqlite3.Connection] = None) -> int:
         """
         用途说明：清空所有文件的缩略图记录。
@@ -254,6 +269,71 @@ class FileIndexProcessor(BaseDBProcessor):
 
         query: str = f"SELECT COUNT(*) as total FROM {DBConstants.FileIndex.TABLE_NAME} {where_clause}"
         res: Optional[dict] = BaseDBProcessor._execute(query, is_query=True, fetch_one=True)
+        return res['total'] if res else 0
+
+    @staticmethod
+    def _build_scan_time_filter(checkpoint: Optional[str], newer: bool) -> Optional[Tuple[str, List[str]]]:
+        """
+        用途说明：构建按扫描时间筛选文件的 WHERE 条件（均排除回收站内的文件），供列表与计数查询共用。
+        入参说明：
+            checkpoint (Optional[str]): 查重时间点。为 None 时，newer=True 匹配全部文件，newer=False 匹配空集。
+            newer (bool): True 筛选扫描时间晚于时间点的新文件；False 筛选不晚于时间点的旧文件。
+        返回值说明：Optional[Tuple[str, List[str]]]: (WHERE 子句, 参数列表)；结果集必为空时返回 None。
+        """
+        col_recycle = DBConstants.FileIndex.COL_RECYCLE_BIN_TIME
+        conditions: List[str] = [f"({col_recycle} IS NULL OR {col_recycle} = '')"]
+        params: List[str] = []
+        if checkpoint is None:
+            if not newer:
+                return None
+        else:
+            operator: str = '>' if newer else '<='
+            conditions.append(f"{DBConstants.FileIndex.COL_SCAN_TIME} {operator} ?")
+            params.append(checkpoint)
+        return "WHERE " + " AND ".join(conditions), params
+
+    @staticmethod
+    def get_files_by_scan_time(checkpoint: Optional[str], newer: bool,
+                               limit: Optional[int] = None, offset: int = 0) -> List[FileIndexDBModel]:
+        """
+        用途说明：按扫描时间与查重时间点的关系获取文件列表（均排除回收站内的文件）。
+        入参说明：
+            checkpoint (Optional[str]): 查重时间点。为 None 时，newer=True 返回全部文件，newer=False 返回空列表。
+            newer (bool): True 获取扫描时间晚于时间点的新文件；False 获取不晚于时间点的旧文件。
+            limit (Optional[int]): 单批返回上限；为 None 时返回全部（兼容旧调用），大库建议分批传入。
+            offset (int): 分批查询的偏移量，仅在传入 limit 时生效。
+        返回值说明：List[FileIndexDBModel]: 符合条件的文件索引列表（按主键 ID 升序，保证分批遍历稳定）。
+        """
+        filter_result: Optional[Tuple[str, List[str]]] = FileIndexProcessor._build_scan_time_filter(checkpoint, newer)
+        if filter_result is None:
+            return []
+        where_clause, params = filter_result
+
+        query: str = (
+            f"SELECT * FROM {DBConstants.FileIndex.TABLE_NAME} {where_clause} "
+            f"ORDER BY {DBConstants.FileIndex.COL_ID} ASC"
+        )
+        if limit is not None:
+            query += " LIMIT ? OFFSET ?"
+            params = params + [str(limit), str(offset)]
+        rows: List[dict] = BaseDBProcessor._execute(query, tuple(params), is_query=True)
+        return [FileIndexDBModel(**row) for row in rows]
+
+    @staticmethod
+    def count_files_by_scan_time(checkpoint: Optional[str], newer: bool) -> int:
+        """
+        用途说明：统计按扫描时间筛选的文件数量（排除回收站文件），用于分批处理前确定总量。
+        入参说明：
+            checkpoint (Optional[str]): 查重时间点。为 None 时，newer=True 统计全部文件，newer=False 统计 0。
+            newer (bool): True 统计新文件；False 统计旧文件。
+        返回值说明：int: 符合条件的文件数量。
+        """
+        filter_result: Optional[Tuple[str, List[str]]] = FileIndexProcessor._build_scan_time_filter(checkpoint, newer)
+        if filter_result is None:
+            return 0
+        where_clause, params = filter_result
+        query: str = f"SELECT COUNT(*) as total FROM {DBConstants.FileIndex.TABLE_NAME} {where_clause}"
+        res: Optional[dict] = BaseDBProcessor._execute(query, tuple(params), is_query=True, fetch_one=True)
         return res['total'] if res else 0
 
     @staticmethod

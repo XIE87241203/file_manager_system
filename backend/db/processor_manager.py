@@ -4,6 +4,8 @@ from backend.db.processor.duplicate_group_processor import DuplicateGroupProcess
 from backend.db.processor.file_index_processor import FileIndexProcessor
 from backend.db.processor.file_repo_detail_processor import FileRepoDetailProcessor
 from backend.db.processor.history_file_index_processor import HistoryFileIndexProcessor
+from backend.db.processor.image_feature_processor import ImageFeatureProcessor
+from backend.db.processor.organize_setting_processor import OrganizeSettingProcessor
 from backend.db.processor.pending_entry_file_processor import PendingEntryFileProcessor
 from backend.db.processor.video_feature_processor import VideoFeatureProcessor
 
@@ -38,11 +40,13 @@ class ProcessorManager:
         self.file_index_processor: FileIndexProcessor = FileIndexProcessor()
         self.history_file_index_processor: HistoryFileIndexProcessor = HistoryFileIndexProcessor()
         self.video_feature_processor: VideoFeatureProcessor = VideoFeatureProcessor()
+        self.image_feature_processor: ImageFeatureProcessor = ImageFeatureProcessor()
         self.duplicate_group_processor: DuplicateGroupProcessor = DuplicateGroupProcessor()
         self.already_entered_file_processor: AlreadyEnteredFileProcessor = AlreadyEnteredFileProcessor()
         self.pending_entry_file_processor: PendingEntryFileProcessor = PendingEntryFileProcessor()
         self.file_repo_detail_processor: FileRepoDetailProcessor = FileRepoDetailProcessor()
         self.batch_check_processor: BatchCheckProcessor = BatchCheckProcessor()
+        self.organize_setting_processor: OrganizeSettingProcessor = OrganizeSettingProcessor()
 
         self._initialized: bool = True
 

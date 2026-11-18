@@ -1,7 +1,7 @@
 from flask import Blueprint, request
 
 from backend.auth.auth_manager import auth_manager
-from backend.common.auth_middleware import token_required
+from backend.auth.auth_middleware import token_required
 from backend.common.i18n_utils import t
 from backend.common.log_utils import LogUtils
 from backend.common.response import success_response, error_response
@@ -23,17 +23,28 @@ def login():
 
     username = data.get('username')
     password_hash = data.get('password_hash')
+    # 取请求来源 IP，用于登录失败锁定
+    ip: str = request.remote_addr or ''
 
     LogUtils.info(t('auth_attempt_login', username=username))
 
+    # 先检查该 (IP, 用户名) 是否处于锁定期
+    locked, remaining_minutes = auth_manager.check_lock(ip, username or '')
+    if locked:
+        return error_response(t('auth_login_locked', minutes=remaining_minutes), 403)
+
     # 调用验证管理器处理业务逻辑
-    success, message, token = auth_manager.verify_login(username, password_hash)
+    success, message, token = auth_manager.verify_login(username, password_hash, ip)
 
     if success:
         LogUtils.info(t('auth_login_log_success', username=username))
         return success_response(message, data={"token": token})
     else:
         LogUtils.error(t('auth_login_log_failed', username=username, message=message))
+        # 本次失败若刚好触发锁定，返回 403 及锁定提示
+        locked, remaining_minutes = auth_manager.check_lock(ip, username or '')
+        if locked:
+            return error_response(t('auth_login_locked', minutes=remaining_minutes), 403)
         return error_response(message, 401)
 
 @auth_bp.route('/logout', methods=['POST'])
