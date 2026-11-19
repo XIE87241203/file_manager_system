@@ -374,6 +374,18 @@ class DBManager:
             )
         ''')
 
+        # 11. 创建 organize_records 表（整理历史，每整理一个文件记录一条）
+        cursor.execute(f'''
+            CREATE TABLE IF NOT EXISTS {DBConstants.OrganizeRecord.TABLE_NAME} (
+                {DBConstants.OrganizeRecord.COL_ID} INTEGER PRIMARY KEY AUTOINCREMENT,
+                {DBConstants.OrganizeRecord.COL_ORIGINAL_PATH} TEXT NOT NULL,
+                {DBConstants.OrganizeRecord.COL_ORIGINAL_NAME} TEXT NOT NULL,
+                {DBConstants.OrganizeRecord.COL_ORGANIZED_PATH} TEXT NOT NULL,
+                {DBConstants.OrganizeRecord.COL_ORGANIZED_NAME} TEXT NOT NULL,
+                {DBConstants.OrganizeRecord.COL_ORGANIZE_TIME} DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
     def migrate_db_version(self, old_version: int, new_version: int, cursor: sqlite3.Cursor) -> None:
         """
         用途说明：数据库版本迁移适配逻辑，处理不同版本间的结构差异。
@@ -578,6 +590,24 @@ class DBManager:
                 LogUtils.info(t('db_migrate_v18_success'))
             except Exception as e:
                 LogUtils.error(t('db_migrate_v18_failed', error=str(e)))
+                raise e
+
+        if old_version < 19:
+            # 升级到版本 19: 新增整理历史表 organize_records
+            try:
+                cursor.execute(f'''
+                    CREATE TABLE IF NOT EXISTS {DBConstants.OrganizeRecord.TABLE_NAME} (
+                        {DBConstants.OrganizeRecord.COL_ID} INTEGER PRIMARY KEY AUTOINCREMENT,
+                        {DBConstants.OrganizeRecord.COL_ORIGINAL_PATH} TEXT NOT NULL,
+                        {DBConstants.OrganizeRecord.COL_ORIGINAL_NAME} TEXT NOT NULL,
+                        {DBConstants.OrganizeRecord.COL_ORGANIZED_PATH} TEXT NOT NULL,
+                        {DBConstants.OrganizeRecord.COL_ORGANIZED_NAME} TEXT NOT NULL,
+                        {DBConstants.OrganizeRecord.COL_ORGANIZE_TIME} DATETIME DEFAULT CURRENT_TIMESTAMP
+                    )
+                ''')
+                LogUtils.info(t('db_migrate_v19_success'))
+            except Exception as e:
+                LogUtils.error(t('db_migrate_v19_failed', error=str(e)))
                 raise e
 
 

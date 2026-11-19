@@ -17,3 +17,69 @@ class OrganizeSettingResult:
     organized_dir: str = ''
     extensions: List[str] = field(default_factory=list)
     rename_script_path: str = ''
+
+
+@dataclass
+class OrganizePendingFileInfo:
+    """
+    用途：待整理文件信息数据类（整理任务列表条目）。
+    字段说明：
+        path (str): 文件完整路径。
+        name (str): 文件名（包括后缀）。
+        file_type (str): 文件类型，image / video / other，决定预览方式。
+        size (int): 文件字节数，读取失败时为 0。
+        suggestion (str): 整理脚本 rename 方法给出的建议文件名（脚本失败时回退为原文件名）。
+    """
+    path: str = ''
+    name: str = ''
+    file_type: str = 'other'
+    size: int = 0
+    suggestion: str = ''
+
+
+@dataclass
+class OrganizeTaskStartResult:
+    """
+    用途：整理任务启动结果数据类。
+    字段说明：
+        total (int): 本次扫描到的待整理文件总数。
+        remaining (int): 剩余待整理数量（启动时等于 total）。
+        organized_dir (str): 已整理目录路径（保存时文件移入此处）。
+    """
+    total: int = 0
+    remaining: int = 0
+    organized_dir: str = ''
+
+
+@dataclass
+class OrganizePendingResult:
+    """
+    用途：待整理文件分页查询结果数据类。
+    字段说明：
+        total (int): 本次任务待整理文件总数。
+        remaining (int): 当前剩余待整理数量。
+        page (int): 当前页码（从 1 开始）。
+        page_size (int): 每页条数。
+        items (List[OrganizePendingFileInfo]): 当前页的待整理文件信息列表。
+    """
+    total: int = 0
+    remaining: int = 0
+    page: int = 1
+    page_size: int = 50
+    items: List[OrganizePendingFileInfo] = field(default_factory=list)
+
+
+@dataclass
+class OrganizeSaveResult:
+    """
+    用途：整理保存结果数据类。
+    字段说明：
+        remaining (int): 保存后剩余待整理数量。
+        total (int): 本次任务待整理文件总数。
+        organized_path (str): 整理后文件完整路径。
+        organized_name (str): 整理后文件名（包括后缀）。
+    """
+    remaining: int = 0
+    total: int = 0
+    organized_path: str = ''
+    organized_name: str = ''
