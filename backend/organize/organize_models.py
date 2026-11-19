@@ -92,6 +92,18 @@ class OrganizeSaveResult:
 
 
 @dataclass
+class OrganizeTaskRemoveResult:
+    """
+    用途：整理任务移除文件（跳过 / 移入回收站）结果数据类。
+    字段说明：
+        remaining (int): 移除后剩余待整理数量。
+        total (int): 本次任务待整理文件总数（不变）。
+    """
+    remaining: int = 0
+    total: int = 0
+
+
+@dataclass
 class OrganizeRecordResult:
     """
     用途：单条整理记录的 API 返回数据类。

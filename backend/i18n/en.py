@@ -337,6 +337,15 @@ TRANSLATIONS = {
     "organize_task_suggestion_fallback": "Failed to generate suggested filename, fell back to original names: {error}",
     "organize_task_save_success": "Saved successfully",
     "organize_task_pending_success": "Successfully retrieved pending file list",
+    "organize_task_skip_log": "User {user} skipped file: {path}",
+    "organize_task_skip_success": "Skipped",
+    "organize_task_skip_failed": "Failed to skip file, please try again later",
+    "organize_task_skip_error": "Error skipping file: {error}",
+    "organize_task_recycle_log": "User {user} moved file to recycle bin: {path}",
+    "organize_task_recycle_success": "Moved to recycle bin",
+    "organize_task_recycle_failed": "Failed to move file to recycle bin, please try again later",
+    "organize_task_recycle_error": "Error moving file to recycle bin: {error}",
+    "organize_task_recycle_query_error": "Failed to query recycle bin files (rescan may include deleted files): {error}",
 
     # --- Organize Records ---
     "organize_records_list_success": "Successfully retrieved organize records",

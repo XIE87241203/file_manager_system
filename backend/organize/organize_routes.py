@@ -174,6 +174,55 @@ def save_organize_file() -> Tuple[Any, int]:
     return success_response(t('organize_task_save_success'), data=asdict(result))
 
 
+@organize_bp.route('/task/skip', methods=['POST'])
+@token_required
+def skip_organize_file() -> Tuple[Any, int]:
+    """
+    用途说明：跳过当前待整理文件：仅从本次任务队列移除，不移动文件；重新扫描后该文件会再次出现。
+    入参说明：JSON Body，字段 path (str) - 待跳过的文件完整路径。
+    返回值说明：Tuple[Any, int] - 统一 JSON 响应，data 为 {remaining, total}。
+    """
+    data = request.get_json(silent=True)
+    if not data:
+        return error_response(t('request_data_empty'))
+    path = data.get('path', '')
+    if not isinstance(path, str) or not path:
+        return error_response(t('request_params_error'), 400)
+    try:
+        result = organizeTaskService.skip(path, request.username)
+    except ValueError as e:
+        return error_response(str(e), 400)
+    except Exception as e:
+        LogUtils.error(t('organize_task_skip_error', error=str(e)))
+        return error_response(t('organize_task_skip_failed'), 500)
+    return success_response(t('organize_task_skip_success'), data=asdict(result))
+
+
+@organize_bp.route('/task/recycle', methods=['POST'])
+@token_required
+def recycle_organize_file() -> Tuple[Any, int]:
+    """
+    用途说明：将当前待整理文件移入回收站（与文件仓库删除一致：只打标记不删物理文件，可在回收站恢复），
+        并从本次任务队列移除。
+    入参说明：JSON Body，字段 path (str) - 待移入回收站的文件完整路径。
+    返回值说明：Tuple[Any, int] - 统一 JSON 响应，data 为 {remaining, total}。
+    """
+    data = request.get_json(silent=True)
+    if not data:
+        return error_response(t('request_data_empty'))
+    path = data.get('path', '')
+    if not isinstance(path, str) or not path:
+        return error_response(t('request_params_error'), 400)
+    try:
+        result = organizeTaskService.move_to_recycle_bin(path, request.username)
+    except ValueError as e:
+        return error_response(str(e), 400)
+    except Exception as e:
+        LogUtils.error(t('organize_task_recycle_error', error=str(e)))
+        return error_response(t('organize_task_recycle_failed'), 500)
+    return success_response(t('organize_task_recycle_success'), data=asdict(result))
+
+
 @organize_bp.route('/records/list', methods=['GET'])
 @token_required
 def get_organize_records() -> Tuple[Any, int]:

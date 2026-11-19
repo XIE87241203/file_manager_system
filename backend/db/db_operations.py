@@ -206,6 +206,15 @@ class DBOperations:
         """
         return processor_manager.file_index_processor.restore_from_recycle_bin(file_paths) > 0
 
+    @staticmethod
+    def get_recycle_bin_paths_under(dir_prefixes: List[str]) -> Set[str]:
+        """
+        用途说明：查询指定目录（含子目录）下已移入回收站的文件路径集合（供整理扫描排除已删除文件）。
+        入参说明：dir_prefixes (List[str]): 目录路径列表。
+        返回值说明：Set[str] - 位于这些目录下且回收站标记非空的文件完整路径集合。
+        """
+        return processor_manager.file_index_processor.get_recycle_bin_paths_under(dir_prefixes)
+
     # --- 视频特征相关操作 (Video Features) ---
 
     @staticmethod

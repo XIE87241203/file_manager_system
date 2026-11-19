@@ -62,6 +62,8 @@ const UIController = {
             originalName: document.getElementById('original-name'),
             newNameInput: document.getElementById('new-name-input'),
             saveBtn: document.getElementById('save-btn'),
+            skipBtn: document.getElementById('skip-btn'),
+            recycleBtn: document.getElementById('recycle-btn'),
             completeModal: document.getElementById('complete-modal'),
             completeMsg: document.getElementById('complete-msg'),
             completeStat: document.getElementById('complete-stat')
@@ -236,14 +238,16 @@ const UIController = {
     },
 
     /**
-     * @description 用途说明：设置保存按钮的忙碌状态（防重复提交并给出视觉反馈）。
-     * @param {boolean} saving - 入参说明：是否正在保存。
+     * @description 用途说明：设置操作忙碌状态（保存 / 跳过 / 删除共用，防重复提交并给出视觉反馈）。
+     * @param {boolean} saving - 入参说明：是否正在执行操作。
      * @returns {void} - 返回值说明：无
      */
     setSaving(saving) {
         State.saving = saving;
         this.elements.saveBtn.disabled = saving;
         this.elements.saveBtn.classList.toggle('is-saving', saving);
+        this.elements.skipBtn.disabled = saving;
+        this.elements.recycleBtn.disabled = saving;
     },
 
     /**
@@ -345,6 +349,8 @@ const App = {
 
         document.getElementById('copy-name-btn').onclick = () => this.copyOriginalName();
         el.saveBtn.onclick = () => this.handleSave();
+        el.skipBtn.onclick = () => this.handleSkip();
+        el.recycleBtn.onclick = () => this.handleRecycle();
         el.newNameInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 e.preventDefault();
@@ -482,25 +488,89 @@ const App = {
             (data) => {
                 UIController.setSaving(false);
                 Toast.show(I18nManager.t('organize.task.save_success'));
-                State.remaining = data.remaining;
-                State.total = data.total;
-                State.current = null;
-                UIController.renderStats();
-                if (State.remaining === 0) {
-                    UIController.showState('empty');
-                    UIController.renderSidebar();
-                    UIController.showComplete();
-                    return;
-                }
-                // 保存后停留在当前页（超界自动回退），选中下一个文件并聚焦输入框
-                const maxPage = Math.max(1, Math.ceil(State.remaining / State.pageSize));
-                this.loadPending(Math.min(State.page, maxPage), true, true);
+                this.advance(data);
             },
             (msg) => {
                 UIController.setSaving(false);
                 Toast.show(I18nManager.t('common.error') + ': ' + msg);
             }
         );
+    },
+
+    /**
+     * @description 用途说明：跳过当前文件：仅移出本次任务队列（不动文件），成功后推进到下一个文件。
+     * @returns {void} - 返回值说明：无
+     */
+    handleSkip() {
+        if (State.saving || !State.current) return;
+        UIController.setSaving(true);
+        OrganizeTaskRequest.skipFile(State.current.path,
+            (data) => {
+                UIController.setSaving(false);
+                Toast.show(I18nManager.t('organize.task.skip_success'));
+                this.advance(data);
+            },
+            (msg) => {
+                UIController.setSaving(false);
+                Toast.show(I18nManager.t('organize.task.skip_failed') + ': ' + msg);
+            }
+        );
+    },
+
+    /**
+     * @description 用途说明：删除当前文件（二次确认后移入回收站，可在回收站恢复）。
+     * @returns {void} - 返回值说明：无
+     */
+    handleRecycle() {
+        if (State.saving || !State.current) return;
+        const item = State.current;
+        UIComponents.showConfirmModal({
+            title: I18nManager.t('organize.task.recycle_title'),
+            message: I18nManager.t('organize.task.recycle_message', { name: item.name }),
+            confirmText: I18nManager.t('organize.task.recycle'),
+            onConfirm: () => this.requestRecycle(item.path)
+        });
+    },
+
+    /**
+     * @description 用途说明：调用后端把文件移入回收站，成功后推进到下一个文件。
+     * @param {string} path - 入参说明：待删除（移入回收站）的文件完整路径。
+     * @returns {void} - 返回值说明：无
+     */
+    requestRecycle(path) {
+        UIController.setSaving(true);
+        OrganizeTaskRequest.recycleFile(path,
+            (data) => {
+                UIController.setSaving(false);
+                Toast.show(I18nManager.t('organize.task.recycle_success'));
+                this.advance(data);
+            },
+            (msg) => {
+                UIController.setSaving(false);
+                Toast.show(I18nManager.t('organize.task.recycle_failed') + ': ' + msg);
+            }
+        );
+    },
+
+    /**
+     * @description 用途说明：处理后推进：刷新进度，全部处理完弹出完成弹窗，否则选中下一个文件并回退越界页码。
+     * @param {Object} data - 入参说明：后端返回的 {remaining, total}。
+     * @returns {void} - 返回值说明：无
+     */
+    advance(data) {
+        State.remaining = data.remaining;
+        State.total = data.total;
+        State.current = null;
+        UIController.renderStats();
+        if (State.remaining === 0) {
+            UIController.showState('empty');
+            UIController.renderSidebar();
+            UIController.showComplete();
+            return;
+        }
+        // 处理后停留在当前页（超界自动回退），选中下一个文件并聚焦输入框
+        const maxPage = Math.max(1, Math.ceil(State.remaining / State.pageSize));
+        this.loadPending(Math.min(State.page, maxPage), true, true);
     },
 
     /**

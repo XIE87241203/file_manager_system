@@ -2,18 +2,23 @@ import os
 import shutil
 import threading
 from dataclasses import dataclass, field
-from typing import Dict, List, Set
+from datetime import datetime
+from typing import Dict, List, Optional, Set
 
 from backend.common.i18n_utils import t
 from backend.common.log_utils import LogUtils
 from backend.common.repo_context import get_current_repo_id
 from backend.common.utils import Utils
+from backend.db.db_operations import DBOperations
 from backend.db.processor_manager import processor_manager
+from backend.file_repository.file_info_service import FileInfoService
+from backend.model.db.file_index_db_model import FileIndexDBModel
 from backend.model.db.organize_record_db_model import OrganizeRecordDBModel
 from backend.organize.organize_models import (
     OrganizePendingFileInfo,
     OrganizePendingResult,
     OrganizeSaveResult,
+    OrganizeTaskRemoveResult,
     OrganizeTaskStartResult,
 )
 from backend.organize.organize_service import organizeService
@@ -99,6 +104,15 @@ class OrganizeTaskService:
                     if ext_matched or size_matched:
                         paths.append(full_path)
         paths.sort(key=lambda p: os.path.normcase(p))
+
+        # 排除已移入回收站的文件：整理页删除后重新扫描不再出现（用户从回收站恢复后会再次纳入）
+        try:
+            recycle_paths: Set[str] = DBOperations.get_recycle_bin_paths_under(settings.pending_dirs)
+        except Exception as e:
+            LogUtils.error(t('organize_task_recycle_query_error', error=str(e)))
+            recycle_paths = set()
+        if recycle_paths:
+            paths = [p for p in paths if p not in recycle_paths]
 
         repo_id: int = get_current_repo_id()
         with self._lock:
@@ -217,6 +231,68 @@ class OrganizeTaskService:
         LogUtils.info(t('organize_task_saved_log', user=user, src=path, dst=dest))
         return OrganizeSaveResult(remaining=remaining, total=total,
                                   organized_path=dest, organized_name=final_name)
+
+    def skip(self, path: str, user: str) -> OrganizeTaskRemoveResult:
+        """
+        用途说明：跳过当前待整理文件：仅从本次任务队列移除，不移动文件、不写数据库。
+            下次启动整理任务重新扫描时，该文件仍会再次出现。
+        入参说明：
+            path (str) - 待跳过的文件完整路径（须在当前队列中）。
+            user (str) - 操作用户名，用于日志。
+        返回值说明：OrganizeTaskRemoveResult - 跳过后的剩余数量与总数。
+        异常说明：ValueError - 文件不在当前任务队列中时抛出。
+        """
+        session: OrganizeTaskSession = self._get_session()
+        with self._lock:
+            if path not in session.queue_set:
+                raise ValueError(t('organize_task_not_in_queue'))
+            session.queue.remove(path)
+            session.queue_set.discard(path)
+            remaining: int = len(session.queue)
+            total: int = session.total
+        LogUtils.info(t('organize_task_skip_log', user=user, path=path))
+        return OrganizeTaskRemoveResult(remaining=remaining, total=total)
+
+    def move_to_recycle_bin(self, path: str, user: str) -> OrganizeTaskRemoveResult:
+        """
+        用途说明：将当前待整理文件移入回收站（与文件仓库删除行为一致：只打标记、不删物理文件），
+            并从本次任务队列移除；文件可在回收站页面查看与恢复。
+            文件不在文件索引中时（未扫描过），补建索引记录并直接带上回收站时间，保证回收站可见。
+        入参说明：
+            path (str) - 待移入回收站的文件完整路径（须在当前队列中）。
+            user (str) - 操作用户名，用于日志。
+        返回值说明：OrganizeTaskRemoveResult - 移除后的剩余数量与总数。
+        异常说明：ValueError - 文件不在队列中/文件不存在且无法补建索引/写入回收站失败时抛出。
+        """
+        session: OrganizeTaskSession = self._get_session()
+        with self._lock:
+            if path not in session.queue_set:
+                raise ValueError(t('organize_task_not_in_queue'))
+
+        # 1. 已在文件索引中：直接打回收站标记（同步清理查重分组关联）
+        existing: Optional[FileIndexDBModel] = DBOperations.get_file_by_path(path)
+        if existing is not None:
+            ok: bool = DBOperations.batch_move_to_recycle_bin([path])
+        else:
+            # 2. 未索引的文件：补建索引记录（复用扫描同一套信息提取），插入时直接带回收站时间
+            info: Optional[FileIndexDBModel] = FileInfoService.get_file_info(path)
+            if info is None:
+                raise ValueError(t('organize_task_file_missing'))
+            info.recycle_bin_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            ok = DBOperations.batch_insert_files_index([info])
+        if not ok:
+            raise ValueError(t('organize_task_recycle_failed'))
+
+        with self._lock:
+            # 补索引期间会话可能被重扫替换，二次确认文件仍在队列
+            if path not in session.queue_set:
+                raise ValueError(t('organize_task_not_in_queue'))
+            session.queue.remove(path)
+            session.queue_set.discard(path)
+            remaining: int = len(session.queue)
+            total: int = session.total
+        LogUtils.info(t('organize_task_recycle_log', user=user, path=path))
+        return OrganizeTaskRemoveResult(remaining=remaining, total=total)
 
     def _get_session(self) -> OrganizeTaskSession:
         """

@@ -537,6 +537,51 @@ video.preview-media {
     animation: save-pulse 1s ease-in-out infinite;
 }
 
+/* --- 跳过 / 删除（移入回收站）操作行 --- */
+.task-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.btn-task-skip,
+.btn-task-recycle {
+    flex-shrink: 0;
+    background: #fff;
+    border-radius: 6px;
+    padding: 7px 18px;
+    font-size: 13px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.btn-task-skip {
+    border: 1px solid #dadce0;
+    color: #3c4043;
+}
+
+.btn-task-skip:hover {
+    background: #f8f9fa;
+    border-color: #c4c9d0;
+}
+
+.btn-task-recycle {
+    border: 1px solid #f1b8b4;
+    color: #d93025;
+}
+
+.btn-task-recycle:hover {
+    background: #fce8e6;
+    border-color: #e8a29c;
+}
+
+.btn-task-skip:disabled,
+.btn-task-recycle:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+
 @keyframes save-pulse {
     0%, 100% { opacity: 0.6; }
     50% { opacity: 0.9; }
@@ -738,6 +783,12 @@ video.preview-media {
 
     .btn-save {
         width: 100%;
+        padding: 10px;
+    }
+
+    .btn-task-skip,
+    .btn-task-recycle {
+        flex: 1;
         padding: 10px;
     }
 

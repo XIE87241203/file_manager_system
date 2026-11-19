@@ -1,5 +1,5 @@
 import sqlite3
-from typing import Optional, List, Tuple, Dict
+from typing import Optional, List, Tuple, Dict, Set
 
 from backend.db.db_constants import DBConstants
 from backend.db.processor.base_db_processor import BaseDBProcessor
@@ -388,6 +388,37 @@ class FileIndexProcessor(BaseDBProcessor):
         query: str = f"UPDATE {DBConstants.FileIndex.TABLE_NAME} SET {DBConstants.FileIndex.COL_RECYCLE_BIN_TIME} = NULL WHERE {DBConstants.FileIndex.COL_FILE_PATH} = ?"
         data = [(path,) for path in file_paths]
         return BaseDBProcessor._execute_batch(query, data, conn=conn)
+
+    @staticmethod
+    def get_recycle_bin_paths_under(dir_prefixes: List[str]) -> Set[str]:
+        """
+        用途说明：查询指定目录（含子目录）下所有已移入回收站的文件路径集合，
+            供整理扫描时排除用户已删除（移入回收站）的文件，避免重扫后再次出现。
+        入参说明：dir_prefixes (List[str]): 目录路径列表（来自整理设置的待整理目录）。
+        返回值说明：Set[str] - 回收站标记非空且位于这些目录下的文件完整路径集合。
+        """
+        result: Set[str] = set()
+        conditions: List[str] = []
+        params: List[str] = []
+        for prefix in dir_prefixes:
+            # 统一去掉尾部分隔符后按“目录\”前缀匹配（目录名中的 % _ \ 按字面量转义）
+            normalized: str = str(prefix or '').rstrip('\\/')
+            if not normalized:
+                continue
+            escaped: str = normalized.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
+            conditions.append(f"{DBConstants.FileIndex.COL_FILE_PATH} LIKE ? ESCAPE '\\'")
+            params.append(escaped + '\\\\' + '%')
+        if not conditions:
+            return result
+        query: str = (
+            f"SELECT {DBConstants.FileIndex.COL_FILE_PATH} FROM {DBConstants.FileIndex.TABLE_NAME} "
+            f"WHERE {DBConstants.FileIndex.COL_RECYCLE_BIN_TIME} IS NOT NULL "
+            f"AND ({' OR '.join(conditions)})"
+        )
+        rows: List[dict] = BaseDBProcessor._execute(query, tuple(params), is_query=True)
+        for row in rows:
+            result.add(row[DBConstants.FileIndex.COL_FILE_PATH])
+        return result
 
     @staticmethod
     def get_paths_by_patterns(name_patterns: List[Tuple[str, str]], conn: Optional[sqlite3.Connection] = None) -> Dict[str, str]:

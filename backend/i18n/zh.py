@@ -337,6 +337,15 @@ TRANSLATIONS = {
     "organize_task_suggestion_fallback": "生成建议文件名失败，已回退为原文件名: {error}",
     "organize_task_save_success": "保存成功",
     "organize_task_pending_success": "获取待整理文件列表成功",
+    "organize_task_skip_log": "用户 {user} 跳过文件: {path}",
+    "organize_task_skip_success": "已跳过",
+    "organize_task_skip_failed": "跳过文件失败，请稍后重试",
+    "organize_task_skip_error": "跳过文件异常: {error}",
+    "organize_task_recycle_log": "用户 {user} 将文件移入回收站: {path}",
+    "organize_task_recycle_success": "已移入回收站",
+    "organize_task_recycle_failed": "移入回收站失败，请稍后重试",
+    "organize_task_recycle_error": "移入回收站异常: {error}",
+    "organize_task_recycle_query_error": "查询回收站文件失败（重扫可能包含已删除文件）: {error}",
 
     # --- 整理记录 (Organize Records) ---
     "organize_records_list_success": "获取整理记录成功",

@@ -67,6 +67,38 @@ const OrganizeTaskRequest = {
     },
 
     /**
+     * @description 用途说明：跳过当前待整理文件（仅从本次任务队列移除，不动文件；重新扫描后会再次出现）
+     * @param {string} path - 入参说明：待跳过文件完整路径
+     * @param {Function} onSuccess - 入参说明：成功回调，参数为 {remaining, total}
+     * @param {Function} onError - 入参说明：失败回调，参数为错误信息字符串
+     * @returns {void} - 返回值说明：无
+     */
+    skipFile(path, onSuccess, onError) {
+        Request.post('/api/organize/task/skip', { path: path })
+            .then(res => {
+                if (res.status === 'success') onSuccess(res.data);
+                else onError(res.message);
+            })
+            .catch(err => onError(err.message || I18nManager.t('common.network_error')));
+    },
+
+    /**
+     * @description 用途说明：将当前待整理文件移入回收站（只打标记不删物理文件，可在回收站恢复）
+     * @param {string} path - 入参说明：待移入回收站的文件完整路径
+     * @param {Function} onSuccess - 入参说明：成功回调，参数为 {remaining, total}
+     * @param {Function} onError - 入参说明：失败回调，参数为错误信息字符串
+     * @returns {void} - 返回值说明：无
+     */
+    recycleFile(path, onSuccess, onError) {
+        Request.post('/api/organize/task/recycle', { path: path })
+            .then(res => {
+                if (res.status === 'success') onSuccess(res.data);
+                else onError(res.message);
+            })
+            .catch(err => onError(err.message || I18nManager.t('common.network_error')));
+    },
+
+    /**
      * @description 用途说明：构造待整理文件的预览地址（图片/视频流式接口，携带 Token 供标签直接加载）
      * @param {string} path - 入参说明：待整理文件完整路径（须在当前任务队列中）
      * @returns {string} - 返回值说明：带 path 与 token 查询参数的预览 URL
