@@ -120,6 +120,8 @@ const I18nEn = {
             "no_config": "Organize directories not configured",
             "no_config_hint": "Please configure the pending directories and the organized directory in Organize Settings first.",
             "original_name": "Original Filename",
+            "file_path": "File Path",
+            "file_size": "Size",
             "new_name": "New Filename",
             "new_name_placeholder": "Enter the organized filename (without extension)",
             "new_name_hint": "The original file extension is kept automatically; no need to type it",

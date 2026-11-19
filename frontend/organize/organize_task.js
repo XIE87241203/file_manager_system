@@ -60,6 +60,8 @@ const UIController = {
             progressFill: document.getElementById('progress-fill'),
             previewBox: document.getElementById('preview-box'),
             originalName: document.getElementById('original-name'),
+            filePath: document.getElementById('file-path'),
+            fileSize: document.getElementById('file-size'),
             newNameInput: document.getElementById('new-name-input'),
             saveBtn: document.getElementById('save-btn'),
             skipBtn: document.getElementById('skip-btn'),
@@ -193,13 +195,17 @@ const UIController = {
     },
 
     /**
-     * @description 用途说明：渲染当前文件的原文件名与建议文件名输入框（输入框仅展示不含后缀的文件名主体）。
+     * @description 用途说明：渲染当前文件的原文件名、完整路径、大小与建议文件名输入框（输入框仅展示不含后缀的文件名主体）。
      * @param {Object} item - 入参说明：待整理文件条目 {path, name, file_type, size, suggestion}。
      * @returns {void} - 返回值说明：无
      */
     renderCurrent(item) {
         this.elements.originalName.textContent = item.name;
         this.elements.originalName.title = item.path;
+        // 当前文件的完整路径与大小（路径过长时两行截断，悬停可看完整内容）
+        this.elements.filePath.textContent = item.path;
+        this.elements.filePath.title = item.path;
+        this.elements.fileSize.textContent = CommonUtils.formatFileSize(item.size);
         // 建议文件名来自整理脚本（含后缀），输入框去掉最后一级后缀，后缀由后端保存时自动保留
         this.elements.newNameInput.value = this.stripExtension(item.suggestion || item.name);
         this.renderPreview(item);

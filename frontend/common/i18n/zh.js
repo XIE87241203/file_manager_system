@@ -120,6 +120,8 @@ const I18nZh = {
             "no_config": "尚未配置整理目录",
             "no_config_hint": "请先在整理设置中配置待整理目录与已整理目录，再开始整理。",
             "original_name": "原文件名",
+            "file_path": "文件路径",
+            "file_size": "大小",
             "new_name": "整理后文件名",
             "new_name_placeholder": "输入整理后的文件名（不含后缀）",
             "new_name_hint": "后缀自动保留原文件的后缀，无需输入",
