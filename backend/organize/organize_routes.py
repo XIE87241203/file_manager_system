@@ -178,10 +178,12 @@ def save_organize_file() -> Tuple[Any, int]:
 @token_required
 def get_organize_records() -> Tuple[Any, int]:
     """
-    用途说明：分页获取当前仓库的整理记录，按整理时间倒序（时间越靠后排序越靠前）。
-    入参说明：Query 参数 page（页码，默认 1）、page_size（每页条数，默认 50，夹取 1-200）。
+    用途说明：分页获取当前仓库的整理记录，按整理时间倒序（时间越靠后排序越靠前）；
+        关键词非空时同时模糊匹配整理后/整理前文件名。
+    入参说明：Query 参数 page（页码，默认 1）、page_size（每页条数，默认 50，夹取 1-200）、
+        keyword（搜索关键词，去除首尾空白，最长 100 字符，空串表示不筛选）。
     返回值说明：Tuple[Any, int] - 统一 JSON 响应，data 为 OrganizeRecordPageResult 字典
-        （total: 总条数, page: 当前页码, page_size: 每页条数,
+        （total: 符合条件的总条数, page: 当前页码, page_size: 每页条数,
         items: 记录列表，含 id/original_path/original_name/organized_path/organized_name/organize_time，
         其中 organize_time 已转换为本地时间字符串）。
     """
@@ -190,8 +192,9 @@ def get_organize_records() -> Tuple[Any, int]:
         page_size: int = min(200, max(1, int(request.args.get('page_size', 50))))
     except (TypeError, ValueError):
         return error_response(t('request_params_error'), 400)
+    keyword: str = request.args.get('keyword', '').strip()[:100]
     try:
-        result: OrganizeRecordPageResult = organizeRecordService.get_page(page, page_size)
+        result: OrganizeRecordPageResult = organizeRecordService.get_page(page, page_size, keyword)
     except Exception as e:
         LogUtils.error(t('organize_records_list_error', error=str(e)))
         return error_response(t('organize_records_list_failed'), 500)
@@ -202,16 +205,19 @@ def get_organize_records() -> Tuple[Any, int]:
 @token_required
 def export_organize_records() -> Any:
     """
-    用途说明：将当前仓库的全部整理记录流式导出为 CSV 文件（UTF-8 带 BOM，分批生成避免全表载入内存）。
+    用途说明：将当前仓库的整理记录流式导出为 CSV 文件（UTF-8 带 BOM，分批生成避免全表载入内存）。
         列顺序：序号、整理后文件名、整理前文件名、整理时间（本地时间），按整理时间倒序，序号从 1 连续编号。
-    入参说明：无（仓库 ID 由请求头 X-Repo-Id 注入的上下文决定；Token 支持请求头或 ?token= 查询参数）。
+        关键词非空时仅导出匹配记录（与列表搜索一致，导出所见即所得）。
+    入参说明：Query 参数 keyword（搜索关键词，去除首尾空白，最长 100 字符，空串表示导出全部）；
+        仓库 ID 由请求头 X-Repo-Id 注入的上下文决定；Token 支持请求头或 ?token= 查询参数。
     返回值说明：CSV 文件流响应（text/csv，Content-Disposition attachment，文件名含导出时间戳）；
         生成响应前异常时返回统一 JSON 错误响应。
     """
     LogUtils.info(t('organize_records_export_log', user=request.username))
+    keyword: str = request.args.get('keyword', '').strip()[:100]
     try:
         filename: str = t('organize_records_export_filename', time=datetime.now().strftime('%Y%m%d_%H%M%S'))
-        chunks = organizeRecordService.iter_csv_chunks()
+        chunks = organizeRecordService.iter_csv_chunks(keyword=keyword)
     except Exception as e:
         LogUtils.error(t('organize_records_export_error', error=str(e)))
         return error_response(t('organize_records_export_failed'), 500)

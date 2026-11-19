@@ -51,6 +51,53 @@ body {
 .summary-text {
     font-size: 13px;
     color: #5f6368;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* 搜索命中文本高亮：浅蓝底 + 主题蓝字，与选中行色系一致 */
+.search-hit {
+    background-color: #e8f0fe;
+    color: #1a73e8;
+    border-radius: 3px;
+    padding: 0 1px;
+    font-weight: 600;
+}
+
+/* 搜索框内清除按钮（页面级追加到搜索头部组件中） */
+.search-clear-btn {
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-right: 4px;
+    border-radius: 50%;
+    cursor: pointer;
+    color: #5f6368;
+    font-size: 17px;
+    line-height: 1;
+    user-select: none;
+    transition: background-color 0.2s, color 0.2s;
+}
+
+.search-clear-btn:hover {
+    background-color: #e0e0e0;
+    color: #202124;
+}
+
+.search-clear-btn.hidden {
+    display: none;
+}
+
+/* 搜索框聚焦态：主题蓝描边提示 */
+.search-input-container:focus-within {
+    border-color: #1a73e8;
+    background-color: #ffffff;
+    box-shadow: 0 0 0 2px #e8f0fe;
 }
 
 /* 表格滚动区域：圆角边框包裹，内部滚动（移动端横向滚动） */
@@ -187,6 +234,27 @@ body {
     box-shadow: 0 1px 6px rgba(26, 115, 232, 0.4);
 }
 
+/* 空状态清除搜索按钮：描边次要样式 */
+.empty-clear-btn {
+    padding: 8px 22px;
+    border: 1px solid #dadce0;
+    border-radius: 18px;
+    background-color: #ffffff;
+    color: #1a73e8;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background-color 0.2s, border-color 0.2s;
+}
+
+.empty-clear-btn:hover {
+    background-color: #e8f0fe;
+    border-color: #1a73e8;
+}
+
+.empty-clear-btn.hidden {
+    display: none;
+}
+
 /* 分页栏：表格下方居中 */
 .records-page-bar {
     flex-shrink: 0;
@@ -234,5 +302,11 @@ body {
 
     .records-table .col-organize-time {
         width: 150px;
+    }
+
+    /* 窄屏收紧搜索框左右间距，保证输入区可用宽度 */
+    .header-bar .search-input-container {
+        margin: 0 8px;
+        padding: 0 10px;
     }
 }

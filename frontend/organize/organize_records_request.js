@@ -3,15 +3,17 @@
  */
 const OrganizeRecordsRequest = {
     /**
-     * @description 用途说明：分页获取当前仓库的整理记录（后端按整理时间倒序返回，时间已转为本地时间）
+     * @description 用途说明：分页获取当前仓库的整理记录（后端按整理时间倒序返回，时间已转为本地时间；
+     *   关键词非空时同时模糊匹配整理后/整理前文件名）
      * @param {number} page - 入参说明：页码（从 1 开始）
      * @param {number} pageSize - 入参说明：每页条数
+     * @param {string} keyword - 入参说明：搜索关键词，空串表示不筛选
      * @param {Function} onSuccess - 入参说明：成功回调，参数为 {total, page, page_size, items}
      * @param {Function} onError - 入参说明：失败回调，参数为错误信息字符串
      * @returns {void} - 返回值说明：无
      */
-    getRecords(page, pageSize, onSuccess, onError) {
-        Request.get(`/api/organize/records/list?page=${page}&page_size=${pageSize}`)
+    getRecords(page, pageSize, keyword, onSuccess, onError) {
+        Request.get(`/api/organize/records/list?page=${page}&page_size=${pageSize}&keyword=${encodeURIComponent(keyword || '')}`)
             .then(res => {
                 if (res.status === 'success') onSuccess(res.data);
                 else onError(res.message);
@@ -20,20 +22,22 @@ const OrganizeRecordsRequest = {
     },
 
     /**
-     * @description 用途说明：导出全部整理记录为 CSV 并触发浏览器下载。
+     * @description 用途说明：按当前搜索条件导出整理记录为 CSV 并触发浏览器下载（关键词为空时导出全部）。
      *   后端仓库上下文仅识别 X-Repo-Id 请求头，故使用 fetch 携带鉴权头获取文件流，
      *   再通过 Blob + 临时链接触发下载（文件名优先取响应头 Content-Disposition）。
+     * @param {string} keyword - 入参说明：搜索关键词，空串表示导出全部记录
      * @param {Function} onSuccess - 入参说明：成功回调，参数为实际下载的文件名
      * @param {Function} onError - 入参说明：失败回调，参数为错误信息字符串
      * @returns {void} - 返回值说明：无
      */
-    exportRecords(onSuccess, onError) {
+    exportRecords(keyword, onSuccess, onError) {
         const headers = {};
         const token = Request.getCookie('token');
         if (token) headers['Authorization'] = token;
         if (typeof RepoContext !== 'undefined') headers['X-Repo-Id'] = String(RepoContext.get());
 
-        fetch(`${Request.baseUrl}/api/organize/records/export`, { headers })
+        const query = keyword ? `?keyword=${encodeURIComponent(keyword)}` : '';
+        fetch(`${Request.baseUrl}/api/organize/records/export${query}`, { headers })
             .then(async response => {
                 if (response.status === 401) {
                     // 与 Request 工具类一致：登录失效时清理 Token 并跳转登录页

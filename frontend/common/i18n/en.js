@@ -161,7 +161,13 @@ const I18nEn = {
             "empty_hint": "Every completed organize leaves a record here.",
             "go_organize": "Organize Files",
             "load_failed": "Failed to load organize records",
-            "fallback_filename": "organize_records.csv"
+            "fallback_filename": "organize_records.csv",
+            "search_placeholder": "Search original / organized filenames",
+            "search_clear_title": "Clear search",
+            "summary_filtered": "{count} records matching \"{keyword}\"",
+            "no_result": "No matching records",
+            "no_result_hint": "Try another keyword. Search matches both original and organized filenames.",
+            "clear_search": "Clear Search"
         }
     },
     "repo": {

@@ -161,7 +161,13 @@ const I18nZh = {
             "empty_hint": "每完成一次文件整理，这里就会留下一条记录。",
             "go_organize": "去整理文件",
             "load_failed": "加载整理记录失败",
-            "fallback_filename": "整理记录.csv"
+            "fallback_filename": "整理记录.csv",
+            "search_placeholder": "搜索整理前 / 整理后文件名",
+            "search_clear_title": "清除搜索",
+            "summary_filtered": "匹配「{keyword}」的记录共 {count} 条",
+            "no_result": "没有找到匹配的记录",
+            "no_result_hint": "换个关键词试试，搜索会同时匹配整理前和整理后的文件名。",
+            "clear_search": "清除搜索"
         }
     },
     "repo": {

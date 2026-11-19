@@ -17,16 +17,18 @@ class OrganizeRecordService:
         数据库整理时间为 UTC（CURRENT_TIMESTAMP），对外展示/导出统一转换为本地时间。
     """
 
-    def get_page(self, page: int, page_size: int) -> OrganizeRecordPageResult:
+    def get_page(self, page: int, page_size: int, keyword: str = '') -> OrganizeRecordPageResult:
         """
-        用途说明：分页查询当前仓库的整理记录，按整理时间倒序（时间越靠后排序越靠前）。
+        用途说明：分页查询当前仓库的整理记录，按整理时间倒序（时间越靠后排序越靠前）；
+            关键词非空时同时模糊匹配整理后/整理前文件名。
         入参说明：
             page (int): 页码，从 1 开始（由路由层夹取保证合法）。
             page_size (int): 每页条数（由路由层夹取保证合法）。
+            keyword (str): 搜索关键词（由路由层去除首尾空白），空串表示不筛选。
         返回值说明：OrganizeRecordPageResult - 分页结果对象，items 内时间已转换为本地时间字符串。
         """
-        total: int = processor_manager.organize_record_processor.count_records()
-        models: List[OrganizeRecordDBModel] = processor_manager.organize_record_processor.get_records_page(page, page_size)
+        total: int = processor_manager.organize_record_processor.count_records(keyword)
+        models: List[OrganizeRecordDBModel] = processor_manager.organize_record_processor.get_records_page(page, page_size, keyword)
         items: List[OrganizeRecordResult] = [
             OrganizeRecordResult(
                 id=model.id or 0,
@@ -40,12 +42,15 @@ class OrganizeRecordService:
         ]
         return OrganizeRecordPageResult(total=total, page=page, page_size=page_size, items=items)
 
-    def iter_csv_chunks(self, chunk_size: int = 500) -> Iterator[str]:
+    def iter_csv_chunks(self, chunk_size: int = 500, keyword: str = '') -> Iterator[str]:
         """
         用途说明：生成整理记录 CSV 导出的文本块迭代器（流式导出，避免一次性载入全表）。
             首块为 UTF-8 BOM + 表头（序号/整理后文件名/整理前文件名/整理时间，随语言切换），
             后续每块最多包含 chunk_size 条记录，序号按倒序从 1 连续编号。
-        入参说明：chunk_size (int): 单批记录条数，默认 500（符合分批处理 100-1000 条的规范）。
+            关键词非空时仅导出匹配记录（与列表搜索一致，导出所见即所得）。
+        入参说明：
+            chunk_size (int): 单批记录条数，默认 500（符合分批处理 100-1000 条的规范）。
+            keyword (str): 搜索关键词，空串表示导出全部记录。
         返回值说明：Iterator[str] - CSV 文本块迭代器；中途异常会记录日志并结束迭代（已输出部分保留）。
         """
         # 首块：BOM 保证 Excel 正确识别 UTF-8 中文 + 表头行
@@ -61,7 +66,7 @@ class OrganizeRecordService:
 
         seq: int = 0
         try:
-            for chunk in processor_manager.organize_record_processor.iter_record_chunks(chunk_size):
+            for chunk in processor_manager.organize_record_processor.iter_record_chunks(chunk_size, keyword):
                 buf: io.StringIO = io.StringIO()
                 writer = csv.writer(buf)
                 for model in chunk:

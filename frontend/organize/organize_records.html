@@ -5,13 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title data-i18n="organize.records.title"></title>
     <link rel="stylesheet" href="../common/common.css">
-    <link rel="stylesheet" href="../common/header_toolbar/default/default_header_toolbar.css">
+    <link rel="stylesheet" href="../common/header_toolbar/search/search_header_toolbar.css">
     <link rel="stylesheet" href="../common/page_bar/page_bar.css">
     <link rel="stylesheet" href="../common/table.css">
     <link rel="stylesheet" href="organize_records.css">
 </head>
 <body>
-<!-- 顶部工具栏容器，由 default_header_toolbar.js 动态初始化（右上角为导出按钮） -->
+<!-- 顶部工具栏容器，由 search_header_toolbar.js 动态初始化（中部搜索框，右上角为导出按钮） -->
 <header class="header-bar"></header>
 
 <main class="main-content records-main">
@@ -43,9 +43,10 @@
                     <line x1="9" y1="13" x2="15" y2="13"></line>
                     <line x1="9" y1="17" x2="13" y2="17"></line>
                 </svg>
-                <p class="empty-title" data-i18n="organize.records.empty"></p>
-                <p class="empty-hint" data-i18n="organize.records.empty_hint"></p>
+                <p class="empty-title" id="records-empty-title" data-i18n="organize.records.empty"></p>
+                <p class="empty-hint" id="records-empty-hint" data-i18n="organize.records.empty_hint"></p>
                 <button id="empty-go-btn" class="empty-go-btn" data-i18n="organize.records.go_organize"></button>
+                <button id="empty-clear-btn" class="empty-clear-btn hidden" data-i18n="organize.records.clear_search"></button>
             </div>
         </div>
 
@@ -66,7 +67,7 @@
 <script src="../common/ui_components.js"></script>
 <script src="../common/toast.js"></script>
 <script src="../common/page_bar/page_bar.js"></script>
-<script src="../common/header_toolbar/default/default_header_toolbar.js"></script>
+<script src="../common/header_toolbar/search/search_header_toolbar.js"></script>
 <!-- 引入页面逻辑 -->
 <script src="organize_records_request.js"></script>
 <script src="organize_records.js"></script>
