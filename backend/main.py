@@ -169,6 +169,9 @@ def start_server() -> None:
     userService.init_admin_user()
     # 密码恢复通道：setting.json 中的密码被改动时据此重设初始管理员密码（须在用户初始化之后执行）
     settingService.apply_password_reset()
+    # 首次运行生成默认文件名整理脚本（整理脚本路径留空时使用；已存在则不覆盖）
+    from backend.organize.rename_script import ensure_default_script
+    ensure_default_script()
     # 初始化默认仓库业务库
     db_manager.init_db()
 

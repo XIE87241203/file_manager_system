@@ -369,6 +369,7 @@ class DBManager:
                 {DBConstants.OrganizeSetting.COL_PENDING_DIRS} TEXT NOT NULL DEFAULT '[]',
                 {DBConstants.OrganizeSetting.COL_ORGANIZED_DIR} TEXT NOT NULL DEFAULT '',
                 {DBConstants.OrganizeSetting.COL_EXTENSIONS} TEXT NOT NULL DEFAULT '[]',
+                {DBConstants.OrganizeSetting.COL_RENAME_SCRIPT_PATH} TEXT NOT NULL DEFAULT '',
                 {DBConstants.OrganizeSetting.COL_UPDATE_TIME} DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         ''')
@@ -568,6 +569,15 @@ class DBManager:
                 LogUtils.info(t('db_migrate_v17_success'))
             except Exception as e:
                 LogUtils.error(t('db_migrate_v17_failed', error=str(e)))
+                raise e
+
+        if old_version < 18:
+            # 升级到版本 18: 为 organize_settings 添加文件名整理脚本路径列
+            try:
+                cursor.execute(f"ALTER TABLE {DBConstants.OrganizeSetting.TABLE_NAME} ADD COLUMN {DBConstants.OrganizeSetting.COL_RENAME_SCRIPT_PATH} TEXT NOT NULL DEFAULT ''")
+                LogUtils.info(t('db_migrate_v18_success'))
+            except Exception as e:
+                LogUtils.error(t('db_migrate_v18_failed', error=str(e)))
                 raise e
 
 

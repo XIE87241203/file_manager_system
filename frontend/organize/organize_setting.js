@@ -1,12 +1,13 @@
 /**
- * @description 整理设置页面逻辑处理，负责待整理目录、已整理目录与后缀名输入框的编辑及保存。
+ * @description 整理设置页面逻辑处理，负责待整理目录、已整理目录、后缀名与文件名整理脚本路径输入框的编辑及保存。
  */
 
 // --- 状态管理 ---
 const State = {
     pendingDirs: [], // 待整理目录列表
     organizedDir: '', // 已整理目录路径
-    extensions: [] // 需要整理的后缀名列表
+    extensions: [], // 需要整理的后缀名列表
+    renameScriptPath: '' // 文件名整理脚本路径（空串表示默认脚本）
 };
 
 // --- UI 控制模块 ---
@@ -31,21 +32,24 @@ const UIController = {
         this.elements = {
             pendingDirList: document.getElementById('pending-dir-list'),
             extensionsInput: document.getElementById('extensions-input'),
-            organizedDirInput: document.getElementById('organized-dir-input')
+            organizedDirInput: document.getElementById('organized-dir-input'),
+            renameScriptInput: document.getElementById('rename-script-input')
         };
     },
 
     /**
      * @description 用途说明：将后端返回的设置数据填充到页面状态与表单。
-     * @param {Object} data - 入参说明：设置数据对象 {pending_dirs, organized_dir, extensions}。
+     * @param {Object} data - 入参说明：设置数据对象 {pending_dirs, organized_dir, extensions, rename_script_path}。
      * @returns {void} - 返回值说明：无
      */
     fillForm(data) {
         State.pendingDirs = (data && data.pending_dirs) || [];
         State.organizedDir = (data && data.organized_dir) || '';
         State.extensions = (data && data.extensions) || [];
+        State.renameScriptPath = (data && data.rename_script_path) || '';
         this.elements.organizedDirInput.value = State.organizedDir;
         this.elements.extensionsInput.value = State.extensions.join(', ');
+        this.elements.renameScriptInput.value = State.renameScriptPath;
         this.renderPendingDirs();
     },
 
@@ -187,7 +191,8 @@ const App = {
         const data = {
             pending_dirs: State.pendingDirs,
             organized_dir: UIController.elements.organizedDirInput.value.trim(),
-            extensions: extensions
+            extensions: extensions,
+            rename_script_path: UIController.elements.renameScriptInput.value.trim()
         };
         OrganizeSettingRequest.updateSettings(
             data,

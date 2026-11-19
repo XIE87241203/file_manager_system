@@ -6,6 +6,7 @@ from backend.common.log_utils import LogUtils
 from backend.db.processor_manager import processor_manager
 from backend.model.db.organize_setting_db_model import OrganizeSettingDBModel
 from backend.organize.organize_models import OrganizeSettingResult
+from backend.organize.rename_script import validate_rename_script
 
 # 默认需要整理的后缀名（常用视频后缀），仅在从未保存过整理设置时作为初始值返回
 DEFAULT_EXTENSIONS: List[str] = [
@@ -32,33 +33,41 @@ class OrganizeService:
         return OrganizeSettingResult(
             pending_dirs=self._parse_json_list(model.pending_dirs),
             organized_dir=model.organized_dir or '',
-            extensions=self._parse_json_list(model.extensions)
+            extensions=self._parse_json_list(model.extensions),
+            rename_script_path=model.rename_script_path or ''
         )
 
-    def update_settings(self, pending_dirs: List[str], organized_dir: str, extensions: List[str]) -> OrganizeSettingResult:
+    def update_settings(self, pending_dirs: List[str], organized_dir: str, extensions: List[str],
+                        rename_script_path: str = '') -> OrganizeSettingResult:
         """
         用途说明：校验并保存当前仓库的整理设置（整表覆盖式更新）。
         入参说明：
             pending_dirs (List[str]): 待整理目录列表（来自 API Body）。
             organized_dir (str): 已整理目录路径（来自 API Body），允许为空。
             extensions (List[str]): 需要整理的后缀名列表（来自 API Body）。
+            rename_script_path (str): 文件名整理脚本路径（来自 API Body），允许为空（使用默认脚本）。
         返回值说明：OrganizeSettingResult - 归一化后实际保存的设置结果。
-        异常说明：ValueError - 后缀名非法时抛出，由路由层转换为 400 响应。
+        异常说明：ValueError - 后缀名或整理脚本非法时抛出，由路由层转换为 400 响应。
         """
         normalized_dirs: List[str] = self._normalize_dirs(pending_dirs)
         normalized_exts: List[str] = self._normalize_extensions(extensions)
         normalized_target: str = (organized_dir or '').strip()
+        normalized_script: str = (rename_script_path or '').strip()
+        # 脚本校验：须为存在的 .js 文件且提供合法 rename 方法（沙箱执行，防死循环）
+        validate_rename_script(normalized_script)
 
         model: OrganizeSettingDBModel = OrganizeSettingDBModel(
             pending_dirs=json.dumps(normalized_dirs, ensure_ascii=False),
             organized_dir=normalized_target,
-            extensions=json.dumps(normalized_exts, ensure_ascii=False)
+            extensions=json.dumps(normalized_exts, ensure_ascii=False),
+            rename_script_path=normalized_script
         )
         processor_manager.organize_setting_processor.save_setting(model)
         return OrganizeSettingResult(
             pending_dirs=normalized_dirs,
             organized_dir=normalized_target,
-            extensions=normalized_exts
+            extensions=normalized_exts,
+            rename_script_path=normalized_script
         )
 
     @staticmethod

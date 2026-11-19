@@ -307,6 +307,15 @@ TRANSLATIONS = {
     "organize_setting_save_error": "Failed to save organize settings: {error}",
     "organize_setting_parse_error": "Failed to parse organize settings data: {error}",
     "organize_setting_ext_invalid": "Invalid file extension: {ext}",
+    "organize_default_script_created": "Default filename organize script generated: {path}",
+    "organize_script_not_js": "The organize script must be a .js file: {path}",
+    "organize_script_not_found": "Organize script file does not exist: {path}",
+    "organize_script_read_error": "Failed to read organize script: {error}",
+    "organize_script_missing_rename": "The organize script must provide a rename method (input: filename string with extension; output: organized filename string with extension)",
+    "organize_script_bad_return": "The rename method must return a filename string (including the extension)",
+    "organize_script_invalid_name": "The filename returned by rename must not be empty or contain path separators",
+    "organize_script_exec_error": "Failed to execute organize script: {error}",
+    "organize_script_timeout": "Organize script execution timed out, please check for infinite loops or overly slow logic",
 
     # --- System ---
     "sys_log_not_found": "[{time}] Log file does not exist: {filename}",
@@ -348,6 +357,8 @@ TRANSLATIONS = {
     "db_migrate_v16_failed": "Failed to upgrade to version 16: {error}",
     "db_migrate_v17_success": "Database upgraded to version 17: Added organize_settings table for the organize module",
     "db_migrate_v17_failed": "Failed to upgrade to version 17: {error}",
+    "db_migrate_v18_success": "Database upgraded to version 18: Added rename script path column to organize_settings",
+    "db_migrate_v18_failed": "Failed to upgrade to version 18: {error}",
 
     # --- Log & API ---
     "log_api_request": "API Request - Method: {method}, Path: {path}, Token: {token}, Params: {data}",

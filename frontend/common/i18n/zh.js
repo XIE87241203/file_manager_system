@@ -93,7 +93,10 @@ const I18nZh = {
             "extensions": "需要整理的后缀名",
             "extensions_placeholder": "例如: .mp4, .mkv, .avi (逗号分隔)",
             "extensions_hint": "提示：多个后缀名请用英文逗号分隔。待整理目录（含子目录）中所有匹配这些后缀名的文件都会进入整理流程。",
-            "ext_invalid": "后缀名不能包含空格或路径分隔符"
+            "ext_invalid": "后缀名不能包含空格或路径分隔符",
+            "rename_script": "文件名整理脚本（JS）",
+            "rename_script_placeholder": "例如: /app/data/my_rename.js（留空使用默认脚本）",
+            "rename_script_hint": "说明：留空时使用系统首次运行生成的默认脚本 default.js（原样返回文件名，不改名）。自定义脚本须为 .js 文件并提供 rename 方法：入参为文件名字符串（包括后缀），返回整理完成的文件名字符串（包括后缀）；保存时系统会自动校验脚本可用性。"
         }
     },
     "repo": {

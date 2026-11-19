@@ -12,5 +12,6 @@ class OrganizeSettingDBModel:
     pending_dirs: str = '[]'
     organized_dir: str = ''
     extensions: str = '[]'
+    rename_script_path: str = ''
     update_time: Optional[str] = None
     id: Optional[int] = None

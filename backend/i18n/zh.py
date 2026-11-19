@@ -307,6 +307,15 @@ TRANSLATIONS = {
     "organize_setting_save_error": "保存整理设置失败: {error}",
     "organize_setting_parse_error": "解析整理设置数据失败: {error}",
     "organize_setting_ext_invalid": "非法的后缀名: {ext}",
+    "organize_default_script_created": "已生成默认文件名整理脚本: {path}",
+    "organize_script_not_js": "整理脚本必须是 .js 文件: {path}",
+    "organize_script_not_found": "整理脚本文件不存在: {path}",
+    "organize_script_read_error": "读取整理脚本失败: {error}",
+    "organize_script_missing_rename": "整理脚本必须提供 rename 方法（入参为含后缀的文件名字符串，出参为整理后含后缀的文件名字符串）",
+    "organize_script_bad_return": "rename 方法必须返回文件名字符串（包括后缀）",
+    "organize_script_invalid_name": "rename 返回的文件名不能为空，且不能包含路径分隔符",
+    "organize_script_exec_error": "整理脚本执行失败: {error}",
+    "organize_script_timeout": "整理脚本执行超时，请检查是否存在死循环或过于耗时的逻辑",
 
     # --- 系统 (System) ---
     "sys_log_not_found": "[{time}] 日志文件不存在: {filename}",
@@ -348,6 +357,8 @@ TRANSLATIONS = {
     "db_migrate_v16_failed": "升级到版本 16 失败: {error}",
     "db_migrate_v17_success": "数据库升级到版本 17: 新增整理模块专用设置表 organize_settings",
     "db_migrate_v17_failed": "升级到版本 17 失败: {error}",
+    "db_migrate_v18_success": "数据库升级到版本 18: 已为 organize_settings 添加文件名整理脚本路径列",
+    "db_migrate_v18_failed": "升级到版本 18 失败: {error}",
 
     # --- 日志 & API (Log & API) ---
     "log_api_request": "接口请求 - 方法: {method}, 路径: {path}, Token: {token}, 参数: {data}",

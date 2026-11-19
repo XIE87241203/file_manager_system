@@ -4,7 +4,7 @@
 const OrganizeSettingRequest = {
     /**
      * @description 用途说明：从后端获取当前仓库的整理设置
-     * @param {Function} onSuccess - 入参说明：成功回调，参数为设置数据对象 {pending_dirs, organized_dir, extensions}
+     * @param {Function} onSuccess - 入参说明：成功回调，参数为设置数据对象 {pending_dirs, organized_dir, extensions, rename_script_path}
      * @param {Function} onError - 入参说明：失败回调，参数为错误信息字符串
      * @returns {void} - 返回值说明：无
      */
@@ -19,7 +19,7 @@ const OrganizeSettingRequest = {
 
     /**
      * @description 用途说明：提交更新后的整理设置
-     * @param {Object} data - 入参说明：设置对象 {pending_dirs: string[], organized_dir: string, extensions: string[]}
+     * @param {Object} data - 入参说明：设置对象 {pending_dirs: string[], organized_dir: string, extensions: string[], rename_script_path: string}
      * @param {Function} onSuccess - 入参说明：成功回调，参数为后端返回的归一化设置数据
      * @param {Function} onError - 入参说明：失败回调，参数为错误信息字符串
      * @returns {void} - 返回值说明：无

@@ -93,7 +93,10 @@ const I18nEn = {
             "extensions": "Extensions to Organize",
             "extensions_placeholder": "e.g. .mp4, .mkv, .avi (comma separated)",
             "extensions_hint": "Tip: Separate multiple extensions with commas. All files in the directories to organize (including subdirectories) matching these extensions will enter the organize process.",
-            "ext_invalid": "Extension cannot contain spaces or path separators"
+            "ext_invalid": "Extension cannot contain spaces or path separators",
+            "rename_script": "Filename Organize Script (JS)",
+            "rename_script_placeholder": "e.g. /app/data/my_rename.js (leave empty for the default script)",
+            "rename_script_hint": "Note: If left empty, the default script default.js generated on first run is used (returns the filename unchanged). A custom script must be a .js file providing a rename method: input is the filename string (including extension), output is the organized filename string (including extension). The script is validated automatically on save."
         }
     },
     "repo": {

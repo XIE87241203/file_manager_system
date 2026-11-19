@@ -3,7 +3,7 @@ class DBConstants:
     用途：数据库表名及列名常量类，统一管理所有数据库结构相关的硬编码字符串
     """
 
-    DB_VERSION: int = 17  # 当前数据库版本，升级至 17 以支持整理专用设置表
+    DB_VERSION: int = 18  # 当前数据库版本，升级至 18 以支持整理脚本路径配置
 
     class VersionInfo:
         """用途：version_info 表相关的常量"""
@@ -114,6 +114,7 @@ class DBConstants:
         COL_PENDING_DIRS: str = 'pending_dirs'      # 待整理目录列表 (JSON 数组文本)
         COL_ORGANIZED_DIR: str = 'organized_dir'    # 已整理目录 (整理完成后文件转移至此)
         COL_EXTENSIONS: str = 'extensions'          # 需要整理的后缀名列表 (JSON 数组文本)
+        COL_RENAME_SCRIPT_PATH: str = 'rename_script_path'  # 文件名整理脚本路径 (空串表示默认脚本)
         COL_UPDATE_TIME: str = 'update_time'
 
     class Repository:

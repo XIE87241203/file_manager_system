@@ -11,7 +11,9 @@ class OrganizeSettingResult:
         organized_dir (str): 已整理目录，整理完成的文件将被转移至此；空字符串表示未配置。
         extensions (List[str]): 需要整理的后缀名列表（统一小写、以 . 开头），
             待整理目录内匹配这些后缀名的文件都会进入整理流程。
+        rename_script_path (str): 文件名整理脚本（.js）路径，空字符串表示使用默认脚本 default.js。
     """
     pending_dirs: List[str] = field(default_factory=list)
     organized_dir: str = ''
     extensions: List[str] = field(default_factory=list)
+    rename_script_path: str = ''

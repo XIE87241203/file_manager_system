@@ -21,7 +21,8 @@ def get_organize_setting() -> Tuple[Any, int]:
     用途说明：获取当前仓库的整理设置。
     入参说明：无（仓库 ID 由请求头 X-Repo-Id 注入的上下文决定）。
     返回值说明：Tuple[Any, int] - 统一 JSON 响应，data 为 OrganizeSettingResult 字典
-        （pending_dirs: 待整理目录列表, organized_dir: 已整理目录, extensions: 后缀名列表）。
+        （pending_dirs: 待整理目录列表, organized_dir: 已整理目录, extensions: 后缀名列表,
+        rename_script_path: 文件名整理脚本路径）。
     """
     LogUtils.debug(t('organize_setting_get_log', user=request.username))
     result: OrganizeSettingResult = organizeService.get_settings()
@@ -36,7 +37,8 @@ def update_organize_setting() -> Tuple[Any, int]:
     入参说明：JSON Body，字段：
         pending_dirs (List[str]): 待整理目录列表；
         organized_dir (str): 已整理目录路径，允许为空；
-        extensions (List[str]): 需要整理的后缀名列表。
+        extensions (List[str]): 需要整理的后缀名列表；
+        rename_script_path (str): 文件名整理脚本路径，允许为空（使用默认脚本）。
     返回值说明：Tuple[Any, int] - 统一 JSON 响应，成功时 data 为归一化后的设置字典。
     """
     data = request.get_json(silent=True)
@@ -46,17 +48,19 @@ def update_organize_setting() -> Tuple[Any, int]:
     pending_dirs = data.get('pending_dirs', [])
     organized_dir = data.get('organized_dir', '')
     extensions = data.get('extensions', [])
+    rename_script_path = data.get('rename_script_path', '')
 
-    # 参数类型校验：列表字段必须为字符串数组，目录字段必须为字符串
+    # 参数类型校验：列表字段必须为字符串数组，目录/脚本路径字段必须为字符串
     if (not isinstance(pending_dirs, list) or not all(isinstance(d, str) for d in pending_dirs)
             or not isinstance(extensions, list) or not all(isinstance(e, str) for e in extensions)
-            or not isinstance(organized_dir, str)):
+            or not isinstance(organized_dir, str) or not isinstance(rename_script_path, str)):
         return error_response(t('request_params_error'), 400)
 
     LogUtils.info(t('organize_setting_update_log', user=request.username))
 
     try:
-        result: OrganizeSettingResult = organizeService.update_settings(pending_dirs, organized_dir, extensions)
+        result: OrganizeSettingResult = organizeService.update_settings(
+            pending_dirs, organized_dir, extensions, rename_script_path)
     except ValueError as e:
         # 业务校验失败（如非法后缀名），返回 400 及具体原因
         return error_response(str(e), 400)
