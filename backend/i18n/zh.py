@@ -307,6 +307,7 @@ TRANSLATIONS = {
     "organize_setting_save_error": "保存整理设置失败: {error}",
     "organize_setting_parse_error": "解析整理设置数据失败: {error}",
     "organize_setting_ext_invalid": "非法的后缀名: {ext}",
+    "organize_setting_size_invalid": "文件大小必须为不小于 0 的数字",
     "organize_default_script_created": "已生成默认文件名整理脚本: {path}",
     "organize_script_not_js": "整理脚本必须是 .js 文件: {path}",
     "organize_script_not_found": "整理脚本文件不存在: {path}",
@@ -381,6 +382,8 @@ TRANSLATIONS = {
     "db_migrate_v18_failed": "升级到版本 18 失败: {error}",
     "db_migrate_v19_success": "数据库升级到版本 19: 新增整理历史记录表 organize_records",
     "db_migrate_v19_failed": "升级到版本 19 失败: {error}",
+    "db_migrate_v20_success": "数据库升级到版本 20: 已为 organize_settings 添加文件大小筛选列",
+    "db_migrate_v20_failed": "升级到版本 20 失败: {error}",
 
     # --- 日志 & API (Log & API) ---
     "log_api_request": "接口请求 - 方法: {method}, 路径: {path}, Token: {token}, 参数: {data}",

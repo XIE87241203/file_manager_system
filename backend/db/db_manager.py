@@ -370,6 +370,9 @@ class DBManager:
                 {DBConstants.OrganizeSetting.COL_ORGANIZED_DIR} TEXT NOT NULL DEFAULT '',
                 {DBConstants.OrganizeSetting.COL_EXTENSIONS} TEXT NOT NULL DEFAULT '[]',
                 {DBConstants.OrganizeSetting.COL_RENAME_SCRIPT_PATH} TEXT NOT NULL DEFAULT '',
+                {DBConstants.OrganizeSetting.COL_SIZE_OP} TEXT NOT NULL DEFAULT '',
+                {DBConstants.OrganizeSetting.COL_SIZE_VALUE} REAL NOT NULL DEFAULT 0,
+                {DBConstants.OrganizeSetting.COL_SIZE_UNIT} TEXT NOT NULL DEFAULT 'MB',
                 {DBConstants.OrganizeSetting.COL_UPDATE_TIME} DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         ''')
@@ -608,6 +611,17 @@ class DBManager:
                 LogUtils.info(t('db_migrate_v19_success'))
             except Exception as e:
                 LogUtils.error(t('db_migrate_v19_failed', error=str(e)))
+                raise e
+
+        if old_version < 20:
+            # 升级到版本 20: 为 organize_settings 添加文件大小筛选三列（比较符/数值/单位）
+            try:
+                cursor.execute(f"ALTER TABLE {DBConstants.OrganizeSetting.TABLE_NAME} ADD COLUMN {DBConstants.OrganizeSetting.COL_SIZE_OP} TEXT NOT NULL DEFAULT ''")
+                cursor.execute(f"ALTER TABLE {DBConstants.OrganizeSetting.TABLE_NAME} ADD COLUMN {DBConstants.OrganizeSetting.COL_SIZE_VALUE} REAL NOT NULL DEFAULT 0")
+                cursor.execute(f"ALTER TABLE {DBConstants.OrganizeSetting.TABLE_NAME} ADD COLUMN {DBConstants.OrganizeSetting.COL_SIZE_UNIT} TEXT NOT NULL DEFAULT 'MB'")
+                LogUtils.info(t('db_migrate_v20_success'))
+            except Exception as e:
+                LogUtils.error(t('db_migrate_v20_failed', error=str(e)))
                 raise e
 
 

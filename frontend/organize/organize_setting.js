@@ -1,5 +1,5 @@
 /**
- * @description 整理设置页面逻辑处理，负责待整理目录、已整理目录、后缀名与文件名整理脚本路径输入框的编辑及保存。
+ * @description 整理设置页面逻辑处理，负责待整理目录、已整理目录、后缀名、文件大小筛选与文件名整理脚本路径输入框的编辑及保存。
  */
 
 // --- 状态管理 ---
@@ -7,7 +7,10 @@ const State = {
     pendingDirs: [], // 待整理目录列表
     organizedDir: '', // 已整理目录路径
     extensions: [], // 需要整理的后缀名列表
-    renameScriptPath: '' // 文件名整理脚本路径（空串表示默认脚本）
+    renameScriptPath: '', // 文件名整理脚本路径（空串表示默认脚本）
+    sizeOp: 'gt', // 文件大小筛选比较符（gt 大于 / lt 小于，仅界面展示用，是否启用由数值决定）
+    sizeValue: '', // 文件大小筛选数值输入文本（留空表示不启用）
+    sizeUnit: 'MB' // 文件大小筛选单位（KB / MB / GB）
 };
 
 // --- UI 控制模块 ---
@@ -33,13 +36,16 @@ const UIController = {
             pendingDirList: document.getElementById('pending-dir-list'),
             extensionsInput: document.getElementById('extensions-input'),
             organizedDirInput: document.getElementById('organized-dir-input'),
-            renameScriptInput: document.getElementById('rename-script-input')
+            renameScriptInput: document.getElementById('rename-script-input'),
+            sizeOpSelect: document.getElementById('size-op-select'),
+            sizeValueInput: document.getElementById('size-value-input'),
+            sizeUnitSelect: document.getElementById('size-unit-select')
         };
     },
 
     /**
      * @description 用途说明：将后端返回的设置数据填充到页面状态与表单。
-     * @param {Object} data - 入参说明：设置数据对象 {pending_dirs, organized_dir, extensions, rename_script_path}。
+     * @param {Object} data - 入参说明：设置数据对象 {pending_dirs, organized_dir, extensions, rename_script_path, size_op, size_value, size_unit}。
      * @returns {void} - 返回值说明：无
      */
     fillForm(data) {
@@ -47,9 +53,16 @@ const UIController = {
         State.organizedDir = (data && data.organized_dir) || '';
         State.extensions = (data && data.extensions) || [];
         State.renameScriptPath = (data && data.rename_script_path) || '';
+        // 大小筛选：数值大于 0 才视为启用；未启用时比较符回落为 gt 仅作展示
+        State.sizeOp = (data && data.size_op) || 'gt';
+        State.sizeValue = (data && Number(data.size_value) > 0) ? String(data.size_value) : '';
+        State.sizeUnit = (data && data.size_unit) || 'MB';
         this.elements.organizedDirInput.value = State.organizedDir;
         this.elements.extensionsInput.value = State.extensions.join(', ');
         this.elements.renameScriptInput.value = State.renameScriptPath;
+        this.elements.sizeOpSelect.value = State.sizeOp;
+        this.elements.sizeValueInput.value = State.sizeValue;
+        this.elements.sizeUnitSelect.value = State.sizeUnit;
         this.renderPendingDirs();
     },
 
@@ -188,11 +201,28 @@ const App = {
             return;
         }
 
+        // 文件大小筛选：留空（或 0）表示不启用；填写时必须为大于 0 的有限数字
+        const sizeRaw = UIController.elements.sizeValueInput.value.trim();
+        let sizeOp = '';
+        let sizeValue = 0;
+        if (sizeRaw !== '') {
+            const parsed = Number(sizeRaw);
+            if (!Number.isFinite(parsed) || parsed <= 0) {
+                Toast.show(I18nManager.t('organize.setting.size_invalid'));
+                return;
+            }
+            sizeOp = UIController.elements.sizeOpSelect.value;
+            sizeValue = parsed;
+        }
+
         const data = {
             pending_dirs: State.pendingDirs,
             organized_dir: UIController.elements.organizedDirInput.value.trim(),
             extensions: extensions,
-            rename_script_path: UIController.elements.renameScriptInput.value.trim()
+            rename_script_path: UIController.elements.renameScriptInput.value.trim(),
+            size_op: sizeOp,
+            size_value: sizeValue,
+            size_unit: UIController.elements.sizeUnitSelect.value
         };
         OrganizeSettingRequest.updateSettings(
             data,

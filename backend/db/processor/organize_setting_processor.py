@@ -44,9 +44,13 @@ class OrganizeSettingProcessor(BaseDBProcessor):
                 f"{DBConstants.OrganizeSetting.COL_ORGANIZED_DIR} = ?, "
                 f"{DBConstants.OrganizeSetting.COL_EXTENSIONS} = ?, "
                 f"{DBConstants.OrganizeSetting.COL_RENAME_SCRIPT_PATH} = ?, "
+                f"{DBConstants.OrganizeSetting.COL_SIZE_OP} = ?, "
+                f"{DBConstants.OrganizeSetting.COL_SIZE_VALUE} = ?, "
+                f"{DBConstants.OrganizeSetting.COL_SIZE_UNIT} = ?, "
                 f"{DBConstants.OrganizeSetting.COL_UPDATE_TIME} = CURRENT_TIMESTAMP "
                 f"WHERE {DBConstants.OrganizeSetting.COL_ID} = ?",
-                (model.pending_dirs, model.organized_dir, model.extensions, model.rename_script_path, existing['id'])
+                (model.pending_dirs, model.organized_dir, model.extensions, model.rename_script_path,
+                 model.size_op, model.size_value, model.size_unit, existing['id'])
             )
         else:
             self._execute(
@@ -54,8 +58,12 @@ class OrganizeSettingProcessor(BaseDBProcessor):
                 f"({DBConstants.OrganizeSetting.COL_PENDING_DIRS}, "
                 f"{DBConstants.OrganizeSetting.COL_ORGANIZED_DIR}, "
                 f"{DBConstants.OrganizeSetting.COL_EXTENSIONS}, "
-                f"{DBConstants.OrganizeSetting.COL_RENAME_SCRIPT_PATH}) "
-                f"VALUES (?, ?, ?, ?)",
-                (model.pending_dirs, model.organized_dir, model.extensions, model.rename_script_path)
+                f"{DBConstants.OrganizeSetting.COL_RENAME_SCRIPT_PATH}, "
+                f"{DBConstants.OrganizeSetting.COL_SIZE_OP}, "
+                f"{DBConstants.OrganizeSetting.COL_SIZE_VALUE}, "
+                f"{DBConstants.OrganizeSetting.COL_SIZE_UNIT}) "
+                f"VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (model.pending_dirs, model.organized_dir, model.extensions, model.rename_script_path,
+                 model.size_op, model.size_value, model.size_unit)
             )
         return True

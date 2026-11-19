@@ -307,6 +307,7 @@ TRANSLATIONS = {
     "organize_setting_save_error": "Failed to save organize settings: {error}",
     "organize_setting_parse_error": "Failed to parse organize settings data: {error}",
     "organize_setting_ext_invalid": "Invalid file extension: {ext}",
+    "organize_setting_size_invalid": "File size must be a number greater than or equal to 0",
     "organize_default_script_created": "Default filename organize script generated: {path}",
     "organize_script_not_js": "The organize script must be a .js file: {path}",
     "organize_script_not_found": "Organize script file does not exist: {path}",
@@ -381,6 +382,8 @@ TRANSLATIONS = {
     "db_migrate_v18_failed": "Failed to upgrade to version 18: {error}",
     "db_migrate_v19_success": "Database upgraded to version 19: Added organize history table organize_records",
     "db_migrate_v19_failed": "Failed to upgrade to version 19: {error}",
+    "db_migrate_v20_success": "Database upgraded to version 20: Added file size filter columns to organize_settings",
+    "db_migrate_v20_failed": "Failed to upgrade to version 20: {error}",
 
     # --- Log & API ---
     "log_api_request": "API Request - Method: {method}, Path: {path}, Token: {token}, Params: {data}",

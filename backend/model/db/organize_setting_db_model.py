@@ -13,5 +13,8 @@ class OrganizeSettingDBModel:
     organized_dir: str = ''
     extensions: str = '[]'
     rename_script_path: str = ''
+    size_op: str = ''
+    size_value: float = 0.0
+    size_unit: str = 'MB'
     update_time: Optional[str] = None
     id: Optional[int] = None

@@ -50,9 +50,9 @@ const OrganizeTaskRequest = {
     },
 
     /**
-     * @description 用途说明：保存当前文件整理结果（按新文件名移动到已整理目录并写入整理历史）
+     * @description 用途说明：保存当前文件整理结果（按新文件名移动到已整理目录并写入整理历史，后端自动保留原文件后缀）
      * @param {string} path - 入参说明：待整理文件完整路径
-     * @param {string} newName - 入参说明：整理后文件名（包括后缀）
+     * @param {string} newName - 入参说明：整理后文件名（不含后缀，后端保存时自动拼接原后缀）
      * @param {Function} onSuccess - 入参说明：成功回调，参数为 {remaining, total, organized_path, organized_name}
      * @param {Function} onError - 入参说明：失败回调，参数为错误信息字符串
      * @returns {void} - 返回值说明：无

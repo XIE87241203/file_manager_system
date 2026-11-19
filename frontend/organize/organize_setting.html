@@ -44,6 +44,26 @@
             </div>
         </div>
 
+        <!-- 文件大小筛选（后缀名不匹配时的补充纳入条件） -->
+        <div class="organize-section">
+            <div class="form-group">
+                <label class="label-text" for="size-value-input" data-i18n="organize.setting.size_filter"></label>
+                <div class="size-filter-row">
+                    <select id="size-op-select" class="size-filter-select">
+                        <option value="gt" data-i18n="organize.setting.size_gt"></option>
+                        <option value="lt" data-i18n="organize.setting.size_lt"></option>
+                    </select>
+                    <input type="text" id="size-value-input" class="input-field size-filter-input" inputmode="decimal" placeholder="" data-i18n-placeholder="organize.setting.size_value_placeholder" autocomplete="off">
+                    <select id="size-unit-select" class="size-filter-select">
+                        <option value="KB" data-i18n="organize.setting.size_unit_kb"></option>
+                        <option value="MB" data-i18n="organize.setting.size_unit_mb"></option>
+                        <option value="GB" data-i18n="organize.setting.size_unit_gb"></option>
+                    </select>
+                </div>
+                <small class="form-hint" data-i18n="organize.setting.size_hint"></small>
+            </div>
+        </div>
+
         <!-- 文件名整理脚本（用户自定义 rename 逻辑） -->
         <div class="organize-section">
             <div class="form-group">

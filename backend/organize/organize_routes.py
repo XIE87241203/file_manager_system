@@ -23,7 +23,8 @@ def get_organize_setting() -> Tuple[Any, int]:
     入参说明：无（仓库 ID 由请求头 X-Repo-Id 注入的上下文决定）。
     返回值说明：Tuple[Any, int] - 统一 JSON 响应，data 为 OrganizeSettingResult 字典
         （pending_dirs: 待整理目录列表, organized_dir: 已整理目录, extensions: 后缀名列表,
-        rename_script_path: 文件名整理脚本路径）。
+        rename_script_path: 文件名整理脚本路径, size_op: 大小筛选比较符,
+        size_value: 大小筛选数值, size_unit: 大小筛选单位）。
     """
     LogUtils.debug(t('organize_setting_get_log', user=request.username))
     result: OrganizeSettingResult = organizeService.get_settings()
@@ -39,7 +40,10 @@ def update_organize_setting() -> Tuple[Any, int]:
         pending_dirs (List[str]): 待整理目录列表；
         organized_dir (str): 已整理目录路径，允许为空；
         extensions (List[str]): 需要整理的后缀名列表；
-        rename_script_path (str): 文件名整理脚本路径，允许为空（使用默认脚本）。
+        rename_script_path (str): 文件名整理脚本路径，允许为空（使用默认脚本）；
+        size_op (str): 文件大小筛选比较符，gt 大于 / lt 小于，空串表示不启用；
+        size_value (float): 文件大小筛选数值，不大于 0 表示不启用；
+        size_unit (str): 文件大小筛选单位，KB / MB / GB。
     返回值说明：Tuple[Any, int] - 统一 JSON 响应，成功时 data 为归一化后的设置字典。
     """
     data = request.get_json(silent=True)
@@ -50,18 +54,27 @@ def update_organize_setting() -> Tuple[Any, int]:
     organized_dir = data.get('organized_dir', '')
     extensions = data.get('extensions', [])
     rename_script_path = data.get('rename_script_path', '')
+    size_op = data.get('size_op', '')
+    size_unit = data.get('size_unit', 'MB')
 
-    # 参数类型校验：列表字段必须为字符串数组，目录/脚本路径字段必须为字符串
+    # 参数类型校验：列表字段必须为字符串数组，目录/脚本路径/比较符/单位字段必须为字符串
     if (not isinstance(pending_dirs, list) or not all(isinstance(d, str) for d in pending_dirs)
             or not isinstance(extensions, list) or not all(isinstance(e, str) for e in extensions)
-            or not isinstance(organized_dir, str) or not isinstance(rename_script_path, str)):
+            or not isinstance(organized_dir, str) or not isinstance(rename_script_path, str)
+            or not isinstance(size_op, str) or not isinstance(size_unit, str)):
         return error_response(t('request_params_error'), 400)
+
+    # 文件大小数值：允许数字或可解析为数字的字符串（前端输入框），非法值返回 400
+    try:
+        size_value: float = float(data.get('size_value', 0) or 0)
+    except (TypeError, ValueError):
+        return error_response(t('organize_setting_size_invalid'), 400)
 
     LogUtils.info(t('organize_setting_update_log', user=request.username))
 
     try:
         result: OrganizeSettingResult = organizeService.update_settings(
-            pending_dirs, organized_dir, extensions, rename_script_path)
+            pending_dirs, organized_dir, extensions, rename_script_path, size_op, size_value, size_unit)
     except ValueError as e:
         # 业务校验失败（如非法后缀名），返回 400 及具体原因
         return error_response(str(e), 400)
@@ -135,10 +148,10 @@ def preview_organize_file() -> Any:
 @token_required
 def save_organize_file() -> Tuple[Any, int]:
     """
-    用途说明：保存当前整理结果：按新文件名移动文件到已整理目录，写入整理历史并推进队列。
+    用途说明：保存当前整理结果：按新文件名（不含后缀，自动保留原后缀）移动文件到已整理目录，写入整理历史并推进队列。
     入参说明：JSON Body，字段：
         path (str): 待整理文件完整路径；
-        new_name (str): 整理后文件名（包括后缀）。
+        new_name (str): 整理后文件名（不含后缀，保存时自动拼接原文件后缀）。
     返回值说明：Tuple[Any, int] - 统一 JSON 响应，data 为 {remaining, total, organized_path, organized_name}。
     """
     data = request.get_json(silent=True)

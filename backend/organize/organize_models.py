@@ -12,11 +12,17 @@ class OrganizeSettingResult:
         extensions (List[str]): 需要整理的后缀名列表（统一小写、以 . 开头），
             待整理目录内匹配这些后缀名的文件都会进入整理流程。
         rename_script_path (str): 文件名整理脚本（.js）路径；未自定义时展示默认脚本 default.js 的实际路径。
+        size_op (str): 文件大小筛选比较符，gt 表示大于、lt 表示小于；空串表示不启用大小筛选。
+        size_value (float): 文件大小筛选数值；不大于 0 表示不启用大小筛选。
+        size_unit (str): 文件大小筛选单位，KB / MB / GB（按 1024 进制换算）。
     """
     pending_dirs: List[str] = field(default_factory=list)
     organized_dir: str = ''
     extensions: List[str] = field(default_factory=list)
     rename_script_path: str = ''
+    size_op: str = ''
+    size_value: float = 0.0
+    size_unit: str = 'MB'
 
 
 @dataclass

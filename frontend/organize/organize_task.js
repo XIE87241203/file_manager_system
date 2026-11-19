@@ -191,15 +191,28 @@ const UIController = {
     },
 
     /**
-     * @description 用途说明：渲染当前文件的原文件名与建议文件名输入框。
+     * @description 用途说明：渲染当前文件的原文件名与建议文件名输入框（输入框仅展示不含后缀的文件名主体）。
      * @param {Object} item - 入参说明：待整理文件条目 {path, name, file_type, size, suggestion}。
      * @returns {void} - 返回值说明：无
      */
     renderCurrent(item) {
         this.elements.originalName.textContent = item.name;
         this.elements.originalName.title = item.path;
-        this.elements.newNameInput.value = item.suggestion || item.name;
+        // 建议文件名来自整理脚本（含后缀），输入框去掉最后一级后缀，后缀由后端保存时自动保留
+        this.elements.newNameInput.value = this.stripExtension(item.suggestion || item.name);
         this.renderPreview(item);
+    },
+
+    /**
+     * @description 用途说明：去掉文件名最后一级后缀（与后端 splitext 行为一致）；无后缀或以点开头的隐藏名原样返回。
+     * @param {string} name - 入参说明：含后缀的文件名（不含路径）。
+     * @returns {string} - 返回值说明：不含最后一级后缀的文件名主体。
+     */
+    stripExtension(name) {
+        const base = String(name || '');
+        const idx = base.lastIndexOf('.');
+        if (idx <= 0) return base;
+        return base.slice(0, idx);
     },
 
     /**
@@ -453,11 +466,12 @@ const App = {
     },
 
     /**
-     * @description 用途说明：保存当前整理结果：校验文件名后请求后端改名移动，成功后推进到下一个文件。
+     * @description 用途说明：保存当前整理结果：校验文件名主体（不含后缀）后请求后端改名移动，成功后推进到下一个文件。
      * @returns {void} - 返回值说明：无
      */
     handleSave() {
         if (State.saving || !State.current) return;
+        // 输入为不含后缀的文件名主体；后端保存时自动拼接原文件后缀（误带后缀时后端会去重）
         const newName = UIController.elements.newNameInput.value.trim();
         if (!newName) {
             Toast.show(I18nManager.t('organize.task.name_required'));

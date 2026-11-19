@@ -3,7 +3,7 @@ class DBConstants:
     用途：数据库表名及列名常量类，统一管理所有数据库结构相关的硬编码字符串
     """
 
-    DB_VERSION: int = 19  # 当前数据库版本，升级至 19 以支持整理历史表
+    DB_VERSION: int = 20  # 当前数据库版本，升级至 20 以支持整理设置的文件大小筛选
 
     class VersionInfo:
         """用途：version_info 表相关的常量"""
@@ -115,6 +115,9 @@ class DBConstants:
         COL_ORGANIZED_DIR: str = 'organized_dir'    # 已整理目录 (整理完成后文件转移至此)
         COL_EXTENSIONS: str = 'extensions'          # 需要整理的后缀名列表 (JSON 数组文本)
         COL_RENAME_SCRIPT_PATH: str = 'rename_script_path'  # 文件名整理脚本路径 (空串表示默认脚本)
+        COL_SIZE_OP: str = 'size_op'                # 文件大小筛选比较符 (gt 大于 / lt 小于，空串表示不启用)
+        COL_SIZE_VALUE: str = 'size_value'          # 文件大小筛选数值 (不大于 0 表示不启用)
+        COL_SIZE_UNIT: str = 'size_unit'            # 文件大小筛选单位 (KB / MB / GB)
         COL_UPDATE_TIME: str = 'update_time'
 
     class OrganizeRecord:

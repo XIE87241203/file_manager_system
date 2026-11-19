@@ -58,7 +58,8 @@ class OrganizeTaskService:
 
     def start(self) -> OrganizeTaskStartResult:
         """
-        用途说明：扫描当前仓库整理设置中的待整理目录（含子目录），按后缀名筛选并排除已整理目录，建立任务会话。
+        用途说明：扫描当前仓库整理设置中的待整理目录（含子目录），按后缀名或文件大小筛选并排除已整理目录，建立任务会话。
+            筛选规则：后缀名匹配的文件始终纳入；后缀名不匹配但大小满足设置条件（大于/小于阈值）的文件也纳入。
         入参说明：无（仓库与设置由当前请求上下文决定）。
         返回值说明：OrganizeTaskStartResult - 总数/剩余数/已整理目录。
         异常说明：ValueError - 未配置待整理目录或已整理目录时抛出。
@@ -70,6 +71,9 @@ class OrganizeTaskService:
             raise ValueError(t('organize_task_no_target'))
         organized_abs: str = os.path.normcase(os.path.abspath(settings.organized_dir))
         exts: Set[str] = set(settings.extensions)
+        # 文件大小筛选阈值（字节），0 表示未启用；启用时作为后缀不匹配文件的补充纳入通道
+        size_threshold: int = organizeService.size_threshold_bytes(
+            settings.size_op, settings.size_value, settings.size_unit)
 
         paths: List[str] = []
         for pending_dir in settings.pending_dirs:
@@ -85,8 +89,15 @@ class OrganizeTaskService:
                 dirs[:] = [d for d in dirs
                            if not self._is_under(os.path.normcase(os.path.abspath(os.path.join(root, d))), organized_abs)]
                 for file_name in files:
-                    if os.path.splitext(file_name)[1].lower() in exts:
-                        paths.append(os.path.join(root, file_name))
+                    full_path: str = os.path.join(root, file_name)
+                    ext_matched: bool = os.path.splitext(file_name)[1].lower() in exts
+                    size_matched: bool = False
+                    if not ext_matched and size_threshold > 0:
+                        file_size: int = self._safe_size(full_path)
+                        size_matched = (file_size > size_threshold if settings.size_op == 'gt'
+                                        else file_size < size_threshold)
+                    if ext_matched or size_matched:
+                        paths.append(full_path)
         paths.sort(key=lambda p: os.path.normcase(p))
 
         repo_id: int = get_current_repo_id()
@@ -155,27 +166,34 @@ class OrganizeTaskService:
     def save(self, path: str, new_name: str, user: str) -> OrganizeSaveResult:
         """
         用途说明：将待整理文件按新文件名移动到已整理目录，写入整理历史并从队列移除。
+            新文件名不含后缀：保存时自动拼接原文件后缀，防止用户误改后缀；
+            若输入末尾已带原后缀（忽略大小写）则先去重，避免出现双后缀。
         入参说明：
             path (str) - 待整理文件完整路径（须在当前队列中）。
-            new_name (str) - 整理后文件名（包括后缀，来自用户输入）。
+            new_name (str) - 整理后文件名（不含后缀，来自用户输入）。
             user (str) - 操作用户名，用于日志。
-        返回值说明：OrganizeSaveResult - 剩余数量/总数/整理后路径与文件名。
+        返回值说明：OrganizeSaveResult - 剩余数量/总数/整理后路径与文件名（文件名含原后缀）。
         异常说明：ValueError - 文件名非法/不在队列/目标重名/移动失败时抛出。
         """
         session: OrganizeTaskSession = self._get_session()
         name: str = (new_name or '').strip()
+        # 原文件后缀：保存时强制保留，用户输入仅作为文件名主体
+        original_ext: str = os.path.splitext(path)[1]
+        if original_ext and name.lower().endswith(original_ext.lower()):
+            name = name[:-len(original_ext)].rstrip()
         if (not name or '/' in name or '\\' in name or name in ('.', '..')
                 or any(ch in name for ch in _INVALID_NAME_CHARS)
                 or any(ord(ch) < 32 for ch in name)
                 or name.endswith('.') or name.endswith(' ')):
             raise ValueError(t('organize_task_name_invalid'))
+        final_name: str = name + original_ext
 
         with self._lock:
             if path not in session.queue_set:
                 raise ValueError(t('organize_task_not_in_queue'))
-            dest: str = os.path.join(session.organized_dir, name)
+            dest: str = os.path.join(session.organized_dir, final_name)
             if os.path.exists(dest):
-                raise ValueError(t('organize_task_target_exists', name=name))
+                raise ValueError(t('organize_task_target_exists', name=final_name))
             os.makedirs(session.organized_dir, exist_ok=True)
             try:
                 shutil.move(path, dest)
@@ -188,7 +206,7 @@ class OrganizeTaskService:
                     original_path=path,
                     original_name=os.path.basename(path),
                     organized_path=dest,
-                    organized_name=name
+                    organized_name=final_name
                 ))
             except Exception as e:
                 LogUtils.error(t('organize_task_record_error', error=str(e)))
@@ -198,7 +216,7 @@ class OrganizeTaskService:
             total: int = session.total
         LogUtils.info(t('organize_task_saved_log', user=user, src=path, dst=dest))
         return OrganizeSaveResult(remaining=remaining, total=total,
-                                  organized_path=dest, organized_name=name)
+                                  organized_path=dest, organized_name=final_name)
 
     def _get_session(self) -> OrganizeTaskSession:
         """

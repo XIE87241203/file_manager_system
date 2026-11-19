@@ -493,6 +493,13 @@ video.preview-media {
     gap: 10px;
 }
 
+/* 文件名输入提示：说明后缀自动保留，无需输入 */
+.newname-hint {
+    color: #9aa0a6;
+    font-size: 12px;
+    line-height: 1.4;
+}
+
 .new-name-input {
     flex: 1;
     min-width: 0;
