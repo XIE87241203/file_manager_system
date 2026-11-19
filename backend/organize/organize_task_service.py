@@ -12,6 +12,7 @@ from backend.common.utils import Utils
 from backend.db.db_operations import DBOperations
 from backend.db.processor_manager import processor_manager
 from backend.file_repository.file_info_service import FileInfoService
+from backend.file_repository.file_service import FileService
 from backend.model.db.file_index_db_model import FileIndexDBModel
 from backend.model.db.organize_record_db_model import OrganizeRecordDBModel
 from backend.organize.organize_models import (
@@ -224,6 +225,8 @@ class OrganizeTaskService:
                 ))
             except Exception as e:
                 LogUtils.error(t('organize_task_record_error', error=str(e)))
+            # 同步文件索引：已入索引的文件移动后更新路径（未入索引的由方法内部过滤跳过，不阻断整理）
+            FileService.update_file_index_path(path, dest)
             session.queue.remove(path)
             session.queue_set.discard(path)
             remaining: int = len(session.queue)

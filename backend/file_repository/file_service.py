@@ -1,3 +1,4 @@
+import os
 from typing import Optional
 
 from backend.common.i18n_utils import t
@@ -47,6 +48,45 @@ class FileService(BaseFileService):
         返回值说明：PaginationResult[HistoryFileIndexDBModule] - 分页结果对象。
         """
         return DBOperations.search_history_file_index_list(page, limit, sort_by, order, search_query, file_type)
+
+    @staticmethod
+    def update_file_index_path(old_path: str, new_path: str) -> bool:
+        """
+        用途说明：文件移动/改名后，同步更新文件索引中的路径与文件名。
+            1. 过滤：原路径不在索引中的请求直接跳过（例如整理的是从未扫描入索引的文件），不视为异常；
+            2. 校验：更新前确认新路径下确实存在文件，防止索引指向不存在的文件；
+            3. 冲突：新路径已存在其他索引记录（唯一约束）时跳过，保留原有记录不做覆盖。
+        入参说明：
+            old_path (str): 文件移动/改名前的完整路径。
+            new_path (str): 文件移动/改名后的完整路径。
+        返回值说明：bool - 是否实际更新了索引记录；被过滤、校验失败或更新失败均返回 False。
+        """
+        try:
+            if not old_path or not new_path or os.path.normcase(old_path) == os.path.normcase(new_path):
+                return False
+
+            # 1. 过滤：原路径不在索引中则跳过
+            old_info: Optional[FileIndexDBModel] = DBOperations.get_file_by_path(old_path)
+            if old_info is None:
+                LogUtils.debug(t('repo_update_index_skip_not_indexed', old_path=old_path))
+                return False
+
+            # 2. 校验：更新前确认新路径下存在文件
+            if not os.path.isfile(new_path):
+                LogUtils.error(t('repo_update_index_target_missing', new_path=new_path))
+                return False
+
+            # 3. 更新索引路径与文件名
+            updated: int = DBOperations.update_file_path(old_path, new_path)
+            if updated <= 0:
+                LogUtils.error(t('repo_update_index_conflict', old_path=old_path, new_path=new_path))
+                return False
+
+            LogUtils.info(t('repo_update_index_log', old_path=old_path, new_path=new_path))
+            return True
+        except Exception as e:
+            LogUtils.error(t('repo_update_index_error', old_path=old_path, new_path=new_path, error=str(e)))
+            return False
 
     @staticmethod
     def clear_repository(clear_history: bool) -> bool:

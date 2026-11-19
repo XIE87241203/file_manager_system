@@ -403,6 +403,17 @@ class DBOperations:
         return processor_manager.file_index_processor.update_thumbnail_path_by_md5(file_md5, thumbnail_path)
 
     @staticmethod
+    def update_file_path(old_path: str, new_path: str) -> int:
+        """
+        用途说明：文件移动/改名后，将文件索引中的原路径更新为新路径并同步文件名。
+        入参说明：
+            old_path (str): 索引中记录的原文件路径。
+            new_path (str): 文件移动/改名后的新文件路径。
+        返回值说明：int - 实际更新的记录数；0 表示原路径不在索引或新路径唯一约束冲突被忽略。
+        """
+        return processor_manager.file_index_processor.update_file_path(old_path, new_path)
+
+    @staticmethod
     def get_files_without_thumbnail() -> List[FileIndexDBModel]:
         """
         用途说明：获取所有缺失缩略图的文件。

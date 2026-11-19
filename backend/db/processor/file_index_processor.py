@@ -1,3 +1,4 @@
+import os
 import sqlite3
 from typing import Optional, List, Tuple, Dict, Set
 
@@ -156,6 +157,25 @@ class FileIndexProcessor(BaseDBProcessor):
         """
         query: str = f"UPDATE {DBConstants.FileIndex.TABLE_NAME} SET {DBConstants.FileIndex.COL_THUMBNAIL_PATH} = ? WHERE {DBConstants.FileIndex.COL_FILE_MD5} = ?"
         result: int = BaseDBProcessor._execute(query, (thumbnail_path, file_md5), conn=conn)
+        return result or 0
+
+    @staticmethod
+    def update_file_path(old_path: str, new_path: str, conn: Optional[sqlite3.Connection] = None) -> int:
+        """
+        用途说明：将文件索引中的原路径替换为新路径，并同步更新文件名（取新路径的文件名部分）。
+                  使用 UPDATE OR IGNORE：若新路径已存在其他索引记录（file_path 唯一约束冲突），
+                  本次更新会被忽略而不是覆盖原有记录。
+        入参说明：
+            old_path (str): 索引中记录的原文件路径。
+            new_path (str): 文件移动/改名后的新文件路径。
+            conn (Optional[sqlite3.Connection]): 数据库连接对象。
+        返回值说明：int - 实际更新的记录数；0 表示原路径不在索引或新路径冲突被忽略。
+        """
+        new_name: str = os.path.basename(new_path.replace('\\', '/'))
+        query: str = (f"UPDATE OR IGNORE {DBConstants.FileIndex.TABLE_NAME} "
+                      f"SET {DBConstants.FileIndex.COL_FILE_PATH} = ?, {DBConstants.FileIndex.COL_FILE_NAME} = ? "
+                      f"WHERE {DBConstants.FileIndex.COL_FILE_PATH} = ?")
+        result: int = BaseDBProcessor._execute(query, (new_path, new_name, old_path), conn=conn)
         return result or 0
 
     @staticmethod
