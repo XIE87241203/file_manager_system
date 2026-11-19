@@ -338,6 +338,19 @@ TRANSLATIONS = {
     "organize_task_save_success": "保存成功",
     "organize_task_pending_success": "获取待整理文件列表成功",
 
+    # --- 整理记录 (Organize Records) ---
+    "organize_records_list_success": "获取整理记录成功",
+    "organize_records_list_error": "获取整理记录失败: {error}",
+    "organize_records_list_failed": "获取整理记录失败，请稍后重试",
+    "organize_records_export_log": "用户 {user} 导出整理记录",
+    "organize_records_export_error": "导出整理记录失败: {error}",
+    "organize_records_export_failed": "导出整理记录失败，请稍后重试",
+    "organize_records_export_filename": "整理记录_{time}.csv",
+    "organize_records_csv_header_seq": "序号",
+    "organize_records_csv_header_organized": "整理后文件名",
+    "organize_records_csv_header_original": "整理前文件名",
+    "organize_records_csv_header_time": "整理时间",
+
     # --- 系统 (System) ---
     "sys_log_not_found": "[{time}] 日志文件不存在: {filename}",
     "sys_log_read_failed": "读取日志失败: {error}",

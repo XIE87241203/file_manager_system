@@ -89,3 +89,39 @@ class OrganizeSaveResult:
     total: int = 0
     organized_path: str = ''
     organized_name: str = ''
+
+
+@dataclass
+class OrganizeRecordResult:
+    """
+    用途：单条整理记录的 API 返回数据类。
+    字段说明：
+        id (int): 记录主键 ID。
+        original_path (str): 整理前文件完整路径（鼠标悬停整理前文件名时展示）。
+        original_name (str): 整理前文件名（包括后缀）。
+        organized_path (str): 整理后文件完整路径（鼠标悬停整理后文件名时展示）。
+        organized_name (str): 整理后文件名（包括后缀）。
+        organize_time (str): 整理时间，已由数据库 UTC 时间转换为服务器本地时间字符串。
+    """
+    id: int = 0
+    original_path: str = ''
+    original_name: str = ''
+    organized_path: str = ''
+    organized_name: str = ''
+    organize_time: str = ''
+
+
+@dataclass
+class OrganizeRecordPageResult:
+    """
+    用途：整理记录分页查询结果数据类。
+    字段说明：
+        total (int): 整理记录总条数。
+        page (int): 当前页码（从 1 开始）。
+        page_size (int): 每页条数。
+        items (List[OrganizeRecordResult]): 当前页记录列表，按整理时间倒序（越靠后越靠前）。
+    """
+    total: int = 0
+    page: int = 1
+    page_size: int = 50
+    items: List[OrganizeRecordResult] = field(default_factory=list)

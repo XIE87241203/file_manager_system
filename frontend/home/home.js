@@ -352,7 +352,7 @@ const App = {
                     'menu-recycle-bin': '../file_repository/recycle_bin/recycle_bin.html',
                     'menu-organize-setting': '../organize/organize_setting.html',
                     'menu-organize-start': '../organize/organize_task.html',
-                    'menu-organize-records': 'ORGANIZE_RECORDS', // 特殊标识：整理记录（功能开发中）
+                    'menu-organize-records': '../organize/organize_records.html',
                     'menu-setting': '../setting/setting.html',
                     'menu-logs': '../system/logs/logs.html',
                     'menu-test-page': '../test_page/test_progress_button.html',
@@ -361,9 +361,6 @@ const App = {
                 const target = map[card.id];
                 if (target === 'LOGOUT') {
                     this.logout();
-                } else if (target === 'ORGANIZE_RECORDS') {
-                    // 整理记录页面尚未实现，先给出开发中提示
-                    Toast.show(I18nManager.t('home.organize_coming_soon'));
                 } else if (target) {
                     window.location.href = target;
                 }

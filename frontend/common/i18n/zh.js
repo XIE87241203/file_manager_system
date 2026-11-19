@@ -68,7 +68,6 @@ const I18nZh = {
         "menu_organize_start": "开始整理",
         "menu_organize_records": "整理记录",
         "menu_organize_setting": "整理设置",
-        "organize_coming_soon": "该功能正在开发中，敬请期待",
         "menu_setting": "系统设置",
         "menu_logs": "运行日志",
         "menu_logout": "退出登录",
@@ -145,6 +144,24 @@ const I18nZh = {
             "scanning": "正在扫描待整理文件...",
             "start_failed": "启动整理任务失败",
             "load_failed": "加载待整理列表失败"
+        },
+        "records": {
+            "title": "整理记录",
+            "summary": "共 {count} 条整理记录",
+            "export_title": "导出 CSV",
+            "exporting": "正在导出...",
+            "export_success": "导出成功",
+            "export_failed": "导出失败，请稍后重试",
+            "export_empty": "暂无整理记录可导出",
+            "col_seq": "序号",
+            "col_organized": "整理后文件名",
+            "col_original": "整理前文件名",
+            "col_time": "整理时间",
+            "empty": "暂无整理记录",
+            "empty_hint": "每完成一次文件整理，这里就会留下一条记录。",
+            "go_organize": "去整理文件",
+            "load_failed": "加载整理记录失败",
+            "fallback_filename": "整理记录.csv"
         }
     },
     "repo": {

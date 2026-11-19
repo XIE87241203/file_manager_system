@@ -338,6 +338,19 @@ TRANSLATIONS = {
     "organize_task_save_success": "Saved successfully",
     "organize_task_pending_success": "Successfully retrieved pending file list",
 
+    # --- Organize Records ---
+    "organize_records_list_success": "Successfully retrieved organize records",
+    "organize_records_list_error": "Failed to retrieve organize records: {error}",
+    "organize_records_list_failed": "Failed to retrieve organize records, please try again later",
+    "organize_records_export_log": "User {user} exported organize records",
+    "organize_records_export_error": "Failed to export organize records: {error}",
+    "organize_records_export_failed": "Failed to export organize records, please try again later",
+    "organize_records_export_filename": "organize_records_{time}.csv",
+    "organize_records_csv_header_seq": "No.",
+    "organize_records_csv_header_organized": "Organized Filename",
+    "organize_records_csv_header_original": "Original Filename",
+    "organize_records_csv_header_time": "Organize Time",
+
     # --- System ---
     "sys_log_not_found": "[{time}] Log file does not exist: {filename}",
     "sys_log_read_failed": "Failed to read log: {error}",

@@ -68,7 +68,6 @@ const I18nEn = {
         "menu_organize_start": "Start Organizing",
         "menu_organize_records": "Organize Records",
         "menu_organize_setting": "Organize Settings",
-        "organize_coming_soon": "This feature is under development. Stay tuned!",
         "menu_setting": "System Settings",
         "menu_logs": "System Logs",
         "menu_logout": "Logout",
@@ -145,6 +144,24 @@ const I18nEn = {
             "scanning": "Scanning pending files...",
             "start_failed": "Failed to start organize task",
             "load_failed": "Failed to load pending list"
+        },
+        "records": {
+            "title": "Organize Records",
+            "summary": "{count} organize records in total",
+            "export_title": "Export CSV",
+            "exporting": "Exporting...",
+            "export_success": "Exported successfully",
+            "export_failed": "Export failed, please try again later",
+            "export_empty": "No organize records to export yet",
+            "col_seq": "No.",
+            "col_organized": "Organized Filename",
+            "col_original": "Original Filename",
+            "col_time": "Organize Time",
+            "empty": "No organize records yet",
+            "empty_hint": "Every completed organize leaves a record here.",
+            "go_organize": "Organize Files",
+            "load_failed": "Failed to load organize records",
+            "fallback_filename": "organize_records.csv"
         }
     },
     "repo": {
