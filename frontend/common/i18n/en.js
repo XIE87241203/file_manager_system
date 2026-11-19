@@ -95,8 +95,8 @@ const I18nEn = {
             "extensions_hint": "Tip: Separate multiple extensions with commas. All files in the directories to organize (including subdirectories) matching these extensions will enter the organize process.",
             "ext_invalid": "Extension cannot contain spaces or path separators",
             "rename_script": "Filename Organize Script (JS)",
-            "rename_script_placeholder": "e.g. /app/data/my_rename.js (leave empty for the default script)",
-            "rename_script_hint": "Note: If left empty, the default script default.js generated on first run is used (returns the filename unchanged). A custom script must be a .js file providing a rename method: input is the filename string (including extension), output is the organized filename string (including extension). The script is validated automatically on save."
+            "rename_script_placeholder": "Enter the full path of your custom .js script",
+            "rename_script_hint": "Note: By default this points to default.js generated on first run (returns the filename unchanged). To customize, copy that file, edit its rename method and enter the new path; clear the field and save to restore the default. The script must be a .js file providing a rename method: input is the filename string (including extension), output is the organized filename string (including extension). The script is validated automatically on save."
         }
     },
     "repo": {
