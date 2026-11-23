@@ -23,7 +23,8 @@ class SettingService:
         "USER_DATA": "user_data",
         "FILE_REPOSITORY": "file_repository",
         "DUPLICATE_CHECK": "duplicate_check",
-        "FILE_NAME_ENTRY": "file_name_entry"
+        "FILE_NAME_ENTRY": "file_name_entry",
+        "ALBUM": "album"
     }
 
     def __init__(self) -> None:

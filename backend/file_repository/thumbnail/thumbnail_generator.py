@@ -12,6 +12,7 @@ from backend.common.repo_context import get_current_repo_id, set_current_repo_id
 from backend.common.thread_pool import ThreadPoolManager
 from backend.common.utils import Utils
 from backend.db.db_operations import DBOperations
+from backend.file_repository.thumbnail.thumbnail_path_utils import ThumbnailPathUtils
 from backend.model.db.file_index_db_model import FileIndexDBModel
 from backend.repository.repository_service import repositoryService
 
@@ -29,7 +30,8 @@ class ThumbnailGenerator:
     _queue: Deque[Tuple[int, FileIndexDBModel]] = deque()  # 任务队列，存储 (仓库ID, 模型对象)
     _queue_set: Set[Tuple[int, str]] = set()    # 去重集合，存储 (仓库ID, 文件路径)
     _is_processing: bool = False
-    _THUMBNAIL_DIR: str = os.path.join(Utils.get_runtime_path(), "cache", "thumbnail")
+    # 同步生成锁：相册按需生成缩略图时避免同一时刻重复写文件
+    _generate_now_lock = threading.Lock()
 
     def __new__(cls) -> 'ThumbnailGenerator':
         """
@@ -40,8 +42,8 @@ class ThumbnailGenerator:
         with cls._lock:
             if cls._instance is None:
                 cls._instance = super(ThumbnailGenerator, cls).__new__(cls)
-                if not os.path.exists(cls._THUMBNAIL_DIR):
-                    os.makedirs(cls._THUMBNAIL_DIR, exist_ok=True)
+                # 按最新配置创建缩略图目录（路径支持在相册设置中修改）
+                ThumbnailPathUtils.ensure_thumbnail_dir()
             return cls._instance
 
     def add_tasks(self, tasks: List[FileIndexDBModel]) -> None:
@@ -95,10 +97,27 @@ class ThumbnailGenerator:
         入参说明：file_md5 (str): 文件 MD5 哈希值。
         返回值说明：Optional[str]: 缩略图物理文件存在则返回其绝对路径，否则返回 None。
         """
-        if not file_md5:
-            return None
-        thumb_path: str = os.path.join(ThumbnailGenerator._THUMBNAIL_DIR, file_md5 + ".jpg")
-        return thumb_path if os.path.exists(thumb_path) else None
+        return ThumbnailPathUtils.get_existing_thumbnail(file_md5)
+
+    def generate_now(self, file_info: FileIndexDBModel, size: int) -> Optional[str]:
+        """
+        用途说明：同步生成单个文件缩略图（供相册按需生成接口使用），完成后按 MD5 回填数据库路径。
+                  锁内会再次检查缩略图是否已存在：同内容文件并发请求时，后到的请求直接复用先到者
+                  的成果，避免对同一文件反复删除重建。
+        入参说明：
+            file_info (FileIndexDBModel): 文件索引模型。
+            size (int): 缩略图最大边长。
+        返回值说明：Optional[str] - 生成成功返回缩略图绝对路径，失败返回 None。
+        """
+        with self._generate_now_lock:
+            existing_path: Optional[str] = ThumbnailPathUtils.get_existing_thumbnail(file_info.file_md5)
+            if existing_path:
+                DBOperations.update_thumbnail_path_by_md5(file_info.file_md5, existing_path)
+                return existing_path
+            _, thumb_path = self._generate_single_thumbnail(file_info, size)
+            if thumb_path:
+                DBOperations.update_thumbnail_path_by_md5(file_info.file_md5, thumb_path)
+            return thumb_path
 
     def _worker(self) -> None:
         """
@@ -142,6 +161,7 @@ class ThumbnailGenerator:
     def _generate_single_thumbnail(self, file_info: FileIndexDBModel, size: int) -> Tuple[str, Optional[str]]:
         """
         用途：为单个文件生成缩略图（支持常见图片和视频格式，视频提取中间帧）。
+        设计说明：先写入同目录临时文件再原子替换目标文件，避免并发访问时读到"已删除未写入"的空窗。
         入参说明：
             file_info (FileIndexDBModel): 文件索引模型。
             size (int): 缩略图最大边长（保持纵横比）。
@@ -153,15 +173,9 @@ class ThumbnailGenerator:
             return file_path, None
 
         # 使用源文件的 MD5 作为文件名确保唯一性，且同内容文件可复用缩略图
-        thumb_name: str = file_info.file_md5 + ".jpg"
-        thumb_path: str = os.path.join(self._THUMBNAIL_DIR, thumb_name)
-
-        # 如果缩略图已存在，则删除原有文件再重新生成，确保缩略图是最新的
-        if os.path.exists(thumb_path):
-            try:
-                os.remove(thumb_path)
-            except Exception as e:
-                LogUtils.error(t('thumb_gen_delete_failed_log', path=thumb_path, error=str(e)))
+        thumb_path: str = ThumbnailPathUtils.get_thumbnail_file(file_info.file_md5)
+        # 临时文件与目标同目录，保证 os.replace 为原子操作
+        tmp_path: str = f"{thumb_path}.tmp"
 
         try:
             # 图片处理
@@ -170,41 +184,52 @@ class ThumbnailGenerator:
                     img.thumbnail((size, size))
                     if img.mode != 'RGB':
                         img = img.convert('RGB')
-                    img.save(thumb_path, "JPEG")
+                    img.save(tmp_path, "JPEG")
+                os.replace(tmp_path, thumb_path)
                 return file_path, thumb_path
-            
+
             # 视频处理 (通过 OpenCV 提取中间帧)
             elif Utils.is_video_file(file_path):
                 cap = cv2.VideoCapture(file_path)
-                if not cap.isOpened():
-                    return file_path, None
-                
-                # 获取视频总帧数
-                frame_count: int = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-                # 计算中间帧位置，如果帧数获取失败则默认为 0
-                middle_frame_index: int = max(0, frame_count // 2)
-                
-                # 设置跳转到中间帧
-                cap.set(cv2.CAP_PROP_POS_FRAMES, middle_frame_index)
-                success, frame = cap.read()
-                
-                # 兜底逻辑：如果中间帧读取失败，尝试读取第一帧
-                if not success and middle_frame_index > 0:
-                    cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                try:
+                    if not cap.isOpened():
+                        return file_path, None
+
+                    # 获取视频总帧数
+                    frame_count: int = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+                    # 计算中间帧位置，如果帧数获取失败则默认为 0
+                    middle_frame_index: int = max(0, frame_count // 2)
+
+                    # 设置跳转到中间帧
+                    cap.set(cv2.CAP_PROP_POS_FRAMES, middle_frame_index)
                     success, frame = cap.read()
 
-                if success:
-                    h: int = frame.shape[0]
-                    w: int = frame.shape[1]
-                    scale: float = size / max(h, w)
-                    new_h: int = int(h * scale)
-                    new_w: int = int(w * scale)
-                    resized = cv2.resize(frame, (new_w, new_h))
-                    cv2.imwrite(thumb_path, resized)
+                    # 兜底逻辑：如果中间帧读取失败，尝试读取第一帧
+                    if not success and middle_frame_index > 0:
+                        cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                        success, frame = cap.read()
+
+                    if success:
+                        h: int = frame.shape[0]
+                        w: int = frame.shape[1]
+                        scale: float = size / max(h, w)
+                        new_h: int = int(h * scale)
+                        new_w: int = int(w * scale)
+                        resized = cv2.resize(frame, (new_w, new_h))
+                        if not cv2.imwrite(tmp_path, resized):
+                            return file_path, None
+                        os.replace(tmp_path, thumb_path)
+                        return file_path, thumb_path
+                finally:
                     cap.release()
-                    return file_path, thumb_path
-                cap.release()
         except Exception as e:
             LogUtils.error(t('thumb_gen_error_log', path=file_path, error=str(e)))
-        
+        finally:
+            # 清理可能残留的临时文件
+            if os.path.exists(tmp_path):
+                try:
+                    os.remove(tmp_path)
+                except Exception as e:
+                    LogUtils.error(t('thumb_gen_delete_failed_log', path=tmp_path, error=str(e)))
+
         return file_path, None

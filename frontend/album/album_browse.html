@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title data-i18n="album.browse_title"></title>
+    <link rel="stylesheet" href="../common/common.css">
+    <link rel="stylesheet" href="../common/header_toolbar/search/search_header_toolbar.css">
+    <link rel="stylesheet" href="album_browse.css">
+</head>
+<body>
+    <!-- 顶部工具栏：由 SearchHeaderToolbar 动态初始化 -->
+    <header class="header-bar"></header>
+
+    <main class="main-content album-main">
+        <div class="album-page">
+            <!-- 多选操作栏：选中项后显示 -->
+            <div id="album-selection-bar" class="album-selection-bar hidden">
+                <span id="album-selected-count" class="album-selected-count"></span>
+                <div class="album-selection-actions">
+                    <button id="btn-download-selected" class="album-bar-btn" data-i18n="album.download_selected"></button>
+                    <button id="btn-delete-selected" class="album-bar-btn album-bar-danger" data-i18n="album.delete_selected"></button>
+                    <button id="btn-cancel-selection" class="album-bar-btn album-bar-cancel" data-i18n="album.cancel_selection"></button>
+                </div>
+            </div>
+
+            <!-- 瀑布流容器：
+                 说明：实际卡片由 JS 动态生成，原需求为图片/视频缩略图 + 下载/删除按钮 + 勾选框 -->
+            <div id="album-waterfall" class="album-waterfall"></div>
+
+            <!-- 空数据提示 -->
+            <div id="album-empty" class="album-empty hidden" data-i18n="album.empty"></div>
+
+            <!-- 无限滚动哨兵与加载提示 -->
+            <div id="album-sentinel" class="album-sentinel"></div>
+            <div id="album-end-tip" class="album-end-tip hidden" data-i18n="album.no_more"></div>
+        </div>
+    </main>
+
+    <!-- 媒体预览弹窗 -->
+    <div id="album-preview-mask" class="album-preview-mask hidden">
+        <div class="album-preview-top">
+            <div id="album-preview-name" class="album-preview-name"></div>
+            <div class="album-preview-actions">
+                <button id="album-preview-download" class="album-preview-btn" data-i18n-title="album.download" title="">⬇</button>
+                <button id="album-preview-delete" class="album-preview-btn album-preview-btn-danger" data-i18n-title="album.delete" title="">🗑</button>
+                <button id="album-preview-close" class="album-preview-btn" data-i18n-title="album.preview_close" title="">✕</button>
+            </div>
+        </div>
+        <button id="album-preview-prev" class="album-preview-nav album-preview-prev" data-i18n-title="album.preview_prev" title="">‹</button>
+        <div id="album-preview-body" class="album-preview-body"></div>
+        <button id="album-preview-next" class="album-preview-nav album-preview-next" data-i18n-title="album.preview_next" title="">›</button>
+    </div>
+
+    <!-- 多语言资源 -->
+    <script src="../common/i18n/zh.js"></script>
+    <script src="../common/i18n/en.js"></script>
+    <script src="../common/i18n/i18n_utils.js"></script>
+
+    <!-- 公用工具 -->
+    <script src="../common/common.js"></script>
+    <script src="../common/ui_components.js"></script>
+    <script src="../common/repo_context.js"></script>
+    <script src="../common/request.js"></script>
+    <script src="../common/toast.js"></script>
+    <script src="../common/header_toolbar/search/search_header_toolbar.js"></script>
+
+    <!-- 页面逻辑 -->
+    <script src="album_browse_request.js"></script>
+    <script src="album_browse.js"></script>
+</body>
+</html>

@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title data-i18n="album.setting_title"></title>
+    <link rel="stylesheet" href="../common/common.css">
+    <link rel="stylesheet" href="../common/header_toolbar/default/default_header_toolbar.css">
+    <link rel="stylesheet" href="album_setting.css">
+</head>
+<body>
+    <!-- 顶部工具栏：由 HeaderToolbar 动态初始化 -->
+    <header class="header-bar"></header>
+
+    <main class="main-content album-setting-main">
+        <div class="album-setting-container">
+            <div class="album-setting-card">
+                <div class="form-group">
+                    <label class="label-text" for="thumbnail-dir-input" data-i18n="album.thumbnail_dir_label"></label>
+                    <input type="text" id="thumbnail-dir-input" class="input-field"
+                           data-i18n-placeholder="album.thumbnail_dir_placeholder" placeholder="">
+                    <span class="form-hint" data-i18n="album.thumbnail_dir_hint"></span>
+                </div>
+
+                <div class="album-effective-row">
+                    <span class="album-effective-label" data-i18n="album.thumbnail_dir_effective"></span>
+                    <span id="thumbnail-dir-effective" class="album-effective-value">--</span>
+                </div>
+
+                <button id="btn-save-album-setting" class="btn-primary album-save-btn" data-i18n="common.save"></button>
+            </div>
+        </div>
+    </main>
+
+    <!-- 多语言资源 -->
+    <script src="../common/i18n/zh.js"></script>
+    <script src="../common/i18n/en.js"></script>
+    <script src="../common/i18n/i18n_utils.js"></script>
+
+    <!-- 公用工具 -->
+    <script src="../common/common.js"></script>
+    <script src="../common/repo_context.js"></script>
+    <script src="../common/request.js"></script>
+    <script src="../common/toast.js"></script>
+    <script src="../common/header_toolbar/default/default_header_toolbar.js"></script>
+
+    <!-- 页面逻辑 -->
+    <script src="album_setting_request.js"></script>
+    <script src="album_setting.js"></script>
+</body>
+</html>

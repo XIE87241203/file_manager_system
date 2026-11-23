@@ -121,6 +121,24 @@ class DBOperations:
         return processor_manager.file_index_processor.get_paged_list(page, limit, sort_by, order, search_query, is_in_recycle_bin, file_type)
 
     @staticmethod
+    def search_album_file_list(page: int, limit: int, sort_by: str, order: bool,
+                               search_query: str, file_types: List[str]) -> PaginationResult[FileIndexDBModel]:
+        """
+        用途说明：分页查询相册媒体文件（图片/视频）列表，排除回收站文件。
+        入参说明：
+            page (int): 当前页码。
+            limit (int): 每页条数。
+            sort_by (str): 排序字段。
+            order (bool): 是否为升序。
+            search_query (str): 文件名搜索关键词。
+            file_types (List[str]): 文件类型列表（如 ['image', 'video']）。
+        返回值说明：PaginationResult[FileIndexDBModel] - 分页结果对象。
+        """
+        return processor_manager.file_index_processor.get_album_paged_list(
+            page, limit, sort_by, order, search_query, file_types
+        )
+
+    @staticmethod
     def search_history_file_index_list(page: int, limit: int, sort_by: str, order: bool,
                                        search_query: str, file_type: Optional[str] = None) -> PaginationResult[HistoryFileIndexDBModule]:
         """

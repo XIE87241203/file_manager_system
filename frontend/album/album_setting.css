@@ -1,0 +1,63 @@
+/**
+ * 用途说明：相册设置页样式，定义设置卡片、路径输入与生效路径展示。
+ * 规范：仅使用 class 绑定样式，禁止内联样式。
+ */
+
+.album-setting-main {
+    display: block;
+    width: 100%;
+}
+
+.album-setting-container {
+    width: 100%;
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 20px 16px 48px;
+    box-sizing: border-box;
+}
+
+.album-setting-card {
+    background: #ffffff;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+}
+
+/* 生效路径展示 */
+.album-effective-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin: 4px 0 20px;
+    padding: 10px 12px;
+    background: #f5f7fa;
+    border: 1px solid #e6e9ee;
+    border-radius: 8px;
+    font-size: 13px;
+    color: #5f6368;
+}
+
+.album-effective-label {
+    flex-shrink: 0;
+    font-weight: 600;
+}
+
+.album-effective-value {
+    word-break: break-all;
+    color: #1a73e8;
+}
+
+.album-save-btn {
+    max-width: 200px;
+    margin: 0 auto;
+}
+
+@media (max-width: 520px) {
+    .album-setting-card {
+        padding: 18px 14px;
+    }
+
+    .album-save-btn {
+        max-width: none;
+    }
+}

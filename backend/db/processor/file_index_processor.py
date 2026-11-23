@@ -252,6 +252,58 @@ class FileIndexProcessor(BaseDBProcessor):
         )
 
     @staticmethod
+    def get_album_paged_list(page: int, limit: int, sort_by: str, order: bool,
+                             search_query: str, file_types: List[str]) -> PaginationResult[FileIndexDBModel]:
+        """
+        用途说明：分页查询相册媒体（图片/视频）列表，排除回收站内文件并按文件名搜索。
+        入参说明：
+            page (int): 当前页码。
+            limit (int): 每页条数。
+            sort_by (str): 排序字段。
+            order (bool): 是否为升序（True 为 ASC，False 为 DESC）。
+            search_query (str): 搜索关键词（按文件名模糊匹配）。
+            file_types (List[str]): 需要包含的文件类型列表（如 ['image', 'video']）。
+        返回值说明：PaginationResult[FileIndexDBModel] - 分页结果对象。
+        """
+        allowed_cols: List[str] = [
+            DBConstants.FileIndex.COL_ID,
+            DBConstants.FileIndex.COL_FILE_PATH,
+            DBConstants.FileIndex.COL_FILE_NAME,
+            DBConstants.FileIndex.COL_FILE_MD5,
+            DBConstants.FileIndex.COL_FILE_SIZE,
+            DBConstants.FileIndex.COL_FILE_TYPE,
+            DBConstants.FileIndex.COL_VIDEO_DURATION,
+            DBConstants.FileIndex.COL_VIDEO_CODEC,
+            DBConstants.FileIndex.COL_SCAN_TIME,
+            DBConstants.FileIndex.COL_RECYCLE_BIN_TIME
+        ]
+
+        # 排除回收站文件，并仅保留图片/视频类型
+        col_recycle: str = DBConstants.FileIndex.COL_RECYCLE_BIN_TIME
+        extra_where: str = f"AND ({col_recycle} IS NULL OR {col_recycle} = '')"
+        extra_params: tuple = ()
+        valid_types: List[str] = [item for item in file_types if item]
+        if valid_types:
+            placeholders: str = ','.join(['?'] * len(valid_types))
+            extra_where += f" AND {DBConstants.FileIndex.COL_FILE_TYPE} IN ({placeholders})"
+            extra_params = tuple(valid_types)
+
+        return BaseDBProcessor._search_paged_list(
+            table_name=DBConstants.FileIndex.TABLE_NAME,
+            model_class=FileIndexDBModel,
+            page=page,
+            limit=limit,
+            sort_by=sort_by,
+            order=order,
+            search_query=search_query,
+            search_column=DBConstants.FileIndex.COL_FILE_NAME,
+            allowed_sort_columns=allowed_cols,
+            default_sort_column=DBConstants.FileIndex.COL_SCAN_TIME,
+            extra_where=extra_where,
+            extra_params=extra_params
+        )
+
+    @staticmethod
     def get_list_by_condition(offset: int, limit: int, only_no_thumbnail: bool = False) -> List[FileIndexDBModel]:
         """
         用途说明：根据指定 condition 获取文件列表（如仅获取无缩略图的文件）。

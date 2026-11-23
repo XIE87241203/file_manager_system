@@ -14,7 +14,9 @@ from backend.file_repository.duplicate_check.duplicate_service import DuplicateS
 from backend.file_repository.file_service import FileService
 from backend.file_repository.recycle_bin_service import RecycleBinService
 from backend.file_repository.scan_service import ScanService, ScanMode
+from backend.file_repository.thumbnail.thumbnail_path_utils import ThumbnailPathUtils
 from backend.file_repository.thumbnail.thumbnail_service import ThumbnailService
+from backend.model.thumbnail_result import ThumbnailResult
 
 # 创建文件仓库模块的蓝图
 file_repo_bp = Blueprint('file_repository', __name__)
@@ -370,16 +372,35 @@ def view_thumbnail():
     if not path:
         return error_response(t('params_missing'), 400)
 
-    thumbnail_dir: str = os.path.abspath(os.path.join(Utils.get_runtime_path(), "cache", "thumbnail"))
+    # 允许当前配置目录与历史兼容目录，防止路径穿越
     requested_path: str = os.path.abspath(path)
-
-    if not requested_path.startswith(thumbnail_dir):
+    if not ThumbnailPathUtils.is_allowed_thumbnail_path(requested_path):
         return error_response(t('invalid_path', path=path), 403)
 
     if not os.path.exists(requested_path):
         return error_response(t('file_not_found'), 404)
 
     return send_file(requested_path, mimetype='image/jpeg')
+
+
+@file_repo_bp.route('/thumbnail/ensure', methods=['POST'])
+@token_required
+def ensure_thumbnail():
+    """
+    用途说明：统一的按需缩略图生成接口（相册瀑布流等场景），已存在则直接复用。
+    入参说明（JSON）：file_path (str) - 文件完整路径。
+    返回值说明：统一 JSON 响应，data 为 {file_path, thumbnail_path}。
+    """
+    data: dict = request.get_json(silent=True) or {}
+    file_path: str = (data.get('file_path') or '').strip()
+    if not file_path:
+        return error_response(t('params_missing'), 400)
+
+    result: ThumbnailResult = ThumbnailService.ensure_thumbnail(file_path)
+    if not result.thumbnail_path:
+        return error_response(t('thumb_ensure_failed'), 500)
+
+    return success_response(t('thumb_ensure_success'), data=asdict(result))
 
 
 # --- 视频播放相关路由 ---

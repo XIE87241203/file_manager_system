@@ -440,4 +440,22 @@ TRANSLATIONS = {
     "async_stop_requested": "{name}: 用户请求停止任务，已设置停止标志位",
     "async_task_submitted": "{name}: 异步任务已成功提交至线程池",
     "async_task_submit_failed": "{name}: 提交异步任务失败: {error}",
+
+    # --- 相册模块 (Album) ---
+    "album_list_success": "获取相册列表成功",
+    "thumb_ensure_success": "缩略图生成成功",
+    "thumb_ensure_failed": "缩略图生成失败",
+    "thumb_ensure_file_invalid": "缩略图生成失败，媒体文件无效: {path}",
+    "thumb_ensure_generated_log": "缩略图已生成: {path} -> {thumb_path}",
+    "thumb_ensure_generate_failed": "缩略图生成失败（未返回有效路径）: {path}",
+    "thumb_ensure_generate_error": "缩略图生成异常: {path}, 错误: {error}",
+    "album_thumbnail_dir_invalid": "缩略图存储路径无效: {path}",
+    "album_thumbnail_dir_create_failed": "创建缩略图存储目录失败: {path}, 错误: {error}",
+    "album_settings_get_success": "获取相册设置成功",
+    "album_settings_update_success": "相册设置更新成功",
+    "album_settings_update_failed": "相册设置更新失败",
+    "album_settings_update_failed_log": "相册设置更新失败，操作人: {user}",
+    "album_settings_updated_log": "相册设置已更新，操作人: {user}, 缩略图路径: {path}",
+    "album_media_not_found": "媒体文件不存在或不可访问",
+    "album_download_log": "相册下载文件 - 用户: {user}, 路径: {path}",
 }

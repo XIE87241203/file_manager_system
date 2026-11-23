@@ -440,4 +440,22 @@ TRANSLATIONS = {
     "async_stop_requested": "{name}: User requested to stop task, stop flag set",
     "async_task_submitted": "{name}: Asynchronous task successfully submitted to thread pool",
     "async_task_submit_failed": "{name}: Failed to submit asynchronous task: {error}",
+
+    # --- Album ---
+    "album_list_success": "Album list retrieved successfully",
+    "thumb_ensure_success": "Thumbnail generated successfully",
+    "thumb_ensure_failed": "Failed to generate thumbnail",
+    "thumb_ensure_file_invalid": "Thumbnail failed, invalid media file: {path}",
+    "thumb_ensure_generated_log": "Thumbnail generated: {path} -> {thumb_path}",
+    "thumb_ensure_generate_failed": "Thumbnail generation returned no valid path: {path}",
+    "thumb_ensure_generate_error": "Thumbnail generation error: {path}, error: {error}",
+    "album_thumbnail_dir_invalid": "Invalid thumbnail storage path: {path}",
+    "album_thumbnail_dir_create_failed": "Failed to create thumbnail storage directory: {path}, error: {error}",
+    "album_settings_get_success": "Album settings retrieved successfully",
+    "album_settings_update_success": "Album settings updated successfully",
+    "album_settings_update_failed": "Failed to update album settings",
+    "album_settings_update_failed_log": "Album settings update failed, operator: {user}",
+    "album_settings_updated_log": "Album settings updated, operator: {user}, thumbnail path: {path}",
+    "album_media_not_found": "Media file not found or inaccessible",
+    "album_download_log": "Album file downloaded - user: {user}, path: {path}",
 }

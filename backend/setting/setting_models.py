@@ -51,6 +51,15 @@ class FileNameEntrySettings:
     file_name_link_prefix: str = ""
 
 @dataclass
+class AlbumSettings:
+    """
+    用途：相册模块相关配置数据类
+    """
+    # 缩略图存储路径：相对路径以 data 目录为基准（默认 data/thumb），也支持绝对路径
+    thumbnail_dir: str = "thumb"
+
+
+@dataclass
 class AppConfig:
     """
     用途：系统全局配置汇总数据类
@@ -59,3 +68,4 @@ class AppConfig:
     file_repository: FileRepositorySettings = field(default_factory=FileRepositorySettings)
     duplicate_check: DuplicateCheckSettings = field(default_factory=DuplicateCheckSettings)
     file_name_entry: FileNameEntrySettings = field(default_factory=FileNameEntrySettings)
+    album: AlbumSettings = field(default_factory=AlbumSettings)

@@ -1,0 +1,412 @@
+/**
+ * 用途说明：相册浏览页样式，定义瀑布流布局、卡片操作区、多选操作栏与预览弹窗。
+ * 规范：仅使用 class 绑定样式，禁止内联样式。
+ */
+
+/* 页面主体：覆盖公用高度，宽度铺满并允许滚动 */
+.album-main {
+    display: block;
+    width: 100%;
+}
+
+.album-page {
+    width: 100%;
+    max-width: 1440px;
+    margin: 0 auto;
+    padding: 12px 16px 48px;
+    box-sizing: border-box;
+}
+
+/* 多选操作栏：跟随滚动吸顶 */
+.album-selection-bar {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding: 10px 14px;
+    margin-bottom: 12px;
+    background: #e8f0fe;
+    border: 1px solid #c6dafc;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(26, 115, 232, 0.12);
+}
+
+.album-selected-count {
+    font-size: 14px;
+    color: #1a73e8;
+    font-weight: 600;
+}
+
+.album-selection-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.album-bar-btn {
+    padding: 7px 14px;
+    border: 1px solid #1a73e8;
+    border-radius: 6px;
+    background: #ffffff;
+    color: #1a73e8;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background-color 0.2s, color 0.2s;
+}
+
+.album-bar-btn:hover {
+    background: #d7e6fd;
+}
+
+.album-bar-danger {
+    border-color: #dc3545;
+    color: #dc3545;
+}
+
+.album-bar-danger:hover {
+    background: #fde8ea;
+}
+
+.album-bar-cancel {
+    border-color: #9aa0a6;
+    color: #5f6368;
+}
+
+.album-bar-cancel:hover {
+    background: #f1f3f4;
+}
+
+/* 瀑布流：CSS 多列布局，卡片禁止跨列断开 */
+.album-waterfall {
+    column-count: 4;
+    column-gap: 14px;
+}
+
+/* 预览打开时阻止页面背景滚动 */
+.album-preview-open {
+    overflow: hidden;
+}
+
+/* 相册卡片 */
+.album-card {
+    position: relative;
+    display: block;
+    break-inside: avoid;
+    margin-bottom: 14px;
+    background: #ffffff;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+    cursor: pointer;
+    transition: box-shadow 0.2s, transform 0.2s;
+}
+
+.album-card:hover {
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+    transform: translateY(-1px);
+}
+
+.album-card.selected {
+    box-shadow: 0 0 0 3px #1a73e8, 0 4px 14px rgba(26, 115, 232, 0.3);
+}
+
+/* 缩略图容器 */
+.album-thumb-wrap {
+    position: relative;
+    width: 100%;
+    background: #e9edf3;
+    min-height: 90px;
+}
+
+.album-thumb {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+
+.album-thumb.hidden {
+    display: none;
+}
+
+/* 占位图（视频无缩略图或缩略图生成中） */
+.album-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    background: linear-gradient(135deg, #eef1f5 0%, #dfe5ec 100%);
+    color: #7b8794;
+}
+
+.album-placeholder-icon {
+    font-size: 34px;
+    line-height: 1;
+}
+
+.album-placeholder-text {
+    font-size: 12px;
+    color: #7b8794;
+    padding: 0 8px;
+    text-align: center;
+}
+
+/* 视频角标：左上角 */
+.album-type-badge {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    z-index: 2;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.62);
+    color: #ffffff;
+    font-size: 11px;
+    line-height: 18px;
+    pointer-events: none;
+}
+
+/* 勾选框：右上角 */
+.album-check {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 3;
+    width: 22px;
+    height: 22px;
+    cursor: pointer;
+    accent-color: #1a73e8;
+}
+
+/* 卡片操作按钮：右下角 */
+.album-actions {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 2;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 8px;
+    padding: 22px 10px 8px;
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0));
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.album-card:hover .album-actions {
+    opacity: 1;
+}
+
+.album-action-btn {
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.92);
+    color: #333333;
+    font-size: 15px;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+    transition: background-color 0.2s, transform 0.2s;
+}
+
+.album-action-btn:hover {
+    background: #ffffff;
+    transform: scale(1.06);
+}
+
+.album-action-danger {
+    color: #dc3545;
+}
+
+/* 文件名 */
+.album-name {
+    padding: 8px 10px;
+    font-size: 13px;
+    color: #3c4043;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* 空状态与滚动提示 */
+.album-empty {
+    padding: 80px 20px;
+    text-align: center;
+    color: #9aa0a6;
+    font-size: 15px;
+}
+
+.album-sentinel {
+    height: 1px;
+}
+
+.album-end-tip {
+    padding: 18px 0 4px;
+    text-align: center;
+    color: #9aa0a6;
+    font-size: 13px;
+}
+
+/* 预览弹窗 */
+.album-preview-mask {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.92);
+}
+
+.album-preview-top {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 12px 16px;
+    background: linear-gradient(to bottom, rgba(0, 0, 0, 0.65), rgba(0, 0, 0, 0));
+}
+
+.album-preview-name {
+    color: #ffffff;
+    font-size: 14px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.album-preview-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+}
+
+.album-preview-btn {
+    width: 38px;
+    height: 38px;
+    border: none;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.16);
+    color: #ffffff;
+    font-size: 17px;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.album-preview-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.album-preview-btn-danger:hover {
+    background: rgba(220, 53, 69, 0.7);
+}
+
+.album-preview-body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    padding: 56px 60px;
+    box-sizing: border-box;
+}
+
+.album-preview-media {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    border-radius: 4px;
+    background: #000000;
+}
+
+.album-preview-nav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 2;
+    width: 52px;
+    height: 52px;
+    border: none;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.14);
+    color: #ffffff;
+    font-size: 34px;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.album-preview-nav:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.album-preview-prev {
+    left: 14px;
+}
+
+.album-preview-next {
+    right: 14px;
+}
+
+/* 触屏设备无 hover 时始终显示操作按钮 */
+@media (hover: none) {
+    .album-actions {
+        opacity: 1;
+    }
+}
+
+/* 响应式列数 */
+@media (max-width: 1200px) {
+    .album-waterfall {
+        column-count: 3;
+    }
+}
+
+@media (max-width: 860px) {
+    .album-waterfall {
+        column-count: 2;
+    }
+}
+
+@media (max-width: 520px) {
+    .album-waterfall {
+        column-count: 1;
+    }
+
+    .album-preview-body {
+        padding: 60px 12px;
+    }
+
+    .album-preview-nav {
+        width: 40px;
+        height: 40px;
+        font-size: 26px;
+    }
+}

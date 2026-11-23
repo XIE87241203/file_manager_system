@@ -350,6 +350,8 @@ const App = {
                     'menu-pending-entry': '../file_name_repository/pending_entry_file/pending_entry_file.html',
                     'menu-ignore-file': '../file_name_repository/already_entered_file/already_entered_file.html',
                     'menu-recycle-bin': '../file_repository/recycle_bin/recycle_bin.html',
+                    'menu-album-browse': '../album/album_browse.html',
+                    'menu-album-setting': '../album/album_setting.html',
                     'menu-organize-setting': '../organize/organize_setting.html',
                     'menu-organize-start': '../organize/organize_task.html',
                     'menu-organize-records': '../organize/organize_records.html',

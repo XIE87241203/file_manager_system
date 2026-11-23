@@ -1,14 +1,18 @@
 import os
 import shutil
-from typing import Any, List
+from typing import Any, List, Optional
 
 from backend.common.base_async_service import BaseAsyncService
+from backend.common.file_type_enum import FileType
 from backend.common.i18n_utils import t
 from backend.common.log_utils import LogUtils
 from backend.common.progress_manager import ProgressStatus
-from backend.common.utils import Utils
 from backend.db.db_operations import DBOperations
 from backend.file_repository.thumbnail.thumbnail_generator import ThumbnailGenerator
+from backend.file_repository.thumbnail.thumbnail_path_utils import ThumbnailPathUtils
+from backend.model.db.file_index_db_model import FileIndexDBModel
+from backend.model.thumbnail_result import ThumbnailResult
+from backend.repository.repository_service import repositoryService
 
 
 class ThumbnailService(BaseAsyncService):
@@ -19,7 +23,48 @@ class ThumbnailService(BaseAsyncService):
     2. 同步物理文件（耗时操作，利用线程池异步清理无效文件）。
     3. 提供生成队列余量监控。
     """
-    _THUMBNAIL_DIR: str = os.path.join(Utils.get_runtime_path(), "cache", "thumbnail")
+
+    @classmethod
+    def ensure_thumbnail(cls, file_path: str) -> ThumbnailResult:
+        """
+        用途说明：统一的按需缩略图生成入口（相册等页面共用同一接口）。
+            1. 仅处理图片/视频、非回收站且物理文件真实存在的索引记录；
+            2. 同内容（同 MD5）缩略图已存在时直接复用并回填数据库；
+            3. 缺失时调用生成器同步生成；并发生成由生成器内部加锁与原子写入兜底。
+        入参说明：
+            file_path (str): 文件完整路径。
+        返回值说明：ThumbnailResult - 源文件路径与缩略图路径（失败时缩略图路径为空）。
+        """
+        result: ThumbnailResult = ThumbnailResult(file_path=file_path, thumbnail_path=None)
+        try:
+            file_info: Optional[FileIndexDBModel] = DBOperations.get_file_by_path(file_path)
+            media_types: List[str] = [FileType.IMAGE.value, FileType.VIDEO.value]
+            if (file_info is None or file_info.recycle_bin_time
+                    or file_info.file_type not in media_types
+                    or not os.path.isfile(file_info.file_path)):
+                LogUtils.error(t('thumb_ensure_file_invalid', path=file_path))
+                return result
+
+            existing_path: Optional[str] = ThumbnailGenerator.get_existing_thumbnail_path(file_info.file_md5)
+            if existing_path:
+                # 物理文件已存在时同步回填数据库，保证列表直接命中缩略图
+                DBOperations.update_thumbnail_path_by_md5(file_info.file_md5, existing_path)
+                result.thumbnail_path = existing_path
+                return result
+
+            thumb_size: int = repositoryService.get_current_config().thumbnail_size
+            if not isinstance(thumb_size, int) or thumb_size <= 0:
+                thumb_size = 256
+
+            generated_path: Optional[str] = ThumbnailGenerator().generate_now(file_info, thumb_size)
+            result.thumbnail_path = generated_path
+            if generated_path:
+                LogUtils.info(t('thumb_ensure_generated_log', path=file_path, thumb_path=generated_path))
+            else:
+                LogUtils.error(t('thumb_ensure_generate_failed', path=file_path))
+        except Exception as e:
+            LogUtils.error(t('thumb_ensure_generate_error', path=file_path, error=str(e)))
+        return result
 
     @classmethod
     def get_thumbnail_queue_count(cls) -> int:
@@ -53,9 +98,8 @@ class ThumbnailService(BaseAsyncService):
                 LogUtils.error(t('thumb_sync_running'))
                 return False
 
-            if not os.path.exists(cls._THUMBNAIL_DIR):
-                os.makedirs(cls._THUMBNAIL_DIR, exist_ok=True)
-            
+            ThumbnailPathUtils.ensure_thumbnail_dir()
+
             # 重置进度管理器
             cls._progress_manager.set_status(ProgressStatus.PROCESSING)
             cls._progress_manager.set_stop_flag(False)
@@ -78,10 +122,17 @@ class ThumbnailService(BaseAsyncService):
         """
         try:
             cls._progress_manager.update_progress(message=t('thumb_sync_scanning'))
-            
-            all_files: List[str] = os.listdir(cls._THUMBNAIL_DIR)
+
+            # 同时扫描当前配置目录与历史兼容目录，升级后旧缩略图也能被正确维护
+            thumbnail_dirs: List[str] = ThumbnailPathUtils.get_known_dirs()
+            all_files: List[str] = []
+            for thumbnail_dir in thumbnail_dirs:
+                if os.path.isdir(thumbnail_dir):
+                    all_files.extend(
+                        os.path.join(thumbnail_dir, filename) for filename in os.listdir(thumbnail_dir)
+                    )
             total_files: int = len(all_files)
-            
+
             if total_files == 0:
                 cls._progress_manager.set_status(ProgressStatus.COMPLETED)
                 cls._progress_manager.update_progress(message=t('thumb_sync_empty'))
@@ -90,26 +141,25 @@ class ThumbnailService(BaseAsyncService):
             cls._progress_manager.reset_progress(total=total_files, message=t('thumb_sync_found_files', count=total_files))
 
             delete_count: int = 0
-            for index, filename in enumerate(all_files):
+            for index, file_path in enumerate(all_files):
                 # 检查任务是否被手动停止
                 if cls._progress_manager.is_stopped():
                     LogUtils.info(t('thumb_sync_user_stop'))
                     return
 
                 # 获取文件名（MD5）
-                name_without_ext: str = os.path.splitext(filename)[0]
-                
+                name_without_ext: str = os.path.splitext(os.path.basename(file_path))[0]
+
                 # 如果数据库中不存在此 MD5 的记录，则物理文件为无效
                 if not DBOperations.check_file_md5_exists(name_without_ext):
-                    file_path: str = os.path.join(cls._THUMBNAIL_DIR, filename)
                     if os.path.isfile(file_path):
                         os.remove(file_path)
                         delete_count += 1
-                
+
                 # 分批更新进度，避免 UI 刷新过频
                 if index % 100 == 0 or index == total_files - 1:
                     cls._progress_manager.update_progress(
-                        current=index + 1, 
+                        current=index + 1,
                         message=t('thumb_sync_progress', current=index + 1, total=total_files, delete_count=delete_count)
                     )
 
@@ -171,11 +221,13 @@ class ThumbnailService(BaseAsyncService):
         """
         try:
             cls.stop_thumbnail_generation()
-            
-            if os.path.exists(cls._THUMBNAIL_DIR):
-                shutil.rmtree(cls._THUMBNAIL_DIR)
-                os.makedirs(cls._THUMBNAIL_DIR, exist_ok=True)
-            
+
+            # 清空当前配置目录与历史兼容目录，避免旧缩略图残留
+            for thumbnail_dir in ThumbnailPathUtils.get_known_dirs():
+                if os.path.exists(thumbnail_dir):
+                    shutil.rmtree(thumbnail_dir, ignore_errors=True)
+            ThumbnailPathUtils.ensure_thumbnail_dir()
+
             return DBOperations.clear_all_thumbnail_records()
         except Exception as e:
             LogUtils.error(t('thumb_clear_all_failed', error=str(e)))

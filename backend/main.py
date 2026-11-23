@@ -33,6 +33,7 @@ from backend.system.system_routes import system_bp
 from backend.repository.repository_routes import repository_bp
 from backend.repository.repository_service import repositoryService
 from backend.organize.organize_routes import organize_bp
+from backend.album.album_routes import album_bp
 from backend.user.user_routes import user_bp
 from backend.user.user_service import userService
 from backend.common.repo_context import set_current_repo_id, DEFAULT_REPO_ID
@@ -159,6 +160,7 @@ app.register_blueprint(file_name_repo_bp, url_prefix='/api/file_name_repository'
 app.register_blueprint(system_bp, url_prefix='/api/system')
 app.register_blueprint(repository_bp, url_prefix='/api/repository')
 app.register_blueprint(organize_bp, url_prefix='/api/organize')
+app.register_blueprint(album_bp, url_prefix='/api/album')
 app.register_blueprint(user_bp, url_prefix='/api/user')
 
 def start_server() -> None:
