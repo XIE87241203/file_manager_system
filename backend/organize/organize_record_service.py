@@ -1,10 +1,10 @@
 import csv
 import io
-from datetime import datetime, timezone
 from typing import Iterator, List
 
 from backend.common.i18n_utils import t
 from backend.common.log_utils import LogUtils
+from backend.common.timezone_utils import TimezoneUtils
 from backend.db.processor_manager import processor_manager
 from backend.model.db.organize_record_db_model import OrganizeRecordDBModel
 from backend.organize.organize_models import OrganizeRecordPageResult, OrganizeRecordResult
@@ -86,17 +86,11 @@ class OrganizeRecordService:
     @staticmethod
     def _to_local_time(raw: str) -> str:
         """
-        用途说明：将数据库 UTC 时间字符串转换为服务器本地时间字符串（格式保持 YYYY-MM-DD HH:MM:SS）。
+        用途说明：将数据库 UTC 时间字符串转换为系统设置时区的时间字符串（格式保持 YYYY-MM-DD HH:MM:SS）。
         入参说明：raw (str): 数据库 organize_time 原始值（UTC，可能为 None/空/异常格式）。
-        返回值说明：str - 本地时间字符串；无法解析时原样返回，空值返回空串。
+        返回值说明：str - 系统设置时区下的时间字符串；无法解析时原样返回，空值返回空串。
         """
-        if not raw:
-            return ''
-        try:
-            utc_dt: datetime = datetime.strptime(raw, '%Y-%m-%d %H:%M:%S').replace(tzinfo=timezone.utc)
-            return utc_dt.astimezone().strftime('%Y-%m-%d %H:%M:%S')
-        except (TypeError, ValueError):
-            return raw
+        return TimezoneUtils.utc_to_target(raw)
 
 
 # 创建全局唯一的整理记录服务实例，供路由层统一调用

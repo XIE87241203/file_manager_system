@@ -1,6 +1,6 @@
 /**
- * 用途说明：相册浏览页面逻辑，负责瀑布流渲染、搜索、无限滚动、按需生成缩略图、
- * 单项/批量下载与删除（移入回收站），以及媒体预览弹窗（图片/视频切换、下载、删除）。
+ * 用途说明：相册浏览页面逻辑，负责瀑布流渲染（按 EXIF 拍摄时间分组，缺失时回退文件修改时间）、垂直时间轴导航、搜索、
+ * 无限滚动、按需生成缩略图、单项/批量下载与删除（移入回收站），以及媒体预览弹窗（图片/视频切换、下载、删除）。
  * 模块划分：State（状态）、UIController（DOM 与渲染）、API（接口封装）、App（入口与事件绑定）。
  */
 
@@ -9,26 +9,46 @@ const State = {
     page: 1,
     limit: 30,
     search: '',
-    sortBy: 'scan_time',
+    fileType: '', // 媒体类型筛选：'' 全部 / 'image' 仅图片 / 'video' 仅视频
+    sortBy: 'album_time', // 按相册时间倒序（EXIF 优先、修改时间兜底），供瀑布流按时间分组
     orderAsc: false,
     items: [],
     total: 0,
     loading: false,
     hasMore: true,
     selected: new Set(), // 已选中的文件路径集合
-    cardMap: new Map(), // file_path -> { card, item, img, placeholder, placeholderText }
+    cardMap: new Map(), // file_path -> { card, item, img, placeholder, placeholderText, groupKey }
+    groupMap: new Map(), // 时间分组键(YYYY-MM-DD / unknown) -> { key, section, grid, count }
+    groupKeys: [], // 分组键列表，按时间倒序排列，unknown 固定排最后
+    timelineTicks: [], // 时间轴刻度缓存：[{ el, level, key, year, month }]
+    activeGroupKey: '', // 当前滚动位置对应的分组键
     ensureRequested: new Set(), // 已发起缩略图生成请求的路径
     ensureQueue: [], // 缩略图生成待处理队列
     ensureActive: 0, // 当前进行中的缩略图请求数
     ensureMax: 3, // 缩略图请求最大并发数
     previewIndex: -1, // 当前预览索引，-1 表示未打开
+    detailWidth: 0, // 详情侧边栏当前宽度（像素），0 表示使用默认宽度
+    detailResizing: false, // 是否正在拖动侧边栏边缘
+    detailDragStartX: 0, // 拖动开始时的鼠标横坐标
+    detailDragStartWidth: 0, // 拖动开始时的侧边栏宽度
     queryToken: 0, // 请求代次，用于丢弃搜索切换后的过期响应
+    scanInterval: null, // 索引扫描进度轮询定时器，null 表示当前未在扫描
+    repoPermission: '', // 当前仓库权限：admin/member，成员仅可浏览
     sentinelObserver: null,
     cardObserver: null
 };
 
 // --- API 封装 ---
 const API = {
+    /**
+     * 用途说明：获取当前用户在当前仓库中的权限。
+     * 入参说明：onSuccess (Function) - 成功回调；onError (Function) - 失败回调。
+     * 返回值说明：无
+     */
+    getCurrentUser(onSuccess, onError) {
+        AlbumBrowseRequest.getCurrentUser(onSuccess, onError);
+    },
+
     /**
      * 用途说明：拉取一页相册数据。
      * 入参说明：page (number) - 页码；onSuccess (Function) - 成功回调；onError (Function) - 失败回调。
@@ -39,6 +59,7 @@ const API = {
             page: page,
             limit: State.limit,
             search: State.search,
+            file_type: State.fileType,
             sort_by: State.sortBy,
             order_asc: State.orderAsc
         }, onSuccess, onError);
@@ -60,6 +81,33 @@ const API = {
      */
     deleteFiles(filePaths, onSuccess, onError) {
         AlbumBrowseRequest.moveToRecycleBin(filePaths, onSuccess, onError);
+    },
+
+    /**
+     * 用途说明：启动索引扫描任务。
+     * 入参说明：fullScan (boolean) - 是否全量扫描；onSuccess (Function) - 成功回调；onError (Function) - 失败回调。
+     * 返回值说明：无
+     */
+    startScan(fullScan, onSuccess, onError) {
+        AlbumBrowseRequest.startScan(fullScan, onSuccess, onError);
+    },
+
+    /**
+     * 用途说明：停止索引扫描任务。
+     * 入参说明：onSuccess (Function) - 成功回调；onError (Function) - 失败回调。
+     * 返回值说明：无
+     */
+    stopScan(onSuccess, onError) {
+        AlbumBrowseRequest.stopScan(onSuccess, onError);
+    },
+
+    /**
+     * 用途说明：获取索引扫描进度。
+     * 入参说明：onSuccess (Function) - 成功回调；onError (Function) - 失败回调。
+     * 返回值说明：无
+     */
+    getScanProgress(onSuccess, onError) {
+        AlbumBrowseRequest.getProgress(onSuccess, onError);
     }
 };
 
@@ -78,10 +126,14 @@ const UIController = {
 
         SearchHeaderToolbar.init({
             searchHint: I18nManager.t('album.search_placeholder'),
-            searchCallback: (content) => App.handleSearch(content)
+            searchCallback: (content) => App.handleSearch(content),
+            menuCallback: (e) => this.showMenu(e)
         });
 
         this.elements = {
+            pageContent: document.getElementById('album-page-content'),
+            timelineTicks: document.getElementById('album-timeline-ticks'),
+            typeFilter: document.getElementById('album-type-filter'),
             waterfall: document.getElementById('album-waterfall'),
             empty: document.getElementById('album-empty'),
             sentinel: document.getElementById('album-sentinel'),
@@ -94,15 +146,137 @@ const UIController = {
             previewMask: document.getElementById('album-preview-mask'),
             previewBody: document.getElementById('album-preview-body'),
             previewName: document.getElementById('album-preview-name'),
+            previewSelectBtn: document.getElementById('album-preview-select'),
+            previewSelectedCount: document.getElementById('album-preview-selected-count'),
             previewDownloadBtn: document.getElementById('album-preview-download'),
             previewDeleteBtn: document.getElementById('album-preview-delete'),
+            previewDetailBtn: document.getElementById('album-preview-detail'),
             previewCloseBtn: document.getElementById('album-preview-close'),
+            detailPanel: document.getElementById('album-detail-panel'),
+            detailResize: document.getElementById('album-detail-resize'),
+            detailCloseBtn: document.getElementById('album-detail-close'),
+            detailName: document.getElementById('album-detail-name'),
+            detailPath: document.getElementById('album-detail-path'),
+            detailCaptureTime: document.getElementById('album-detail-capture-time'),
+            detailMtime: document.getElementById('album-detail-mtime'),
+            detailSize: document.getElementById('album-detail-size'),
+            detailLocation: document.getElementById('album-detail-location'),
             previewPrevBtn: document.getElementById('album-preview-prev'),
             previewNextBtn: document.getElementById('album-preview-next')
         };
 
         this.initObservers();
         this.bindPreviewEvents();
+        this.bindDetailResize();
+        this.bindTypeFilter();
+        this.applyPermissionUI();
+    },
+
+    /**
+     * 用途说明：按当前仓库权限显示或隐藏删除与索引管理入口，仓库成员仅保留浏览、选择和下载能力。
+     * 入参说明：无
+     * 返回值说明：无
+     */
+    applyPermissionUI() {
+        const canManage = State.repoPermission === 'admin';
+        if (this.elements.deleteSelectedBtn) this.elements.deleteSelectedBtn.classList.toggle('hidden', !canManage);
+        if (this.elements.previewDeleteBtn) this.elements.previewDeleteBtn.classList.toggle('hidden', !canManage);
+        const menuBtn = document.getElementById('btn-menu');
+        if (menuBtn) menuBtn.classList.toggle('hidden', !canManage);
+        this.updateSelectionBar();
+    },
+
+    /**
+     * 用途说明：显示或切换右上角动作菜单，菜单中提供“建立索引/停止索引”入口。
+     * 入参说明：event (Event) - 菜单按钮点击事件对象。
+     * 返回值说明：无
+     */
+    showMenu(event) {
+        if (State.repoPermission !== 'admin') return;
+        const menuBtn = document.getElementById('btn-menu');
+        if (!menuBtn) return;
+        const rect = menuBtn.getBoundingClientRect();
+
+        let menu = document.getElementById('album-action-menu');
+        if (!menu) {
+            menu = document.createElement('div');
+            menu.id = 'album-action-menu';
+            menu.className = 'dropdown-menu';
+            document.body.appendChild(menu);
+
+            // 点击菜单外部时关闭
+            document.addEventListener('click', (e) => {
+                if (!menu.contains(e.target) && !menuBtn.contains(e.target)) {
+                    menu.classList.remove('show');
+                }
+            });
+        }
+
+        // 再次点击菜单按钮时关闭
+        if (menu.classList.contains('show')) {
+            menu.classList.remove('show');
+            return;
+        }
+
+        const isScanning = App.isScanning();
+        const scanText = isScanning
+            ? I18nManager.t('file_repo.menu_stop_scan')
+            : I18nManager.t('file_repo.menu_start_scan');
+        const scanClass = isScanning ? 'menu-item text-danger' : 'menu-item';
+
+        menu.textContent = '';
+        const scanItem = document.createElement('div');
+        scanItem.className = scanClass;
+        scanItem.id = 'album-menu-scan';
+        scanItem.textContent = scanText;
+        menu.appendChild(scanItem);
+
+        scanItem.onclick = () => {
+            menu.classList.remove('show');
+            if (App.isScanning()) App.handleStopScan();
+            else App.confirmStartScan();
+        };
+
+        menu.style.top = `${rect.bottom + 5}px`;
+        menu.style.left = `${rect.right - 160}px`;
+        menu.classList.add('show');
+    },
+
+    /**
+     * 用途说明：扫描期间隐藏相册内容，仅保留进度遮罩，与文件管理页面的展示逻辑一致。
+     * 入参说明：isScanning (boolean) - 是否正在扫描。
+     * 返回值说明：无
+     */
+    toggleScanUI(isScanning) {
+        const pageContent = this.elements.pageContent;
+        if (!pageContent) return;
+        pageContent.style.visibility = isScanning ? 'hidden' : 'visible';
+    },
+
+    /**
+     * 用途说明：显示扫描进度遮罩；若遮罩此前被隐藏，则重新设为显示，保证多次扫描都能看到进度。
+     * 入参说明：无
+     * 返回值说明：无
+     */
+    showScanProgress() {
+        UIComponents.showProgressBar('#album-main-content', I18nManager.t('file_repo.scanning'));
+        const overlay = document.querySelector('#album-main-content .common-progress-overlay');
+        if (overlay) overlay.style.display = 'flex';
+    },
+
+    /**
+     * 用途说明：绑定时间轴上方的媒体类型筛选下拉框，切换后重置分页并按类型重新加载。
+     * 入参说明：无
+     * 返回值说明：无
+     */
+    bindTypeFilter() {
+        const select = this.elements.typeFilter;
+        if (!select) return;
+        select.value = State.fileType;
+        select.onchange = () => {
+            State.fileType = select.value || '';
+            App.loadFirstPage();
+        };
     },
 
     /**
@@ -131,6 +305,20 @@ const UIController = {
                 State.cardObserver.unobserve(card);
             });
         }, { root: scrollRoot, rootMargin: '300px 0px' });
+
+        // 监听滚动容器的滚动，节流更新时间轴当前所在刻度
+        // 说明：使用 setTimeout 而非 requestAnimationFrame，避免页面处于后台时帧回调暂停导致刻度长期不更新
+        if (scrollRoot) {
+            let scrollThrottled = false;
+            scrollRoot.addEventListener('scroll', () => {
+                if (scrollThrottled) return;
+                scrollThrottled = true;
+                window.setTimeout(() => {
+                    scrollThrottled = false;
+                    UIController.updateTimelineActive();
+                }, 80);
+            }, { passive: true });
+        }
     },
 
     /**
@@ -154,11 +342,29 @@ const UIController = {
                 if (item) App.downloadFiles([item.file_path]);
             };
         }
+        if (this.elements.previewSelectBtn) {
+            this.elements.previewSelectBtn.onclick = () => {
+                const item = State.items[State.previewIndex];
+                if (!item) return;
+                // 预览页同样支持选中/取消选中，与列表卡片的选中状态保持同步
+                App.toggleSelection(item.file_path, !State.selected.has(item.file_path));
+                this.syncPreviewSelectionState();
+            };
+        }
         if (this.elements.previewDeleteBtn) {
             this.elements.previewDeleteBtn.onclick = () => {
                 const item = State.items[State.previewIndex];
                 if (item) App.deleteFiles([item.file_path], true);
             };
+        }
+        if (this.elements.previewDetailBtn) {
+            this.elements.previewDetailBtn.onclick = () => {
+                const item = State.items[State.previewIndex];
+                if (item) this.showDetail(item);
+            };
+        }
+        if (this.elements.detailCloseBtn) {
+            this.elements.detailCloseBtn.onclick = () => this.closeDetail();
         }
         if (this.elements.previewMask) {
             this.elements.previewMask.addEventListener('click', (e) => {
@@ -167,10 +373,72 @@ const UIController = {
             });
         }
         document.addEventListener('keydown', (e) => {
+            // 详情侧边栏打开时，Esc 优先关闭侧边栏
+            if (e.key === 'Escape' && this.elements.detailPanel
+                && !this.elements.detailPanel.classList.contains('hidden')) {
+                this.closeDetail();
+                return;
+            }
             if (State.previewIndex < 0) return;
             if (e.key === 'Escape') this.closePreview();
             else if (e.key === 'ArrowLeft') this.previewStep(-1);
             else if (e.key === 'ArrowRight') this.previewStep(1);
+        });
+    },
+
+    /**
+     * 用途说明：绑定详情侧边栏左边缘拖动调整宽度事件，宽度限制在页面宽度的 20% 至 80% 之间。
+     * 入参说明：无
+     * 返回值说明：无
+     */
+    bindDetailResize() {
+        const handle = this.elements.detailResize;
+        const panel = this.elements.detailPanel;
+        if (!handle || !panel) return;
+
+        // 按页面宽度 20%～80% 夹取后应用到侧边栏
+        const applyWidth = (width) => {
+            const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+            let targetWidth = width;
+            if (viewportWidth > 0) {
+                const minWidth = viewportWidth * 0.2;
+                const maxWidth = viewportWidth * 0.8;
+                targetWidth = Math.min(maxWidth, Math.max(minWidth, width));
+            }
+            State.detailWidth = targetWidth;
+            panel.style.width = `${Math.round(targetWidth)}px`;
+        };
+
+        handle.addEventListener('pointerdown', (e) => {
+            if (panel.classList.contains('hidden')) return;
+            State.detailResizing = true;
+            State.detailDragStartX = e.clientX;
+            State.detailDragStartWidth = panel.getBoundingClientRect().width;
+            handle.setPointerCapture(e.pointerId);
+            e.preventDefault();
+        });
+
+        handle.addEventListener('pointermove', (e) => {
+            if (!State.detailResizing) return;
+            // 向左拖动（clientX 减小）时加宽，向右拖动时收窄
+            applyWidth(State.detailDragStartWidth + (State.detailDragStartX - e.clientX));
+        });
+
+        const stopResize = (e) => {
+            if (!State.detailResizing) return;
+            State.detailResizing = false;
+            if (handle.hasPointerCapture(e.pointerId)) {
+                handle.releasePointerCapture(e.pointerId);
+            }
+        };
+        handle.addEventListener('pointerup', stopResize);
+        handle.addEventListener('pointercancel', stopResize);
+
+        // 窗口尺寸变化时重新夹取，避免超出 20%～80% 范围
+        window.addEventListener('resize', () => {
+            if (State.detailWidth > 0 && !panel.classList.contains('hidden')) {
+                applyWidth(State.detailWidth);
+            }
         });
     },
 
@@ -190,8 +458,8 @@ const UIController = {
         const placeholder = document.createElement('div');
         placeholder.className = 'album-placeholder';
         const placeholderIcon = document.createElement('span');
-        placeholderIcon.className = 'album-placeholder-icon';
-        placeholderIcon.textContent = item.file_type === 'video' ? '🎬' : '🖼️';
+        placeholderIcon.className = `album-placeholder-icon theme-icon ${item.file_type === 'video' ? 'icon-video' : 'icon-image'}`;
+        placeholderIcon.setAttribute('aria-hidden', 'true');
         const placeholderText = document.createElement('span');
         placeholderText.className = 'album-placeholder-text';
         placeholderText.textContent = I18nManager.t('album.thumbnail_generating');
@@ -201,7 +469,10 @@ const UIController = {
         const img = document.createElement('img');
         img.className = 'album-thumb hidden';
         img.alt = item.file_name;
-        img.loading = 'lazy';
+        // 注意：此处不能使用 loading="lazy"。
+        // 缩略图在加载完成前处于 hidden（display:none）状态，而浏览器对 display:none 的懒加载图片
+        // 不会发起网络请求，导致 onload 永不触发、占位文案永远停留在“缩略图生成中”。
+        // 按需加载已由卡片可见性观察器（cardObserver）控制，这里无需再懒加载。
         img.onerror = () => this.handleThumbError(item.file_path);
         img.onload = () => {
             img.classList.remove('hidden');
@@ -233,30 +504,57 @@ const UIController = {
         downloadBtn.type = 'button';
         downloadBtn.className = 'album-action-btn';
         downloadBtn.title = I18nManager.t('album.download');
-        downloadBtn.textContent = '⬇';
+        const downloadIcon = document.createElement('span');
+        downloadIcon.className = 'theme-icon icon-download';
+        downloadIcon.setAttribute('aria-hidden', 'true');
+        downloadBtn.appendChild(downloadIcon);
         downloadBtn.onclick = (e) => {
             e.stopPropagation();
             App.downloadFiles([item.file_path]);
         };
-        const deleteBtn = document.createElement('button');
-        deleteBtn.type = 'button';
-        deleteBtn.className = 'album-action-btn album-action-danger';
-        deleteBtn.title = I18nManager.t('album.delete');
-        deleteBtn.textContent = '🗑';
-        deleteBtn.onclick = (e) => {
-            e.stopPropagation();
-            App.deleteFiles([item.file_path], false);
-        };
         actions.appendChild(downloadBtn);
-        actions.appendChild(deleteBtn);
+        if (State.repoPermission === 'admin') {
+            const deleteBtn = document.createElement('button');
+            deleteBtn.type = 'button';
+            deleteBtn.className = 'album-action-btn album-action-danger';
+            deleteBtn.title = I18nManager.t('album.delete');
+            const deleteIcon = document.createElement('span');
+            deleteIcon.className = 'theme-icon icon-trash';
+            deleteIcon.setAttribute('aria-hidden', 'true');
+            deleteBtn.appendChild(deleteIcon);
+            deleteBtn.onclick = (e) => {
+                e.stopPropagation();
+                App.deleteFiles([item.file_path], false);
+            };
+            actions.appendChild(deleteBtn);
+        }
         wrap.appendChild(actions);
+
+        // 文件名行：文件名 + 详情按钮（按钮位于名称右侧）
+        const nameRow = document.createElement('div');
+        nameRow.className = 'album-name-row';
 
         const name = document.createElement('div');
         name.className = 'album-name';
         name.textContent = item.file_name;
 
+        const detailBtn = document.createElement('button');
+        detailBtn.type = 'button';
+        detailBtn.className = 'album-detail-trigger';
+        detailBtn.title = I18nManager.t('album.detail_open');
+        const detailIcon = document.createElement('span');
+        detailIcon.className = 'theme-icon icon-info';
+        detailIcon.setAttribute('aria-hidden', 'true');
+        detailBtn.appendChild(detailIcon);
+        detailBtn.onclick = (e) => {
+            e.stopPropagation();
+            this.showDetail(item);
+        };
+        nameRow.appendChild(name);
+        nameRow.appendChild(detailBtn);
+
         card.appendChild(wrap);
-        card.appendChild(name);
+        card.appendChild(nameRow);
         card.onclick = () => this.openPreview(item.file_path);
 
         State.cardMap.set(item.file_path, {
@@ -324,36 +622,297 @@ const UIController = {
     },
 
     /**
-     * 用途说明：渲染一页媒体卡片并追加到瀑布流。
+     * 用途说明：解析媒体项所属的时间分组键，优先使用 EXIF 拍摄时间，其次文件修改时间，
+     * 都缺失时按扫描时间兜底。
+     * 入参说明：item (Object) - 媒体项，包含 file_exif_time、file_mtime 与 scan_time 字段。
+     * 返回值说明：string - 分组键（YYYY-MM-DD）；无法解析时返回 'unknown'。
+     */
+    resolveGroupKey(item) {
+        const rawTime = item.file_exif_time || item.file_mtime || item.scan_time || '';
+        const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(rawTime);
+        return match ? match[1] + '-' + match[2] + '-' + match[3] : 'unknown';
+    },
+
+    /**
+     * 用途说明：生成分组标题文案（中文如 2026年11月23日，英文如 November 23, 2026）。
+     * 入参说明：key (string) - 分组键（YYYY-MM-DD 或 unknown）。
+     * 返回值说明：string - 本地化后的日期文案。
+     */
+    buildGroupTitle(key) {
+        if (key === 'unknown') return I18nManager.t('album.unknown_date');
+        const parts = key.split('-');
+        const year = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10);
+        const day = parseInt(parts[2], 10);
+        if (I18nManager.currentLang === 'zh') {
+            return year + '年' + month + '月' + day + '日';
+        }
+        return new Intl.DateTimeFormat('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        }).format(new Date(year, month - 1, day));
+    },
+
+    /**
+     * 用途说明：计算新分组键在倒序分组列表中的插入位置（unknown 固定排最后）。
+     * 入参说明：key (string) - 待插入的分组键。
+     * 返回值说明：number - 插入下标。
+     */
+    getGroupInsertIndex(key) {
+        for (let i = 0; i < State.groupKeys.length; i++) {
+            const currentKey = State.groupKeys[i];
+            if (currentKey === 'unknown') return i;
+            if (key !== 'unknown' && key > currentKey) return i;
+        }
+        return State.groupKeys.length;
+    },
+
+    /**
+     * 用途说明：确保指定时间分组的容器（标题 + 多列瀑布流网格）已创建，返回分组信息。
+     * 入参说明：key (string) - 分组键（YYYY-MM-DD 或 unknown）。
+     * 返回值说明：Object - 分组信息 { key, section, grid, count }。
+     */
+    ensureGroup(key) {
+        const existing = State.groupMap.get(key);
+        if (existing) return existing;
+
+        const section = document.createElement('section');
+        section.className = 'album-group';
+        section.setAttribute('data-key', key);
+
+        const title = document.createElement('h2');
+        title.className = 'album-group-title';
+        title.textContent = this.buildGroupTitle(key);
+
+        const grid = document.createElement('div');
+        grid.className = 'album-group-grid';
+
+        section.appendChild(title);
+        section.appendChild(grid);
+
+        const insertIndex = this.getGroupInsertIndex(key);
+        State.groupKeys.splice(insertIndex, 0, key);
+        const nextKey = State.groupKeys[insertIndex + 1];
+        const nextGroup = nextKey ? State.groupMap.get(nextKey) : null;
+        if (this.elements.waterfall) {
+            if (nextGroup) this.elements.waterfall.insertBefore(section, nextGroup.section);
+            else this.elements.waterfall.appendChild(section);
+        }
+
+        const groupInfo = { key: key, section: section, grid: grid, count: 0 };
+        State.groupMap.set(key, groupInfo);
+        return groupInfo;
+    },
+
+    /**
+     * 用途说明：重建垂直时间轴：年份刻度最大且显示年份、月份刻度次之显示月份、日刻度仅显示圆点（悬浮显示具体日期）。
+     * 入参说明：无
+     * 返回值说明：无
+     */
+    rebuildTimeline() {
+        const ticksHost = this.elements.timelineTicks;
+        if (!ticksHost) return;
+        // 仅清空刻度容器，保留顶部的媒体类型筛选下拉框
+        ticksHost.textContent = '';
+        State.timelineTicks = [];
+        ticksHost.classList.toggle('hidden', State.groupKeys.length === 0);
+        if (State.groupKeys.length === 0) return;
+
+        const track = document.createElement('div');
+        track.className = 'album-timeline-track';
+
+        let prevYear = '';
+        let prevMonth = '';
+        State.groupKeys.forEach(key => {
+            let year = '';
+            let month = '';
+            if (key !== 'unknown') {
+                const parts = key.split('-');
+                year = parts[0];
+                month = parts[1];
+            }
+
+            // 年份刻度：每年只出现一次，字号最大并显示具体年份
+            if (key !== 'unknown' && year !== prevYear) {
+                const yearLabel = I18nManager.currentLang === 'zh' ? year + '年' : year;
+                track.appendChild(this.createTimelineTick('year', key, yearLabel, this.buildGroupTitle(key), year, month));
+                prevYear = year;
+                prevMonth = '';
+            }
+
+            // 月份刻度：每年内每月只出现一次，字号次之并显示月份
+            if (key !== 'unknown' && month !== prevMonth) {
+                const monthLabel = I18nManager.currentLang === 'zh'
+                    ? parseInt(month, 10) + '月'
+                    : new Intl.DateTimeFormat('en-US', { month: 'short' })
+                        .format(new Date(parseInt(year, 10), parseInt(month, 10) - 1, 1));
+                track.appendChild(this.createTimelineTick('month', key, monthLabel, this.buildGroupTitle(key), year, month));
+                prevMonth = month;
+            }
+
+            // 日刻度：仅显示圆点，不显示日期文字，悬浮提示完整日期
+            track.appendChild(this.createTimelineTick('day', key, '', this.buildGroupTitle(key), year, month));
+        });
+
+        ticksHost.appendChild(track);
+        this.updateTimelineActive();
+    },
+
+    /**
+     * 用途说明：创建单个时间轴刻度元素并绑定跳转事件。
+     * 入参说明：
+     *   level (string) - 刻度层级：year / month / day。
+     *   anchorKey (string) - 点击后滚动到的分组键。
+     *   label (string) - 刻度文案（日刻度为空字符串）。
+     *   title (string) - 悬浮提示文案。
+     *   year (string) - 所属年份（unknown 分组为空）。
+     *   month (string) - 所属月份（unknown 分组为空）。
+     * 返回值说明：HTMLElement - 刻度元素。
+     */
+    createTimelineTick(level, anchorKey, label, title, year, month) {
+        const tick = document.createElement('div');
+        tick.className = 'album-timeline-tick album-timeline-tick-' + level;
+        tick.setAttribute('data-key', anchorKey);
+        if (title) tick.title = title;
+        if (label) {
+            const labelEl = document.createElement('span');
+            labelEl.className = 'album-timeline-label';
+            labelEl.textContent = label;
+            tick.appendChild(labelEl);
+        }
+        tick.onclick = () => this.scrollToGroup(anchorKey);
+        State.timelineTicks.push({
+            el: tick,
+            level: level,
+            key: anchorKey,
+            year: year || '',
+            month: month || ''
+        });
+        return tick;
+    },
+
+    /**
+     * 用途说明：根据当前滚动位置高亮时间轴刻度：当前日高亮，所在年份/月份作为上下文高亮。
+     * 入参说明：无
+     * 返回值说明：无
+     */
+    updateTimelineActive() {
+        const scrollRoot = document.querySelector('.main-content');
+        if (!scrollRoot || State.groupKeys.length === 0) return;
+
+        const rootTop = scrollRoot.getBoundingClientRect().top;
+        let activeKey = State.groupKeys[0];
+        State.groupKeys.forEach(key => {
+            const group = State.groupMap.get(key);
+            if (!group) return;
+            if (group.section.getBoundingClientRect().top - rootTop <= 96) activeKey = key;
+        });
+        State.activeGroupKey = activeKey;
+
+        let activeYear = '';
+        let activeMonth = '';
+        if (activeKey !== 'unknown') {
+            const parts = activeKey.split('-');
+            activeYear = parts[0];
+            activeMonth = parts[1];
+        }
+
+        State.timelineTicks.forEach(tick => {
+            let isActive = tick.key === activeKey;
+            let isContext = false;
+            if (tick.level === 'year') {
+                isContext = tick.year === activeYear;
+            } else if (tick.level === 'month') {
+                isContext = tick.year === activeYear && tick.month === activeMonth;
+            }
+            tick.el.classList.toggle('is-active', isActive);
+            tick.el.classList.toggle('is-context', isContext);
+        });
+    },
+
+    /**
+     * 用途说明：点击时间轴刻度后平滑滚动到对应时间分组。
+     * 入参说明：key (string) - 目标分组键。
+     * 返回值说明：无
+     */
+    scrollToGroup(key) {
+        const group = State.groupMap.get(key);
+        const scrollRoot = document.querySelector('.main-content');
+        if (!group || !scrollRoot) return;
+        const offset = group.section.getBoundingClientRect().top
+            - scrollRoot.getBoundingClientRect().top
+            + scrollRoot.scrollTop
+            - 12;
+        scrollRoot.scrollTo({ top: Math.max(0, offset), behavior: 'smooth' });
+    },
+
+    /**
+     * 用途说明：移除已清空的时间分组容器并重建时间轴。
+     * 入参说明：key (string) - 待移除的分组键。
+     * 返回值说明：无
+     */
+    removeGroup(key) {
+        const group = State.groupMap.get(key);
+        if (!group) return;
+        if (group.section.parentNode) group.section.parentNode.removeChild(group.section);
+        State.groupMap.delete(key);
+        const index = State.groupKeys.indexOf(key);
+        if (index >= 0) State.groupKeys.splice(index, 1);
+        this.rebuildTimeline();
+    },
+
+    /**
+     * 用途说明：渲染一页媒体卡片并按时间分组追加到瀑布流。
      * 入参说明：list (Array<Object>) - 媒体项数组。
      * 返回值说明：无
      */
     appendItems(list) {
         if (!this.elements.waterfall) return;
-        const fragment = document.createDocumentFragment();
-        list.forEach(item => fragment.appendChild(this.createCard(item)));
-        this.elements.waterfall.appendChild(fragment);
+        const previousGroupCount = State.groupKeys.length;
+        list.forEach(item => {
+            const groupKey = this.resolveGroupKey(item);
+            const group = this.ensureGroup(groupKey);
+            const card = this.createCard(item);
+            const info = State.cardMap.get(item.file_path);
+            if (info) info.groupKey = groupKey;
+            group.grid.appendChild(card);
+            group.count += 1;
+        });
+        if (State.groupKeys.length !== previousGroupCount) this.rebuildTimeline();
+        this.updateTimelineActive();
     },
 
     /**
-     * 用途说明：重置列表 DOM 与卡片缓存（用于搜索或首次加载）。
+     * 用途说明：重置列表 DOM、卡片缓存与时间分组（用于搜索或首次加载）。
      * 入参说明：无
      * 返回值说明：无
      */
     clearList() {
         if (this.elements.waterfall) this.elements.waterfall.textContent = '';
         State.cardMap.clear();
+        State.groupMap.clear();
+        State.groupKeys = [];
+        State.timelineTicks = [];
+        this.rebuildTimeline();
     },
 
     /**
-     * 用途说明：根据文件路径批量移除卡片并同步选中状态。
+     * 用途说明：根据文件路径批量移除卡片、空分组与选中状态。
      * 入参说明：filePaths (Array<string>) - 待移除的文件路径列表。
      * 返回值说明：无
      */
     removeByPaths(filePaths) {
         filePaths.forEach(filePath => {
             const info = State.cardMap.get(filePath);
-            if (info && info.card.parentNode) info.card.parentNode.removeChild(info.card);
+            if (info) {
+                if (info.card.parentNode) info.card.parentNode.removeChild(info.card);
+                const group = State.groupMap.get(info.groupKey);
+                if (group) {
+                    group.count -= 1;
+                    if (group.count <= 0) this.removeGroup(info.groupKey);
+                }
+            }
             State.cardMap.delete(filePath);
             State.selected.delete(filePath);
             State.ensureRequested.delete(filePath);
@@ -388,6 +947,11 @@ const UIController = {
         if (this.elements.selectedCount) {
             this.elements.selectedCount.textContent = I18nManager.t('album.selected_count', { count: count });
         }
+        if (this.elements.deleteSelectedBtn) {
+            this.elements.deleteSelectedBtn.classList.toggle('hidden', State.repoPermission !== 'admin');
+        }
+        // 选中数量变化时同步刷新预览页的选中数量展示
+        this.syncPreviewSelectionState();
     },
 
     /**
@@ -425,6 +989,8 @@ const UIController = {
         const item = State.items[index];
 
         if (this.elements.previewMask) this.elements.previewMask.classList.remove('hidden');
+        // 切换预览内容时关闭旧详情，避免展示上一条媒体的信息
+        this.closeDetail();
         document.body.classList.add('album-preview-open');
         if (this.elements.previewName) this.elements.previewName.textContent = item.file_name;
 
@@ -435,7 +1001,9 @@ const UIController = {
                 const video = document.createElement('video');
                 video.className = 'album-preview-media';
                 video.controls = true;
-                video.autoplay = true;
+                // 预览视频不自动播放，由用户手动点击播放
+                video.autoplay = false;
+                video.preload = 'metadata';
                 video.playsInline = true;
                 video.src = AlbumBrowseRequest.buildMediaUrl(item.file_path);
                 body.appendChild(video);
@@ -451,6 +1019,73 @@ const UIController = {
         const hasMultiple = State.items.length > 1;
         if (this.elements.previewPrevBtn) this.elements.previewPrevBtn.classList.toggle('hidden', !hasMultiple);
         if (this.elements.previewNextBtn) this.elements.previewNextBtn.classList.toggle('hidden', !hasMultiple);
+        this.syncPreviewSelectionState();
+    },
+
+    /**
+     * 用途说明：同步预览页选中按钮的外观与提示文案（已选中高亮，提示切换为取消选中）。
+     * 入参说明：无
+     * 返回值说明：无
+     */
+    syncPreviewSelectionState() {
+        const button = this.elements.previewSelectBtn;
+        const item = State.items[State.previewIndex];
+        if (!button || !item) return;
+        const isSelected = State.selected.has(item.file_path);
+        button.classList.toggle('is-selected', isSelected);
+        button.title = I18nManager.t(isSelected ? 'album.deselect_item' : 'album.select_item');
+
+        // 更新选中按钮旁的选中数量：无选中项时隐藏
+        const countEl = this.elements.previewSelectedCount;
+        if (countEl) {
+            const count = State.selected.size;
+            countEl.textContent = I18nManager.t('album.selected_count', { count: count });
+            countEl.classList.toggle('hidden', count === 0);
+        }
+    },
+
+    /**
+     * 用途说明：打开右侧详情侧边栏，填充当前媒体文件的基础信息。
+     * 入参说明：item (Object) - 媒体项 {file_name, file_path, file_exif_time, file_mtime, file_size, file_location}。
+     * 返回值说明：无
+     */
+    showDetail(item) {
+        if (!item || !this.elements.detailPanel) return;
+        const unknownText = I18nManager.t('album.detail_unknown');
+        const setText = (element, value) => {
+            if (element) element.textContent = value || unknownText;
+        };
+
+        setText(this.elements.detailName, item.file_name);
+        setText(this.elements.detailPath, item.file_path);
+        setText(this.elements.detailCaptureTime, item.file_exif_time);
+        setText(this.elements.detailMtime, item.file_mtime);
+        setText(this.elements.detailSize, item.file_size ? this.formatFileSize(item.file_size) : '');
+        setText(this.elements.detailLocation, item.file_location);
+        this.elements.detailPanel.classList.remove('hidden');
+    },
+
+    /**
+     * 用途说明：关闭右侧详情侧边栏。
+     * 入参说明：无
+     * 返回值说明：无
+     */
+    closeDetail() {
+        if (this.elements.detailPanel) this.elements.detailPanel.classList.add('hidden');
+    },
+
+    /**
+     * 用途说明：将字节数格式化为易读的文件大小文本。
+     * 入参说明：bytes (number) - 文件大小（字节）。
+     * 返回值说明：string - 形如 '1.25 MB' 的文本。
+     */
+    formatFileSize(bytes) {
+        const size = Number(bytes) || 0;
+        if (size <= 0) return '0 B';
+        const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+        const index = Math.min(units.length - 1, Math.floor(Math.log(size) / Math.log(1024)));
+        const value = size / Math.pow(1024, index);
+        return `${index === 0 ? value : value.toFixed(2)} ${units[index]}`;
     },
 
     /**
@@ -473,6 +1108,8 @@ const UIController = {
         State.previewIndex = -1;
         if (this.elements.previewMask) this.elements.previewMask.classList.add('hidden');
         if (this.elements.previewBody) this.elements.previewBody.textContent = '';
+        // 预览关闭时一并关闭详情侧边栏
+        this.closeDetail();
         document.body.classList.remove('album-preview-open');
     }
 };
@@ -487,7 +1124,135 @@ const App = {
     init() {
         UIController.init();
         this.bindToolbarActions();
-        this.loadFirstPage();
+        API.getCurrentUser(
+            (data) => {
+                State.repoPermission = data.repo_permission || '';
+                UIController.applyPermissionUI();
+                this.loadFirstPage();
+                if (State.repoPermission === 'admin') this.checkScanStatus();
+            },
+            () => {
+                // 权限获取失败时按只读成员处理，避免误展示删除入口
+                State.repoPermission = '';
+                UIController.applyPermissionUI();
+                this.loadFirstPage();
+            }
+        );
+    },
+
+    /**
+     * 用途说明：判断当前是否处于索引扫描中。
+     * 入参说明：无
+     * 返回值说明：boolean - 正在扫描返回 true，否则返回 false。
+     */
+    isScanning() {
+        return State.scanInterval !== null;
+    },
+
+    /**
+     * 用途说明：弹出确认框询问是否开始建立索引，支持选择重新扫描全部索引。
+     * 入参说明：无
+     * 返回值说明：无
+     */
+    confirmStartScan() {
+        if (State.repoPermission !== 'admin') return;
+        UIComponents.showConfirmModal({
+            title: I18nManager.t('file_repo.scan_confirm_title'),
+            message: I18nManager.t('file_repo.scan_confirm_msg'),
+            checkbox: { label: I18nManager.t('file_repo.scan_rebuild_label'), checked: false },
+            confirmText: I18nManager.t('file_repo.menu_start_scan'),
+            onConfirm: (fullScan) => this.handleStartScan(fullScan)
+        });
+    },
+
+    /**
+     * 用途说明：调用接口启动索引扫描任务，并进入与文件管理页面一致的进度展示状态。
+     * 入参说明：fullScan (boolean) - 是否进行全量扫描。
+     * 返回值说明：无
+     */
+    handleStartScan(fullScan = false) {
+        API.startScan(fullScan,
+            () => {
+                Toast.show(I18nManager.t('file_repo.scan_started'));
+                UIController.toggleScanUI(true);
+                UIController.showScanProgress();
+                this.startScanPolling();
+            },
+            (msg) => Toast.show(msg)
+        );
+    },
+
+    /**
+     * 用途说明：调用接口停止正在进行的索引扫描任务。
+     * 入参说明：无
+     * 返回值说明：无
+     */
+    handleStopScan() {
+        API.stopScan(
+            () => Toast.show(I18nManager.t('file_repo.stop_cmd_sent')),
+            (msg) => Toast.show(msg)
+        );
+    },
+
+    /**
+     * 用途说明：启动扫描进度的实时轮询，完成后刷新相册列表。
+     * 入参说明：无
+     * 返回值说明：无
+     */
+    startScanPolling() {
+        if (State.scanInterval) clearInterval(State.scanInterval);
+        State.scanInterval = setInterval(() => {
+            API.getScanProgress(
+                (data) => {
+                    if (data.status === ProgressStatus.PROCESSING) {
+                        UIComponents.renderProgress('#album-main-content', data.progress);
+                    } else {
+                        this.stopScanPolling();
+                        UIController.toggleScanUI(false);
+                        if (data.status === ProgressStatus.COMPLETED) {
+                            Toast.show(I18nManager.t('file_repo.scan_finished'));
+                            this.loadFirstPage();
+                        }
+                    }
+                },
+                (msg) => {
+                    this.stopScanPolling();
+                    UIController.toggleScanUI(false);
+                    Toast.show(msg);
+                }
+            );
+        }, 1000);
+    },
+
+    /**
+     * 用途说明：停止扫描进度轮询并隐藏进度遮罩。
+     * 入参说明：无
+     * 返回值说明：无
+     */
+    stopScanPolling() {
+        if (State.scanInterval) {
+            clearInterval(State.scanInterval);
+            State.scanInterval = null;
+        }
+        UIComponents.hideProgressBar('#album-main-content');
+    },
+
+    /**
+     * 用途说明：页面初始化时检查是否已有正在运行的扫描任务，若有则恢复进度展示。
+     * 入参说明：无
+     * 返回值说明：无
+     */
+    checkScanStatus() {
+        API.getScanProgress(
+            (data) => {
+                if (data.status === ProgressStatus.PROCESSING) {
+                    UIController.toggleScanUI(true);
+                    UIController.showScanProgress();
+                    this.startScanPolling();
+                }
+            },
+            () => {}
+        );
     },
 
     /**
@@ -707,6 +1472,7 @@ const App = {
      * 返回值说明：无
      */
     deleteFiles(filePaths, fromPreview) {
+        if (State.repoPermission !== 'admin') return;
         if (!filePaths || filePaths.length === 0) return;
         const message = filePaths.length > 1
             ? I18nManager.t('album.delete_confirm_msg', { count: filePaths.length })

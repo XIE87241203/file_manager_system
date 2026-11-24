@@ -30,7 +30,7 @@ const UIController = {
             searchHint: I18nManager.t('organize.records.search_placeholder'),
             showBack: true,
             backCallback: () => { window.location.href = '../home/home.html'; },
-            menuIcon: '../common/header_toolbar/icon/export_icon.svg',
+            menuIcon: '/common/themes/light/icons/export_icon.svg',
             menuCallback: () => App.handleExport(),
             searchCallback: (content) => App.handleSearch(content)
         });
@@ -48,7 +48,7 @@ const UIController = {
         clearBtn.className = 'search-clear-btn hidden';
         clearBtn.title = I18nManager.t('organize.records.search_clear_title');
         clearBtn.setAttribute('aria-label', I18nManager.t('organize.records.search_clear_title'));
-        clearBtn.textContent = '×';
+        clearBtn.innerHTML = '<span class="theme-icon icon-close" aria-hidden="true"></span>';
         const searchContainer = document.querySelector('.search-input-container');
         if (searchContainer) {
             searchContainer.insertBefore(clearBtn, document.getElementById('btn-search-trigger'));

@@ -1,5 +1,4 @@
 from dataclasses import asdict
-from datetime import datetime
 from typing import Any, List, Tuple
 from urllib.parse import quote
 
@@ -9,6 +8,7 @@ from backend.auth.auth_middleware import token_required
 from backend.common.i18n_utils import t
 from backend.common.log_utils import LogUtils
 from backend.common.response import success_response, error_response
+from backend.common.timezone_utils import TimezoneUtils
 from backend.organize.organize_models import OrganizeRecordPageResult, OrganizeSettingResult
 from backend.organize.organize_record_service import organizeRecordService
 from backend.organize.organize_service import organizeService
@@ -265,7 +265,7 @@ def export_organize_records() -> Any:
     LogUtils.info(t('organize_records_export_log', user=request.username))
     keyword: str = request.args.get('keyword', '').strip()[:100]
     try:
-        filename: str = t('organize_records_export_filename', time=datetime.now().strftime('%Y%m%d_%H%M%S'))
+        filename: str = t('organize_records_export_filename', time=TimezoneUtils.now_text('%Y%m%d_%H%M%S'))
         chunks = organizeRecordService.iter_csv_chunks(keyword=keyword)
     except Exception as e:
         LogUtils.error(t('organize_records_export_error', error=str(e)))

@@ -7,7 +7,13 @@
 const State = {
     configuredDir: '',
     effectiveDir: '',
-    saving: false
+    saving: false,
+    // 缩略图同步任务状态（由系统设置迁入）
+    thumbnailSync: {
+        timer: null,
+        widget: null,
+        status: 'idle' // 记录同步任务的内部状态，初始为 idle
+    }
 };
 
 // --- API 封装 ---
@@ -28,6 +34,33 @@ const API = {
      */
     saveSettings(thumbnailDir, onSuccess, onError) {
         AlbumSettingRequest.updateSettings(thumbnailDir, onSuccess, onError);
+    },
+
+    /**
+     * 用途说明：启动缩略图物理同步任务。
+     * 入参说明：onSuccess (Function) - 成功回调；onError (Function) - 失败回调。
+     * 返回值说明：无
+     */
+    startThumbnailSync(onSuccess, onError) {
+        AlbumSettingRequest.startThumbnailSync(onSuccess, onError);
+    },
+
+    /**
+     * 用途说明：停止缩略图物理同步任务。
+     * 入参说明：onSuccess (Function) - 成功回调；onError (Function) - 失败回调。
+     * 返回值说明：无
+     */
+    stopThumbnailSync(onSuccess, onError) {
+        AlbumSettingRequest.stopThumbnailSync(onSuccess, onError);
+    },
+
+    /**
+     * 用途说明：获取缩略图物理同步任务进度。
+     * 入参说明：onSuccess (Function) - 成功回调；onError (Function) - 失败回调。
+     * 返回值说明：无
+     */
+    getThumbnailSyncProgress(onSuccess, onError) {
+        AlbumSettingRequest.getThumbnailSyncProgress(onSuccess, onError);
     }
 };
 
@@ -78,6 +111,26 @@ const UIController = {
     setSaving(saving) {
         State.saving = saving;
         if (this.elements.saveBtn) this.elements.saveBtn.disabled = saving;
+    },
+
+    /**
+     * 用途说明：初始化缩略图同步按钮组件。
+     * 入参说明：无
+     * 返回值说明：无
+     */
+    initThumbnailSyncButton() {
+        const container = document.getElementById('sync-thumbnail-btn-container');
+        if (!container) return;
+
+        State.thumbnailSync.widget = ProgressButtonWidget.create({
+            normalText: I18nManager.t('album.sync_thumb'),
+            stopText: I18nManager.t('common.cancel'),
+            defaultBgColor: 'var(--color-primary-bootstrap)',
+            onStart: () => App.handleStartThumbnailSync(),
+            onStop: () => App.handleStopThumbnailSync()
+        });
+
+        container.appendChild(State.thumbnailSync.widget.getElement());
     }
 };
 
@@ -90,8 +143,11 @@ const App = {
      */
     init() {
         UIController.init();
+        UIController.initThumbnailSyncButton();
         this.bindEvents();
         this.loadSettings();
+        // 初始化时检查一次同步任务状态
+        this.syncThumbnailProgress();
     },
 
     /**
@@ -140,6 +196,88 @@ const App = {
             UIController.setSaving(false);
             Toast.show(msg || I18nManager.t('album.save_failed'));
         });
+    },
+
+    /**
+     * 用途说明：触发后端执行缩略图同步清理任务。
+     * 入参说明：无
+     * 返回值说明：无
+     */
+    handleStartThumbnailSync() {
+        API.startThumbnailSync(
+            () => {
+                Toast.show(I18nManager.t('common.success'));
+                this.syncThumbnailProgress();
+            },
+            (msg) => {
+                Toast.show(I18nManager.t('common.error') + ': ' + msg);
+            }
+        );
+    },
+
+    /**
+     * 用途说明：触发后端停止当前正在进行的缩略图同步任务。
+     * 入参说明：无
+     * 返回值说明：无
+     */
+    handleStopThumbnailSync() {
+        API.stopThumbnailSync(
+            () => {
+                Toast.show(I18nManager.t('common.success'));
+            },
+            (msg) => {
+                Toast.show(I18nManager.t('common.error') + ': ' + msg);
+            }
+        );
+    },
+
+    /**
+     * 用途说明：异步获取缩略图同步进度，并根据状态更新 ProgressButtonWidget 的 UI 表现，支持自动轮询。
+     * 入参说明：无
+     * 返回值说明：无
+     */
+    syncThumbnailProgress() {
+        if (State.thumbnailSync.timer) {
+            clearTimeout(State.thumbnailSync.timer);
+            State.thumbnailSync.timer = null;
+        }
+
+        API.getThumbnailSyncProgress(
+            (data) => {
+                const { status, progress } = data;
+                const widget = State.thumbnailSync.widget;
+                if (!widget) return;
+
+                if (status === ProgressStatus.PROCESSING) {
+                    State.thumbnailSync.status = ProgressStatus.PROCESSING;
+                    widget.setState('processing');
+                    const percent = progress.total > 0 ? Math.round((progress.current / progress.total) * 100) : 0;
+                    // 设置进度时同时设置文案，格式为：正在处理：当前/总数
+                    widget.setProgress(percent, `${I18nManager.t('common.loading')}：${progress.current}/${progress.total}`);
+
+                    // 继续轮询
+                    State.thumbnailSync.timer = setTimeout(() => this.syncThumbnailProgress(), 1000);
+                } else {
+                    // 仅当之前的任务状态不是 idle 时（即刚从 processing 切换过来），才执行状态重置并弹出结果提示
+                    if (State.thumbnailSync.status !== ProgressStatus.IDLE) {
+                        if (status === ProgressStatus.COMPLETED) {
+                            Toast.show(progress.message || I18nManager.t('common.success'));
+                        } else if (status === ProgressStatus.ERROR) {
+                            Toast.show(I18nManager.t('common.error') + ': ' + progress.message);
+                        }
+                        State.thumbnailSync.status = ProgressStatus.IDLE;
+                    }
+                    widget.setState('idle');
+                }
+            },
+            (msg) => {
+                console.error('获取进度失败:', msg);
+                if (State.thumbnailSync.widget) {
+                    State.thumbnailSync.widget.setState('idle');
+                }
+                State.thumbnailSync.status = ProgressStatus.IDLE;
+            }
+        );
     }
 };
 

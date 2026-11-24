@@ -3,7 +3,7 @@ class DBConstants:
     用途：数据库表名及列名常量类，统一管理所有数据库结构相关的硬编码字符串
     """
 
-    DB_VERSION: int = 20  # 当前数据库版本，升级至 20 以支持整理设置的文件大小筛选
+    DB_VERSION: int = 23  # 当前数据库版本，升级至 23 以支持记录图片/视频拍摄地点
 
     class VersionInfo:
         """用途：version_info 表相关的常量"""
@@ -24,6 +24,13 @@ class DBConstants:
         COL_RECYCLE_BIN_TIME: str = 'recycle_bin_time'
         COL_THUMBNAIL_PATH: str = 'thumbnail_path'
         COL_SCAN_TIME: str = 'scan_time'
+        COL_FILE_MTIME: str = 'file_mtime'         # 新增：文件最后修改时间（用于相册时间轴分组）
+        COL_FILE_EXIF_TIME: str = 'file_exif_time' # 新增：EXIF 拍摄时间/视频创建时间（相册优先使用）
+        COL_FILE_LOCATION: str = 'file_location'   # 新增：拍摄地点（EXIF GPS / 视频 ISO 6709 坐标文本）
+        # 相册实际排序时间表达式：优先 EXIF/拍摄时间，缺失时回退文件修改时间
+        ALBUM_TIME_EXPRESSION: str = f'COALESCE({COL_FILE_EXIF_TIME}, {COL_FILE_MTIME})'
+        # 相册逻辑排序字段名（非真实列，仅用于接口参数与排序表达式映射）
+        ALBUM_TIME_FIELD: str = 'album_time'
 
     class HistoryFileIndex:
         """用途：history_file_index 表相关的常量"""
@@ -148,6 +155,15 @@ class DBConstants:
         COL_IS_ADMIN: str = 'is_admin'              # 是否管理员（1 是 / 0 否）
         COL_CREATE_TIME: str = 'create_time'
         COL_UPDATE_TIME: str = 'update_time'
+
+    class UserRepositoryPermission:
+        """用途：user_repository_permissions 表相关的常量（系统使用者与仓库的授权关系，存于主数据库）"""
+        TABLE_NAME: str = 'user_repository_permissions'
+        COL_USER_ID: str = 'user_id'
+        COL_REPO_ID: str = 'repo_id'
+        COL_PERMISSION: str = 'permission'
+        PERMISSION_ADMIN: str = 'admin'
+        PERMISSION_MEMBER: str = 'member'
 
     class LoginHistory:
         """用途：login_history 表相关的常量（全局用户登录历史，存于独立主数据库，按用户追溯登录记录）"""

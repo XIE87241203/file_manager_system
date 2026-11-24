@@ -17,3 +17,6 @@ class FileIndexDBModel:
     recycle_bin_time: Optional[str] = None
     thumbnail_path: Optional[str] = None
     scan_time: Optional[str] = None
+    file_mtime: Optional[str] = None         # 文件最后修改时间（扫描时从磁盘读取，用于时间轴分组）
+    file_exif_time: Optional[str] = None     # EXIF 拍摄时间/视频创建时间（相册优先使用，缺失时回退修改时间）
+    file_location: Optional[str] = None      # 拍摄地点（EXIF GPS / 视频 ISO 6709 坐标文本）

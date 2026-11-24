@@ -28,7 +28,7 @@ class AlbumService:
 
     @staticmethod
     def get_album_list(page: int, limit: int, sort_by: str, order_asc: bool,
-                       search_query: str) -> PaginationResult[AlbumItemResult]:
+                       search_query: str, file_type: str = '') -> PaginationResult[AlbumItemResult]:
         """
         用途说明：分页查询相册媒体列表，并将数据库模型转换为 API 返回数据。
         入参说明：
@@ -37,12 +37,20 @@ class AlbumService:
             sort_by (str): 排序字段。
             order_asc (bool): 是否升序。
             search_query (str): 文件名搜索关键词。
+            file_type (str): 媒体类型筛选，空串为全部，可选 image（仅图片）/ video（仅视频）。
         返回值说明：PaginationResult[AlbumItemResult] - 相册媒体分页结果。
         """
         safe_page: int = max(1, page)
         safe_limit: int = min(200, max(1, limit))
+        # 按类型筛选：非法或空值回退为图片 + 视频全部类型
+        target_types: List[str] = AlbumService.MEDIA_TYPES
+        if file_type == FileType.IMAGE.value:
+            target_types = [FileType.IMAGE.value]
+        elif file_type == FileType.VIDEO.value:
+            target_types = [FileType.VIDEO.value]
+
         raw_result: PaginationResult[FileIndexDBModel] = DBOperations.search_album_file_list(
-            safe_page, safe_limit, sort_by, order_asc, search_query, AlbumService.MEDIA_TYPES
+            safe_page, safe_limit, sort_by, order_asc, search_query, target_types
         )
 
         items: List[AlbumItemResult] = []
@@ -55,7 +63,10 @@ class AlbumService:
                 file_size=item.file_size or 0,
                 thumbnail_path=item.thumbnail_path or None,
                 video_duration=item.video_duration if file_type == FileType.VIDEO.value else None,
-                scan_time=item.scan_time
+                scan_time=item.scan_time,
+                file_mtime=item.file_mtime,
+                file_exif_time=item.file_exif_time,
+                file_location=item.file_location
             ))
 
         return PaginationResult(

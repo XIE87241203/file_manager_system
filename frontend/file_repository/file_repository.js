@@ -176,10 +176,10 @@ const UIController = {
             const durationStr = file.file_type === 'video' ? CommonUtils.formatDuration(file.video_duration) : '-';
 
             const isVideo = file.file_type === 'video';
-            const playBtnHtml = isVideo ? `<span class="play-btn" title="${I18nManager.t('file_repo.play_video')}"><i class="play-icon">▶</i></span>` : '';
+            const playBtnHtml = isVideo ? `<span class="play-btn" title="${I18nManager.t('file_repo.play_video')}"><i class="play-icon theme-icon icon-play" aria-hidden="true"></i></span>` : '';
 
             const isImage = file.file_type === 'image';
-            const previewBtnHtml = isImage ? `<span class="preview-btn" title="${I18nManager.t('file_repo.preview_image')}"><i class="preview-icon"><svg viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg></i></span>` : '';
+            const previewBtnHtml = isImage ? `<span class="preview-btn" title="${I18nManager.t('file_repo.preview_image')}"><i class="preview-icon theme-icon icon-image" aria-hidden="true"></i></span>` : '';
 
             let html = `
                 <td class="col-name" title="${fileName}">${playBtnHtml}${previewBtnHtml}${fileName}</td>
@@ -211,12 +211,15 @@ const UIController = {
 
             if (isImage) {
                 const previewBtn = tr.querySelector('.preview-btn');
-                previewBtn.addEventListener('mouseenter', (e) => UIComponents.showQuickPreview(e, file.thumbnail_path));
-                previewBtn.addEventListener('mousemove', (e) => UIComponents.moveQuickPreview(e));
+                previewBtn.addEventListener('mouseenter', (e) => App.previewFileThumbnail(e, file, tr));
+                previewBtn.addEventListener('mousemove', (e) => {
+                    file.lastPointerEvent = e;
+                    UIComponents.moveQuickPreview(e);
+                });
                 previewBtn.addEventListener('mouseleave', (e) => {
                     // 鼠标仍在行内且开启了行级快速预览时保持预览，避免覆盖已有的整行悬停预览功能
                     if (State.settings && State.settings.file_repository.quick_view_thumbnail && tr.contains(e.relatedTarget)) {
-                        UIComponents.showQuickPreview(e, file.thumbnail_path);
+                        App.previewFileThumbnail(e, file, tr);
                     } else {
                         UIComponents.hideQuickPreview();
                     }
@@ -225,8 +228,11 @@ const UIController = {
             }
 
             if (State.settings && State.settings.file_repository.quick_view_thumbnail) {
-                tr.addEventListener('mouseenter', (e) => UIComponents.showQuickPreview(e, file.thumbnail_path));
-                tr.addEventListener('mousemove', (e) => UIComponents.moveQuickPreview(e));
+                tr.addEventListener('mouseenter', (e) => App.previewFileThumbnail(e, file, tr));
+                tr.addEventListener('mousemove', (e) => {
+                    file.lastPointerEvent = e;
+                    UIComponents.moveQuickPreview(e);
+                });
                 tr.addEventListener('mouseleave', () => UIComponents.hideQuickPreview());
             }
 
@@ -451,6 +457,36 @@ const App = {
     handlePlayVideo(filePath) {
         const playPageUrl = `../video_player/video_player.html?path=${encodeURIComponent(filePath)}`;
         window.location.href = playPageUrl;
+    },
+
+    /**
+     * 用途说明：悬停预览图片缩略图；若索引中尚无缩略图，则调用与相册共用的按需生成接口，
+     * 生成成功后（鼠标仍停留在该行内）立即展示预览，并回填当前行数据避免重复请求。
+     * 入参说明：
+     *   event (MouseEvent) - 触发悬停的鼠标事件（用于定位预览框）。
+     *   file (Object) - 当前行文件数据（含 file_path、file_type、thumbnail_path）。
+     *   tr (HTMLElement) - 当前表格行元素，用于判断鼠标是否仍停留在行内。
+     * 返回值说明：无
+     */
+    previewFileThumbnail(event, file, tr) {
+        file.lastPointerEvent = event;
+        if (file.thumbnail_path) {
+            UIComponents.showQuickPreview(event, file.thumbnail_path);
+            return;
+        }
+        // 仅图片需要预览；生成中或非图片直接跳过，避免重复请求
+        if (file.file_type !== 'image' || file.thumbEnsuring) return;
+        file.thumbEnsuring = true;
+        FileRepositoryAPI.ensureThumbnail(file.file_path, (data) => {
+            file.thumbEnsuring = false;
+            if (!data || !data.thumbnail_path) return;
+            file.thumbnail_path = data.thumbnail_path;
+            if (tr.matches(':hover')) {
+                UIComponents.showQuickPreview(file.lastPointerEvent, data.thumbnail_path);
+            }
+        }, () => {
+            file.thumbEnsuring = false;
+        });
     },
 
     /**

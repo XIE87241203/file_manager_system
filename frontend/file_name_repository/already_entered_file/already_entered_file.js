@@ -26,7 +26,7 @@ const UIController = {
         // 使用 SearchHeaderToolbar 组件初始化顶部栏
         SearchHeaderToolbar.init({
             searchHint: I18nManager.t('already_entered.search_hint'),
-            menuIcon: "../../common/header_toolbar/icon/add_icon.svg",
+            menuIcon: "/common/themes/light/icons/add_icon.svg",
             searchCallback: (content) => {
                 State.search = content;
                 App.handleSearch();

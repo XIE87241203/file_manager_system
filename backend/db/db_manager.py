@@ -1,6 +1,7 @@
 import os
 import sqlite3
 from contextlib import contextmanager
+from datetime import datetime
 from typing import Generator, Optional, Dict
 
 from backend.common.i18n_utils import t
@@ -52,7 +53,7 @@ class DBManager:
 
     def init_master(self) -> None:
         """
-        用途说明：初始化仓库元数据主数据库，创建 repositories 表、全局 users 表与 login_history 登录历史表（若不存在）。
+        用途说明：初始化仓库元数据主数据库，创建 repositories、users、用户仓库权限与 login_history 表（若不存在）。
         入参说明：无
         返回值说明：无
         """
@@ -80,6 +81,32 @@ class DBManager:
                     {DBConstants.User.COL_UPDATE_TIME} DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
             ''')
+            # 首次引入用户仓库权限时，为已有系统使用者保留原有仓库访问能力。
+            # 系统管理员不落逐仓库记录，查询时隐式拥有全部仓库的管理员权限。
+            cursor.execute(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?",
+                (DBConstants.UserRepositoryPermission.TABLE_NAME,)
+            )
+            permission_table_exists: bool = cursor.fetchone()[0] > 0
+            cursor.execute(f'''
+                CREATE TABLE IF NOT EXISTS {DBConstants.UserRepositoryPermission.TABLE_NAME} (
+                    {DBConstants.UserRepositoryPermission.COL_USER_ID} INTEGER NOT NULL,
+                    {DBConstants.UserRepositoryPermission.COL_REPO_ID} INTEGER NOT NULL,
+                    {DBConstants.UserRepositoryPermission.COL_PERMISSION} TEXT NOT NULL,
+                    PRIMARY KEY ({DBConstants.UserRepositoryPermission.COL_USER_ID}, {DBConstants.UserRepositoryPermission.COL_REPO_ID})
+                )
+            ''')
+            if not permission_table_exists:
+                cursor.execute(f'''
+                    INSERT OR IGNORE INTO {DBConstants.UserRepositoryPermission.TABLE_NAME}
+                        ({DBConstants.UserRepositoryPermission.COL_USER_ID},
+                         {DBConstants.UserRepositoryPermission.COL_REPO_ID},
+                         {DBConstants.UserRepositoryPermission.COL_PERMISSION})
+                    SELECT u.{DBConstants.User.COL_ID}, r.{DBConstants.Repository.COL_ID}, ?
+                    FROM {DBConstants.User.TABLE_NAME} u
+                    CROSS JOIN {DBConstants.Repository.TABLE_NAME} r
+                    WHERE u.{DBConstants.User.COL_IS_ADMIN} = 0
+                ''', (DBConstants.UserRepositoryPermission.PERMISSION_ADMIN,))
             # 全局用户登录历史表（记录每次成功登录的时间与来源 IP，按用户追溯）
             cursor.execute(f'''
                 CREATE TABLE IF NOT EXISTS {DBConstants.LoginHistory.TABLE_NAME} (
@@ -242,13 +269,28 @@ class DBManager:
                 {DBConstants.FileIndex.COL_VIDEO_CODEC} TEXT,
                 {DBConstants.FileIndex.COL_SCAN_TIME} DATETIME DEFAULT CURRENT_TIMESTAMP,
                 {DBConstants.FileIndex.COL_THUMBNAIL_PATH} TEXT,
-                {DBConstants.FileIndex.COL_RECYCLE_BIN_TIME} DATETIME
+                {DBConstants.FileIndex.COL_RECYCLE_BIN_TIME} DATETIME,
+                {DBConstants.FileIndex.COL_FILE_MTIME} DATETIME,
+                {DBConstants.FileIndex.COL_FILE_EXIF_TIME} DATETIME,
+                {DBConstants.FileIndex.COL_FILE_LOCATION} TEXT
             )
         ''')
         
         cursor.execute(f'''
             CREATE INDEX IF NOT EXISTS idx_file_index_md5 
             ON {DBConstants.FileIndex.TABLE_NAME} ({DBConstants.FileIndex.COL_FILE_MD5})
+        ''')
+
+        # 文件修改时间索引：相册时间轴按该字段倒序分页
+        cursor.execute(f'''
+            CREATE INDEX IF NOT EXISTS idx_file_index_mtime
+            ON {DBConstants.FileIndex.TABLE_NAME} ({DBConstants.FileIndex.COL_FILE_MTIME})
+        ''')
+
+        # 相册实际排序时间索引：优先 EXIF 拍摄时间，缺失时回退文件修改时间
+        cursor.execute(f'''
+            CREATE INDEX IF NOT EXISTS idx_file_index_album_time
+            ON {DBConstants.FileIndex.TABLE_NAME} ({DBConstants.FileIndex.ALBUM_TIME_EXPRESSION})
         ''')
 
         # 2. 创建 history_file_index 表
@@ -623,6 +665,193 @@ class DBManager:
             except Exception as e:
                 LogUtils.error(t('db_migrate_v20_failed', error=str(e)))
                 raise e
+
+        if old_version < 21:
+            # 升级到版本 21: 为 file_index 添加文件修改时间列，并尽力回填历史数据（用于相册时间轴分组）
+            try:
+                cursor.execute(
+                    f"ALTER TABLE {DBConstants.FileIndex.TABLE_NAME} "
+                    f"ADD COLUMN {DBConstants.FileIndex.COL_FILE_MTIME} DATETIME"
+                )
+                cursor.execute(
+                    f"CREATE INDEX IF NOT EXISTS idx_file_index_mtime "
+                    f"ON {DBConstants.FileIndex.TABLE_NAME} ({DBConstants.FileIndex.COL_FILE_MTIME})"
+                )
+                DBManager._backfill_file_mtime(cursor)
+                LogUtils.info(t('db_migrate_v21_success'))
+            except Exception as e:
+                LogUtils.error(t('db_migrate_v21_failed', error=str(e)))
+                raise e
+
+        if old_version < 22:
+            # 升级到版本 22: 为 file_index 添加 EXIF/拍摄时间列，并尽力回填图片与视频的历史拍摄时间
+            try:
+                cursor.execute(
+                    f"ALTER TABLE {DBConstants.FileIndex.TABLE_NAME} "
+                    f"ADD COLUMN {DBConstants.FileIndex.COL_FILE_EXIF_TIME} DATETIME"
+                )
+                cursor.execute(
+                    f"CREATE INDEX IF NOT EXISTS idx_file_index_album_time "
+                    f"ON {DBConstants.FileIndex.TABLE_NAME} ({DBConstants.FileIndex.ALBUM_TIME_EXPRESSION})"
+                )
+                DBManager._backfill_file_exif_time(cursor)
+                LogUtils.info(t('db_migrate_v22_success'))
+            except Exception as e:
+                LogUtils.error(t('db_migrate_v22_failed', error=str(e)))
+                raise e
+
+        if old_version < 23:
+            # 升级到版本 23: 为 file_index 添加拍摄地点列，并尽力回填图片与视频的历史拍摄地点
+            try:
+                cursor.execute(
+                    f"ALTER TABLE {DBConstants.FileIndex.TABLE_NAME} "
+                    f"ADD COLUMN {DBConstants.FileIndex.COL_FILE_LOCATION} TEXT"
+                )
+                DBManager._backfill_file_location(cursor)
+                LogUtils.info(t('db_migrate_v23_success'))
+            except Exception as e:
+                LogUtils.error(t('db_migrate_v23_failed', error=str(e)))
+                raise e
+
+    @staticmethod
+    def _backfill_file_location(cursor: sqlite3.Cursor) -> None:
+        """
+        用途说明：迁移到版本 23 时按主键分批回填图片/视频的拍摄地点。
+            分批（每批 200 条）读取与更新，避免一次性加载全表导致内存占用过高；
+            无法读取拍摄地点的记录保持为空，详情面板显示为未记录。
+        入参说明：cursor (sqlite3.Cursor) - 迁移过程中使用的数据库游标。
+        返回值说明：无
+        """
+        from backend.db.db_constants import DBConstants
+        from backend.file_repository.media_location_service import MediaLocationService
+
+        read_cursor: sqlite3.Cursor = cursor.connection.cursor()
+        last_id: int = 0
+        batch_size: int = 200
+        updated_total: int = 0
+        while True:
+            read_cursor.execute(
+                f"SELECT {DBConstants.FileIndex.COL_ID}, {DBConstants.FileIndex.COL_FILE_PATH}, "
+                f"{DBConstants.FileIndex.COL_FILE_TYPE} "
+                f"FROM {DBConstants.FileIndex.TABLE_NAME} "
+                f"WHERE {DBConstants.FileIndex.COL_ID} > ? AND {DBConstants.FileIndex.COL_FILE_LOCATION} IS NULL "
+                f"AND {DBConstants.FileIndex.COL_FILE_TYPE} IN ('image', 'video') "
+                f"ORDER BY {DBConstants.FileIndex.COL_ID} LIMIT ?",
+                (last_id, batch_size)
+            )
+            rows = read_cursor.fetchall()
+            if not rows:
+                break
+            last_id = int(rows[-1][0])
+            updates: list = []
+            for row in rows:
+                file_path: str = row[1] or ''
+                file_type: str = row[2] or ''
+                location: Optional[str] = MediaLocationService.get_location(file_path, file_type)
+                if location:
+                    updates.append((location, int(row[0])))
+            if updates:
+                cursor.executemany(
+                    f"UPDATE {DBConstants.FileIndex.TABLE_NAME} "
+                    f"SET {DBConstants.FileIndex.COL_FILE_LOCATION} = ? "
+                    f"WHERE {DBConstants.FileIndex.COL_ID} = ?",
+                    updates
+                )
+                updated_total += len(updates)
+        LogUtils.info(t('db_migrate_v23_backfill_done', count=updated_total))
+
+    @staticmethod
+    def _backfill_file_exif_time(cursor: sqlite3.Cursor) -> None:
+        """
+        用途说明：迁移到版本 22 时按主键分批回填图片/视频的 EXIF/拍摄时间。
+            分批（每批 200 条）读取与更新，避免一次性加载全表导致内存占用过高；
+            无法读取拍摄时间的记录保持为空，由相册回退使用文件修改时间。
+        入参说明：cursor (sqlite3.Cursor) - 迁移过程中使用的数据库游标。
+        返回值说明：无
+        """
+        from backend.db.db_constants import DBConstants
+        from backend.file_repository.media_time_service import MediaTimeService
+
+        read_cursor: sqlite3.Cursor = cursor.connection.cursor()
+        last_id: int = 0
+        batch_size: int = 200
+        updated_total: int = 0
+        while True:
+            read_cursor.execute(
+                f"SELECT {DBConstants.FileIndex.COL_ID}, {DBConstants.FileIndex.COL_FILE_PATH}, "
+                f"{DBConstants.FileIndex.COL_FILE_TYPE} "
+                f"FROM {DBConstants.FileIndex.TABLE_NAME} "
+                f"WHERE {DBConstants.FileIndex.COL_ID} > ? AND {DBConstants.FileIndex.COL_FILE_EXIF_TIME} IS NULL "
+                f"AND {DBConstants.FileIndex.COL_FILE_TYPE} IN ('image', 'video') "
+                f"ORDER BY {DBConstants.FileIndex.COL_ID} LIMIT ?",
+                (last_id, batch_size)
+            )
+            rows = read_cursor.fetchall()
+            if not rows:
+                break
+            last_id = int(rows[-1][0])
+            updates: list = []
+            for row in rows:
+                file_path: str = row[1] or ''
+                file_type: str = row[2] or ''
+                exif_time: Optional[str] = MediaTimeService.get_exif_time(file_path, file_type)
+                if exif_time:
+                    updates.append((exif_time, int(row[0])))
+            if updates:
+                cursor.executemany(
+                    f"UPDATE {DBConstants.FileIndex.TABLE_NAME} "
+                    f"SET {DBConstants.FileIndex.COL_FILE_EXIF_TIME} = ? "
+                    f"WHERE {DBConstants.FileIndex.COL_ID} = ?",
+                    updates
+                )
+                updated_total += len(updates)
+        LogUtils.info(t('db_migrate_v22_backfill_done', count=updated_total))
+
+    @staticmethod
+    def _backfill_file_mtime(cursor: sqlite3.Cursor) -> None:
+        """
+        用途说明：迁移到版本 21 时按主键分批回填 file_index.file_mtime（仅处理物理文件仍存在的记录）。
+            分批（每批 500 条）读取与更新，避免一次性加载全表导致内存占用过高。
+        入参说明：cursor (sqlite3.Cursor) - 迁移过程中使用的数据库游标。
+        返回值说明：无
+        """
+        from backend.db.db_constants import DBConstants
+
+        read_cursor: sqlite3.Cursor = cursor.connection.cursor()
+        last_id: int = 0
+        batch_size: int = 500
+        updated_total: int = 0
+        while True:
+            read_cursor.execute(
+                f"SELECT {DBConstants.FileIndex.COL_ID}, {DBConstants.FileIndex.COL_FILE_PATH} "
+                f"FROM {DBConstants.FileIndex.TABLE_NAME} "
+                f"WHERE {DBConstants.FileIndex.COL_ID} > ? AND {DBConstants.FileIndex.COL_FILE_MTIME} IS NULL "
+                f"ORDER BY {DBConstants.FileIndex.COL_ID} LIMIT ?",
+                (last_id, batch_size)
+            )
+            rows = read_cursor.fetchall()
+            if not rows:
+                break
+            last_id = int(rows[-1][0])
+            updates = []
+            for row in rows:
+                file_path: str = row[1] or ''
+                try:
+                    if file_path and os.path.isfile(file_path):
+                        mtime_str: str = datetime.fromtimestamp(os.path.getmtime(file_path)).strftime('%Y-%m-%d %H:%M:%S')
+                        updates.append((mtime_str, int(row[0])))
+                except OSError:
+                    # 无法读取修改时间时保持为空，后续扫描会重新写入
+                    continue
+            if updates:
+                cursor.executemany(
+                    f"UPDATE {DBConstants.FileIndex.TABLE_NAME} "
+                    f"SET {DBConstants.FileIndex.COL_FILE_MTIME} = ? "
+                    f"WHERE {DBConstants.FileIndex.COL_ID} = ?",
+                    updates
+                )
+                updated_total += len(updates)
+        LogUtils.info(t('db_migrate_v21_backfill_done', count=updated_total))
 
 
 # 创建全局唯一的处理器管理器实例，供外部统一调用

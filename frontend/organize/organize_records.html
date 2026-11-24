@@ -1,10 +1,13 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title data-i18n="organize.records.title"></title>
+    <script src="/common/theme_manager.js"></script>
     <link rel="stylesheet" href="../common/common.css">
+    <link rel="stylesheet" href="../common/themes/light/theme.css">
+    <link rel="stylesheet" href="../common/themes/dark/theme.css">
     <link rel="stylesheet" href="../common/header_toolbar/search/search_header_toolbar.css">
     <link rel="stylesheet" href="../common/page_bar/page_bar.css">
     <link rel="stylesheet" href="../common/table.css">
@@ -37,12 +40,7 @@
             </table>
             <!-- 空状态：暂无整理记录 -->
             <div id="records-empty" class="records-empty hidden">
-                <svg class="empty-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                    <polyline points="14 2 14 8 20 8"></polyline>
-                    <line x1="9" y1="13" x2="15" y2="13"></line>
-                    <line x1="9" y1="17" x2="13" y2="17"></line>
-                </svg>
+                <span class="empty-icon theme-icon icon-document" aria-hidden="true"></span>
                 <p class="empty-title" id="records-empty-title" data-i18n="organize.records.empty"></p>
                 <p class="empty-hint" id="records-empty-hint" data-i18n="organize.records.empty_hint"></p>
                 <button id="empty-go-btn" class="empty-go-btn" data-i18n="organize.records.go_organize"></button>

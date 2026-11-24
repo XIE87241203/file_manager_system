@@ -6,6 +6,7 @@ from flask import Blueprint, request, send_file
 
 from backend.album.album_service import AlbumService
 from backend.auth.auth_middleware import token_required
+from backend.common.file_type_enum import FileType
 from backend.common.i18n_utils import t
 from backend.common.log_utils import LogUtils
 from backend.common.repo_context import set_current_repo_id
@@ -52,18 +53,22 @@ def list_album_media():
     入参说明（Query）：
         page (int): 页码，默认 1。
         limit (int): 每页数量，默认 30。
-        sort_by (str): 排序字段，默认 scan_time。
+        sort_by (str): 排序字段，默认 album_time（EXIF 优先、文件修改时间兜底，供时间轴分组）。
         order_asc (bool): 是否升序，默认 false。
         search (str): 文件名搜索关键词。
+        file_type (str): 媒体类型筛选，空串为全部，可选 image（仅图片）/ video（仅视频）；非法值按全部处理。
     返回值说明：统一 JSON 响应，data 为分页结果。
     """
     page: int = request.args.get('page', default=1, type=int)
     limit: int = request.args.get('limit', default=30, type=int)
-    sort_by: str = request.args.get('sort_by', default='scan_time')
+    sort_by: str = request.args.get('sort_by', default='album_time')
     order_asc: bool = request.args.get('order_asc', default='false').lower() == 'true'
     search_query: str = request.args.get('search', default='').strip()
+    file_type: str = request.args.get('file_type', default='').strip()
+    if file_type not in ('', FileType.IMAGE.value, FileType.VIDEO.value):
+        file_type = ''
 
-    result: PaginationResult = AlbumService.get_album_list(page, limit, sort_by, order_asc, search_query)
+    result: PaginationResult = AlbumService.get_album_list(page, limit, sort_by, order_asc, search_query, file_type)
     return success_response(t('album_list_success'), data=asdict(result))
 
 

@@ -2,7 +2,7 @@ import logging
 import os
 import sys
 import traceback
-from typing import Any, Tuple
+from typing import Any, Optional, Tuple
 
 # 确保项目根目录在 sys.path 中
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -25,7 +25,10 @@ LogUtils.init(level=logging.DEBUG)
 from flask import Flask, request, redirect
 from flask_cors import CORS
 from waitress import serve
+from backend.auth.auth_manager import auth_manager
+from backend.auth.auth_middleware import get_request_token
 from backend.auth.auth_routes import auth_bp
+from backend.db.db_constants import DBConstants
 from backend.setting.setting_routes import setting_bp
 from backend.file_repository.file_repository_routes import file_repo_bp
 from backend.file_name_repository.file_name_repository_routes import file_name_repo_bp
@@ -36,7 +39,7 @@ from backend.organize.organize_routes import organize_bp
 from backend.album.album_routes import album_bp
 from backend.user.user_routes import user_bp
 from backend.user.user_service import userService
-from backend.common.repo_context import set_current_repo_id, DEFAULT_REPO_ID
+from backend.common.repo_context import set_current_repo_id, get_current_repo_id, DEFAULT_REPO_ID
 from backend.common.response import error_response
 from backend.common.heartbeat_service import HeartbeatService
 from config import GlobalConfig
@@ -52,18 +55,72 @@ CORS(app, resources={r"/api/*": {"origins": "*"}}, allow_headers=["Content-Type"
 @app.before_request
 def inject_repo_context() -> None:
     """
-    用途说明：从请求头 X-Repo-Id 解析当前仓库 ID 并注入请求上下文，缺省回退到默认仓库。
+    用途说明：从请求头、查询参数或 JSON Body 解析当前仓库 ID 并注入请求上下文，缺省回退到默认仓库。
     入参说明：无
     返回值说明：无
     """
     repo_id: int = DEFAULT_REPO_ID
-    header_value = request.headers.get('X-Repo-Id')
-    if header_value:
+    raw_repo_id: Optional[str] = request.headers.get('X-Repo-Id') or request.args.get('repo_id')
+    if not raw_repo_id and request.is_json:
+        data: Any = request.get_json(silent=True)
+        if isinstance(data, dict):
+            body_repo_id: Any = data.get('repo_id')
+            raw_repo_id = str(body_repo_id) if body_repo_id is not None else None
+    if raw_repo_id:
         try:
-            repo_id = int(header_value)
+            parsed_repo_id: int = int(raw_repo_id)
+            if parsed_repo_id > 0:
+                repo_id = parsed_repo_id
         except (ValueError, TypeError):
             repo_id = DEFAULT_REPO_ID
     set_current_repo_id(repo_id)
+
+
+# 成员仅允许访问相册浏览所需的只读接口；其余仓库能力必须由仓库管理员或系统管理员使用。
+_REPO_SCOPED_PREFIXES: tuple[str, ...] = (
+    '/api/album/',
+    '/api/file_repository/',
+    '/api/file_name_repository/',
+    '/api/organize/',
+)
+_MEMBER_ALLOWED_PATHS: set[str] = {
+    '/api/album/list',
+    '/api/album/media',
+    '/api/album/download',
+    '/api/file_repository/thumbnail/view',
+    '/api/file_repository/thumbnail/ensure',
+    '/api/system/version',
+}
+
+
+@app.before_request
+def enforce_repo_permissions() -> Optional[Tuple[Any, int]]:
+    """
+    用途说明：在业务路由前校验当前用户的仓库可见性与成员只读边界。
+    入参说明：无（Token、用户名与仓库 ID 均从当前请求上下文获取）。
+    返回值说明：Optional[Tuple[Any, int]] - 无权限时返回 403 响应，否则返回 None 交给路由鉴权。
+    """
+    path: str = request.path
+    is_repo_scoped: bool = path.startswith(_REPO_SCOPED_PREFIXES)
+    is_member_restricted_global: bool = path.startswith(('/api/setting/', '/api/system/'))
+    if not path.startswith('/api/') or not (is_repo_scoped or is_member_restricted_global):
+        return None
+    token: Optional[str] = get_request_token()
+    if not token:
+        return None
+    is_valid: bool
+    username: str
+    is_valid, username = auth_manager.is_authenticated(token)
+    if not is_valid:
+        return None
+    permission: Optional[str] = userService.get_repo_permission(username, get_current_repo_id())
+    if not permission:
+        LogUtils.error(t('user_repo_permission_denied_log', username=username, path=path))
+        return error_response(t('user_repo_permission_denied'), 403)
+    if permission == DBConstants.UserRepositoryPermission.PERMISSION_MEMBER and path not in _MEMBER_ALLOWED_PATHS:
+        LogUtils.error(t('user_repo_member_readonly_log', username=username, path=path))
+        return error_response(t('user_repo_member_readonly'), 403)
+    return None
 
 # 日志脱敏：命中以下字段名的值一律以掩码代替，防止密码/Token 泄露到日志
 _SENSITIVE_LOG_KEYS = {'password', 'password_hash', 'old_password', 'new_password', 'token'}
@@ -179,6 +236,10 @@ def start_server() -> None:
 
     # 启动心跳服务
     HeartbeatService.start()
+
+    # 注册日志自动清理任务（每天 12:00 按系统时区清理过期日志）
+    from backend.system.log_cleanup_service import LogCleanupService
+    LogCleanupService.start()
 
     # 启动后台定时任务调度器（按仓库独立调度）
     from backend.file_repository.auto_scan_service import AutoScanService

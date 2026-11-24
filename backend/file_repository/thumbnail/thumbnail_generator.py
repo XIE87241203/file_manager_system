@@ -175,7 +175,8 @@ class ThumbnailGenerator:
         # 使用源文件的 MD5 作为文件名确保唯一性，且同内容文件可复用缩略图
         thumb_path: str = ThumbnailPathUtils.get_thumbnail_file(file_info.file_md5)
         # 临时文件与目标同目录，保证 os.replace 为原子操作
-        tmp_path: str = f"{thumb_path}.tmp"
+        # 注意：临时文件必须保留 .jpg 后缀，OpenCV 按扩展名选择编码器，缺少可识别后缀会导致视频缩略图写入失败
+        tmp_path: str = f"{thumb_path}.tmp.jpg"
 
         try:
             # 图片处理

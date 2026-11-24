@@ -1,13 +1,15 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title data-i18n="setting.title"></title>
+    <script src="/common/theme_manager.js"></script>
     <link rel="stylesheet" href="../common/common.css">
+    <link rel="stylesheet" href="../common/themes/light/theme.css">
+    <link rel="stylesheet" href="../common/themes/dark/theme.css">
     <link rel="stylesheet" href="../common/table.css">
     <link rel="stylesheet" href="../common/header_toolbar/default/default_header_toolbar.css">
-    <link rel="stylesheet" href="../common/widget/progress_button.css">
     <link rel="stylesheet" href="../common/page_bar/page_bar.css">
     <link rel="stylesheet" href="setting.css">
 </head>
@@ -22,6 +24,7 @@
         <button id="tab-file-entry" class="tab-btn" data-i18n="setting.tabs.file_entry"></button>
         <button id="tab-dup-check" class="tab-btn" data-i18n="setting.tabs.dup_check"></button>
         <button id="tab-maintenance" class="tab-btn" data-i18n="setting.tabs.maintenance"></button>
+        <button id="tab-log" class="tab-btn" data-i18n="setting.tabs.log"></button>
         <button id="tab-account" class="tab-btn" data-i18n="setting.tabs.account"></button>
         <button id="tab-user" class="tab-btn hidden" data-i18n="setting.tabs.user"></button>
     </div>
@@ -180,21 +183,6 @@
     <div id="content-maintenance" class="tab-content">
         <div class="settings-grid">
             <div class="full-width">
-                <h3 class="mt-0" data-i18n="setting.maintenance.sync_title"></h3>
-                <p class="form-hint mb-20" data-i18n="setting.maintenance.sync_hint"></p>
-            </div>
-
-            <div class="full-width mb-20">
-                <div class="maintenance-item">
-                    <div class="maintenance-info">
-                        <span class="maintenance-title" data-i18n="setting.maintenance.sync_thumb"></span>
-                        <span class="maintenance-desc" data-i18n="setting.maintenance.sync_thumb_desc"></span>
-                    </div>
-                    <div id="sync-thumbnail-btn-container" class="sync-btn-container"></div>
-                </div>
-            </div>
-
-            <div class="full-width">
                 <h3 class="mt-0" data-i18n="setting.maintenance.danger_title"></h3>
                 <p class="form-hint mb-20" data-i18n="setting.maintenance.danger_hint"></p>
             </div>
@@ -237,6 +225,33 @@
         </div>
     </div>
 
+    <!-- 日志管理分页 -->
+    <div id="content-log" class="tab-content">
+        <div class="settings-grid">
+            <div class="full-width">
+                <h3 class="mt-0" data-i18n="setting.log.title"></h3>
+                <p class="form-hint mb-20" data-i18n="setting.log.retention_hint"></p>
+            </div>
+
+            <div class="full-width log-size-card">
+                <span class="log-size-label" data-i18n="setting.log.dir_size"></span>
+                <span id="log-dir-size" class="log-size-value"></span>
+            </div>
+
+            <div class="form-group">
+                <label class="label-text" for="log-retention-days" data-i18n="setting.log.retention"></label>
+                <div class="log-retention-row">
+                    <input type="number" id="log-retention-days" class="input-field" min="1" step="1" placeholder="" data-i18n-placeholder="setting.log.retention_placeholder" autocomplete="off">
+                    <label class="log-forever-label" for="log-retention-forever">
+                        <input type="checkbox" id="log-retention-forever" class="checkbox-field">
+                        <span data-i18n="setting.log.forever"></span>
+                    </label>
+                </div>
+                <small class="form-hint" data-i18n="setting.log.retention_days_hint"></small>
+            </div>
+        </div>
+    </div>
+
     <!-- 账户与系统分页 -->
     <div id="content-account" class="tab-content">
         <div id="setting-form" class="settings-grid">
@@ -250,6 +265,11 @@
                     <option value="zh">简体中文 (Chinese)</option>
                 </select>
                 <small class="form-hint" data-i18n="setting.account.language_hint"></small>
+            </div>
+            <div class="form-group">
+                <label class="label-text" for="timezone-select" data-i18n="setting.account.timezone"></label>
+                <select id="timezone-select" class="input-field select-field"></select>
+                <small class="form-hint" data-i18n="setting.account.timezone_hint"></small>
             </div>
 
             <div class="full-width">
@@ -298,6 +318,13 @@
             <label class="label-text" for="user-modal-username" data-i18n="setting.user.username"></label>
             <input type="text" id="user-modal-username" class="input-field" autocomplete="off" data-i18n-placeholder="setting.user.username_placeholder">
         </div>
+        <div class="form-group" id="user-modal-role-group">
+            <label class="label-text" for="user-modal-role" data-i18n="setting.user.system_role"></label>
+            <select id="user-modal-role" class="input-field">
+                <option value="admin" data-i18n="setting.user.role_admin"></option>
+                <option value="user" data-i18n="setting.user.role_normal"></option>
+            </select>
+        </div>
         <div class="form-group">
             <label class="label-text" for="user-modal-password" data-i18n="setting.user.password"></label>
             <input type="password" id="user-modal-password" class="input-field" autocomplete="new-password" data-i18n-placeholder="setting.user.password_placeholder">
@@ -309,6 +336,29 @@
         <div class="flex-gap-5">
             <button id="user-modal-confirm-btn" class="btn-primary mt-0 flex-1" data-i18n="common.confirm"></button>
             <button id="user-modal-cancel-btn" class="btn-secondary mt-0 flex-1" data-i18n="common.cancel"></button>
+        </div>
+    </div>
+</div>
+
+<!-- 用户仓库权限配置弹窗：第一列控制可见性并展示仓库名，第二列配置仓库权限 -->
+<div id="user-permission-modal" class="modal-mask hidden">
+    <div class="modal-content user-permission-modal-content">
+        <h3 id="user-permission-title" class="title"></h3>
+        <p id="user-permission-tip" class="user-permission-tip"></p>
+        <div class="table-wrapper user-permission-table-wrapper">
+            <table class="file-table user-permission-table">
+                <thead>
+                    <tr>
+                        <th data-i18n="setting.user.permission_repo"></th>
+                        <th data-i18n="setting.user.permission_role"></th>
+                    </tr>
+                </thead>
+                <tbody id="user-permission-body"></tbody>
+            </table>
+        </div>
+        <div class="flex-gap-5">
+            <button id="user-permission-confirm-btn" class="btn-primary mt-0 flex-1" data-i18n="common.save"></button>
+            <button id="user-permission-cancel-btn" class="btn-secondary mt-0 flex-1" data-i18n="common.cancel"></button>
         </div>
     </div>
 </div>
@@ -351,7 +401,6 @@
 <script src="../common/ui_components.js"></script>
 <script src="../common/toast.js"></script>
 <script src="../common/header_toolbar/default/default_header_toolbar.js"></script>
-<script src="../common/widget/progress_button.js"></script>
 <script src="../common/page_bar/page_bar.js"></script>
 <!-- 引入页面逻辑 -->
 <script src="setting.js"></script>

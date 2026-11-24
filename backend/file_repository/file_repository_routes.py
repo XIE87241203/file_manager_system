@@ -9,6 +9,7 @@ from backend.common.i18n_utils import t
 from backend.common.log_utils import LogUtils
 from backend.common.progress_manager import ProgressStatus
 from backend.common.response import success_response, error_response
+from backend.common.timezone_utils import TimezoneUtils
 from backend.common.utils import Utils
 from backend.file_repository.duplicate_check.duplicate_service import DuplicateService
 from backend.file_repository.file_service import FileService
@@ -29,6 +30,19 @@ def _get_current_user() -> str:
     返回值说明：返回当前用户的用户名字符串
     """
     return getattr(request, 'username', 'Unknown')
+
+
+def _apply_display_timezone(items: list) -> None:
+    """
+    用途说明：将文件列表中的系统时间字段转换为系统设置时区后展示，仅影响接口输出，不修改数据库。
+    入参说明：items (list) - 文件模型列表，元素可能包含 scan_time / recycle_bin_time / delete_time 字段。
+    返回值说明：无
+    """
+    for item in items:
+        for attr_name in ('scan_time', 'recycle_bin_time', 'delete_time'):
+            raw_value: Optional[str] = getattr(item, attr_name, None)
+            if raw_value:
+                setattr(item, attr_name, TimezoneUtils.local_to_target(raw_value))
 
 
 @file_repo_bp.route('/scan', methods=['POST'])
@@ -169,9 +183,11 @@ def list_files():
 
     if search_history:
         data = FileService.search_history_file_index_list(page, limit, sort_by, order_asc, search_query, file_type=file_type)
+        _apply_display_timezone(data.list)
         return success_response(t('repo_get_list_success'), data=asdict(data))
     else:
         data = FileService.search_file_index_list(page, limit, sort_by, order_asc, search_query, file_type=file_type)
+        _apply_display_timezone(data.list)
         return success_response(t('repo_get_list_success'), data=asdict(data))
 
 
@@ -194,6 +210,7 @@ def list_recycle_bin_files():
     search_query: str = request.args.get('search', default='').strip()
 
     data = RecycleBinService.get_recycle_bin_list(page, limit, sort_by, order_asc, search_query)
+    _apply_display_timezone(data.list)
     return success_response(t('repo_get_list_success'), data=asdict(data))
 
 
@@ -283,7 +300,9 @@ def get_latest_duplicate_check_time():
     """
     time_str = DuplicateService.get_latest_check_time()
     duration = DuplicateService.get_last_check_duration()
-    return success_response(t('dup_get_last_time_success'), data={"time": time_str, "duration": duration})
+    # 查重时间按系统设置时区展示（数据库内部仍保存服务器本地时间，用于增量比对）
+    display_time: Optional[str] = TimezoneUtils.local_to_target(time_str)
+    return success_response(t('dup_get_last_time_success'), data={"time": display_time, "duration": duration})
 
 
 # --- 缩略图相关路由 ---

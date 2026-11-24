@@ -4,6 +4,20 @@
  */
 const AlbumBrowseRequest = {
     /**
+     * 用途说明：获取当前登录用户在当前仓库中的权限。
+     * 入参说明：onSuccess (Function) - 成功回调，参数为 {username, is_admin, repo_permission}；onError (Function) - 失败回调。
+     * 返回值说明：无
+     */
+    getCurrentUser(onSuccess, onError) {
+        Request.get('/api/user/me', {}, false)
+            .then(res => {
+                if (res.status === 'success') onSuccess(res.data);
+                else onError(res.message);
+            })
+            .catch(err => onError(err.message || I18nManager.t('common.network_error')));
+    },
+
+    /**
      * 用途说明：构建带 Token 与仓库上下文的查询串（用于 img/video/a 标签直接访问）。
      * 入参说明：无
      * 返回值说明：string - 形如 &token=xxx&repo_id=1 的查询片段。
@@ -44,7 +58,7 @@ const AlbumBrowseRequest = {
     /**
      * 用途说明：分页获取相册媒体列表。
      * 入参说明：
-     *   params (Object) - { page, limit, search, sort_by, order_asc }
+     *   params (Object) - { page, limit, search, file_type, sort_by, order_asc }
      *   onSuccess (Function) - 成功回调，参数为分页结果对象。
      *   onError (Function) - 失败回调，参数为错误信息。
      * 返回值说明：无
@@ -54,7 +68,8 @@ const AlbumBrowseRequest = {
             page: String(params.page || 1),
             limit: String(params.limit || 30),
             search: params.search || '',
-            sort_by: params.sort_by || 'scan_time',
+            file_type: params.file_type || '',
+            sort_by: params.sort_by || 'album_time',
             order_asc: params.order_asc ? 'true' : 'false'
         });
         Request.get(`/api/album/list?${query.toString()}`, {}, false)
@@ -94,6 +109,55 @@ const AlbumBrowseRequest = {
         Request.post('/api/file_repository/move_to_recycle_bin', { file_paths: filePaths }, {}, false)
             .then(res => {
                 if (res.status === 'success') onSuccess(res);
+                else onError(res.message);
+            })
+            .catch(err => onError(err.message || I18nManager.t('common.network_error')));
+    },
+
+    /**
+     * 用途说明：启动文件索引扫描任务（与文件管理页面共用扫描接口）。
+     * 入参说明：
+     *   fullScan (boolean) - 是否重新扫描全部索引。
+     *   onSuccess (Function) - 成功回调，参数为响应对象。
+     *   onError (Function) - 失败回调，参数为错误信息。
+     * 返回值说明：无
+     */
+    startScan(fullScan, onSuccess, onError) {
+        Request.post('/api/file_repository/scan', { full_scan: fullScan }, {}, false)
+            .then(res => {
+                if (res.status === 'success') onSuccess(res);
+                else onError(res.message);
+            })
+            .catch(err => onError(err.message || I18nManager.t('common.network_error')));
+    },
+
+    /**
+     * 用途说明：停止正在进行的索引扫描任务。
+     * 入参说明：
+     *   onSuccess (Function) - 成功回调，参数为响应对象。
+     *   onError (Function) - 失败回调，参数为错误信息。
+     * 返回值说明：无
+     */
+    stopScan(onSuccess, onError) {
+        Request.post('/api/file_repository/stop', {}, {}, false)
+            .then(res => {
+                if (res.status === 'success') onSuccess(res);
+                else onError(res.message);
+            })
+            .catch(err => onError(err.message || I18nManager.t('common.network_error')));
+    },
+
+    /**
+     * 用途说明：获取当前索引扫描任务的进度与状态。
+     * 入参说明：
+     *   onSuccess (Function) - 成功回调，参数为进度数据 { status, progress }。
+     *   onError (Function) - 失败回调，参数为错误信息。
+     * 返回值说明：无
+     */
+    getProgress(onSuccess, onError) {
+        Request.get('/api/file_repository/progress', {}, false)
+            .then(res => {
+                if (res.status === 'success') onSuccess(res.data);
                 else onError(res.message);
             })
             .catch(err => onError(err.message || I18nManager.t('common.network_error')));

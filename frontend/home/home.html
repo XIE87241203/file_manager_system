@@ -1,10 +1,14 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title data-i18n="home.title"></title>
+    <script src="/common/theme_manager.js"></script>
     <link rel="stylesheet" href="../common/common.css">
+    <link rel="stylesheet" href="../common/themes/light/theme.css">
+    <link rel="stylesheet" href="../common/themes/dark/theme.css">
+    <link rel="stylesheet" href="../common/appearance_manager.css">
     <link rel="stylesheet" href="../common/header_toolbar/default/default_header_toolbar.css">
     <link rel="stylesheet" href="home.css">
 </head>
@@ -15,80 +19,80 @@
     <main class="main-content">
         <div class="home-container">
             <!-- 文件录入管理分组 -->
-            <div class="menu-group-title" data-i18n="home.group_file_entry"></div>
-            <div class="menu-grid">
+            <div id="group-file-entry-title" class="menu-group-title" data-i18n="home.group_file_entry"></div>
+            <div id="group-file-entry-grid" class="menu-grid">
                 <!-- 待录入文件名库入口 -->
                 <div id="menu-pending-entry" class="menu-item">
-                    <div class="menu-icon">📝</div>
+                    <span class="menu-icon theme-icon icon-pending-entry" aria-hidden="true"></span>
                     <div class="menu-label" data-i18n="home.menu_pending"></div>
                 </div>
                 <!-- 曾录入文件名库入口 -->
                 <div id="menu-ignore-file" class="menu-item">
-                    <div class="menu-icon">🗃️</div>
+                    <span class="menu-icon theme-icon icon-archive" aria-hidden="true"></span>
                     <div class="menu-label" data-i18n="home.menu_history"></div>
                 </div>
             </div>
             
             <!-- 整理文件分组 -->
-            <div class="menu-group-title" data-i18n="home.group_organize"></div>
-            <div class="menu-grid">
+            <div id="group-organize-title" class="menu-group-title" data-i18n="home.group_organize"></div>
+            <div id="group-organize-grid" class="menu-grid">
                 <!-- 开始整理入口 -->
                 <div id="menu-organize-start" class="menu-item">
-                    <div class="menu-icon">🧹</div>
+                    <span class="menu-icon theme-icon icon-organize" aria-hidden="true"></span>
                     <div class="menu-label" data-i18n="home.menu_organize_start"></div>
                 </div>
                 <!-- 整理记录入口 -->
                 <div id="menu-organize-records" class="menu-item">
-                    <div class="menu-icon">📋</div>
+                    <span class="menu-icon theme-icon icon-records" aria-hidden="true"></span>
                     <div class="menu-label" data-i18n="home.menu_organize_records"></div>
                 </div>
                 <!-- 整理设置入口 -->
                 <div id="menu-organize-setting" class="menu-item">
-                    <div class="menu-icon">🛠️</div>
+                    <span class="menu-icon theme-icon icon-tune" aria-hidden="true"></span>
                     <div class="menu-label" data-i18n="home.menu_organize_setting"></div>
                 </div>
             </div>
 
             <!-- 文件管理分组 -->
-            <div class="menu-group-title">
+            <div id="group-file-manage-title" class="menu-group-title">
                 <span data-i18n="home.group_file_manage"></span>
                 <!-- 文件仓库详情徽章 -->
                 <div id="repo-detail-container" class="repo-detail-badge">
                     <span class="detail-item"><span data-i18n="home.stats_file"></span>: <span id="repo-total-count" class="detail-value">--</span></span>
                     <span class="detail-item"><span data-i18n="home.stats_size"></span>: <span id="repo-total-size" class="detail-value">--</span></span>
                     <span class="detail-item"><span data-i18n="home.stats_date"></span>: <span id="repo-update-time" class="detail-value">--</span></span>
-                    <button id="btn-calc-repo-stats" class="btn-calc-stats" data-i18n-title="home.stats_refresh_tip" title="">🔄</button>
+                    <button id="btn-calc-repo-stats" class="btn-calc-stats" data-i18n-title="home.stats_refresh_tip" title=""><span class="theme-icon icon-refresh" aria-hidden="true"></span></button>
                 </div>
             </div>
-            <div class="menu-grid">
+            <div id="group-file-manage-grid" class="menu-grid">
                 <!-- 文件仓库入口 -->
                 <div id="menu-file-repository" class="menu-item">
-                    <div class="menu-icon">📂</div>
+                    <span class="menu-icon theme-icon icon-folder-open" aria-hidden="true"></span>
                     <div class="menu-label" data-i18n="home.menu_repo"></div>
                 </div>
                 <!-- 文件去重入口 -->
                 <div id="menu-duplicate-check" class="menu-item">
-                    <div class="menu-icon">👯</div>
+                    <span class="menu-icon theme-icon icon-duplicate" aria-hidden="true"></span>
                     <div class="menu-label" data-i18n="home.menu_dup"></div>
                 </div>
                 <!-- 回收站入口 -->
                 <div id="menu-recycle-bin" class="menu-item">
-                    <div class="menu-icon">🗑️</div>
+                    <span class="menu-icon theme-icon icon-trash" aria-hidden="true"></span>
                     <div class="menu-label" data-i18n="home.menu_recycle"></div>
                 </div>
             </div>
 
             <!-- 相册分组 -->
-            <div class="menu-group-title" data-i18n="home.group_album"></div>
+            <div id="group-album-title" class="menu-group-title" data-i18n="home.group_album"></div>
             <div class="menu-grid">
                 <!-- 相册浏览入口 -->
                 <div id="menu-album-browse" class="menu-item">
-                    <div class="menu-icon">🖼️</div>
+                    <span class="menu-icon theme-icon icon-image" aria-hidden="true"></span>
                     <div class="menu-label" data-i18n="home.menu_album_browse"></div>
                 </div>
                 <!-- 相册设置入口 -->
                 <div id="menu-album-setting" class="menu-item">
-                    <div class="menu-icon">⚙️</div>
+                    <span class="menu-icon theme-icon icon-settings" aria-hidden="true"></span>
                     <div class="menu-label" data-i18n="home.menu_album_setting"></div>
                 </div>
             </div>
@@ -98,25 +102,25 @@
             <div class="menu-grid">
                 <!-- 设置入口 -->
                 <div id="menu-setting" class="menu-item">
-                    <div class="menu-icon">⚙️</div>
+                    <span class="menu-icon theme-icon icon-settings" aria-hidden="true"></span>
                     <div class="menu-label" data-i18n="home.menu_setting"></div>
                 </div>
                 
                 <!-- 运行日志 -->
                 <div id="menu-logs" class="menu-item">
-                    <div class="menu-icon">📊</div>
+                    <span class="menu-icon theme-icon icon-logs" aria-hidden="true"></span>
                     <div class="menu-label" data-i18n="home.menu_logs"></div>
                 </div>
 
                 <!-- 退出登录 -->
                 <div id="menu-logout" class="menu-item">
-                    <div class="menu-icon">🚪</div>
+                    <span class="menu-icon theme-icon icon-logout" aria-hidden="true"></span>
                     <div class="menu-label" data-i18n="home.menu_logout"></div>
                 </div>
 
                 <!-- 隐藏的测试页面入口 -->
                 <div id="menu-test-page" class="menu-item hidden">
-                    <div class="menu-icon">🧪</div>
+                    <span class="menu-icon theme-icon icon-test" aria-hidden="true"></span>
                     <div class="menu-label" data-i18n="home.menu_test"></div>
                 </div>
             </div>
@@ -130,6 +134,7 @@
     <script src="../common/i18n/zh.js"></script>
     <script src="../common/i18n/en.js"></script>
     <script src="../common/i18n/i18n_utils.js"></script>
+    <script src="../common/appearance_manager.js"></script>
 
     <!-- 引入公用工具 -->
     <script src="../common/common.js"></script>

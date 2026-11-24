@@ -14,3 +14,6 @@ class AlbumItemResult:
     thumbnail_path: Optional[str] = None         # 缩略图物理路径，空表示尚未生成
     video_duration: Optional[float] = None       # 视频时长（秒），图片为空
     scan_time: Optional[str] = None              # 文件入库（扫描）时间
+    file_mtime: Optional[str] = None             # 文件最后修改时间（EXIF 时间缺失时的兜底）
+    file_exif_time: Optional[str] = None         # EXIF 拍摄时间/视频创建时间（相册优先使用）
+    file_location: Optional[str] = None          # 拍摄地点（EXIF GPS / 视频 ISO 6709 坐标文本）

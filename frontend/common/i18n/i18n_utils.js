@@ -17,15 +17,16 @@ const I18nManager = {
     /**
      * @description 用途说明：初始化多语言配置。优先级：URL 参数 > 传入参数 > localStorage > 默认 en。
      * @param {string} lang - 入参说明：语言标识 ('zh' 或 'en')。
+     * @param {boolean} [force=false] - 入参说明：是否强制应用传入语言并忽略 URL 参数，供用户主动切换语言时使用。
      * @returns {void} - 返回值说明：无。
      */
-    init: function(lang) {
+    init: function(lang, force = false) {
         // 1. 尝试从 URL 获取 lang 参数
         const urlParams = new URLSearchParams(window.location.search);
         const urlLang = urlParams.get('lang');
 
-        // 2. 确定最终语言标识
-        this.currentLang = urlLang || lang || localStorage.getItem('sys_lang') || 'en';
+        // 2. 确定最终语言标识；主动切换时跳过 URL 参数，确保用户弹窗选择优先生效
+        this.currentLang = (force ? null : urlLang) || lang || localStorage.getItem('sys_lang') || 'en';
 
         // 3. 持久化存储，方便后续页面读取
         localStorage.setItem('sys_lang', this.currentLang);

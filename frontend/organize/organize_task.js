@@ -39,7 +39,7 @@ const UIController = {
             title: I18nManager.t('organize.task.title'),
             showBack: true,
             backCallback: () => { window.location.href = '../home/home.html'; },
-            menuIcon: '../common/header_toolbar/icon/settings_icon.svg',
+            menuIcon: '/common/themes/light/icons/settings_icon.svg',
             menuCallback: () => { window.location.href = 'organize_setting.html'; }
         });
 

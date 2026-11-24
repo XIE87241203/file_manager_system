@@ -1,15 +1,22 @@
 import hashlib
 import sqlite3
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from backend.common.i18n_utils import t
 from backend.common.log_utils import LogUtils
 from backend.common.password_utils import hash_password, is_hashed
+from backend.common.timezone_utils import TimezoneUtils
 from backend.db.db_constants import DBConstants
 from backend.db.db_manager import db_manager
 from backend.model.db.user_db_model import UserDBModel
 from backend.setting.setting_service import settingService
-from backend.user.user_models import LoginHistoryPageResult, LoginHistoryResult, UserResult
+from backend.user.user_models import (
+    LoginHistoryPageResult,
+    LoginHistoryResult,
+    RepositoryPermissionInfo,
+    UserRepositoryPermissionResult,
+    UserResult,
+)
 
 
 class UserService:
@@ -97,7 +104,9 @@ class UserService:
             )
             for row in cursor.fetchall():
                 results.append(UserResult(
-                    id=row[0], username=row[1], is_admin=bool(row[2]), create_time=row[3], last_login=row[4]
+                    id=row[0], username=row[1], is_admin=bool(row[2]),
+                    create_time=TimezoneUtils.utc_to_target(row[3]) or None,
+                    last_login=TimezoneUtils.utc_to_target(row[4]) or None
                 ))
             conn.close()
         except Exception as e:
@@ -175,6 +184,190 @@ class UserService:
         user: Optional[UserDBModel] = self.get_user_by_username(username)
         return bool(user and user.is_admin)
 
+    def get_repo_permission(self, username: str, repo_id: int) -> Optional[str]:
+        """
+        用途：获取指定用户在指定仓库中的权限。
+        入参说明：
+            username (str): 登录名。
+            repo_id (int): 仓库 ID。
+        返回值说明：Optional[str] - admin/member；用户不存在或仓库未授权时返回 None。
+        """
+        user: Optional[UserDBModel] = self.get_user_by_username(username)
+        if not user:
+            return None
+        if user.is_admin:
+            return DBConstants.UserRepositoryPermission.PERMISSION_ADMIN
+        try:
+            conn: sqlite3.Connection = db_manager.get_master_connection()
+            cursor: sqlite3.Cursor = conn.cursor()
+            cursor.execute(
+                f"SELECT {DBConstants.UserRepositoryPermission.COL_PERMISSION} "
+                f"FROM {DBConstants.UserRepositoryPermission.TABLE_NAME} "
+                f"WHERE {DBConstants.UserRepositoryPermission.COL_USER_ID} = ? "
+                f"AND {DBConstants.UserRepositoryPermission.COL_REPO_ID} = ?",
+                (user.id, repo_id)
+            )
+            row = cursor.fetchone()
+            conn.close()
+            return row[0] if row else None
+        except Exception as e:
+            LogUtils.error(t('user_repo_permission_query_error', error=str(e)))
+            return None
+
+    def get_repo_permissions(self, username: str) -> Dict[int, str]:
+        """
+        用途：获取指定用户可见的全部仓库权限映射，供仓库列表过滤使用。
+        入参说明：username (str): 登录名。
+        返回值说明：Dict[int, str] - 仓库 ID 到 admin/member 权限的映射；系统管理员包含全部仓库。
+        """
+        permissions: Dict[int, str] = {}
+        user: Optional[UserDBModel] = self.get_user_by_username(username)
+        if not user:
+            return permissions
+        try:
+            conn: sqlite3.Connection = db_manager.get_master_connection()
+            cursor: sqlite3.Cursor = conn.cursor()
+            if user.is_admin:
+                cursor.execute(
+                    f"SELECT {DBConstants.Repository.COL_ID}, ? FROM {DBConstants.Repository.TABLE_NAME}",
+                    (DBConstants.UserRepositoryPermission.PERMISSION_ADMIN,)
+                )
+            else:
+                cursor.execute(
+                    f"SELECT p.{DBConstants.UserRepositoryPermission.COL_REPO_ID}, "
+                    f"p.{DBConstants.UserRepositoryPermission.COL_PERMISSION} "
+                    f"FROM {DBConstants.UserRepositoryPermission.TABLE_NAME} p "
+                    f"WHERE p.{DBConstants.UserRepositoryPermission.COL_USER_ID} = ?",
+                    (user.id,)
+                )
+            for row in cursor.fetchall():
+                permissions[int(row[0])] = str(row[1])
+            conn.close()
+        except Exception as e:
+            LogUtils.error(t('user_repo_permission_query_error', error=str(e)))
+        return permissions
+
+    def list_user_repository_permissions(self, user_id: int) -> List[UserRepositoryPermissionResult]:
+        """
+        用途：获取某用户的完整仓库权限配置，包含不可见仓库，供系统管理员编辑弹窗使用。
+        入参说明：user_id (int): 目标用户 ID。
+        返回值说明：List[UserRepositoryPermissionResult] - 按仓库 ID 升序排列的权限配置列表。
+        """
+        results: List[UserRepositoryPermissionResult] = []
+        user: Optional[UserDBModel] = self.get_user_by_id(user_id)
+        if not user:
+            return results
+        try:
+            conn: sqlite3.Connection = db_manager.get_master_connection()
+            cursor: sqlite3.Cursor = conn.cursor()
+            cursor.execute(
+                f"SELECT r.{DBConstants.Repository.COL_ID}, r.{DBConstants.Repository.COL_NAME}, "
+                f"p.{DBConstants.UserRepositoryPermission.COL_PERMISSION} "
+                f"FROM {DBConstants.Repository.TABLE_NAME} r "
+                f"LEFT JOIN {DBConstants.UserRepositoryPermission.TABLE_NAME} p "
+                f"ON p.{DBConstants.UserRepositoryPermission.COL_REPO_ID} = r.{DBConstants.Repository.COL_ID} "
+                f"AND p.{DBConstants.UserRepositoryPermission.COL_USER_ID} = ? "
+                f"ORDER BY r.{DBConstants.Repository.COL_ID} ASC",
+                (user_id,)
+            )
+            for row in cursor.fetchall():
+                stored_permission: str = str(row[2] or '')
+                permission: str = DBConstants.UserRepositoryPermission.PERMISSION_ADMIN if user.is_admin else stored_permission
+                results.append(UserRepositoryPermissionResult(
+                    repo_id=int(row[0]),
+                    repo_name=str(row[1]),
+                    visible=bool(permission),
+                    permission=permission
+                ))
+            conn.close()
+        except Exception as e:
+            LogUtils.error(t('user_repo_permission_query_error', error=str(e)))
+        return results
+
+    @staticmethod
+    def _insert_permission_rows(
+        cursor: sqlite3.Cursor,
+        user_id: int,
+        permissions: List[RepositoryPermissionInfo],
+        is_admin: bool
+    ) -> Tuple[bool, str]:
+        """
+        用途：在用户新增或权限替换事务中校验并写入仓库授权记录。
+        入参说明：
+            cursor (sqlite3.Cursor): 主库事务游标。
+            user_id (int): 目标用户 ID。
+            permissions (List[RepositoryPermissionInfo]): 仓库授权列表。
+            is_admin (bool): 是否系统管理员；系统管理员无需逐仓库记录。
+        返回值说明：Tuple[bool, str] - 是否成功及错误提示。
+        """
+        if is_admin:
+            return True, ''
+        valid_repo_ids: set[int] = {
+            int(row[0]) for row in cursor.execute(
+                f"SELECT {DBConstants.Repository.COL_ID} FROM {DBConstants.Repository.TABLE_NAME}"
+            ).fetchall()
+        }
+        seen_repo_ids: set[int] = set()
+        for item in permissions:
+            if item.repo_id not in valid_repo_ids:
+                return False, t('user_repo_permission_invalid_repo')
+            if item.repo_id in seen_repo_ids:
+                return False, t('user_repo_permission_duplicate')
+            if item.permission not in (
+                DBConstants.UserRepositoryPermission.PERMISSION_ADMIN,
+                DBConstants.UserRepositoryPermission.PERMISSION_MEMBER
+            ):
+                return False, t('user_repo_permission_invalid')
+            seen_repo_ids.add(item.repo_id)
+            cursor.execute(
+                f"INSERT INTO {DBConstants.UserRepositoryPermission.TABLE_NAME} "
+                f"({DBConstants.UserRepositoryPermission.COL_USER_ID}, "
+                f"{DBConstants.UserRepositoryPermission.COL_REPO_ID}, "
+                f"{DBConstants.UserRepositoryPermission.COL_PERMISSION}) VALUES (?, ?, ?)",
+                (user_id, item.repo_id, item.permission)
+            )
+        return True, ''
+
+    def replace_user_repository_permissions(
+        self,
+        user_id: int,
+        permissions: List[RepositoryPermissionInfo]
+    ) -> Tuple[bool, str]:
+        """
+        用途：整体替换某系统使用者的仓库可见性与权限配置。
+        入参说明：
+            user_id (int): 目标用户 ID。
+            permissions (List[RepositoryPermissionInfo]): 新的仓库授权列表，未包含的仓库设为不可见。
+        返回值说明：Tuple[bool, str] - 是否成功及提示消息。
+        """
+        user: Optional[UserDBModel] = self.get_user_by_id(user_id)
+        if not user:
+            return False, t('user_not_found')
+        conn: Optional[sqlite3.Connection] = None
+        try:
+            conn = db_manager.get_master_connection()
+            cursor: sqlite3.Cursor = conn.cursor()
+            cursor.execute(
+                f"DELETE FROM {DBConstants.UserRepositoryPermission.TABLE_NAME} "
+                f"WHERE {DBConstants.UserRepositoryPermission.COL_USER_ID} = ?",
+                (user_id,)
+            )
+            valid, message = self._insert_permission_rows(cursor, user_id, permissions, bool(user.is_admin))
+            if not valid:
+                conn.rollback()
+                conn.close()
+                return False, message
+            conn.commit()
+            conn.close()
+            LogUtils.info(t('user_repo_permission_update_log', username=user.username))
+            return True, t('user_repo_permission_update_success')
+        except Exception as e:
+            if conn:
+                conn.rollback()
+                conn.close()
+            LogUtils.error(t('user_repo_permission_update_error', error=str(e)))
+            return False, t('user_repo_permission_update_error', error=str(e))
+
     def count_admins(self) -> int:
         """
         用途：统计管理员数量，用于保护最后一个管理员不被删除。
@@ -194,12 +387,20 @@ class UserService:
             LogUtils.error(t('user_query_error', error=str(e)))
             return 0
 
-    def add_user(self, username: str, client_hash: str) -> Tuple[bool, str]:
+    def add_user(
+        self,
+        username: str,
+        client_hash: str,
+        is_admin: bool = False,
+        permissions: Optional[List[RepositoryPermissionInfo]] = None
+    ) -> Tuple[bool, str]:
         """
-        用途：新增普通用户。前端传来密码的 SHA-256 哈希，后端再做 PBKDF2 加盐慢哈希后落库。
+        用途：新增系统管理员或系统使用者，并在同一事务中写入仓库授权。
         入参说明：
             username (str): 登录名。
             client_hash (str): 前端传输的密码 SHA-256 哈希。
+            is_admin (bool): True 为系统管理员，False 为系统使用者。
+            permissions (Optional[List[RepositoryPermissionInfo]]): 系统使用者的仓库授权列表。
         返回值说明：(bool, str) - 是否成功及提示消息。
         """
         username = (username or '').strip()
@@ -209,27 +410,38 @@ class UserService:
             return False, t('user_password_required')
         if self.get_user_by_username(username):
             return False, t('user_add_duplicate', username=username)
+        permission_rows: List[RepositoryPermissionInfo] = permissions or []
+        conn: Optional[sqlite3.Connection] = None
         try:
             password_hash: str = hash_password(client_hash)
-            conn: sqlite3.Connection = db_manager.get_master_connection()
+            conn = db_manager.get_master_connection()
             cursor: sqlite3.Cursor = conn.cursor()
             cursor.execute(
                 f"INSERT INTO {DBConstants.User.TABLE_NAME} "
                 f"({DBConstants.User.COL_USERNAME}, {DBConstants.User.COL_PASSWORD_HASH}, {DBConstants.User.COL_IS_ADMIN}) "
-                f"VALUES (?, ?, 0)",
-                (username, password_hash)
+                f"VALUES (?, ?, ?)",
+                (username, password_hash, 1 if is_admin else 0)
             )
+            user_id: int = int(cursor.lastrowid)
+            valid, message = self._insert_permission_rows(cursor, user_id, permission_rows, is_admin)
+            if not valid:
+                conn.rollback()
+                conn.close()
+                return False, message
             conn.commit()
             conn.close()
             LogUtils.info(t('user_add_log', username=username))
             return True, t('user_add_success')
         except Exception as e:
+            if conn:
+                conn.rollback()
+                conn.close()
             LogUtils.error(t('user_add_error', error=str(e)))
             return False, t('user_add_error', error=str(e))
 
     def delete_user(self, user_id: int, operator_username: str) -> Tuple[bool, str]:
         """
-        用途：删除用户。禁止删除自己，禁止删除最后一个管理员；删除成功后使该用户 Token 立即失效，并同步清理其登录历史。
+        用途：删除用户。禁止删除自己，禁止删除最后一个管理员；删除成功后使该用户 Token 立即失效，并同步清理其仓库授权与登录历史。
         入参说明：
             user_id (int): 待删除用户 ID。
             operator_username (str): 执行操作的管理员登录名。
@@ -251,7 +463,12 @@ class UserService:
                 f"DELETE FROM {DBConstants.User.TABLE_NAME} WHERE {DBConstants.User.COL_ID} = ?",
                 (user_id,)
             )
-            # 同步清理该用户的登录历史，避免遗留孤儿记录
+            # 同步清理该用户的仓库授权与登录历史，避免遗留孤儿记录
+            cursor.execute(
+                f"DELETE FROM {DBConstants.UserRepositoryPermission.TABLE_NAME} "
+                f"WHERE {DBConstants.UserRepositoryPermission.COL_USER_ID} = ?",
+                (user_id,)
+            )
             cursor.execute(
                 f"DELETE FROM {DBConstants.LoginHistory.TABLE_NAME} WHERE {DBConstants.LoginHistory.COL_USER_ID} = ?",
                 (user_id,)
@@ -395,7 +612,10 @@ class UserService:
                 (user_id, page_size, offset)
             )
             for row in cursor.fetchall():
-                result.list.append(LoginHistoryResult(login_time=row[0], ip=row[1] or ''))
+                result.list.append(LoginHistoryResult(
+                    login_time=TimezoneUtils.utc_to_target(row[0]) or None,
+                    ip=row[1] or ''
+                ))
             conn.close()
         except Exception as e:
             LogUtils.error(t('user_login_history_error', error=str(e)))

@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import List
+from typing import List, Optional
 
 @dataclass
 class UserData:
@@ -9,6 +9,7 @@ class UserData:
     username: str = "admin"
     password: str = "admin123"  # 存储为 PBKDF2 加盐哈希（旧版明文在加载时自动迁移）
     language: str = "en"  # 新增：系统语言设置，支持 'zh' 或 'en'
+    timezone_offset_minutes: int = 480  # 系统时区偏移（分钟），默认东八区（北京时间 UTC+08:00）
     login_max_attempts: int = 3  # 同一 IP 连续登录失败达到此次数后触发锁定，最小为 1
     login_lockout_minutes: int = 5  # 触发锁定后的禁止登录时长（分钟），最小为 1
 
@@ -60,6 +61,15 @@ class AlbumSettings:
 
 
 @dataclass
+class LogManagementSettings:
+    """
+    用途：日志管理相关配置数据类
+    """
+    # 日志保留天数（按系统时区自然日计算）；None 表示永久保留，不自动清理
+    retention_days: Optional[int] = 30
+
+
+@dataclass
 class AppConfig:
     """
     用途：系统全局配置汇总数据类
@@ -69,3 +79,4 @@ class AppConfig:
     duplicate_check: DuplicateCheckSettings = field(default_factory=DuplicateCheckSettings)
     file_name_entry: FileNameEntrySettings = field(default_factory=FileNameEntrySettings)
     album: AlbumSettings = field(default_factory=AlbumSettings)
+    log_management: LogManagementSettings = field(default_factory=LogManagementSettings)

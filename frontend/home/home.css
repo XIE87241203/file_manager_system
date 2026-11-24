@@ -2,6 +2,11 @@
  * 用途：首页样式，定义功能入口按钮布局及分组样式
  */
 
+/* 首页右上角主题与语言按钮 */
+.home-appearance-actions {
+    margin-left: 8px;
+}
+
 /* 首页主容器 */
 .home-container {
     width: 100%;
@@ -13,9 +18,9 @@
     width: 100%;
     font-size: 1.05rem;
     font-weight: 600;
-    color: #1a73e8;
+    color: var(--color-primary);
     padding-bottom: 8px;
-    border-bottom: 1px solid #e8eaed;
+    border-bottom: 1px solid var(--color-border-light);
     display: flex;
     align-items: center;
     flex-wrap: wrap; /* 允许内容在空间不足时换行 */
@@ -28,7 +33,7 @@
     display: inline-block;
     width: 4px;
     height: 1.1rem;
-    background-color: #1a73e8;
+    background-color: var(--color-primary);
     margin-right: 12px;
     border-radius: 2px;
 }
@@ -54,10 +59,10 @@
     display: flex;
     align-items: center;
     gap: 5px;
-    background-color: #f1f3f4;
+    background-color: var(--color-surface-muted);
     border-radius: 20px;
     font-size: 0.8rem;
-    color: #5f6368;
+    color: var(--color-text-tertiary);
     font-weight: normal;
 }
 
@@ -79,7 +84,7 @@
 }
 
 .detail-value {
-    color: #1a73e8;
+    color: var(--color-primary);
     font-weight: 600;
     min-width: 30px;
     display: inline-block;
@@ -90,7 +95,7 @@
 .btn-calc-stats {
     background: none;
     border: none;
-    color: #1a73e8;
+    color: var(--color-primary);
     cursor: pointer;
     font-size: 1.1rem;
     padding: 0 4px;
@@ -102,8 +107,13 @@
     line-height: 1;
 }
 
+.btn-calc-stats .theme-icon {
+    width: 1.1rem;
+    height: 1.1rem;
+}
+
 .btn-calc-stats:hover {
-    background-color: rgba(26, 115, 232, 0.1);
+    background-color: var(--alpha-primary-10);
 }
 
 .btn-calc-stats.rotating {
@@ -128,43 +138,59 @@
 }
 
 .menu-item {
-    background-color: #fff;
+    background-color: var(--color-surface);
     border-radius: 8px;
     padding: 24px 20px;
     text-align: center;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    box-shadow: 0 1px 3px var(--alpha-black-05);
     cursor: pointer;
     transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    border: 1px solid #f1f3f4;
+    border: 1px solid var(--color-surface-muted);
 }
 
 .menu-item:hover {
     transform: translateY(-4px);
-    box-shadow: 0 8px 16px rgba(26, 115, 232, 0.1);
-    border-color: #1a73e8;
-    background-color: #f8fbff;
+    box-shadow: 0 8px 16px var(--alpha-primary-10);
+    border-color: var(--color-primary);
+    background-color: var(--palette-f8fbff);
 }
 
 .menu-icon {
-    font-size: 2.2rem;
+    width: 40px;
+    height: 40px;
     margin-bottom: 12px;
+    color: var(--color-text-tertiary);
+}
+
+.menu-item:hover .menu-icon {
+    color: var(--color-primary);
 }
 
 .menu-label {
     font-size: 0.95rem;
     font-weight: 500;
-    color: #3c4043;
+    color: var(--color-text-secondary);
 }
 
 /* 右上角仓库切换下拉框 */
 .repo-selector-container {
+    position: relative;
     display: flex;
     align-items: center;
     margin-right: 8px;
+}
+
+.repo-selector-icon {
+    position: absolute;
+    right: 10px;
+    width: 12px;
+    height: 12px;
+    color: var(--color-primary);
+    pointer-events: none;
 }
 
 .repo-selector {
@@ -172,25 +198,25 @@
     max-width: 180px;
     padding: 0 28px 0 12px;
     font-size: 0.9rem;
-    color: #3c4043;
-    background-color: #ffffff;
-    border: 1px solid #1a73e8;
+    color: var(--color-text-secondary);
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-primary);
     border-radius: 0;
     cursor: pointer;
     outline: none;
     appearance: none;
     -webkit-appearance: none;
-    background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%231a73e8' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-image: none;
     background-repeat: no-repeat;
     background-position: right 10px center;
     transition: box-shadow 0.2s, background-color 0.2s;
 }
 
 .repo-selector:hover {
-    background-color: #ffffff;
-    box-shadow: 0 2px 6px rgba(26, 115, 232, 0.15);
+    background-color: var(--color-surface);
+    box-shadow: 0 2px 6px var(--alpha-primary-15);
 }
 
 .repo-selector:focus {
-    box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.25);
+    box-shadow: 0 0 0 2px var(--alpha-primary-25);
 }

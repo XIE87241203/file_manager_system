@@ -15,7 +15,7 @@ body {
     flex-direction: column;
     min-height: 600px;
     min-width: 375px;
-    background-color: #f0f2f5;
+    background-color: var(--color-page-background);
     height: 100%;
     width: 100vw;
     margin: 0;
@@ -38,12 +38,12 @@ body {
 .top-bar {
     width: 100%;
     height: 60px;
-    background-color: #fff;
+    background-color: var(--color-surface);
     display: flex;
     align-items: center;
     justify-content: space-between; /* 确保左右区域分布在两端 */
     padding: 0 24px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    box-shadow: 0 2px 8px var(--alpha-black-08);
     top: 0;
     left: 0;
     z-index: 1000;
@@ -67,7 +67,7 @@ body {
     text-align: center;
     font-size: 1.2rem;
     font-weight: 600;
-    color: #202124;
+    color: var(--color-text-primary);
     pointer-events: none;
     white-space: nowrap;
 }
@@ -95,7 +95,7 @@ body {
 /* 复选框标签样式 */
 .checkbox-label {
     font-size: 14px;
-    color: #5f6368;
+    color: var(--color-text-tertiary);
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -116,7 +116,7 @@ body {
     background: none;
     border: none;
     font-size: 14px;
-    color: #1a73e8;
+    color: var(--color-primary);
     padding: 8px 12px;
     border-radius: 4px;
     display: flex;
@@ -127,17 +127,17 @@ body {
 }
 
 .back-btn:hover {
-    background-color: #f1f3f4;
-    color: #174ea6;
+    background-color: var(--color-surface-muted);
+    color: var(--color-primary-dark);
 }
 
 /* 右侧按钮基础样式 */
 .right-btn {
     cursor: pointer;
     background: none;
-    border: 1px solid #dadce0;
+    border: 1px solid var(--color-border);
     font-size: 14px;
-    color: #1a73e8;
+    color: var(--color-primary);
     padding: 6px 16px;
     border-radius: 4px;
     white-space: nowrap;
@@ -146,17 +146,17 @@ body {
 }
 
 .right-btn:hover {
-    background-color: #f8f9fa;
-    border-color: #d2e3fc;
+    background-color: var(--color-surface-subtle);
+    border-color: var(--color-primary-soft-hover);
 }
 
 /* 危险操作文本按钮样式 */
 .btn-text-danger {
     cursor: pointer;
     background: none;
-    border: 1px solid #f8d7da;
+    border: 1px solid var(--palette-f8d7da);
     font-size: 14px;
-    color: #d93025;
+    color: var(--color-danger);
     padding: 6px 16px;
     border-radius: 4px;
     white-space: nowrap;
@@ -165,16 +165,16 @@ body {
 }
 
 .btn-text-danger:hover {
-    background-color: #fce8e6;
-    border-color: #f5c2c7;
+    background-color: var(--color-danger-soft);
+    border-color: var(--palette-f5c2c7);
 }
 
 /* 卡片容器样式 */
 .card-container {
-    background: white;
+    background: var(--color-surface);
     padding: 2rem;
     border-radius: 8px;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    box-shadow: 0 4px 6px var(--alpha-black-10);
     width: 100%;
     max-width: 400px;
 }
@@ -182,7 +182,7 @@ body {
 /* 标题样式 */
 .title {
     text-align: center;
-    color: #333;
+    color: var(--color-text-strong);
     margin-bottom: 1.5rem;
     margin-top: 0;
 }
@@ -197,14 +197,14 @@ body {
     display: block;
     margin-bottom: 0.5rem;
     font-size: 0.9rem;
-    color: #666;
+    color: var(--color-text-body-muted);
 }
 
 /* 输入框样式 */
 .input-field {
     width: 100%;
     padding: 0.75rem;
-    border: 1px solid #ddd;
+    border: 1px solid var(--color-border-strong);
     border-radius: 4px;
     box-sizing: border-box;
     transition: border-color 0.3s;
@@ -213,13 +213,13 @@ body {
 }
 
 .input-field:focus {
-    border-color: #007bff;
+    border-color: var(--color-primary-bootstrap);
     outline: none;
 }
 
 /* 表单提示文本 */
 .form-hint {
-    color: #999;
+    color: var(--palette-999);
     font-size: 0.8rem;
     margin-top: 4px;
     display: block;
@@ -229,9 +229,9 @@ body {
 .btn-primary {
     width: 100%;
     padding: 0.75rem;
-    background-color: #007bff;
-    color: white;
-    border: 1px solid transparent;
+    background-color: var(--color-primary-bootstrap);
+    color: var(--color-text-inverse);
+    border: 1px solid var(--color-transparent);
     border-radius: 4px;
     cursor: pointer;
     font-size: 1rem;
@@ -244,16 +244,16 @@ body {
 }
 
 .btn-primary:hover {
-    background-color: #0056b3;
+    background-color: var(--color-primary-bootstrap-hover);
 }
 
 /* 危险/删除按钮 */
 .btn-danger {
     width: 100%;
     padding: 0.75rem;
-    background-color: #dc3545;
-    color: white;
-    border: 1px solid transparent;
+    background-color: var(--color-danger-bootstrap);
+    color: var(--color-text-inverse);
+    border: 1px solid var(--color-transparent);
     border-radius: 4px;
     cursor: pointer;
     font-size: 1rem;
@@ -267,16 +267,16 @@ body {
 }
 
 .btn-danger:hover {
-    background-color: #c82333;
+    background-color: var(--color-danger-hover);
 }
 
 /* 次要按钮样式 */
 .btn-secondary {
     width: 100%;
     padding: 0.75rem;
-    background-color: #6c757d;
-    color: white;
-    border: 1px solid transparent;
+    background-color: var(--color-secondary);
+    color: var(--color-text-inverse);
+    border: 1px solid var(--color-transparent);
     border-radius: 4px;
     cursor: pointer;
     font-size: 1rem;
@@ -290,14 +290,14 @@ body {
 }
 
 .btn-secondary:hover {
-    background-color: #5a6268;
+    background-color: var(--color-secondary-hover);
 }
 
 /* 消息提示样式 */
 .message {
     margin-top: 1rem;
     text-align: center;
-    color: #dc3545;
+    color: var(--color-danger-bootstrap);
     font-size: 0.85rem;
     min-height: 1.2rem;
 }
@@ -316,13 +316,13 @@ body {
 }
 
 .toast-item {
-    background-color: rgba(0, 0, 0, 0.7);
-    color: white;
+    background-color: var(--alpha-black-70);
+    color: var(--color-text-inverse);
     padding: 10px 20px;
     border-radius: 4px;
     margin-bottom: 10px;
     font-size: 0.9rem;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+    box-shadow: 0 2px 10px var(--alpha-black-20);
     animation: toast-in-out 3s ease-in-out forwards;
     pointer-events: auto;
 }
@@ -341,7 +341,7 @@ body {
     left: 0;
     width: 100%;
     height: 100%;
-    background-color: rgba(255, 255, 255, 0.6);
+    background-color: var(--alpha-white-60);
     z-index: 10000;
     display: flex;
     flex-direction: column;
@@ -353,8 +353,8 @@ body {
 .loading-spinner {
     width: 40px;
     height: 40px;
-    border: 4px solid #f3f3f3;
-    border-top: 4px solid #007bff;
+    border: 4px solid var(--palette-f3f3f3);
+    border-top: 4px solid var(--color-primary-bootstrap);
     border-radius: 50%;
     animation: spin 1s linear infinite;
     margin-bottom: 10px;
@@ -362,7 +362,7 @@ body {
 
 .loading-text {
     font-size: 14px;
-    color: #007bff;
+    color: var(--color-primary-bootstrap);
     font-weight: 500;
 }
 
@@ -381,15 +381,15 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
-    background-color: rgba(241, 243, 244, 0.9);
+    background-color: var(--alpha-surface-muted-90);
     z-index: 2000;
 }
 
 .common-progress-card {
-    background: white;
+    background: var(--color-surface);
     padding: 30px 40px;
     border-radius: 12px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    box-shadow: 0 4px 12px var(--alpha-black-10);
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -402,15 +402,15 @@ body {
 .common-progress-spinner {
     width: 40px;
     height: 40px;
-    border: 4px solid #f3f3f3;
-    border-top: 4px solid #1a73e8;
+    border: 4px solid var(--palette-f3f3f3);
+    border-top: 4px solid var(--color-primary);
     border-radius: 50%;
     animation: spin 1s linear infinite;
 }
 
 .common-progress-text {
     font-size: 14px;
-    color: #3c4043;
+    color: var(--color-text-secondary);
     text-align: center;
     font-weight: 500;
 }
@@ -418,21 +418,21 @@ body {
 .common-progress-bar-bg {
     width: 100%;
     height: 10px;
-    background-color: #e8eaed;
+    background-color: var(--color-border-light);
     border-radius: 5px;
     overflow: hidden;
 }
 
 .common-progress-bar-fill {
     height: 100%;
-    background-color: #1a73e8;
+    background-color: var(--color-primary);
     width: 0%;
     transition: width 0.3s ease;
 }
 
 /* 表格/列表项选中样式 */
 .selected-row {
-    background-color: #e8f0fe !important;
+    background-color: var(--color-primary-soft) !important;
 }
 
 /* --- 通用弹窗组件 (Common Modal) --- */
@@ -444,7 +444,7 @@ body {
     left: 0;
     width: 100%;
     height: 100%;
-    background-color: rgba(0, 0, 0, 0.5);
+    background-color: var(--alpha-black-50);
     display: flex;
     justify-content: center;
     align-items: center;
@@ -453,10 +453,10 @@ body {
 
 /* 弹窗内容容器 */
 .modal-content {
-    background: white;
+    background: var(--color-surface);
     padding: 24px;
     border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 4px 12px var(--alpha-black-15);
     width: 90%;
     max-width: 400px;
     box-sizing: border-box;
@@ -464,7 +464,7 @@ body {
 
 .modal-msg {
     margin-bottom: 20px;
-    color: #333;
+    color: var(--color-text-strong);
     line-height: 1.6;
     font-size: 0.95rem;
 }
@@ -486,7 +486,7 @@ body {
 .modal-checkbox-container label {
     cursor: pointer;
     font-size: 0.9rem;
-    color: #666;
+    color: var(--color-text-body-muted);
 }
 
 .flex-gap-5 {
@@ -529,9 +529,9 @@ body {
 .quick-preview-popover {
     position: fixed;
     z-index: 2000;
-    background: #fff;
+    background: var(--color-surface);
     border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+    box-shadow: 0 4px 12px var(--alpha-black-25);
     padding: 8px;
     pointer-events: none;
     display: none;
@@ -557,8 +557,8 @@ body {
 .search-container {
     display: flex;
     align-items: center;
-    background-color: #f1f3f4;
-    border: 1px solid transparent;
+    background-color: var(--color-surface-muted);
+    border: 1px solid var(--color-transparent);
     border-radius: 24px;
     padding: 2px 16px;
     width: 100%;
@@ -567,26 +567,26 @@ body {
 }
 
 .search-container:focus-within {
-    background-color: #fff;
-    border-color: #80bdff;
-    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+    background-color: var(--color-surface);
+    border-color: var(--color-primary-border);
+    box-shadow: 0 0 0 0.2rem var(--alpha-primary-bootstrap-25);
 }
 
 .search-input {
     flex: 1;
     border: none;
     outline: none;
-    background: transparent;
+    background: var(--color-transparent);
     padding: 8px 0;
     font-size: 14px;
-    color: #3c4043;
+    color: var(--color-text-secondary);
 }
 
 .search-btn {
     background: none;
     border: none;
     cursor: pointer;
-    color: #5f6368;
+    color: var(--color-text-tertiary);
     display: flex;
     align-items: center;
     padding-left: 8px;
@@ -594,16 +594,16 @@ body {
 }
 
 .search-btn:hover {
-    color: #1a73e8;
+    color: var(--color-primary);
 }
 
 .search-icon {
     display: inline-block;
     width: 20px;
     height: 20px;
-    background-color: #5f6368;
-    -webkit-mask-image: url("search_icon.svg");
-    mask-image: url("search_icon.svg");
+    background-color: var(--color-text-tertiary);
+    -webkit-mask-image: var(--icon-search);
+    mask-image: var(--icon-search);
     -webkit-mask-repeat: no-repeat;
     mask-repeat: no-repeat;
     -webkit-mask-position: center;
@@ -613,7 +613,7 @@ body {
 }
 
 .search-btn:hover .search-icon {
-    background-color: #1a73e8;
+    background-color: var(--color-primary);
 }
 
 /* --- 底部工具栏与分页布局 --- */
@@ -624,11 +624,11 @@ body {
     align-items: center;
     justify-content: space-between;
     padding: 0 10px;
-    background-color: #fff;
-    border-top: 1px solid #dee2e6;
+    background-color: var(--color-surface);
+    border-top: 1px solid var(--color-border-table);
     flex-shrink: 0;
     z-index: 100;
-    box-shadow: 0 -2px 4px rgba(0, 0, 0, 0.05);
+    box-shadow: 0 -2px 4px var(--alpha-black-05);
 }
 
 .footer-right {
@@ -648,7 +648,7 @@ body {
     align-items: center;
     gap: 20px;
     font-size: 13px;
-    color: #5f6368;
+    color: var(--color-text-tertiary);
 }
 
 .clickable-page-info {
@@ -659,16 +659,16 @@ body {
 }
 
 .clickable-page-info:hover {
-    background-color: #f1f3f4;
-    color: #1a73e8;
+    background-color: var(--color-surface-muted);
+    color: var(--color-primary);
 }
 
 /* --- 大尺寸按钮样式 --- */
 
 .btn-primary-large {
     padding: 10px 24px;
-    background-color: #1a73e8;
-    color: white;
+    background-color: var(--color-primary);
+    color: var(--color-text-inverse);
     border: none;
     border-radius: 4px; /* 修改为 4px */
     cursor: pointer;
@@ -678,13 +678,13 @@ body {
 }
 
 .btn-primary-large:hover {
-    background-color: #1765cc;
+    background-color: var(--color-primary-hover);
 }
 
 .btn-danger-large {
     padding: 10px 24px;
-    background-color: #dc3545;
-    color: white;
+    background-color: var(--color-danger-bootstrap);
+    color: var(--color-text-inverse);
     border: none;
     border-radius: 4px;
     cursor: pointer;
@@ -694,13 +694,13 @@ body {
 }
 
 .btn-danger-large:hover {
-    background-color: #c82333;
+    background-color: var(--color-danger-hover);
 }
 
 .btn-secondary-large {
     padding: 10px 24px;
-    background-color: #6c757d;
-    color: white;
+    background-color: var(--color-secondary);
+    color: var(--color-text-inverse);
     border: none;
     border-radius: 4px;
     cursor: pointer;
@@ -710,11 +710,11 @@ body {
 }
 
 .btn-secondary-large:hover {
-    background-color: #5a6268;
+    background-color: var(--color-secondary-hover);
 }
 
 a.file-link {
-    color: #1a73e8;
+    color: var(--color-primary);
     text-decoration: none;
     word-break: break-all;
 }
@@ -724,7 +724,7 @@ a.file-link:hover {
 }
 
 a.file-link:visited {
-    color: #551A8B;
+    color: var(--palette-551a8b);
 }
 
 /* 应用版本号显示 */
@@ -733,7 +733,7 @@ a.file-link:visited {
     bottom: 10px;
     right: 10px;
     font-size: 0.75rem;
-    color: #888;
+    color: var(--palette-888);
     z-index: 100;
 }
 
@@ -753,9 +753,9 @@ a.file-link:visited {
 .trash-icon {
     width: 20px;
     height: 20px;
-    background-color: #fff;
-    -webkit-mask-image: url("../common/icons/trash_icon.svg");
-    mask-image: url("../common/icons/trash_icon.svg");
+    background-color: var(--color-surface);
+    -webkit-mask-image: var(--icon-trash);
+    mask-image: var(--icon-trash);
     -webkit-mask-repeat: no-repeat;
     mask-repeat: no-repeat;
     -webkit-mask-position: center;
@@ -763,3 +763,61 @@ a.file-link:visited {
     -webkit-mask-size: contain;
     mask-size: contain;
 }
+
+/* --- 主题图标基础样式：所有图标资源统一由主题 CSS 变量提供 --- */
+.theme-icon {
+    display: inline-block;
+    width: 1em;
+    height: 1em;
+    flex-shrink: 0;
+    background-color: currentColor;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-position: center;
+    mask-position: center;
+    -webkit-mask-size: contain;
+    mask-size: contain;
+}
+
+.icon-add { -webkit-mask-image: var(--icon-add); mask-image: var(--icon-add); }
+.icon-back { -webkit-mask-image: var(--icon-back); mask-image: var(--icon-back); }
+.icon-menu { -webkit-mask-image: var(--icon-menu); mask-image: var(--icon-menu); }
+.icon-moon { -webkit-mask-image: var(--icon-moon); mask-image: var(--icon-moon); }
+.icon-sun { -webkit-mask-image: var(--icon-sun); mask-image: var(--icon-sun); }
+.icon-save { -webkit-mask-image: var(--icon-save); mask-image: var(--icon-save); }
+.icon-search { -webkit-mask-image: var(--icon-search); mask-image: var(--icon-search); }
+.icon-settings { -webkit-mask-image: var(--icon-settings); mask-image: var(--icon-settings); }
+.icon-export { -webkit-mask-image: var(--icon-export); mask-image: var(--icon-export); }
+.icon-trash { -webkit-mask-image: var(--icon-trash); mask-image: var(--icon-trash); }
+.icon-prev { -webkit-mask-image: var(--icon-prev); mask-image: var(--icon-prev); }
+.icon-next { -webkit-mask-image: var(--icon-next); mask-image: var(--icon-next); }
+.icon-chevron-down { -webkit-mask-image: var(--icon-chevron-down); mask-image: var(--icon-chevron-down); }
+.icon-chevron-left { -webkit-mask-image: var(--icon-chevron-left); mask-image: var(--icon-chevron-left); }
+.icon-chevron-right { -webkit-mask-image: var(--icon-chevron-right); mask-image: var(--icon-chevron-right); }
+.icon-close { -webkit-mask-image: var(--icon-close); mask-image: var(--icon-close); }
+.icon-check { -webkit-mask-image: var(--icon-check); mask-image: var(--icon-check); }
+.icon-download { -webkit-mask-image: var(--icon-download); mask-image: var(--icon-download); }
+.icon-info { -webkit-mask-image: var(--icon-info); mask-image: var(--icon-info); }
+.icon-language { -webkit-mask-image: var(--icon-language); mask-image: var(--icon-language); }
+.icon-refresh { -webkit-mask-image: var(--icon-refresh); mask-image: var(--icon-refresh); }
+.icon-play { -webkit-mask-image: var(--icon-play); mask-image: var(--icon-play); }
+.icon-expand { -webkit-mask-image: var(--icon-expand); mask-image: var(--icon-expand); }
+.icon-image { -webkit-mask-image: var(--icon-image); mask-image: var(--icon-image); }
+.icon-video { -webkit-mask-image: var(--icon-video); mask-image: var(--icon-video); }
+.icon-file { -webkit-mask-image: var(--icon-file); mask-image: var(--icon-file); }
+.icon-folder { -webkit-mask-image: var(--icon-folder); mask-image: var(--icon-folder); }
+.icon-inbox { -webkit-mask-image: var(--icon-inbox); mask-image: var(--icon-inbox); }
+.icon-document { -webkit-mask-image: var(--icon-document); mask-image: var(--icon-document); }
+.icon-sort-asc { -webkit-mask-image: var(--icon-sort-asc); mask-image: var(--icon-sort-asc); }
+.icon-sort-desc { -webkit-mask-image: var(--icon-sort-desc); mask-image: var(--icon-sort-desc); }
+.icon-pending-entry { -webkit-mask-image: var(--icon-pending-entry); mask-image: var(--icon-pending-entry); }
+.icon-archive { -webkit-mask-image: var(--icon-archive); mask-image: var(--icon-archive); }
+.icon-organize { -webkit-mask-image: var(--icon-organize); mask-image: var(--icon-organize); }
+.icon-records { -webkit-mask-image: var(--icon-records); mask-image: var(--icon-records); }
+.icon-tools { -webkit-mask-image: var(--icon-tools); mask-image: var(--icon-tools); }
+.icon-tune { -webkit-mask-image: var(--icon-tune); mask-image: var(--icon-tune); }
+.icon-folder-open { -webkit-mask-image: var(--icon-folder-open); mask-image: var(--icon-folder-open); }
+.icon-duplicate { -webkit-mask-image: var(--icon-duplicate); mask-image: var(--icon-duplicate); }
+.icon-logs { -webkit-mask-image: var(--icon-logs); mask-image: var(--icon-logs); }
+.icon-logout { -webkit-mask-image: var(--icon-logout); mask-image: var(--icon-logout); }
+.icon-test { -webkit-mask-image: var(--icon-test); mask-image: var(--icon-test); }

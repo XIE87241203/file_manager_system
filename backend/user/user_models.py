@@ -23,13 +23,43 @@ class UserResult:
 @dataclass
 class CurrentUserResult:
     """
-    用途：当前登录用户信息的 API 返回数据类，供前端判断是否展示用户管理入口。
+    用途：当前登录用户信息的 API 返回数据类，供前端判断用户管理与当前仓库操作权限。
     字段说明：
         username (str): 当前登录名。
-        is_admin (bool): 当前用户是否管理员。
+        is_admin (bool): 当前用户是否系统管理员。
+        repo_permission (str): 当前仓库权限，admin/member；无权限时为空字符串。
     """
     username: str = ''
     is_admin: bool = False
+    repo_permission: str = ''
+
+
+@dataclass
+class RepositoryPermissionInfo:
+    """
+    用途：用户仓库权限配置的输入数据类。
+    字段说明：
+        repo_id (int): 仓库 ID。
+        permission (str): 仓库权限，admin/member。
+    """
+    repo_id: int = 0
+    permission: str = ''
+
+
+@dataclass
+class UserRepositoryPermissionResult:
+    """
+    用途：用户仓库权限配置的 API 返回数据类。
+    字段说明：
+        repo_id (int): 仓库 ID。
+        repo_name (str): 仓库名称。
+        visible (bool): 系统使用者是否可见该仓库。
+        permission (str): 仓库权限，admin/member；不可见时为空字符串。
+    """
+    repo_id: int = 0
+    repo_name: str = ''
+    visible: bool = False
+    permission: str = ''
 
 
 @dataclass

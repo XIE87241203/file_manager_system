@@ -4,7 +4,7 @@
 
 /* 页面基础样式调整：纯白背景，滚动交由表格区域处理 */
 body {
-    background-color: #ffffff !important;
+    background-color: var(--color-surface) !important;
     overflow-y: hidden;
 }
 
@@ -14,7 +14,7 @@ body {
     height: calc(100vh - 60px);
     overflow: hidden;
     box-sizing: border-box;
-    background-color: #ffffff;
+    background-color: var(--color-surface);
 }
 
 /* 记录内容容器：限制最大宽度并居中，表格区域弹性撑满 */
@@ -43,14 +43,14 @@ body {
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    background-color: #1a73e8;
-    box-shadow: 0 0 0 3px #e8f0fe;
+    background-color: var(--color-primary);
+    box-shadow: 0 0 0 3px var(--color-primary-soft);
     flex-shrink: 0;
 }
 
 .summary-text {
     font-size: 13px;
-    color: #5f6368;
+    color: var(--color-text-tertiary);
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -59,8 +59,8 @@ body {
 
 /* 搜索命中文本高亮：浅蓝底 + 主题蓝字，与选中行色系一致 */
 .search-hit {
-    background-color: #e8f0fe;
-    color: #1a73e8;
+    background-color: var(--color-primary-soft);
+    color: var(--color-primary);
     border-radius: 3px;
     padding: 0 1px;
     font-weight: 600;
@@ -77,16 +77,21 @@ body {
     margin-right: 4px;
     border-radius: 50%;
     cursor: pointer;
-    color: #5f6368;
+    color: var(--color-text-tertiary);
     font-size: 17px;
     line-height: 1;
     user-select: none;
     transition: background-color 0.2s, color 0.2s;
 }
 
+.search-clear-btn .theme-icon {
+    width: 14px;
+    height: 14px;
+}
+
 .search-clear-btn:hover {
-    background-color: #e0e0e0;
-    color: #202124;
+    background-color: var(--color-border-control);
+    color: var(--color-text-primary);
 }
 
 .search-clear-btn.hidden {
@@ -95,9 +100,9 @@ body {
 
 /* 搜索框聚焦态：主题蓝描边提示 */
 .search-input-container:focus-within {
-    border-color: #1a73e8;
-    background-color: #ffffff;
-    box-shadow: 0 0 0 2px #e8f0fe;
+    border-color: var(--color-primary);
+    background-color: var(--color-surface);
+    box-shadow: 0 0 0 2px var(--color-primary-soft);
 }
 
 /* 表格滚动区域：圆角边框包裹，内部滚动（移动端横向滚动） */
@@ -105,9 +110,9 @@ body {
     position: relative;
     flex: 1;
     min-height: 0;
-    border: 1px solid #e8eaed;
+    border: 1px solid var(--color-border-light);
     border-radius: 8px;
-    background-color: #ffffff;
+    background-color: var(--color-surface);
 }
 
 /* 表格最小宽度：窄屏时横向滚动，避免列被过度压缩 */
@@ -131,30 +136,30 @@ body {
 }
 
 .records-table .name-cell:hover {
-    color: #1a73e8;
+    color: var(--color-primary);
 }
 
 /* 整理后文件名：主信息，加重显示 */
 .records-table .organized-name {
-    color: #202124;
+    color: var(--color-text-primary);
     font-weight: 500;
 }
 
 /* 整理前文件名：次要信息 */
 .records-table .original-name {
-    color: #5f6368;
+    color: var(--color-text-tertiary);
 }
 
 /* 整理时间列：等宽数字，避免跳动 */
 .records-table .time-cell {
-    color: #5f6368;
+    color: var(--color-text-tertiary);
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
 }
 
 /* 序号列：弱化显示 */
 .records-table .seq-cell {
-    color: #9aa0a6;
+    color: var(--color-text-disabled);
 }
 
 /* 行入场动画：逐行轻微上浮淡入 */
@@ -193,13 +198,13 @@ body {
     padding: 30px 20px;
     box-sizing: border-box;
     text-align: center;
-    background-color: #ffffff;
+    background-color: var(--color-surface);
 }
 
 .empty-icon {
     width: 56px;
     height: 56px;
-    color: #bdc1c6;
+    color: var(--palette-bdc1c6);
     margin-bottom: 14px;
 }
 
@@ -207,13 +212,13 @@ body {
     margin: 0 0 6px;
     font-size: 15px;
     font-weight: 500;
-    color: #3c4043;
+    color: var(--color-text-secondary);
 }
 
 .empty-hint {
     margin: 0 0 18px;
     font-size: 13px;
-    color: #9aa0a6;
+    color: var(--color-text-disabled);
     max-width: 320px;
     line-height: 1.6;
 }
@@ -222,33 +227,33 @@ body {
     padding: 8px 22px;
     border: none;
     border-radius: 18px;
-    background-color: #1a73e8;
-    color: #ffffff;
+    background-color: var(--color-primary);
+    color: var(--color-text-inverse);
     font-size: 13px;
     cursor: pointer;
     transition: background-color 0.2s, box-shadow 0.2s;
 }
 
 .empty-go-btn:hover {
-    background-color: #1765cc;
-    box-shadow: 0 1px 6px rgba(26, 115, 232, 0.4);
+    background-color: var(--color-primary-hover);
+    box-shadow: 0 1px 6px var(--alpha-primary-40);
 }
 
 /* 空状态清除搜索按钮：描边次要样式 */
 .empty-clear-btn {
     padding: 8px 22px;
-    border: 1px solid #dadce0;
+    border: 1px solid var(--color-border);
     border-radius: 18px;
-    background-color: #ffffff;
-    color: #1a73e8;
+    background-color: var(--color-surface);
+    color: var(--color-primary);
     font-size: 13px;
     cursor: pointer;
     transition: background-color 0.2s, border-color 0.2s;
 }
 
 .empty-clear-btn:hover {
-    background-color: #e8f0fe;
-    border-color: #1a73e8;
+    background-color: var(--color-primary-soft);
+    border-color: var(--color-primary);
 }
 
 .empty-clear-btn.hidden {
@@ -274,17 +279,17 @@ body {
 }
 
 .records-table-wrapper::-webkit-scrollbar-track {
-    background: #f8f9fa;
+    background: var(--color-surface-subtle);
     border-radius: 4px;
 }
 
 .records-table-wrapper::-webkit-scrollbar-thumb {
-    background: #c1c7d0;
+    background: var(--palette-c1c7d0);
     border-radius: 4px;
 }
 
 .records-table-wrapper::-webkit-scrollbar-thumb:hover {
-    background: #1a73e8;
+    background: var(--color-primary);
 }
 
 /* 尊重系统减弱动态效果设置 */

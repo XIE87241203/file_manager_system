@@ -4,7 +4,7 @@
 
 /* 页面基础样式调整：强制纯白背景，滚动交由 main-content 处理 */
 body {
-    background-color: #ffffff !important;
+    background-color: var(--color-surface) !important;
     overflow-y: hidden;
 }
 
@@ -14,7 +14,7 @@ body {
     height: calc(100vh - 60px);
     overflow-y: auto;
     box-sizing: border-box;
-    background-color: #ffffff;
+    background-color: var(--color-surface);
 }
 
 /* 设置内容容器：限制最大宽度并居中 */
@@ -47,7 +47,7 @@ body {
     max-height: 240px;
     overflow-y: auto;
     overflow-x: auto;
-    border: 1px solid #f0f0f0;
+    border: 1px solid var(--color-surface-active);
     border-radius: 8px;
     padding: 10px;
 }
@@ -57,8 +57,8 @@ body {
     display: flex;
     align-items: center;
     padding: 10px;
-    background: #fcfcfc;
-    border: 1px solid #f0f0f0;
+    background: var(--palette-fcfcfc);
+    border: 1px solid var(--color-surface-active);
     border-radius: 6px;
     margin-bottom: 10px;
     transition: border-color 0.2s;
@@ -69,14 +69,14 @@ body {
 }
 
 .organize-item:hover {
-    border-color: #d2e3fc;
+    border-color: var(--color-primary-soft-hover);
 }
 
 /* 条目文本（目录路径或后缀名） */
 .organize-item-text {
     flex: 1;
     font-size: 0.95rem;
-    color: #3c4043;
+    color: var(--color-text-secondary);
     word-break: break-all;
 }
 
@@ -89,7 +89,7 @@ body {
 .btn-delete {
     background: none;
     border: none;
-    color: #d93025;
+    color: var(--color-danger);
     cursor: pointer;
     font-size: 0.85rem;
     font-weight: 500;
@@ -111,7 +111,7 @@ body {
 
 /* 空列表提示文案 */
 .empty-hint-text {
-    color: #9aa0a6;
+    color: var(--color-text-disabled);
     font-size: 0.9rem;
     text-align: center;
     padding: 10px 0;
@@ -128,10 +128,10 @@ body {
 .size-filter-select {
     flex: 0 0 auto;
     padding: 0.75rem 0.5rem;
-    border: 1px solid #ddd;
+    border: 1px solid var(--color-border-strong);
     border-radius: 4px;
-    background-color: #ffffff;
-    color: #3c4043;
+    background-color: var(--color-surface);
+    color: var(--color-text-secondary);
     font-size: 1rem;
     line-height: 1.5;
     cursor: pointer;
@@ -139,7 +139,7 @@ body {
 }
 
 .size-filter-select:focus {
-    border-color: #007bff;
+    border-color: var(--color-primary-bootstrap);
     outline: none;
 }
 

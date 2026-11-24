@@ -1,11 +1,14 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title data-i18n="pending_entry.title"></title>
     <!-- 引入公用样式 -->
+    <script src="/common/theme_manager.js"></script>
     <link rel="stylesheet" href="../../common/common.css">
+    <link rel="stylesheet" href="../../common/themes/light/theme.css">
+    <link rel="stylesheet" href="../../common/themes/dark/theme.css">
     <link rel="stylesheet" href="../../common/table.css">
     <link rel="stylesheet" href="../../common/header_toolbar/search/search_header_toolbar.css">
     <link rel="stylesheet" href="../../common/page_bar/page_bar.css">
@@ -50,7 +53,7 @@
                 </div>
                 <div class="footer-right">
                     <div class="icon-btn hidden" id="btn-footer-menu" data-i18n-title="common.more_ops">
-                        <img src="../../common/header_toolbar/icon/menu_icon.svg" class="icon-img" alt="">
+                        <span class="icon-img theme-icon icon-menu" aria-hidden="true"></span>
                     </div>
                 </div>
             </footer>

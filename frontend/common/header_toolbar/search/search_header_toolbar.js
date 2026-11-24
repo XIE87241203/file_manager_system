@@ -8,7 +8,7 @@ const SearchHeaderToolbar = {
      * @param {string} options.searchHint - 搜索框提示文本
      * @param {boolean} [options.showBack=true] - 是否显示返回键，默认为 true。若为 false 则隐藏但保留占位。
      * @param {string} [options.theme="light"] - 主题风格，支持 "light" | "dark"，默认 light
-     * @param {string} [options.menuIcon] - 右上角菜单图标路径，若不传则使用默认图标 "../../common/header_toolbar/icon/menu_icon.svg"
+     * @param {string} [options.menuIcon] - 右上角菜单图标路径，文件名需与亮色主题图标映射匹配
      * @param {Function} [options.backCallback] - 返回按钮点击回调，若不传则默认执行 window.history.back()
      * @param {Function} [options.menuCallback] - 菜单按钮点击回调，若不传则隐藏菜单图标但保留占位
      * @param {Function} options.searchCallback - 开始搜索回调，参数为搜索内容字符串
@@ -25,7 +25,16 @@ const SearchHeaderToolbar = {
         const hint = options.searchHint || "请输入搜索内容...";
         const showBack = options.showBack !== false; // 默认显示
         const hasMenu = typeof options.menuCallback === 'function';
-        const menuIcon = options.menuIcon || "../../common/header_toolbar/icon/menu_icon.svg";
+        const menuIcon = options.menuIcon || "/common/themes/light/icons/menu_icon.svg";
+        const menuIconMap = {
+            'add_icon.svg': 'add',
+            'menu_icon.svg': 'menu',
+            'save_icon.svg': 'save',
+            'search_icon.svg': 'search',
+            'settings_icon.svg': 'settings',
+            'export_icon.svg': 'export'
+        };
+        const menuIconName = menuIconMap[menuIcon.split('/').pop()] || 'menu';
         const themeClass = options.theme === 'dark' ? 'theme-dark' : 'theme-light';
         header.classList.remove('theme-dark', 'theme-light');
         header.classList.add(themeClass);
@@ -34,18 +43,18 @@ const SearchHeaderToolbar = {
         header.innerHTML = `
             <div class="header-left">
                 <div class="icon-btn" id="btn-back" title="返回" style="visibility: ${showBack ? 'visible' : 'hidden'}">
-                    <img src="../../common/header_toolbar/icon/back_icon.svg" alt="返回" class="icon-img">
+                    <span class="icon-img theme-icon icon-back" role="img" aria-label="返回"></span>
                 </div>
             </div>
             <div class="search-input-container">
                 <input type="text" id="search-input" class="search-input" placeholder="${hint}" autocomplete="off">
                 <div class="search-action-btn" id="btn-search-trigger" title="搜索">
-                    <img src="../../common/header_toolbar/icon/search_icon.svg" alt="搜索" class="icon-img">
+                    <span class="icon-img theme-icon icon-search" role="img" aria-label="搜索"></span>
                 </div>
             </div>
             <div class="header-right">
                 <div class="icon-btn" id="btn-menu" title="菜单" style="visibility: ${hasMenu ? 'visible' : 'hidden'}">
-                    <img src="${menuIcon}" alt="菜单" class="icon-img">
+                    <span class="icon-img theme-icon icon-${menuIconName}" role="img" aria-label="菜单"></span>
                 </div>
             </div>
         `;

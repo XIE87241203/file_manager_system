@@ -2,6 +2,9 @@
  * 用途：登录页逻辑管理，处理用户登录、表单验证及环境初始化
  */
 const Login = {
+    /** @description 已获取的应用版本号，语言切换时用于重新渲染版本文案。 */
+    appVersion: '',
+
     /**
      * @description 用途说明：初始化登录页面，初始化多语言，清除旧 Token 并加载版本号
      * @returns {void} - 返回值说明：无
@@ -10,6 +13,8 @@ const Login = {
         // 初始化多语言 (登录前默认使用本地缓存或英文)
         I18nManager.init();
         I18nManager.render();
+        AppearanceManager.init();
+        document.addEventListener('appearance:languagechange', () => this.renderAppVersion());
 
         // 清空认证信息
         Request.eraseCookie('token');
@@ -53,16 +58,25 @@ const Login = {
         LoginRequest.getVersion(
             (data) => {
                 if (data && data.version) {
-                    const versionDisplay = document.getElementById('app-version-display');
-                    if (versionDisplay) {
-                        versionDisplay.textContent = `${I18nManager.t('home.version')}: ${data.version}`;
-                    }
+                    Login.appVersion = data.version;
+                    Login.renderAppVersion();
                 }
             },
             (msg) => {
                 console.error('获取版本号失败:', msg);
             }
         );
+    },
+
+    /**
+     * @description 用途说明：按当前语言渲染已获取的应用版本号。
+     * @returns {void} - 返回值说明：无。
+     */
+    renderAppVersion() {
+        const versionDisplay = document.getElementById('app-version-display');
+        if (versionDisplay && Login.appVersion) {
+            versionDisplay.textContent = `${I18nManager.t('home.version')}: ${Login.appVersion}`;
+        }
     },
 
     /**

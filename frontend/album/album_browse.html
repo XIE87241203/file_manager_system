@@ -1,10 +1,13 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title data-i18n="album.browse_title"></title>
+    <script src="/common/theme_manager.js"></script>
     <link rel="stylesheet" href="../common/common.css">
+    <link rel="stylesheet" href="../common/themes/light/theme.css">
+    <link rel="stylesheet" href="../common/themes/dark/theme.css">
     <link rel="stylesheet" href="../common/header_toolbar/search/search_header_toolbar.css">
     <link rel="stylesheet" href="album_browse.css">
 </head>
@@ -12,8 +15,8 @@
     <!-- 顶部工具栏：由 SearchHeaderToolbar 动态初始化 -->
     <header class="header-bar"></header>
 
-    <main class="main-content album-main">
-        <div class="album-page">
+    <main id="album-main-content" class="main-content album-main">
+        <div id="album-page-content" class="album-page">
             <!-- 多选操作栏：选中项后显示 -->
             <div id="album-selection-bar" class="album-selection-bar hidden">
                 <span id="album-selected-count" class="album-selected-count"></span>
@@ -24,9 +27,26 @@
                 </div>
             </div>
 
-            <!-- 瀑布流容器：
-                 说明：实际卡片由 JS 动态生成，原需求为图片/视频缩略图 + 下载/删除按钮 + 勾选框 -->
-            <div id="album-waterfall" class="album-waterfall"></div>
+            <!-- 相册主体：左侧垂直时间轴 + 右侧按时间分组的瀑布流 -->
+            <div class="album-layout">
+                <!-- 垂直时间轴：顶部为媒体类型筛选，下方年份刻度最大、月份次之、日刻度仅圆点，点击可快速跳转 -->
+                <aside id="album-timeline" class="album-timeline" data-i18n-title="album.timeline_title" title="">
+                    <!-- 媒体类型筛选下拉框：所有 / 仅图片 / 仅视频 -->
+                    <div class="album-timeline-filter">
+                        <select id="album-type-filter" class="album-type-filter" data-i18n-title="album.filter_type_title" title="">
+                            <option value="" data-i18n="album.filter_all"></option>
+                            <option value="image" data-i18n="album.filter_image"></option>
+                            <option value="video" data-i18n="album.filter_video"></option>
+                        </select>
+                    </div>
+                    <!-- 时间轴刻度容器：由 JS 动态生成 -->
+                    <div id="album-timeline-ticks" class="album-timeline-ticks"></div>
+                </aside>
+
+                <!-- 瀑布流容器：
+                     说明：实际卡片由 JS 动态生成，按 EXIF 拍摄时间（缺失时回退文件修改时间）分组后渲染 -->
+                <div id="album-waterfall" class="album-waterfall"></div>
+            </div>
 
             <!-- 空数据提示 -->
             <div id="album-empty" class="album-empty hidden" data-i18n="album.empty"></div>
@@ -42,15 +62,53 @@
         <div class="album-preview-top">
             <div id="album-preview-name" class="album-preview-name"></div>
             <div class="album-preview-actions">
-                <button id="album-preview-download" class="album-preview-btn" data-i18n-title="album.download" title="">⬇</button>
-                <button id="album-preview-delete" class="album-preview-btn album-preview-btn-danger" data-i18n-title="album.delete" title="">🗑</button>
-                <button id="album-preview-close" class="album-preview-btn" data-i18n-title="album.preview_close" title="">✕</button>
+                <button id="album-preview-select" class="album-preview-btn album-preview-btn-select" data-i18n-title="album.select_item" title=""><span class="theme-icon icon-check" aria-hidden="true"></span></button>
+                <span id="album-preview-selected-count" class="album-preview-selected-count hidden"></span>
+                <button id="album-preview-download" class="album-preview-btn album-preview-btn-download" data-i18n-title="album.download" title=""><span class="theme-icon icon-download" aria-hidden="true"></span></button>
+                <button id="album-preview-delete" class="album-preview-btn album-preview-btn-danger" data-i18n-title="album.delete" title=""><span class="theme-icon icon-trash" aria-hidden="true"></span></button>
+                <button id="album-preview-detail" class="album-preview-btn" data-i18n-title="album.detail_open" title=""><span class="theme-icon icon-info" aria-hidden="true"></span></button>
+                <button id="album-preview-close" class="album-preview-btn" data-i18n-title="album.preview_close" title=""><span class="theme-icon icon-close" aria-hidden="true"></span></button>
             </div>
         </div>
-        <button id="album-preview-prev" class="album-preview-nav album-preview-prev" data-i18n-title="album.preview_prev" title="">‹</button>
+        <button id="album-preview-prev" class="album-preview-nav album-preview-prev" data-i18n-title="album.preview_prev" title=""><span class="theme-icon icon-chevron-left" aria-hidden="true"></span></button>
         <div id="album-preview-body" class="album-preview-body"></div>
-        <button id="album-preview-next" class="album-preview-nav album-preview-next" data-i18n-title="album.preview_next" title="">›</button>
+        <button id="album-preview-next" class="album-preview-nav album-preview-next" data-i18n-title="album.preview_next" title=""><span class="theme-icon icon-chevron-right" aria-hidden="true"></span></button>
     </div>
+
+    <!-- 媒体详情侧边栏：展示文件名、路径、拍摄时间、修改时间、大小与拍摄地点 -->
+    <aside id="album-detail-panel" class="album-detail-panel hidden">
+        <div id="album-detail-resize" class="album-detail-resize" data-i18n-title="album.detail_resize" title=""></div>
+        <div class="album-detail-header">
+            <h3 id="album-detail-title" class="album-detail-title" data-i18n="album.detail_title"></h3>
+            <button id="album-detail-close" class="album-detail-close" data-i18n-title="album.detail_close" title=""><span class="theme-icon icon-close" aria-hidden="true"></span></button>
+        </div>
+        <dl class="album-detail-list">
+            <div class="album-detail-row">
+                <dt data-i18n="album.detail_name"></dt>
+                <dd id="album-detail-name"></dd>
+            </div>
+            <div class="album-detail-row">
+                <dt data-i18n="album.detail_path"></dt>
+                <dd id="album-detail-path"></dd>
+            </div>
+            <div class="album-detail-row">
+                <dt data-i18n="album.detail_capture_time"></dt>
+                <dd id="album-detail-capture-time"></dd>
+            </div>
+            <div class="album-detail-row">
+                <dt data-i18n="album.detail_mtime"></dt>
+                <dd id="album-detail-mtime"></dd>
+            </div>
+            <div class="album-detail-row">
+                <dt data-i18n="album.detail_size"></dt>
+                <dd id="album-detail-size"></dd>
+            </div>
+            <div class="album-detail-row">
+                <dt data-i18n="album.detail_location"></dt>
+                <dd id="album-detail-location"></dd>
+            </div>
+        </dl>
+    </aside>
 
     <!-- 多语言资源 -->
     <script src="../common/i18n/zh.js"></script>

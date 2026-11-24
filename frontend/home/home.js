@@ -5,8 +5,11 @@
 // --- 状态管理 ---
 const HomeState = {
     titleClickCount: 0, // 用于记录标题点击次数，开启隐藏入口
-    repos: [], // 仓库列表缓存
-    currentRepoId: 1 // 当前选中的仓库 ID
+    repos: [], // 当前用户可见的仓库列表缓存
+    currentRepoId: 1, // 当前选中的仓库 ID
+    currentRepoPermission: '', // 当前仓库权限：admin/member
+    isAdmin: false, // 当前用户是否系统管理员
+    appVersion: '' // 已获取的应用版本号，语言切换时用于重新渲染版本文案
 };
 
 // --- UI 控制模块 ---
@@ -29,6 +32,16 @@ const UIController = {
             menuCallback: null,  // 首页暂时不需要右侧菜单
             showBack: false
         });
+
+        // 在工具栏生成后挂载外观按钮，确保仓库下拉框与按钮都位于右上区域
+        const headerRight = document.querySelector('.header-right');
+        if (headerRight && !document.getElementById('home-appearance-actions')) {
+            const appearanceActions = document.createElement('div');
+            appearanceActions.id = 'home-appearance-actions';
+            appearanceActions.className = 'appearance-actions home-appearance-actions';
+            headerRight.appendChild(appearanceActions);
+            AppearanceManager.mount('home-appearance-actions');
+        }
 
         // 缓存统计展示相关的 DOM 元素
         this.elements = {
@@ -102,12 +115,13 @@ const UIController = {
     },
 
     /**
-     * @description 用途说明：在顶部工具栏右侧构建仓库切换下拉框，最后一项为“新增仓库”。
-     * @param {Array} repos - 入参说明：仓库列表 [{id, name}]。
+     * @description 用途说明：在顶部工具栏右侧构建仓库切换下拉框，系统管理员额外显示“新增仓库”。
+     * @param {Array} repos - 入参说明：当前用户可见的仓库列表 [{id, name, permission}]。
      * @param {number} currentId - 入参说明：当前选中的仓库 ID。
+     * @param {boolean} canCreate - 入参说明：当前用户是否系统管理员。
      * @returns {void} - 返回值说明：无
      */
-    buildRepoSelector(repos, currentId) {
+    buildRepoSelector(repos, currentId, canCreate) {
         const headerRight = document.querySelector('.header-right');
         if (!headerRight) return;
 
@@ -130,15 +144,71 @@ const UIController = {
             select.appendChild(opt);
         });
 
-        const addOpt = document.createElement('option');
-        addOpt.value = '__add__';
-        addOpt.textContent = I18nManager.t('repo.add_new');
-        select.appendChild(addOpt);
+        if (canCreate) {
+            const addOpt = document.createElement('option');
+            addOpt.value = '__add__';
+            addOpt.textContent = I18nManager.t('repo.add_new');
+            select.appendChild(addOpt);
+        }
 
-        select.value = String(currentId);
+        select.disabled = repos.length === 0 && !canCreate;
+        select.value = repos.length ? String(currentId) : (canCreate ? '__add__' : '');
         container.appendChild(select);
+
+        const selectorIcon = document.createElement('span');
+        selectorIcon.className = 'repo-selector-icon theme-icon icon-chevron-down';
+        selectorIcon.setAttribute('aria-hidden', 'true');
+        container.appendChild(selectorIcon);
+
         headerRight.insertBefore(container, headerRight.firstChild);
         this.elements.repoSelector = select;
+    },
+
+    /**
+     * @description 用途说明：刷新首页动态生成的标题、仓库下拉框提示与版本文案。
+     * @returns {void} - 返回值说明：无。
+     */
+    refreshDynamicTexts() {
+        if (this.elements.headerTitle) this.elements.headerTitle.textContent = I18nManager.t('home.title');
+        const select = document.getElementById('repo-selector');
+        if (select) {
+            select.title = I18nManager.t('repo.selector_title');
+            const addOption = Array.from(select.options).find(option => option.value === '__add__');
+            if (addOption) addOption.textContent = I18nManager.t('repo.add_new');
+        }
+        this.renderAppVersion();
+    },
+
+    /**
+     * @description 用途说明：按当前语言渲染已获取的应用版本号。
+     * @returns {void} - 返回值说明：无。
+     */
+    renderAppVersion() {
+        const versionDisplay = document.getElementById('app-version-display');
+        if (versionDisplay && HomeState.appVersion) {
+            versionDisplay.textContent = `${I18nManager.t('home.version')}: ${HomeState.appVersion}`;
+        }
+    },
+
+    /**
+     * @description 用途说明：按当前仓库权限调整首页菜单，仓库成员仅保留相册浏览与退出登录。
+     * @returns {void} - 返回值说明：无
+     */
+    applyMenuPermissions() {
+        const isMember = HomeState.currentRepoPermission === 'member';
+        const hasRepo = HomeState.currentRepoId > 0;
+        const toggle = (id, hidden) => {
+            const element = document.getElementById(id);
+            if (element) element.classList.toggle('hidden', hidden);
+        };
+        ['group-file-entry-title', 'group-file-entry-grid', 'group-organize-title', 'group-organize-grid',
+            'group-file-manage-title', 'group-file-manage-grid'].forEach(id => toggle(id, isMember));
+        toggle('menu-album-setting', isMember);
+        toggle('menu-album-browse', !hasRepo);
+        toggle('group-album-title', !hasRepo);
+        toggle('menu-setting', isMember);
+        toggle('menu-logs', isMember);
+        toggle('menu-test-page', true);
     }
 };
 
@@ -151,8 +221,8 @@ const App = {
     init() {
         UIController.init();
         this.bindEvents();
+        document.addEventListener('appearance:languagechange', () => UIController.refreshDynamicTexts());
         this.initRepoSelector();
-        this.loadRepoStats();
         this.fetchAndDisplayAppVersion();
     },
 
@@ -161,22 +231,31 @@ const App = {
      * @returns {void} - 返回值说明：无
      */
     initRepoSelector() {
-        RepositoryRequest.list(
-            (repos) => {
-                HomeState.repos = repos;
-                let currentId = RepoContext.get();
-                // 当前仓库已被删除时回退到列表首个仓库
-                if (!repos.some(r => r.id === currentId)) {
-                    currentId = repos.length ? repos[0].id : RepoContext.DEFAULT_REPO_ID;
-                    RepoContext.set(currentId);
-                }
-                HomeState.currentRepoId = currentId;
-                UIController.buildRepoSelector(repos, currentId);
-                this.bindRepoSelector();
+        HomeRequest.getCurrentUser(
+            (userInfo) => {
+                HomeState.isAdmin = Boolean(userInfo.is_admin);
+                RepositoryRequest.list(
+                    (repos) => {
+                        HomeState.repos = repos || [];
+                        let currentId = RepoContext.get();
+                        // 当前仓库无权限或已删除时回退到首个可见仓库；无可见仓库时不回退默认仓库
+                        if (!HomeState.repos.some(r => r.id === currentId)) {
+                            currentId = HomeState.repos.length ? HomeState.repos[0].id : 0;
+                            if (currentId > 0) RepoContext.set(currentId);
+                            else RepoContext.clear();
+                        }
+                        HomeState.currentRepoId = currentId;
+                        const currentRepo = HomeState.repos.find(r => r.id === currentId);
+                        HomeState.currentRepoPermission = currentRepo ? currentRepo.permission : '';
+                        UIController.buildRepoSelector(HomeState.repos, currentId, HomeState.isAdmin);
+                        this.bindRepoSelector();
+                        UIController.applyMenuPermissions();
+                        if (currentId > 0 && HomeState.currentRepoPermission !== 'member') this.loadRepoStats();
+                    },
+                    (msg) => console.error('Failed to load repositories:', msg)
+                );
             },
-            (msg) => {
-                console.error('Failed to load repositories:', msg);
-            }
+            (msg) => console.error('Failed to load current user:', msg)
         );
     },
 
@@ -204,8 +283,10 @@ const App = {
         RepoContext.set(id);
         HomeState.currentRepoId = id;
         const repo = HomeState.repos.find(r => r.id === id);
+        HomeState.currentRepoPermission = repo ? repo.permission : '';
         Toast.show(I18nManager.t('repo.switch_success', { name: repo ? repo.name : '' }));
-        this.loadRepoStats();
+        UIController.applyMenuPermissions();
+        if (HomeState.currentRepoPermission !== 'member') this.loadRepoStats();
     },
 
     /**
@@ -213,6 +294,7 @@ const App = {
      * @returns {void} - 返回值说明：无
      */
     createRepoFlow() {
+        if (!HomeState.isAdmin) return;
         const select = UIController.elements.repoSelector;
         const resetSelector = () => {
             if (select) select.value = String(HomeState.currentRepoId);
@@ -256,6 +338,7 @@ const App = {
      * @returns {void} - 返回值说明：无
      */
     loadRepoStats() {
+        if (HomeState.currentRepoId <= 0 || HomeState.currentRepoPermission === 'member') return;
         HomeRequest.getRepoDetail(
             (data) => {
                 UIController.updateStatsUI(data);
@@ -271,6 +354,7 @@ const App = {
      * @returns {void} - 返回值说明：无
      */
     handleCalculateStats() {
+        if (HomeState.currentRepoPermission === 'member') return;
         // 1. 切换 UI 至加载状态
         UIController.setLoadingState();
 
@@ -297,10 +381,8 @@ const App = {
         HomeRequest.getAppVersion(
             (data) => {
                 if (data && data.version) {
-                    const versionDisplay = document.getElementById('app-version-display');
-                    if (versionDisplay) {
-                        versionDisplay.textContent = `${I18nManager.t('home.version')}: ${data.version}`;
-                    }
+                    HomeState.appVersion = data.version;
+                    UIController.renderAppVersion();
                 }
             },
             (msg) => {

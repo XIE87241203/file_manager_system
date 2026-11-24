@@ -8,6 +8,11 @@ from typing import Dict, Any, Callable, List, Optional
 from backend.common.i18n_utils import I18nUtils, t
 from backend.common.log_utils import LogUtils
 from backend.common.password_utils import ALGORITHM, hash_password, is_hashed
+from backend.common.timezone_utils import (
+    DEFAULT_TIMEZONE_OFFSET_MINUTES,
+    MAX_TIMEZONE_OFFSET_MINUTES,
+    MIN_TIMEZONE_OFFSET_MINUTES,
+)
 from backend.common.utils import Utils
 from backend.model.db.user_db_model import UserDBModel
 from backend.setting.setting_models import AppConfig
@@ -24,7 +29,8 @@ class SettingService:
         "FILE_REPOSITORY": "file_repository",
         "DUPLICATE_CHECK": "duplicate_check",
         "FILE_NAME_ENTRY": "file_name_entry",
-        "ALBUM": "album"
+        "ALBUM": "album",
+        "LOG_MANAGEMENT": "log_management"
     }
 
     def __init__(self) -> None:
@@ -74,6 +80,12 @@ class SettingService:
             # 校正登录锁定参数，保证最小值为 1（旧版本曾允许 <=0 表示禁用）
             self._normalize_security_params()
 
+            # 校正时区偏移参数，非法时回退默认东八区
+            self._normalize_timezone_offset()
+
+            # 校正日志保留天数，非法时回退默认 30 天
+            self._normalize_log_retention()
+
             # 加载后立即缓存哈希值
             self._cache_password_hash()
             
@@ -118,6 +130,46 @@ class SettingService:
                             attempts=user_data.login_max_attempts,
                             minutes=user_data.login_lockout_minutes))
 
+    def _normalize_timezone_offset(self) -> None:
+        """
+        用途说明：加载配置后校正时区偏移参数，非法值回退为默认东八区（480 分钟）并持久化。
+        入参说明：无
+        返回值说明：无
+        """
+        user_data = self._config.user_data
+        value = user_data.timezone_offset_minutes
+        if isinstance(value, bool) or not isinstance(value, int) \
+                or value < MIN_TIMEZONE_OFFSET_MINUTES or value > MAX_TIMEZONE_OFFSET_MINUTES:
+            user_data.timezone_offset_minutes = DEFAULT_TIMEZONE_OFFSET_MINUTES
+            self.save_config()
+            LogUtils.info(t('config_timezone_normalized',
+                            offset=DEFAULT_TIMEZONE_OFFSET_MINUTES))
+
+    def _normalize_log_retention(self) -> None:
+        """
+        用途说明：加载配置后校正日志保留天数，None 表示永久保留；非法值回退默认 30 天并持久化。
+        入参说明：无
+        返回值说明：无
+        """
+        log_management = self._config.log_management
+        value = log_management.retention_days
+        if value is None:
+            return
+        if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+            log_management.retention_days = 30
+            self.save_config()
+            LogUtils.info(t('config_log_retention_normalized', days=30))
+
+    @staticmethod
+    def _is_valid_timezone_offset(value: Any) -> bool:
+        """
+        用途说明：判断时区偏移参数是否合法（必须为 -720 到 840 之间的整数分钟，布尔值视为非法）。
+        入参说明：value: 待校验的时区偏移值，来自更新请求的 user_data 段。
+        返回值说明：bool，合法返回 True，否则返回 False。
+        """
+        return isinstance(value, int) and not isinstance(value, bool) \
+            and MIN_TIMEZONE_OFFSET_MINUTES <= value <= MAX_TIMEZONE_OFFSET_MINUTES
+
     @staticmethod
     def _is_valid_security_param(value: Any) -> bool:
         """
@@ -125,6 +177,17 @@ class SettingService:
         入参说明：value: 待校验的参数值，来自更新请求的 user_data 段。
         返回值说明：bool，合法返回 True，否则返回 False。
         """
+        return isinstance(value, int) and not isinstance(value, bool) and value >= 1
+
+    @staticmethod
+    def _is_valid_log_retention(value: Any) -> bool:
+        """
+        用途说明：判断日志保留天数是否合法（None 表示永久保留；否则必须为不小于 1 的整数）。
+        入参说明：value: 待校验的日志保留天数，来自更新请求的 log_management 段。
+        返回值说明：bool，合法返回 True，否则返回 False。
+        """
+        if value is None:
+            return True
         return isinstance(value, int) and not isinstance(value, bool) and value >= 1
 
     @staticmethod
@@ -221,6 +284,7 @@ class SettingService:
         """
         用途：批量更新配置项并持久化。
         说明：登录锁定参数（login_max_attempts / login_lockout_minutes）必须为不小于 1 的整数，
+        日志保留天数（log_management.retention_days）必须为不小于 1 的整数或 None（永久保留），
         任一非法则拒绝本次更新并返回 False。
         入参：data: 包含更新项的字典，其一级键名应与 AppConfig 字段名一致（如 'user_data', 'file_repository'）。
         入参：operator_name: 执行更新操作的用户。
@@ -235,6 +299,21 @@ class SettingService:
                         LogUtils.error(t('config_security_params_invalid',
                                          key=param_key, value=user_section[param_key]))
                         return False
+
+                # 时区偏移校验：必须为 -720 到 840 之间的整数分钟
+                if 'timezone_offset_minutes' in user_section \
+                        and not self._is_valid_timezone_offset(user_section['timezone_offset_minutes']):
+                    LogUtils.error(t('config_timezone_invalid',
+                                     value=user_section['timezone_offset_minutes']))
+                    return False
+
+            # 日志保留天数校验：None 表示永久保留，否则必须为不小于 1 的整数
+            log_section = data.get('log_management')
+            if isinstance(log_section, dict) and 'retention_days' in log_section \
+                    and not self._is_valid_log_retention(log_section['retention_days']):
+                LogUtils.error(t('config_log_retention_invalid',
+                                 value=log_section['retention_days']))
+                return False
 
             old_language: str = self._config.user_data.language
             

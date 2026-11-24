@@ -1,12 +1,30 @@
 import logging
 import os
 import sys
-from datetime import datetime
 from typing import Optional
+
+from backend.common.timezone_utils import TimezoneUtils
 
 # 定义自定义等级：API 设为 25，位于 INFO(20) 和 WARNING(30) 之间
 LOG_LEVEL_API: int = 25
 logging.addLevelName(LOG_LEVEL_API, "API")
+
+
+class _TimezoneFormatter(logging.Formatter):
+    """
+    用途说明：按系统设置时区输出日志时间的格式化器，保证日志时间跟随系统时区设置。
+    """
+
+    def formatTime(self, record: logging.LogRecord, datefmt: Optional[str] = None) -> str:
+        """
+        用途说明：覆盖默认时间格式化逻辑，使用配置时区渲染 asctime。
+        入参说明：
+            record (logging.LogRecord) - 日志记录对象。
+            datefmt (Optional[str]) - 自定义时间格式，为空时使用默认 YYYY/MM/DD-HH:MM:SS。
+        返回值说明：str - 配置时区下的时间字符串。
+        """
+        dt = TimezoneUtils.from_timestamp(record.created)
+        return dt.strftime(datefmt) if datefmt else dt.strftime('%Y/%m/%d-%H:%M:%S')
 
 class LogUtils:
     """
@@ -16,7 +34,7 @@ class LogUtils:
     _logger: Optional[logging.Logger] = None
     _current_log_date: str = ""
     _file_handler: Optional[logging.FileHandler] = None
-    _formatter: logging.Formatter = logging.Formatter(
+    _formatter: logging.Formatter = _TimezoneFormatter(
         fmt='%(asctime)s:%(msecs)03d - %(levelname)s - %(message)s',
         datefmt='%Y/%m/%d-%H:%M:%S'
     )
@@ -44,7 +62,7 @@ class LogUtils:
         if not os.path.exists(log_dir):
             os.makedirs(log_dir)
 
-        now_date: str = datetime.now().strftime('%Y%m%d')
+        now_date: str = TimezoneUtils.now_text('%Y%m%d')
         log_filename: str = cls.get_log_filename(now_date)
         log_path: str = os.path.join(log_dir, log_filename)
 
@@ -65,7 +83,7 @@ class LogUtils:
         """
         用途说明：检查当前日期，如果与记录的日期不符，则重新生成 file_handler。
         """
-        now_date: str = datetime.now().strftime('%Y%m%d')
+        now_date: str = TimezoneUtils.now_text('%Y%m%d')
         if now_date != cls._current_log_date:
             cls._setup_file_handler()
 

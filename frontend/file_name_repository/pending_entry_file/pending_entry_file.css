@@ -4,9 +4,9 @@
 
 .btn-text-danger-small {
     padding: 6px 12px;
-    background-color: #fce8e6;
-    color: #d93025;
-    border: 1px solid transparent;
+    background-color: var(--color-danger-soft);
+    color: var(--color-danger);
+    border: 1px solid var(--color-transparent);
     border-radius: 4px;
     cursor: pointer;
     font-size: 12px;
@@ -14,7 +14,7 @@
 }
 
 .btn-text-danger-small:hover {
-    background-color: #fad2cf;
+    background-color: var(--palette-fad2cf);
 }
 
 /* 列宽度精细化控制 */
@@ -22,7 +22,7 @@
 .col-check { width: 60px; text-align: center; }
 
 .btn-delete-text {
-    color: #d93025;
+    color: var(--color-danger);
     cursor: pointer;
     font-size: 14px;
 }
@@ -33,7 +33,7 @@
 
 /* 文件名链接样式 */
 .file-link {
-    color: #1a73e8;
+    color: var(--color-primary);
     text-decoration: none;
     word-break: break-all;
 }

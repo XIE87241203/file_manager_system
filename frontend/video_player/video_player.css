@@ -4,7 +4,7 @@
 
 /* 1. 页面整体布局 */
 .player-body {
-    background-color: #000; /* 播放页背景设为黑色，增强沉浸感 */
+    background-color: var(--color-black); /* 播放页背景设为黑色，增强沉浸感 */
     overflow: hidden; /* 防止出现滚动条 */
     height: 100dvh; /* 使用动态视口高度，适配移动端浏览器工具栏 */
     display: flex;
@@ -18,30 +18,30 @@
 
 /* 2. 适配通用头部（覆盖 common.css 样式使其更符合播放页需求） */
 .player-body .top-bar {
-    background-color: #202124;
-    color: #fff;
-    border-bottom: 1px solid #3c4043;
+    background-color: var(--color-text-primary);
+    color: var(--color-text-inverse);
+    border-bottom: 1px solid var(--color-text-secondary);
     z-index: 100; /* 确保在播放器上方 */
     flex-shrink: 0; /* 确保头部高度不被 flex 压缩 */
 }
 
 .player-body .top-bar-title {
-    color: #fff;
+    color: var(--color-text-inverse);
 }
 
 .player-body .back-btn {
-    color: #e8eaed;
+    color: var(--color-border-light);
 }
 
 .player-body .back-btn:hover {
-    background-color: rgba(255, 255, 255, 0.1);
+    background-color: var(--alpha-white-10);
 }
 
 /* 3. 播放器容器 */
 .player-container {
     flex: 1; /* 自动撑开占据剩余高度 */
     width: 100%;
-    background-color: #000;
+    background-color: var(--color-black);
     position: relative; /* 为子元素绝对定位提供基准 */
     overflow: hidden;
 }

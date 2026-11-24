@@ -32,14 +32,12 @@ const State = {
     },
     userData: {
         language: "en",
+        timezone_offset_minutes: 480,
         login_max_attempts: 3,
         login_lockout_minutes: 5
     },
-    // 缩略图同步任务状态
-    thumbnailSync: {
-        timer: null,
-        widget: null,
-        status: 'idle' // 记录同步任务的内部状态，初始为 idle
+    logManagement: {
+        retention_days: 30
     },
     // 多仓库管理状态
     repos: [], // 仓库列表缓存
@@ -49,6 +47,11 @@ const State = {
     isAdmin: false, // 当前登录用户是否管理员
     currentUsername: '', // 当前登录名
     editingUserId: null, // 弹窗正在修改密码的用户 ID（null 表示新增用户）
+    pendingNewUser: null, // 新增系统使用者时暂存的用户名与密码哈希，确认仓库权限后提交
+    permissionMode: '', // 权限弹窗模式：new/edit
+    permissionTargetUserId: null, // 正在配置仓库权限的用户 ID（新增用户阶段为 null）
+    permissionTargetUsername: '', // 正在配置仓库权限的用户登录名
+    permissionTargetIsAdmin: false, // 目标用户是否系统管理员
     // 登录历史弹窗状态
     historyUserId: null, // 正在查看登录历史的用户 ID
     historyUsername: '', // 正在查看登录历史的用户登录名（用于弹窗标题）
@@ -62,6 +65,26 @@ const UIController = {
     elements: {},
 
     /**
+     * @description 用途说明：生成系统时区下拉选项（UTC-12:00 至 UTC+14:00，每 30 分钟一档）
+     * @returns {void} - 返回值说明：无
+     */
+    initTimezoneOptions() {
+        const select = document.getElementById('timezone-select');
+        if (!select) return;
+        select.innerHTML = '';
+        for (let minutes = -720; minutes <= 840; minutes += 30) {
+            const sign = minutes >= 0 ? '+' : '-';
+            const absMinutes = Math.abs(minutes);
+            const hoursText = String(Math.floor(absMinutes / 60)).padStart(2, '0');
+            const minutesText = String(absMinutes % 60).padStart(2, '0');
+            const option = document.createElement('option');
+            option.value = String(minutes);
+            option.textContent = `UTC${sign}${hoursText}:${minutesText}`;
+            select.appendChild(option);
+        }
+    },
+
+    /**
      * @description 用途说明：初始化选项卡切换逻辑
      * @returns {void} - 返回值说明：无
      */
@@ -71,6 +94,7 @@ const UIController = {
             { btn: 'tab-file-entry', content: 'content-file-entry' },
             { btn: 'tab-dup-check', content: 'content-dup-check' },
             { btn: 'tab-maintenance', content: 'content-maintenance' },
+            { btn: 'tab-log', content: 'content-log' },
             { btn: 'tab-account', content: 'content-account' },
             { btn: 'tab-user', content: 'content-user' }
         ];
@@ -89,9 +113,22 @@ const UIController = {
                     document.getElementById(tab.content).classList.add('active');
                     // 切到用户管理分页时刷新用户列表
                     if (tab.btn === 'tab-user') App.loadUsers();
+                    // 切到日志管理分页时重新异步获取日志目录大小
+                    if (tab.btn === 'tab-log') App.loadLogSize();
                 };
             }
         });
+    },
+
+    /**
+     * @description 用途说明：根据“永久保留”勾选状态启用或禁用日志保留天数输入框
+     * @returns {void} - 返回值说明：无
+     */
+    syncLogRetentionInputState() {
+        const foreverCheckbox = document.getElementById('log-retention-forever');
+        const daysInput = document.getElementById('log-retention-days');
+        if (!foreverCheckbox || !daysInput) return;
+        daysInput.disabled = foreverCheckbox.checked;
     },
 
     /**
@@ -134,6 +171,12 @@ const UIController = {
             // 操作按钮垂直排列：修改密码、登录历史在上，删除按钮固定在最下
             const actionGroup = document.createElement('div');
             actionGroup.className = 'user-action-group';
+            const permissionBtn = document.createElement('button');
+            permissionBtn.className = 'user-action-btn';
+            permissionBtn.textContent = I18nManager.t('setting.user.permission_config');
+            permissionBtn.onclick = (e) => { e.stopPropagation(); App.openPermissionModal(user); };
+            actionGroup.appendChild(permissionBtn);
+
             const pwdBtn = document.createElement('button');
             pwdBtn.className = 'user-action-btn';
             pwdBtn.textContent = I18nManager.t('setting.user.edit_password');
@@ -171,16 +214,21 @@ const UIController = {
         const modal = document.getElementById('user-modal');
         const title = document.getElementById('user-modal-title');
         const usernameGroup = document.getElementById('user-modal-username-group');
+        const roleGroup = document.getElementById('user-modal-role-group');
+        const roleSelect = document.getElementById('user-modal-role');
         const usernameInput = document.getElementById('user-modal-username');
         document.getElementById('user-modal-password').value = '';
         document.getElementById('user-modal-confirm').value = '';
         if (userId === null) {
             title.textContent = I18nManager.t('setting.user.add_title');
             usernameGroup.classList.remove('hidden');
+            roleGroup.classList.remove('hidden');
+            roleSelect.value = 'user';
             usernameInput.value = '';
         } else {
             title.textContent = I18nManager.t('setting.user.edit_password_title');
             usernameGroup.classList.add('hidden');
+            roleGroup.classList.add('hidden');
             const user = State.users.find(u => u.id === userId);
             usernameInput.value = user ? user.username : '';
         }
@@ -195,6 +243,110 @@ const UIController = {
     hideUserModal() {
         const modal = document.getElementById('user-modal');
         if (modal) modal.classList.add('hidden');
+    },
+
+    /**
+     * @description 用途说明：渲染用户仓库权限表格，第一列为可见性勾选框与仓库名，第二列为仓库权限。
+     * @param {Array} rows - 入参说明：仓库权限列表 [{repo_id, repo_name, visible, permission}]
+     * @param {boolean} isAdmin - 入参说明：目标用户是否系统管理员（系统管理员固定全部仓库管理员）
+     * @returns {void} - 返回值说明：无
+     */
+    renderPermissionTable(rows, isAdmin) {
+        const tbody = document.getElementById('user-permission-body');
+        if (!tbody) return;
+        tbody.innerHTML = '';
+        if (!rows.length) {
+            tbody.innerHTML = UIComponents.getEmptyTableHtml(2);
+            return;
+        }
+        rows.forEach(row => {
+            const tr = document.createElement('tr');
+            const repoTd = document.createElement('td');
+            const visible = document.createElement('input');
+            visible.type = 'checkbox';
+            visible.id = `user-permission-visible-${row.repo_id}`;
+            visible.checked = isAdmin || Boolean(row.visible);
+            visible.disabled = isAdmin;
+            const repoName = document.createElement('span');
+            repoName.className = 'user-permission-repo-name';
+            repoName.textContent = row.repo_name;
+            repoTd.appendChild(visible);
+            repoTd.appendChild(repoName);
+            tr.appendChild(repoTd);
+
+            const permissionTd = document.createElement('td');
+            const select = document.createElement('select');
+            select.id = `user-permission-role-${row.repo_id}`;
+            select.className = 'input-field user-permission-select';
+            const adminOption = document.createElement('option');
+            adminOption.value = 'admin';
+            adminOption.textContent = I18nManager.t('setting.user.repo_role_admin');
+            const memberOption = document.createElement('option');
+            memberOption.value = 'member';
+            memberOption.textContent = I18nManager.t('setting.user.repo_role_member');
+            select.appendChild(adminOption);
+            select.appendChild(memberOption);
+            select.value = isAdmin ? 'admin' : (row.permission || 'member');
+            select.disabled = isAdmin || !visible.checked;
+            visible.onchange = () => {
+                select.disabled = isAdmin || !visible.checked;
+            };
+            permissionTd.appendChild(select);
+            tr.appendChild(permissionTd);
+            tbody.appendChild(tr);
+        });
+    },
+
+    /**
+     * @description 用途说明：显示用户仓库权限配置弹窗，并填充当前用户的权限配置。
+     * @returns {void} - 返回值说明：无
+     */
+    showPermissionModal() {
+        const modal = document.getElementById('user-permission-modal');
+        const title = document.getElementById('user-permission-title');
+        const tip = document.getElementById('user-permission-tip');
+        if (!modal) return;
+        const isAdmin = State.permissionTargetIsAdmin;
+        title.textContent = I18nManager.t('setting.user.permission_title', { username: State.permissionTargetUsername });
+        tip.textContent = I18nManager.t(isAdmin ? 'setting.user.permission_admin_tip' : 'setting.user.permission_user_tip');
+        this.renderPermissionTable(State.permissionRows, isAdmin);
+        modal.classList.remove('hidden');
+    },
+
+    /**
+     * @description 用途说明：隐藏用户仓库权限配置弹窗。
+     * @returns {void} - 返回值说明：无
+     */
+    hidePermissionModal() {
+        const modal = document.getElementById('user-permission-modal');
+        if (modal) modal.classList.add('hidden');
+    },
+
+    /**
+     * @description 用途说明：收集权限表格中已勾选可见的仓库权限。
+     * @returns {Array} - 返回值说明：[{repo_id, permission}] 列表，未勾选仓库不会提交。
+     */
+    collectPermissionRows() {
+        const rows = State.permissionRows || [];
+        return rows.filter(row => {
+            const checkbox = document.getElementById(`user-permission-visible-${row.repo_id}`);
+            return checkbox && checkbox.checked;
+        }).map(row => {
+            const select = document.getElementById(`user-permission-role-${row.repo_id}`);
+            return { repo_id: row.repo_id, permission: select ? select.value : 'member' };
+        });
+    },
+
+    /**
+     * @description 用途说明：新增系统使用者取消权限配置时返回新增用户弹窗，保留已填写内容。
+     * @returns {void} - 返回值说明：无
+     */
+    returnToNewUserModal() {
+        this.hidePermissionModal();
+        const modal = document.getElementById('user-modal');
+        if (modal) modal.classList.remove('hidden');
+        const usernameInput = document.getElementById('user-modal-username');
+        if (usernameInput) usernameInput.focus();
     },
 
     /**
@@ -253,9 +405,19 @@ const UIController = {
         State.userData = data.user_data || State.userData;
         const userData = State.userData;
         document.getElementById('language-select').value = userData.language || 'en';
+        // 时区偏移（分钟），后端未返回时使用默认东八区 480
+        document.getElementById('timezone-select').value = String(userData.timezone_offset_minutes ?? 480);
         // 登录失败锁定参数（后端未返回时使用默认值）
         document.getElementById('login-max-attempts').value = userData.login_max_attempts ?? 3;
         document.getElementById('login-lockout-minutes').value = userData.login_lockout_minutes ?? 5;
+
+        // 日志管理配置：retention_days 为 null 表示永久保留，否则为保留天数（默认 30 天）
+        State.logManagement = data.log_management || State.logManagement;
+        const retentionDays = State.logManagement.retention_days;
+        const isForever = retentionDays === null;
+        document.getElementById('log-retention-forever').checked = isForever;
+        document.getElementById('log-retention-days').value = isForever ? 30 : (retentionDays ?? 30);
+        this.syncLogRetentionInputState();
 
         // 根据后端配置初始化多语言并渲染
         I18nManager.init(userData.language);
@@ -264,7 +426,7 @@ const UIController = {
         HeaderToolbar.init({
             title: I18nManager.t('setting.title'),
             showBack: true,
-            menuIcon: '../../common/header_toolbar/icon/save_icon.svg',
+            menuIcon: '/common/themes/light/icons/save_icon.svg',
             menuCallback: () => App.handleGlobalSave()
         });
 
@@ -362,25 +524,6 @@ const UIController = {
             item.appendChild(actions);
             listContainer.appendChild(item);
         });
-    },
-
-    /**
-     * @description 用途说明：初始化缩略图同步按钮组件
-     * @returns {void} - 返回值说明：无
-     */
-    initThumbnailSyncButton() {
-        const container = document.getElementById('sync-thumbnail-btn-container');
-        if (!container) return;
-
-        State.thumbnailSync.widget = ProgressButtonWidget.create({
-            normalText: I18nManager.t('setting.maintenance.sync_thumb'),
-            stopText: I18nManager.t('common.cancel'),
-            defaultBgColor: '#007bff',
-            onStart: () => App.handleStartThumbnailSync(),
-            onStop: () => App.handleStopThumbnailSync()
-        });
-
-        container.appendChild(State.thumbnailSync.widget.getElement());
     }
 };
 
@@ -398,19 +541,19 @@ const App = {
         HeaderToolbar.init({
             title: I18nManager.t('setting.title'),
             showBack: true,
-            menuIcon: '../../common/header_toolbar/icon/save_icon.svg',
+            menuIcon: '/common/themes/light/icons/save_icon.svg',
             menuCallback: () => this.handleGlobalSave()
         });
         UIController.initTabs();
-        UIController.initThumbnailSyncButton();
+        UIController.initTimezoneOptions();
         this.loadSettings();
+        // 进入设置页后异步获取当前日志目录大小
+        this.loadLogSize();
         this.initRepoSelector();
         this.bindEvents();
         // 加载当前用户信息，决定是否展示用户管理入口，并绑定用户管理交互
         this.loadCurrentUser();
         this.bindUserEvents();
-        // 初始化时检查一次同步任务状态
-        this.syncThumbnailProgress();
     },
 
     /**
@@ -461,6 +604,17 @@ const App = {
         const cancelBtn = document.getElementById('user-modal-cancel-btn');
         if (cancelBtn) cancelBtn.onclick = () => UIController.hideUserModal();
 
+        const permissionConfirmBtn = document.getElementById('user-permission-confirm-btn');
+        if (permissionConfirmBtn) permissionConfirmBtn.onclick = () => this.submitPermissionModal();
+
+        const permissionCancelBtn = document.getElementById('user-permission-cancel-btn');
+        if (permissionCancelBtn) {
+            permissionCancelBtn.onclick = () => {
+                if (State.permissionMode === 'new') UIController.returnToNewUserModal();
+                else UIController.hidePermissionModal();
+            };
+        }
+
         const historyCloseBtn = document.getElementById('login-history-close-btn');
         if (historyCloseBtn) historyCloseBtn.onclick = () => UIController.hideLoginHistoryModal();
     },
@@ -473,6 +627,79 @@ const App = {
     openUserModal(userId) {
         State.editingUserId = userId;
         UIController.showUserModal(userId);
+    },
+
+    /**
+     * @description 用途说明：打开既有用户的仓库权限配置弹窗。
+     * @param {Object} user - 入参说明：用户对象 {id, username, is_admin}
+     * @returns {void} - 返回值说明：无
+     */
+    openPermissionModal(user) {
+        State.permissionMode = 'edit';
+        State.permissionTargetUserId = user.id;
+        State.permissionTargetUsername = user.username;
+        State.permissionTargetIsAdmin = Boolean(user.is_admin);
+        SettingRequest.getUserPermissions(
+            user.id,
+            (rows) => {
+                State.permissionRows = rows || [];
+                UIController.showPermissionModal();
+            },
+            (msg) => Toast.show(msg)
+        );
+    },
+
+    /**
+     * @description 用途说明：新增系统使用者时打开仓库权限配置弹窗，默认所有仓库不可见。
+     * @returns {void} - 返回值说明：无
+     */
+    openNewUserPermissionModal() {
+        State.permissionMode = 'new';
+        State.permissionTargetUserId = null;
+        State.permissionTargetUsername = State.pendingNewUser ? State.pendingNewUser.username : '';
+        State.permissionTargetIsAdmin = false;
+        RepositoryRequest.list(
+            (repos) => {
+                State.permissionRows = (repos || []).map(repo => ({
+                    repo_id: repo.id,
+                    repo_name: repo.name,
+                    visible: false,
+                    permission: 'member'
+                }));
+                UIController.showPermissionModal();
+            },
+            (msg) => Toast.show(msg)
+        );
+    },
+
+    /**
+     * @description 用途说明：提交用户仓库权限配置；新增模式下会连同暂存的账号信息一起创建用户。
+     * @returns {void} - 返回值说明：无
+     */
+    submitPermissionModal() {
+        const permissions = UIController.collectPermissionRows();
+        const onSuccess = () => {
+            UIController.hidePermissionModal();
+            UIController.hideUserModal();
+            State.pendingNewUser = null;
+            Toast.show(I18nManager.t('common.success'));
+            this.loadUsers();
+        };
+        const onError = (msg) => Toast.show(msg);
+        if (State.permissionMode === 'new' && State.pendingNewUser) {
+            SettingRequest.addUser(
+                State.pendingNewUser.username,
+                State.pendingNewUser.passwordHash,
+                false,
+                permissions,
+                onSuccess,
+                onError
+            );
+            return;
+        }
+        if (State.permissionTargetUserId !== null) {
+            SettingRequest.updateUserPermissions(State.permissionTargetUserId, permissions, onSuccess, onError);
+        }
     },
 
     /**
@@ -508,7 +735,15 @@ const App = {
         const onError = (msg) => Toast.show(msg);
 
         if (State.editingUserId === null) {
-            SettingRequest.addUser(username, passwordHash, onSuccess, onError);
+            const isAdmin = document.getElementById('user-modal-role').value === 'admin';
+            if (!isAdmin) {
+                // 系统使用者需先进入仓库配置弹窗，确认可见仓库与仓库权限后再创建账号
+                State.pendingNewUser = { username: username, passwordHash: passwordHash };
+                UIController.hideUserModal();
+                this.openNewUserPermissionModal();
+                return;
+            }
+            SettingRequest.addUser(username, passwordHash, true, [], onSuccess, onError);
         } else {
             SettingRequest.updateUserPassword(State.editingUserId, passwordHash, onSuccess, onError);
         }
@@ -678,6 +913,12 @@ const App = {
         document.getElementById('clear-pending-entry-btn').onclick = () => this.confirmClear('pending_entry');
         document.getElementById('clear-history-btn').onclick = () => this.confirmClear('history');
         document.getElementById('clear-video-btn').onclick = () => this.confirmClear('video');
+
+        // 日志管理：切换“永久保留”时联动保留天数输入框状态
+        const logForeverCheckbox = document.getElementById('log-retention-forever');
+        if (logForeverCheckbox) {
+            logForeverCheckbox.onchange = () => UIController.syncLogRetentionInputState();
+        }
     },
 
     /**
@@ -691,6 +932,31 @@ const App = {
             },
             (msg) => {
                 Toast.show(I18nManager.t('common.error') + ': ' + msg);
+            }
+        );
+    },
+
+    /**
+     * @description 用途说明：异步获取并显示当前日志目录大小与文件数量
+     * @returns {void} - 返回值说明：无
+     */
+    loadLogSize() {
+        const sizeElement = document.getElementById('log-dir-size');
+        if (!sizeElement) return;
+        sizeElement.textContent = I18nManager.t('setting.log.size_loading');
+
+        SettingRequest.getLogDirectorySize(
+            (data) => {
+                const sizeBytes = Number(data && data.size_bytes) || 0;
+                const fileCount = Number(data && data.file_count) || 0;
+                sizeElement.textContent = I18nManager.t('setting.log.size_value', {
+                    size: CommonUtils.formatFileSize(sizeBytes),
+                    count: fileCount
+                });
+            },
+            (msg) => {
+                sizeElement.textContent = I18nManager.t('setting.log.size_failed');
+                console.error('loadLogSize failed:', msg);
             }
         );
     },
@@ -782,26 +1048,47 @@ const App = {
         // 登录失败锁定参数：必须为 >=1 的整数
         const loginMaxAttempts = parseInt(document.getElementById('login-max-attempts').value, 10);
         const loginLockoutMinutes = parseInt(document.getElementById('login-lockout-minutes').value, 10);
+        // 时区偏移（分钟）：必须为 -720 到 840 之间的整数
+        const timezoneOffsetMinutes = parseInt(document.getElementById('timezone-select').value, 10);
 
         if (!Number.isInteger(loginMaxAttempts) || loginMaxAttempts < 1 ||
             !Number.isInteger(loginLockoutMinutes) || loginLockoutMinutes < 1) {
             Toast.show(I18nManager.t('setting.account.security_params_invalid'));
             return;
         }
+        if (!Number.isInteger(timezoneOffsetMinutes) || timezoneOffsetMinutes < -720 || timezoneOffsetMinutes > 840) {
+            Toast.show(I18nManager.t('setting.account.timezone_invalid'));
+            return;
+        }
 
         const userData = {
             language,
+            timezone_offset_minutes: timezoneOffsetMinutes,
             login_max_attempts: loginMaxAttempts,
             login_lockout_minutes: loginLockoutMinutes
         };
 
+        // 5. 采集日志管理配置：勾选永久保留时传 null，否则必须为不小于 1 的整数
+        const logForever = document.getElementById('log-retention-forever').checked;
+        let logRetentionDays = null;
+        if (!logForever) {
+            logRetentionDays = parseInt(document.getElementById('log-retention-days').value, 10);
+            if (!Number.isInteger(logRetentionDays) || logRetentionDays < 1) {
+                Toast.show(I18nManager.t('setting.log.retention_invalid'));
+                return;
+            }
+        }
+
         const updateData = {
             duplicate_check: dc,
             file_name_entry: fe,
-            user_data: userData
+            user_data: userData,
+            log_management: {
+                retention_days: logRetentionDays
+            }
         };
 
-        // 5. 检查关键参数变更并执行保存
+        // 6. 检查关键参数变更并执行保存
         const isIntervalChanged = dc.video_interval_seconds !== State.duplicateCheck.video_interval_seconds;
         const isBackwardsChanged = dc.video_backwards !== State.duplicateCheck.video_backwards;
         const isLanguageChanged = language !== State.userData.language;
@@ -900,84 +1187,6 @@ const App = {
                 );
             }
         });
-    },
-
-    /**
-     * @description 用途说明：触发后端执行缩略图同步清理任务
-     * @returns {void} - 返回值说明：无
-     */
-    handleStartThumbnailSync() {
-        SettingRequest.startThumbnailSync(
-            () => {
-                Toast.show(I18nManager.t('common.success'));
-                this.syncThumbnailProgress();
-            },
-            (msg) => {
-                Toast.show(I18nManager.t('common.error') + ': ' + msg);
-            }
-        );
-    },
-
-    /**
-     * @description 用途说明：触发后端停止当前正在进行的缩略图同步任务
-     * @returns {void} - 返回值说明：无
-     */
-    handleStopThumbnailSync() {
-        SettingRequest.stopThumbnailSync(
-            () => {
-                Toast.show(I18nManager.t('common.success'));
-            },
-            (msg) => {
-                Toast.show(I18nManager.t('common.error') + ': ' + msg);
-            }
-        );
-    },
-
-    /**
-     * @description 用途说明：异步获取缩略图同步进度，并根据状态更新 ProgressButtonWidget 的 UI 表现，支持自动轮询
-     * @returns {void} - 返回值说明：无
-     */
-    syncThumbnailProgress() {
-        if (State.thumbnailSync.timer) {
-            clearTimeout(State.thumbnailSync.timer);
-            State.thumbnailSync.timer = null;
-        }
-
-        SettingRequest.getThumbnailSyncProgress(
-            (data) => {
-                const { status, progress } = data;
-                const widget = State.thumbnailSync.widget;
-
-                if (status === ProgressStatus.PROCESSING) {
-                    State.thumbnailSync.status = ProgressStatus.PROCESSING;
-                    widget.setState('processing');
-                    const percent = progress.total > 0 ? Math.round((progress.current / progress.total) * 100) : 0;
-                    // 设置进度时同时设置文案，格式为：正在处理：当前/总数
-                    widget.setProgress(percent, `${I18nManager.t('common.loading')}：${progress.current}/${progress.total}`);
-
-                    // 继续轮询
-                    State.thumbnailSync.timer = setTimeout(() => this.syncThumbnailProgress(), 1000);
-                } else {
-                    // 用途说明：仅当之前的任务状态不是 idle 时（即刚从 processing 切换过来），才执行状态重置并弹出结果提示
-                    if (State.thumbnailSync.status !== ProgressStatus.IDLE) {
-                        if (status === ProgressStatus.COMPLETED) {
-                            Toast.show(progress.message || I18nManager.t('common.success'));
-                        } else if (status === ProgressStatus.ERROR) {
-                            Toast.show(I18nManager.t('common.error') + ': ' + progress.message);
-                        }
-                        State.thumbnailSync.status = ProgressStatus.IDLE;
-                    }
-                    widget.setState('idle');
-                }
-            },
-            (msg) => {
-                console.error('获取进度失败:', msg);
-                if (State.thumbnailSync.widget) {
-                    State.thumbnailSync.widget.setState('idle');
-                }
-                State.thumbnailSync.status = ProgressStatus.IDLE;
-            }
-        );
     }
 };
 

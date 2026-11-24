@@ -1,0 +1,90 @@
+/**
+ * 用途说明：首页与登录页外观控制样式，定义主题切换、语言切换按钮及语言选择弹窗。
+ */
+.appearance-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.appearance-btn {
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background-color 0.2s, transform 0.1s;
+}
+
+.appearance-btn:active {
+    transform: scale(0.94);
+}
+
+.appearance-btn .theme-icon {
+    width: 20px;
+    height: 20px;
+}
+
+.appearance-theme-btn {
+    background: var(--color-theme-toggle-background);
+    color: var(--color-theme-toggle-foreground);
+    box-shadow: 0 1px 4px var(--alpha-black-20);
+}
+
+.appearance-theme-btn:hover {
+    box-shadow: 0 2px 8px var(--alpha-black-30);
+}
+
+.appearance-moon {
+    display: none;
+}
+
+[data-theme="dark"] .appearance-sun {
+    display: none;
+}
+
+[data-theme="dark"] .appearance-moon {
+    display: inline-block;
+}
+
+.appearance-language-btn {
+    background: var(--color-surface-muted);
+    color: var(--color-text-secondary);
+}
+
+.appearance-language-btn:hover {
+    background: var(--color-primary-soft);
+    color: var(--color-primary);
+}
+
+.appearance-language-content {
+    max-width: 360px;
+}
+
+.appearance-language-title {
+    margin-top: 0;
+    text-align: left;
+}
+
+.appearance-language-label {
+    display: block;
+    margin-bottom: 8px;
+    color: var(--color-text-secondary);
+    font-size: 14px;
+}
+
+.appearance-language-select {
+    margin-bottom: 20px;
+    background-color: var(--color-surface);
+    color: var(--color-text-primary);
+}
+
+.appearance-language-actions {
+    display: flex;
+    gap: 8px;
+}

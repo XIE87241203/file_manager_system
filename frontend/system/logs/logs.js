@@ -109,12 +109,12 @@ const UIController = {
             toggleBtn.textContent = I18nManager.t('logs.stop_auto');
             toggleBtn.className = 'right-btn btn-text-danger';
             statusText.textContent = I18nManager.t('logs.auto_monitoring').replace('{interval}', State.refreshIntervalSec);
-            statusText.style.color = '#1a73e8';
+            statusText.style.color = 'var(--color-primary)';
         } else {
             toggleBtn.textContent = I18nManager.t('logs.start_auto');
             toggleBtn.className = 'right-btn';
             statusText.textContent = I18nManager.t('logs.stopped');
-            statusText.style.color = '#5f6368';
+            statusText.style.color = 'var(--color-text-tertiary)';
         }
     },
 

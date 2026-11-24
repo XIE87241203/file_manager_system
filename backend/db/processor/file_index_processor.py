@@ -37,7 +37,10 @@ class FileIndexProcessor(BaseDBProcessor):
                 f.video_codec,
                 f.thumbnail_path,
                 f.recycle_bin_time,
-                f.scan_time
+                f.scan_time,
+                f.file_mtime,
+                f.file_exif_time,
+                f.file_location
             ))
         
         query: str = f'''
@@ -51,9 +54,12 @@ class FileIndexProcessor(BaseDBProcessor):
                 {DBConstants.FileIndex.COL_VIDEO_CODEC},
                 {DBConstants.FileIndex.COL_THUMBNAIL_PATH},
                 {DBConstants.FileIndex.COL_RECYCLE_BIN_TIME},
-                {DBConstants.FileIndex.COL_SCAN_TIME}
+                {DBConstants.FileIndex.COL_SCAN_TIME},
+                {DBConstants.FileIndex.COL_FILE_MTIME},
+                {DBConstants.FileIndex.COL_FILE_EXIF_TIME},
+                {DBConstants.FileIndex.COL_FILE_LOCATION}
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         '''
 
         return BaseDBProcessor._execute_batch(query, data, conn=conn)
@@ -275,8 +281,19 @@ class FileIndexProcessor(BaseDBProcessor):
             DBConstants.FileIndex.COL_VIDEO_DURATION,
             DBConstants.FileIndex.COL_VIDEO_CODEC,
             DBConstants.FileIndex.COL_SCAN_TIME,
-            DBConstants.FileIndex.COL_RECYCLE_BIN_TIME
+            DBConstants.FileIndex.COL_RECYCLE_BIN_TIME,
+            DBConstants.FileIndex.COL_FILE_MTIME,
+            DBConstants.FileIndex.COL_FILE_EXIF_TIME,
+            DBConstants.FileIndex.ALBUM_TIME_FIELD
         ]
+
+        # 兜底：未识别的排序字段统一按相册时间（EXIF 优先、修改时间兜底）排序
+        if sort_by not in allowed_cols:
+            sort_by = DBConstants.FileIndex.ALBUM_TIME_FIELD
+        order_expression: str = (
+            DBConstants.FileIndex.ALBUM_TIME_EXPRESSION
+            if sort_by == DBConstants.FileIndex.ALBUM_TIME_FIELD else ""
+        )
 
         # 排除回收站文件，并仅保留图片/视频类型
         col_recycle: str = DBConstants.FileIndex.COL_RECYCLE_BIN_TIME
@@ -298,9 +315,11 @@ class FileIndexProcessor(BaseDBProcessor):
             search_query=search_query,
             search_column=DBConstants.FileIndex.COL_FILE_NAME,
             allowed_sort_columns=allowed_cols,
-            default_sort_column=DBConstants.FileIndex.COL_SCAN_TIME,
+            # 相册默认按“EXIF 优先、文件修改时间兜底”的合成时间排序，供前端时间轴分组展示
+            default_sort_column=DBConstants.FileIndex.ALBUM_TIME_FIELD,
             extra_where=extra_where,
-            extra_params=extra_params
+            extra_params=extra_params,
+            order_expression=order_expression
         )
 
     @staticmethod

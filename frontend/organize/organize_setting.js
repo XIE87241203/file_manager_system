@@ -28,7 +28,7 @@ const UIController = {
         HeaderToolbar.init({
             title: I18nManager.t('organize.setting.title'),
             showBack: true,
-            menuIcon: '../common/header_toolbar/icon/save_icon.svg',
+            menuIcon: '/common/themes/light/icons/save_icon.svg',
             menuCallback: () => App.handleSave()
         });
 
