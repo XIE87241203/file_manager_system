@@ -12,8 +12,8 @@
     align-items: center;
     gap: 10px;
     padding: 15px 15px;
-    background-color: #fff;
-    border-bottom: 1px solid #dee2e6;
+    background-color: var(--color-surface);
+    border-bottom: 1px solid var(--color-border-table);
     flex-wrap: wrap;
     width: 100%;
     box-sizing: border-box;
@@ -24,14 +24,14 @@
     align-items: center;
     gap: 5px;
     font-size: 14px;
-    color: #3c4043;
+    color: var(--color-text-secondary);
 }
 
 /* 刷新间隔输入框：移自内联样式 */
 #refresh-interval {
     width: 50px;
     padding: 4px 8px;
-    border: 1px solid #dadce0;
+    border: 1px solid var(--color-border);
     border-radius: 4px;
     outline: none;
 }
@@ -51,26 +51,26 @@
 
 .control-item select {
     padding: 5px 5px;
-    border: 1px solid #dadce0;
+    border: 1px solid var(--color-border);
     border-radius: 4px;
     outline: none;
 }
 
 .status-text {
     font-size: 13px;
-    color: #1a73e8;
+    color: var(--color-primary);
     font-weight: 500;
 }
 
 .log-viewer {
     flex: 1;
-    background-color: #1e1e1e; /* 深色背景，更有终端感 */
+    background-color: var(--palette-1e1e1e); /* 深色背景，更有终端感 */
     margin: 16px;
     border-radius: 8px;
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    box-shadow: 0 4px 12px var(--alpha-black-15);
 }
 
 .log-content {
@@ -80,7 +80,7 @@
     font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
     font-size: 13px;
     line-height: 1.6;
-    color: #d4d4d4;
+    color: var(--palette-d4d4d4);
     white-space: pre-wrap;
     word-break: break-all;
 }
@@ -91,11 +91,11 @@
     margin-bottom: 2px;
 }
 
-.log-info { color: #9cdcfe; }
-.log-debug { color: #6a9955; }
-.log-error { color: #f44747; font-weight: bold; }
-.log-warn { color: #ce9178; }
-.log-time { color: #808080; margin-right: 8px; }
+.log-info { color: var(--palette-9cdcfe); }
+.log-debug { color: var(--palette-6a9955); }
+.log-error { color: var(--palette-f44747); font-weight: bold; }
+.log-warn { color: var(--palette-ce9178); }
+.log-time { color: var(--palette-808080); margin-right: 8px; }
 
 /* 滚动条美化 */
 .log-content::-webkit-scrollbar {
@@ -103,14 +103,14 @@
 }
 
 .log-content::-webkit-scrollbar-track {
-    background: #252526;
+    background: var(--palette-252526);
 }
 
 .log-content::-webkit-scrollbar-thumb {
-    background: #424242;
+    background: var(--palette-424242);
     border-radius: 5px;
 }
 
 .log-content::-webkit-scrollbar-thumb:hover {
-    background: #4f4f4f;
+    background: var(--palette-4f4f4f);
 }

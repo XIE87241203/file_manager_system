@@ -9,12 +9,15 @@ from backend.common.i18n_utils import t
 from backend.common.log_utils import LogUtils
 from backend.common.progress_manager import ProgressStatus
 from backend.common.response import success_response, error_response
+from backend.common.timezone_utils import TimezoneUtils
 from backend.common.utils import Utils
 from backend.file_repository.duplicate_check.duplicate_service import DuplicateService
 from backend.file_repository.file_service import FileService
 from backend.file_repository.recycle_bin_service import RecycleBinService
 from backend.file_repository.scan_service import ScanService, ScanMode
+from backend.file_repository.thumbnail.thumbnail_path_utils import ThumbnailPathUtils
 from backend.file_repository.thumbnail.thumbnail_service import ThumbnailService
+from backend.model.thumbnail_result import ThumbnailResult
 
 # 创建文件仓库模块的蓝图
 file_repo_bp = Blueprint('file_repository', __name__)
@@ -27,6 +30,19 @@ def _get_current_user() -> str:
     返回值说明：返回当前用户的用户名字符串
     """
     return getattr(request, 'username', 'Unknown')
+
+
+def _apply_display_timezone(items: list) -> None:
+    """
+    用途说明：将文件列表中的系统时间字段转换为系统设置时区后展示，仅影响接口输出，不修改数据库。
+    入参说明：items (list) - 文件模型列表，元素可能包含 scan_time / recycle_bin_time / delete_time 字段。
+    返回值说明：无
+    """
+    for item in items:
+        for attr_name in ('scan_time', 'recycle_bin_time', 'delete_time'):
+            raw_value: Optional[str] = getattr(item, attr_name, None)
+            if raw_value:
+                setattr(item, attr_name, TimezoneUtils.local_to_target(raw_value))
 
 
 @file_repo_bp.route('/scan', methods=['POST'])
@@ -167,9 +183,11 @@ def list_files():
 
     if search_history:
         data = FileService.search_history_file_index_list(page, limit, sort_by, order_asc, search_query, file_type=file_type)
+        _apply_display_timezone(data.list)
         return success_response(t('repo_get_list_success'), data=asdict(data))
     else:
         data = FileService.search_file_index_list(page, limit, sort_by, order_asc, search_query, file_type=file_type)
+        _apply_display_timezone(data.list)
         return success_response(t('repo_get_list_success'), data=asdict(data))
 
 
@@ -192,6 +210,7 @@ def list_recycle_bin_files():
     search_query: str = request.args.get('search', default='').strip()
 
     data = RecycleBinService.get_recycle_bin_list(page, limit, sort_by, order_asc, search_query)
+    _apply_display_timezone(data.list)
     return success_response(t('repo_get_list_success'), data=asdict(data))
 
 
@@ -281,7 +300,9 @@ def get_latest_duplicate_check_time():
     """
     time_str = DuplicateService.get_latest_check_time()
     duration = DuplicateService.get_last_check_duration()
-    return success_response(t('dup_get_last_time_success'), data={"time": time_str, "duration": duration})
+    # 查重时间按系统设置时区展示（数据库内部仍保存服务器本地时间，用于增量比对）
+    display_time: Optional[str] = TimezoneUtils.local_to_target(time_str)
+    return success_response(t('dup_get_last_time_success'), data={"time": display_time, "duration": duration})
 
 
 # --- 缩略图相关路由 ---
@@ -370,16 +391,35 @@ def view_thumbnail():
     if not path:
         return error_response(t('params_missing'), 400)
 
-    thumbnail_dir: str = os.path.abspath(os.path.join(Utils.get_runtime_path(), "cache", "thumbnail"))
+    # 允许当前配置目录与历史兼容目录，防止路径穿越
     requested_path: str = os.path.abspath(path)
-
-    if not requested_path.startswith(thumbnail_dir):
+    if not ThumbnailPathUtils.is_allowed_thumbnail_path(requested_path):
         return error_response(t('invalid_path', path=path), 403)
 
     if not os.path.exists(requested_path):
         return error_response(t('file_not_found'), 404)
 
     return send_file(requested_path, mimetype='image/jpeg')
+
+
+@file_repo_bp.route('/thumbnail/ensure', methods=['POST'])
+@token_required
+def ensure_thumbnail():
+    """
+    用途说明：统一的按需缩略图生成接口（相册瀑布流等场景），已存在则直接复用。
+    入参说明（JSON）：file_path (str) - 文件完整路径。
+    返回值说明：统一 JSON 响应，data 为 {file_path, thumbnail_path}。
+    """
+    data: dict = request.get_json(silent=True) or {}
+    file_path: str = (data.get('file_path') or '').strip()
+    if not file_path:
+        return error_response(t('params_missing'), 400)
+
+    result: ThumbnailResult = ThumbnailService.ensure_thumbnail(file_path)
+    if not result.thumbnail_path:
+        return error_response(t('thumb_ensure_failed'), 500)
+
+    return success_response(t('thumb_ensure_success'), data=asdict(result))
 
 
 # --- 视频播放相关路由 ---

@@ -39,13 +39,13 @@ const PageBar = {
         container.innerHTML = `
             <div class="page-bar-container">
                 <div class="page-btn ${currentPage <= 1 ? 'disabled' : ''}" id="page-prev" title="${t('common.prev_page')}">
-                    <img src="../../common/page_bar/prev_icon.svg" class="page-btn-icon">
+                    <span class="page-btn-icon theme-icon icon-prev" aria-hidden="true"></span>
                 </div>
                 <div class="page-info" id="page-jump" title="${t('common.jump_page_tip')}">
                     ${infoText}
                 </div>
                 <div class="page-btn ${currentPage >= totalPages ? 'disabled' : ''}" id="page-next" title="${t('common.next_page')}">
-                    <img src="../../common/page_bar/next_icon.svg" class="page-btn-icon">
+                    <span class="page-btn-icon theme-icon icon-next" aria-hidden="true"></span>
                 </div>
             </div>
         `;

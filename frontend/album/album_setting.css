@@ -1,0 +1,115 @@
+/**
+ * 用途说明：相册设置页样式，定义设置卡片、路径输入、分辨率选择与生效路径展示。
+ * 规范：仅使用 class 绑定样式，禁止内联样式。
+ */
+
+.album-setting-main {
+    display: block;
+    width: 100%;
+}
+
+.album-setting-container {
+    width: 100%;
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 20px 16px 48px;
+    box-sizing: border-box;
+}
+
+.album-setting-card {
+    background: var(--color-surface);
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 2px 10px var(--alpha-black-08);
+}
+
+/* 生效路径展示 */
+.album-effective-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin: 4px 0 20px;
+    padding: 10px 12px;
+    background: var(--palette-f5f7fa);
+    border: 1px solid var(--palette-e6e9ee);
+    border-radius: 8px;
+    font-size: 13px;
+    color: var(--color-text-tertiary);
+}
+
+.album-effective-label {
+    flex-shrink: 0;
+    font-weight: 600;
+}
+
+.album-effective-value {
+    word-break: break-all;
+    color: var(--color-primary);
+}
+
+.album-save-btn {
+    max-width: 200px;
+    margin: 0 auto;
+}
+
+/* 缩略图维护卡片（由系统设置迁入） */
+.album-sync-card {
+    margin-top: 20px;
+}
+
+.album-sync-title {
+    margin: 0 0 6px;
+    font-size: 16px;
+    color: var(--color-text-primary);
+}
+
+.album-sync-hint {
+    margin: 0 0 16px;
+    font-size: 13px;
+    color: var(--color-text-tertiary);
+    line-height: 1.5;
+}
+
+.album-sync-item {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 18px 20px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border-muted);
+    border-radius: 8px;
+}
+
+.album-sync-info {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.album-sync-name {
+    font-weight: 600;
+    color: var(--color-text-strong);
+    font-size: 1.05rem;
+}
+
+.album-sync-desc {
+    font-size: 0.85rem;
+    color: var(--color-text-body-muted);
+    line-height: 1.4;
+}
+
+/* 同步按钮容器撑满宽度，与设置页保持一致 */
+.album-sync-btn-container {
+    width: 100%;
+}
+
+@media (max-width: 520px) {
+    .album-setting-card {
+        padding: 18px 14px;
+    }
+
+    .album-save-btn {
+        max-width: none;
+    }
+}

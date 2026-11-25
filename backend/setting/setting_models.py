@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import List
+from typing import List, Optional
 
 @dataclass
 class UserData:
@@ -7,8 +7,11 @@ class UserData:
     用途：用户基本信息配置数据类
     """
     username: str = "admin"
-    password: str = "admin123"
+    password: str = "admin123"  # 存储为 PBKDF2 加盐哈希（旧版明文在加载时自动迁移）
     language: str = "en"  # 新增：系统语言设置，支持 'zh' 或 'en'
+    timezone_offset_minutes: int = 480  # 系统时区偏移（分钟），默认东八区（北京时间 UTC+08:00）
+    login_max_attempts: int = 3  # 同一 IP 连续登录失败达到此次数后触发锁定，最小为 1
+    login_lockout_minutes: int = 5  # 触发锁定后的禁止登录时长（分钟），最小为 1
 
 @dataclass
 class FileRepositorySettings:
@@ -39,6 +42,7 @@ class DuplicateCheckSettings:
     video_interval_seconds: int = 30
     video_max_duration_diff_ratio: float = 0.6
     video_backwards: bool = False  # 是否从视频结尾倒序生成特征
+    video_max_frames: int = 60  # 单个视频最大抽帧数量（按采样方向截取前 N 帧，保持锚点对齐），-1 表示不限
 
 @dataclass
 class FileNameEntrySettings:
@@ -46,6 +50,24 @@ class FileNameEntrySettings:
     用途：文件录入管理相关配置数据类
     """
     file_name_link_prefix: str = ""
+
+@dataclass
+class AlbumSettings:
+    """
+    用途：相册模块相关配置数据类
+    """
+    # 缩略图存储路径：相对路径以 data 目录为基准（默认 data/thumb），也支持绝对路径
+    thumbnail_dir: str = "thumb"
+
+
+@dataclass
+class LogManagementSettings:
+    """
+    用途：日志管理相关配置数据类
+    """
+    # 日志保留天数（按系统时区自然日计算）；None 表示永久保留，不自动清理
+    retention_days: Optional[int] = 30
+
 
 @dataclass
 class AppConfig:
@@ -56,3 +78,5 @@ class AppConfig:
     file_repository: FileRepositorySettings = field(default_factory=FileRepositorySettings)
     duplicate_check: DuplicateCheckSettings = field(default_factory=DuplicateCheckSettings)
     file_name_entry: FileNameEntrySettings = field(default_factory=FileNameEntrySettings)
+    album: AlbumSettings = field(default_factory=AlbumSettings)
+    log_management: LogManagementSettings = field(default_factory=LogManagementSettings)

@@ -16,6 +16,9 @@ eggs/
 .eggs/
 lib/
 lib64/
+# 前端自托管第三方库目录不属于 Python 打包产物，需纳入版本管理
+!frontend/common/lib/
+!frontend/common/lib/**
 parts/
 sdist/
 var/

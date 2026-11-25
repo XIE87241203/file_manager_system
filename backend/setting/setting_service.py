@@ -3,11 +3,18 @@ import json
 import os
 import sys
 from dataclasses import asdict, fields
-from typing import Dict, Any, Callable, List
+from typing import Dict, Any, Callable, List, Optional
 
 from backend.common.i18n_utils import I18nUtils, t
 from backend.common.log_utils import LogUtils
+from backend.common.password_utils import ALGORITHM, hash_password, is_hashed
+from backend.common.timezone_utils import (
+    DEFAULT_TIMEZONE_OFFSET_MINUTES,
+    MAX_TIMEZONE_OFFSET_MINUTES,
+    MIN_TIMEZONE_OFFSET_MINUTES,
+)
 from backend.common.utils import Utils
+from backend.model.db.user_db_model import UserDBModel
 from backend.setting.setting_models import AppConfig
 
 
@@ -21,7 +28,9 @@ class SettingService:
         "USER_DATA": "user_data",
         "FILE_REPOSITORY": "file_repository",
         "DUPLICATE_CHECK": "duplicate_check",
-        "FILE_NAME_ENTRY": "file_name_entry"
+        "FILE_NAME_ENTRY": "file_name_entry",
+        "ALBUM": "album",
+        "LOG_MANAGEMENT": "log_management"
     }
 
     def __init__(self) -> None:
@@ -68,6 +77,15 @@ class SettingService:
             # 将加载的 JSON 数据映射回数据类
             self._parse_and_merge_config(loaded_json)
 
+            # 校正登录锁定参数，保证最小值为 1（旧版本曾允许 <=0 表示禁用）
+            self._normalize_security_params()
+
+            # 校正时区偏移参数，非法时回退默认东八区
+            self._normalize_timezone_offset()
+
+            # 校正日志保留天数，非法时回退默认 30 天
+            self._normalize_log_retention()
+
             # 加载后立即缓存哈希值
             self._cache_password_hash()
             
@@ -92,13 +110,158 @@ class SettingService:
                     if hasattr(target_obj, key):
                         setattr(target_obj, key, value)
 
+    def _normalize_security_params(self) -> None:
+        """
+        用途：加载配置后校正登录锁定参数，保证锁定次数与锁定时长最小为 1。
+        说明：旧版本允许以 <=0 表示禁用锁定，现已不允许；发现非法值时自动调整为 1 并持久化。
+        入参说明：无
+        返回值说明：无
+        """
+        user_data = self._config.user_data
+        changed: bool = False
+        for attr_name in ('login_max_attempts', 'login_lockout_minutes'):
+            value = getattr(user_data, attr_name)
+            if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+                setattr(user_data, attr_name, 1)
+                changed = True
+        if changed:
+            self.save_config()
+            LogUtils.info(t('config_security_params_normalized',
+                            attempts=user_data.login_max_attempts,
+                            minutes=user_data.login_lockout_minutes))
+
+    def _normalize_timezone_offset(self) -> None:
+        """
+        用途说明：加载配置后校正时区偏移参数，非法值回退为默认东八区（480 分钟）并持久化。
+        入参说明：无
+        返回值说明：无
+        """
+        user_data = self._config.user_data
+        value = user_data.timezone_offset_minutes
+        if isinstance(value, bool) or not isinstance(value, int) \
+                or value < MIN_TIMEZONE_OFFSET_MINUTES or value > MAX_TIMEZONE_OFFSET_MINUTES:
+            user_data.timezone_offset_minutes = DEFAULT_TIMEZONE_OFFSET_MINUTES
+            self.save_config()
+            LogUtils.info(t('config_timezone_normalized',
+                            offset=DEFAULT_TIMEZONE_OFFSET_MINUTES))
+
+    def _normalize_log_retention(self) -> None:
+        """
+        用途说明：加载配置后校正日志保留天数，None 表示永久保留；非法值回退默认 30 天并持久化。
+        入参说明：无
+        返回值说明：无
+        """
+        log_management = self._config.log_management
+        value = log_management.retention_days
+        if value is None:
+            return
+        if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+            log_management.retention_days = 30
+            self.save_config()
+            LogUtils.info(t('config_log_retention_normalized', days=30))
+
+    @staticmethod
+    def _is_valid_timezone_offset(value: Any) -> bool:
+        """
+        用途说明：判断时区偏移参数是否合法（必须为 -720 到 840 之间的整数分钟，布尔值视为非法）。
+        入参说明：value: 待校验的时区偏移值，来自更新请求的 user_data 段。
+        返回值说明：bool，合法返回 True，否则返回 False。
+        """
+        return isinstance(value, int) and not isinstance(value, bool) \
+            and MIN_TIMEZONE_OFFSET_MINUTES <= value <= MAX_TIMEZONE_OFFSET_MINUTES
+
+    @staticmethod
+    def _is_valid_security_param(value: Any) -> bool:
+        """
+        用途：判断单个登录锁定参数是否合法（必须为不小于 1 的整数，布尔值视为非法）。
+        入参说明：value: 待校验的参数值，来自更新请求的 user_data 段。
+        返回值说明：bool，合法返回 True，否则返回 False。
+        """
+        return isinstance(value, int) and not isinstance(value, bool) and value >= 1
+
+    @staticmethod
+    def _is_valid_log_retention(value: Any) -> bool:
+        """
+        用途说明：判断日志保留天数是否合法（None 表示永久保留；否则必须为不小于 1 的整数）。
+        入参说明：value: 待校验的日志保留天数，来自更新请求的 log_management 段。
+        返回值说明：bool，合法返回 True，否则返回 False。
+        """
+        if value is None:
+            return True
+        return isinstance(value, int) and not isinstance(value, bool) and value >= 1
+
+    @staticmethod
+    def _is_valid_stored_hash(stored: str) -> bool:
+        """
+        用途：校验密码密文是否为合法的存储格式（pbkdf2_sha256$迭代次数$盐hex$哈希hex）。
+        入参说明：stored: 从 setting.json 读到的密码字段值。
+        返回值说明：bool - 格式合法返回 True，否则返回 False。
+        """
+        parts: List[str] = stored.split('$')
+        if len(parts) != 4 or parts[0] != ALGORITHM or not parts[1].isdigit():
+            return False
+        hex_chars: str = '0123456789abcdefABCDEF'
+        salt_hex: str = parts[2]
+        dk_hex: str = parts[3]
+        if not salt_hex or not dk_hex or len(salt_hex) % 2 != 0 or len(dk_hex) % 2 != 0:
+            return False
+        return all(c in hex_chars for c in salt_hex + dk_hex)
+
+    def apply_password_reset(self) -> None:
+        """
+        用途：密码恢复通道——setting.json 中的密码字段发生变化时，据此重设初始管理员的密码。
+        说明：须在userService.init_admin_user() 之后调用（启动阶段），规则如下：
+            - 空值：不处理（凭据由 users 表管理）；
+            - 明文：先 SHA-256 再加盐慢哈希，重设初始管理员密码，并把文件中的明文替换为密文；
+            - 密文且与管理员当前密码不同：视为重设的新密码，直接应用；
+            - 密文且与管理员当前密码相同：不处理；
+            - 密文格式非法：记录错误并忽略，不应用；
+            - 尚无管理员（首次运行）：沿用旧迁移行为，把明文哈希化留存供初始管理员种子使用。
+        入参说明：无
+        返回值说明：无
+        """
+        value: str = self._config.user_data.password
+        if not value:
+            return
+
+        # 确定目标密文：明文转为加盐慢哈希；密文校验格式后直接使用
+        if is_hashed(value):
+            if not self._is_valid_stored_hash(value):
+                LogUtils.error(t('config_password_reset_invalid'))
+                return
+            target_hash: str = value
+        else:
+            client_hash: str = hashlib.sha256(value.encode('utf-8')).hexdigest()
+            target_hash = hash_password(client_hash)
+
+        # 延迟导入避免与用户服务模块形成循环依赖
+        from backend.user.user_service import userService
+        admin: Optional[UserDBModel] = userService.get_first_admin()
+        if admin is None:
+            # 尚无管理员（首次运行）：把明文哈希化留存，供后续初始管理员种子使用
+            if not is_hashed(value):
+                self._config.user_data.password = target_hash
+                self.save_config()
+                LogUtils.info(t('config_password_migrated'))
+            return
+
+        if admin.password_hash == target_hash:
+            # 密文与管理员当前密码一致，无需重设
+            return
+
+        if userService.reset_password_hash(admin.id, target_hash):
+            # 重设成功后把文件中的密码替换为密文，避免明文遗留磁盘
+            self._config.user_data.password = target_hash
+            self.save_config()
+            LogUtils.info(t('config_password_reset_applied', username=admin.username))
+
     def _cache_password_hash(self) -> None:
         """
-        用途：计算并缓存当前配置中的密码哈希值。
+        用途：缓存当前配置中的密码哈希值（存储字段本身即加盐哈希，直接缓存供登录校验使用）。
+        入参说明：无
+        返回值说明：无
         """
-        # 结构调整：通过 user_data 访问密码
-        password_plain = self._config.user_data.password
-        self.password_hash = hashlib.sha256(password_plain.encode('utf-8')).hexdigest()
+        self.password_hash = self._config.user_data.password
 
     def save_config(self) -> None:
         """
@@ -120,11 +283,43 @@ class SettingService:
     def update_settings(self, data: Dict[str, Any], operator_name: str) -> bool:
         """
         用途：批量更新配置项并持久化。
+        说明：登录锁定参数（login_max_attempts / login_lockout_minutes）必须为不小于 1 的整数，
+        日志保留天数（log_management.retention_days）必须为不小于 1 的整数或 None（永久保留），
+        任一非法则拒绝本次更新并返回 False。
         入参：data: 包含更新项的字典，其一级键名应与 AppConfig 字段名一致（如 'user_data', 'file_repository'）。
         入参：operator_name: 执行更新操作的用户。
         返回值：是否更新成功。
         """
         try:
+            # 登录锁定参数校验：次数与时长必须为不小于 1 的整数，非法则整体拒绝更新
+            user_section = data.get('user_data')
+            if isinstance(user_section, dict):
+                for param_key in ('login_max_attempts', 'login_lockout_minutes'):
+                    if param_key in user_section and not self._is_valid_security_param(user_section[param_key]):
+                        LogUtils.error(t('config_security_params_invalid',
+                                         key=param_key, value=user_section[param_key]))
+                        return False
+
+                # 语言仅支持中英文，避免非法值清空后端翻译资源
+                if 'language' in user_section and user_section['language'] not in ('zh', 'en'):
+                    LogUtils.error(t('config_language_invalid', value=user_section['language']))
+                    return False
+
+                # 时区偏移校验：必须为 -720 到 840 之间的整数分钟
+                if 'timezone_offset_minutes' in user_section \
+                        and not self._is_valid_timezone_offset(user_section['timezone_offset_minutes']):
+                    LogUtils.error(t('config_timezone_invalid',
+                                     value=user_section['timezone_offset_minutes']))
+                    return False
+
+            # 日志保留天数校验：None 表示永久保留，否则必须为不小于 1 的整数
+            log_section = data.get('log_management')
+            if isinstance(log_section, dict) and 'retention_days' in log_section \
+                    and not self._is_valid_log_retention(log_section['retention_days']):
+                LogUtils.error(t('config_log_retention_invalid',
+                                 value=log_section['retention_days']))
+                return False
+
             old_language: str = self._config.user_data.language
             
             # 自动遍历 AppConfig 的所有字段进行更新
@@ -135,9 +330,12 @@ class SettingService:
                 if isinstance(section_data, dict):
                     target_obj = getattr(self._config, section_name)
                     for key, value in section_data.items():
+                        # 用户凭据已统一由 users 表管理，设置接口不再接受用户名/密码变更
+                        if section_name == 'user_data' and key in ('username', 'password'):
+                            continue
                         if hasattr(target_obj, key):
                             setattr(target_obj, key, value)
-            
+
             new_language: str = self._config.user_data.language
             if old_language != new_language:
                 I18nUtils.reload(new_language)

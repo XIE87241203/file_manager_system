@@ -14,6 +14,7 @@ from backend.repository.repository_db_model import RepositoryDBModel
 from backend.repository.repository_result import RepositoryResult
 from backend.setting.setting_models import FileRepositorySettings
 from backend.setting.setting_service import settingService
+from backend.user.user_service import userService
 
 
 class RepositoryService:
@@ -145,6 +146,21 @@ class RepositoryService:
             LogUtils.error(t('repo_list_error', error=str(e)))
         return results
 
+    def list_repos_for_user(self, username: str) -> List[RepositoryResult]:
+        """
+        用途：获取指定用户可见的仓库列表，并附带该用户在仓库中的权限。
+        入参说明：username (str): 当前登录名。
+        返回值说明：List[RepositoryResult] - 按 ID 升序排列的可见仓库列表，permission 为 admin/member。
+        """
+        permission_map: Dict[int, str] = userService.get_repo_permissions(username)
+        results: List[RepositoryResult] = []
+        for repo in self.list_repos():
+            permission: Optional[str] = permission_map.get(repo.id)
+            if permission:
+                repo.permission = permission
+                results.append(repo)
+        return results
+
     def get_repo(self, repo_id: int) -> Optional[RepositoryDBModel]:
         """
         用途：根据 ID 获取仓库完整元数据。
@@ -251,7 +267,7 @@ class RepositoryService:
 
     def delete_repo(self, repo_id: int) -> bool:
         """
-        用途：删除仓库（仅删除元数据、独立配置与业务库文件，保留磁盘物理文件）。禁止删除最后一个仓库。
+        用途：删除仓库（同步清理用户仓库授权、元数据、独立配置与业务库文件，保留磁盘物理文件）。禁止删除最后一个仓库。
         入参说明：repo_id (int): 仓库 ID。
         返回值说明：bool - 是否删除成功。
         """
@@ -273,6 +289,12 @@ class RepositoryService:
 
             cursor.execute(
                 f"DELETE FROM {DBConstants.Repository.TABLE_NAME} WHERE {DBConstants.Repository.COL_ID} = ?",
+                (repo_id,)
+            )
+            # 仓库删除后同步清理所有用户对该仓库的授权，避免重新使用相同 ID 时继承旧权限
+            cursor.execute(
+                f"DELETE FROM {DBConstants.UserRepositoryPermission.TABLE_NAME} "
+                f"WHERE {DBConstants.UserRepositoryPermission.COL_REPO_ID} = ?",
                 (repo_id,)
             )
             conn.commit()

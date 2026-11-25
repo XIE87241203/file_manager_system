@@ -76,7 +76,7 @@ const UIController = {
     renderHeader(status) {
         if (typeof HeaderToolbar === 'undefined') return;
         const isProcessing = status === ProgressStatus.PROCESSING;
-        const menuIcon = '../../common/header_toolbar/icon/search_icon.svg';
+        const menuIcon = '/common/themes/light/icons/search_icon.svg';
         HeaderToolbar.init({
             title: I18nManager.t('duplicate_check.title'),
             showBack: true,
@@ -166,7 +166,7 @@ const UIController = {
         const results = State.results;
         if (!results || results.length === 0) {
             summaryBar.classList.remove('hidden');
-            wrapper.innerHTML = `<div style="text-align: center; color: #9aa0a6; padding-top: 100px;">${I18nManager.t('duplicate_check.empty_results')}</div>`;
+            wrapper.innerHTML = `<div style="text-align: center; color: var(--color-text-disabled); padding-top: 100px;">${I18nManager.t('duplicate_check.empty_results')}</div>`;
             PageBar.init({
                 containerId: 'pagination-container',
                 totalItems: 0,
@@ -220,7 +220,7 @@ const UIController = {
                     <span class="group-title" title="${groupType}">${groupType}</span>
                     <span class="group-count">${I18nManager.t('duplicate_check.file_count', { count: fileCount })}</span>
                     <span class="group-md5">ID: ${group.id}</span>
-                    <span class="expand-icon">▶</span>
+                    <span class="expand-icon theme-icon icon-expand" aria-hidden="true"></span>
                 </div>
             </div>
             <div class="group-content">
@@ -249,9 +249,9 @@ const UIController = {
 
                             // 视频行展示播放按钮，图片行展示预览图标（与文件仓库页面保持一致）
                             const isVideo = info.file_type === 'video';
-                            const playBtnHtml = isVideo ? `<span class="play-btn" title="${I18nManager.t('file_repo.play_video')}"><i class="play-icon">▶</i></span>` : '';
+                            const playBtnHtml = isVideo ? `<span class="play-btn" title="${I18nManager.t('file_repo.play_video')}"><i class="play-icon theme-icon icon-play" aria-hidden="true"></i></span>` : '';
                             const isImage = info.file_type === 'image';
-                            const previewBtnHtml = isImage ? `<span class="preview-btn" title="${I18nManager.t('file_repo.preview_image')}"><i class="preview-icon"><svg viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg></i></span>` : '';
+                            const previewBtnHtml = isImage ? `<span class="preview-btn" title="${I18nManager.t('file_repo.preview_image')}"><i class="preview-icon theme-icon icon-image" aria-hidden="true"></i></span>` : '';
 
                             const typeMap = {
                                 'md5': I18nManager.t('duplicate_check.type_md5'),
@@ -315,7 +315,6 @@ const UIController = {
 
         tbody.querySelectorAll('.clickable-row').forEach(tr => {
             const filePath = tr.getAttribute('data-path');
-            const thumbnailPath = tr.getAttribute('data-thumbnail');
 
             // 视频播放按钮：点击跳转至专用播放页面（阻止冒泡避免触发行选中）
             const playBtn = tr.querySelector('.play-btn');
@@ -329,12 +328,15 @@ const UIController = {
             // 图片预览图标：悬停时在鼠标右侧弹出缩略图预览，移开后关闭
             const previewBtn = tr.querySelector('.preview-btn');
             if (previewBtn) {
-                previewBtn.addEventListener('mouseenter', (e) => UIComponents.showQuickPreview(e, thumbnailPath));
-                previewBtn.addEventListener('mousemove', (e) => UIComponents.moveQuickPreview(e));
+                previewBtn.addEventListener('mouseenter', (e) => App.previewFileThumbnail(e, tr));
+                previewBtn.addEventListener('mousemove', (e) => {
+                    tr.lastPointerEvent = e;
+                    UIComponents.moveQuickPreview(e);
+                });
                 previewBtn.addEventListener('mouseleave', (e) => {
                     // 鼠标仍在行内且开启了行级快速预览时保持预览，避免覆盖已有的整行悬停预览功能
                     if (State.settings && State.settings.file_repository.quick_view_thumbnail && tr.contains(e.relatedTarget)) {
-                        UIComponents.showQuickPreview(e, thumbnailPath);
+                        App.previewFileThumbnail(e, tr);
                     } else {
                         UIComponents.hideQuickPreview();
                     }
@@ -343,8 +345,11 @@ const UIController = {
             }
 
             if (State.settings && State.settings.file_repository.quick_view_thumbnail) {
-                tr.addEventListener('mouseenter', (e) => UIComponents.showQuickPreview(e, thumbnailPath));
-                tr.addEventListener('mousemove', (e) => UIComponents.moveQuickPreview(e));
+                tr.addEventListener('mouseenter', (e) => App.previewFileThumbnail(e, tr));
+                tr.addEventListener('mousemove', (e) => {
+                    tr.lastPointerEvent = e;
+                    UIComponents.moveQuickPreview(e);
+                });
                 tr.addEventListener('mouseleave', () => UIComponents.hideQuickPreview());
             }
         });
@@ -460,6 +465,36 @@ const App = {
             (data) => { State.settings = data; },
             (err) => console.error(I18nManager.t('common.error'), err)
         );
+    },
+
+    /**
+     * 用途说明：悬停预览图片缩略图；若索引中尚无缩略图，则调用与相册共用的按需生成接口，
+     * 生成成功后（鼠标仍停留在该行内）立即展示预览，并回填行上的 data-thumbnail 避免重复请求。
+     * 入参说明：
+     *   event (MouseEvent) - 触发悬停的鼠标事件（用于定位预览框）。
+     *   tr (HTMLElement) - 当前查重结果行元素（含 data-path、data-thumbnail）。
+     * 返回值说明：无
+     */
+    previewFileThumbnail(event, tr) {
+        const filePath = tr.getAttribute('data-path');
+        const thumbnailPath = tr.getAttribute('data-thumbnail');
+        tr.lastPointerEvent = event;
+        if (thumbnailPath) {
+            UIComponents.showQuickPreview(event, thumbnailPath);
+            return;
+        }
+        if (!filePath || tr.dataset.thumbEnsuring === '1') return;
+        tr.dataset.thumbEnsuring = '1';
+        DuplicateCheckAPI.ensureThumbnail(filePath, (data) => {
+            tr.dataset.thumbEnsuring = '';
+            if (!data || !data.thumbnail_path) return;
+            tr.setAttribute('data-thumbnail', data.thumbnail_path);
+            if (tr.matches(':hover')) {
+                UIComponents.showQuickPreview(tr.lastPointerEvent, data.thumbnail_path);
+            }
+        }, () => {
+            tr.dataset.thumbEnsuring = '';
+        });
     },
 
     /**

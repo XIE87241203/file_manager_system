@@ -60,7 +60,7 @@ class DuplicateService(BaseAsyncService):
             cls._check_start_time = datetime.now()
 
             if mode == 'incremental':
-                # 新增查重：保留旧结果，仅清理失效数据并扫描新索引文件
+                # 新增查重：保留旧结果，仅扫描新索引文件
                 return cls._start_task(cls._internal_incremental_check)
 
             # 全局查重：清空旧的重复数据后全量扫描
@@ -127,6 +127,9 @@ class DuplicateService(BaseAsyncService):
                 if not files:
                     break
 
+                # 批量预取本批图片特征，避免逐文件新建数据库连接
+                helper.preload_features(files)
+
                 for file_info in files:
                     if cls._progress_manager.is_stopped():
                         cls._handle_stopped()
@@ -176,61 +179,91 @@ class DuplicateService(BaseAsyncService):
     @classmethod
     def _internal_incremental_check(cls) -> None:
         """
-        用途：新增查重内部逻辑。先清理失效结果，再按查重时间点筛选新索引文件，
+        用途：新增查重内部逻辑。按查重时间点筛选新索引文件，
         仅对新文件进行特征分析，并与仓库已有文件及新文件之间比对，最后合并入库。
         """
         try:
             LogUtils.info(t('dup_incremental_check_start'))
 
-            # 1. 清理失效的查重结果（删除已不存在文件的关联，解散成员不足 2 个的分组）
-            DBOperations.self_heal_duplicate_results()
-
-            # 2. 依据最近查重时间点筛选新索引文件
+            # 1. 依据最近查重时间点统计新索引文件数量（不载入全表，防止大库 OOM）
             last_check_time: Optional[str] = DBOperations.get_last_check_time()
-            new_files: List[FileIndexDBModel] = DBOperations.get_files_by_scan_time(last_check_time, newer=True)
-            if not new_files:
+            total_new: int = DBOperations.count_files_by_scan_time(last_check_time, newer=True)
+            if total_new == 0:
                 cls._complete_incremental([], [], t('dup_no_new_files'))
                 return
 
-            total_new: int = len(new_files)
             cls._progress_manager.update_progress(total=total_new, message=t('dup_preparing'))
 
             helper: DuplicateCheckHelper = DuplicateCheckHelper()
+            batch_size: int = 500
+            # 仅保留新文件的路径与 MD5 字符串，用于后续比对过滤与结果合并
+            new_file_paths: List[str] = []
+            new_md5_set: Set[str] = set()
 
-            # 3. 分析新文件（计算特征）
-            for index, file_info in enumerate(new_files):
+            # 2. 分批载入并分析新文件（计算特征）
+            processed_new: int = 0
+            while processed_new < total_new:
                 if cls._progress_manager.is_stopped():
                     cls._handle_stopped()
                     return
-                file_name: str = Utils.get_filename(file_info.file_path)
-                cls._progress_manager.update_progress(
-                    current=index + 1,
-                    total=total_new,
-                    message=t('dup_analyzing', file_name=file_name)
-                )
-                helper.add_file(file_info)
+
+                new_batch: List[FileIndexDBModel] = DBOperations.get_files_by_scan_time(
+                    last_check_time, newer=True, limit=batch_size, offset=processed_new)
+                if not new_batch:
+                    break
+
+                # 批量预取本批图片特征，避免逐文件新建数据库连接
+                helper.preload_features(new_batch)
+
+                for file_info in new_batch:
+                    if cls._progress_manager.is_stopped():
+                        cls._handle_stopped()
+                        return
+                    file_name: str = Utils.get_filename(file_info.file_path)
+                    cls._progress_manager.update_progress(
+                        current=processed_new + 1,
+                        total=total_new,
+                        message=t('dup_analyzing', file_name=file_name)
+                    )
+                    helper.add_file(file_info)
+                    new_file_paths.append(file_info.file_path)
+                    if file_info.file_md5:
+                        new_md5_set.add(file_info.file_md5)
+                    processed_new += 1
 
             if cls._progress_manager.is_stopped():
                 cls._handle_stopped()
                 return
 
-            # 4. 载入仓库已有文件作为比对参考（图片/视频全量，其余仅 MD5 命中者）
+            # 3. 分批载入仓库已有文件作为比对参考（图片/视频全量，其余仅 MD5 命中者）
             cls._progress_manager.update_progress(message=t('dup_comparing_existing'))
-            old_files: List[FileIndexDBModel] = DBOperations.get_files_by_scan_time(last_check_time, newer=False)
-            new_md5_set: Set[str] = {f.file_md5 for f in new_files if f.file_md5}
-            for file_info in old_files:
+            processed_old: int = 0
+            while True:
                 if cls._progress_manager.is_stopped():
                     cls._handle_stopped()
                     return
-                if file_info.file_type in ('image', 'video'):
-                    helper.add_file(file_info)
-                elif file_info.file_md5 in new_md5_set:
-                    helper.add_file(file_info)
 
-            # 5. 汇总结果并合并入库（仅统计涉及新文件的分组）
+                old_batch: List[FileIndexDBModel] = DBOperations.get_files_by_scan_time(
+                    last_check_time, newer=False, limit=batch_size, offset=processed_old)
+                if not old_batch:
+                    break
+
+                # 批量预取本批图片特征，避免逐文件新建数据库连接
+                helper.preload_features(old_batch)
+
+                for file_info in old_batch:
+                    if cls._progress_manager.is_stopped():
+                        cls._handle_stopped()
+                        return
+                    if file_info.file_type in ('image', 'video'):
+                        helper.add_file(file_info)
+                    elif file_info.file_md5 in new_md5_set:
+                        helper.add_file(file_info)
+                processed_old += len(old_batch)
+
+            # 4. 汇总结果并合并入库（仅统计涉及新文件的分组）
             cls._progress_manager.update_progress(message=t('dup_generating_report'))
             results: List[Any] = helper.get_all_results()
-            new_file_paths: List[str] = [f.file_path for f in new_files]
             new_path_set: Set[str] = set(new_file_paths)
             found_count: int = sum(1 for g in results if any(f.file_path in new_path_set for f in g.files))
             cls._complete_incremental(results, new_file_paths, t('dup_found_count', count=found_count))
@@ -273,7 +306,3 @@ class DuplicateService(BaseAsyncService):
         返回值说明：Optional[float]: 耗时秒数，若从未查重则返回 None。
         """
         return DBOperations.get_last_check_duration()
-
-
-# 在模块加载时执行初始化
-DuplicateService.init_service()

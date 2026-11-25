@@ -8,7 +8,7 @@
     align-items: center;
     height: 100%; /* 占满父容器高度 */
     width: 100%;  /* 占满父容器宽度 */
-    background-color: #fff;
+    background-color: var(--color-surface);
     user-select: none;
     box-sizing: border-box;
 }
@@ -21,12 +21,13 @@
     align-items: center;
     cursor: pointer;
     border-radius: 8px; /* 圆角方形 */
+    color: var(--color-text-body-muted);
      /* 默认灰色背景 */
     transition: all 0.2s;
 }
 
 .page-btn:active {
-    background-color: #d0d0d0;
+    background-color: var(--color-border-active);
 }
 
 /* 禁用状态：变灰且不可点击 */
@@ -48,7 +49,7 @@
 /* 页码文本信息 */
 .page-info {
     font-size: 14px;
-    color: #666;
+    color: var(--color-text-body-muted);
     cursor: pointer;
     padding: 6px 10px;
     border-radius: 4px;
@@ -56,6 +57,6 @@
 }
 
 .page-info b {
-    color: #333;
+    color: var(--color-text-strong);
     margin: 0 2px;
 }

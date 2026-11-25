@@ -28,7 +28,7 @@ const UIController = {
         // 使用公用组件初始化搜索顶部栏
         SearchHeaderToolbar.init({
             searchHint: I18nManager.t('pending_entry.search_hint'),
-            menuIcon: "../../common/header_toolbar/icon/add_icon.svg",
+            menuIcon: "/common/themes/light/icons/add_icon.svg",
             searchCallback: (content) => {
                 State.search = content;
                 App.handleSearch();
@@ -381,7 +381,7 @@ const App = {
                 labelEl.style.fontSize = '14px';
                 labelEl.style.display = 'block';
                 labelEl.style.marginBottom = '8px';
-                labelEl.style.color = '#3c4043';
+                labelEl.style.color = 'var(--color-text-secondary)';
                 labelEl.style.fontWeight = '500';
                 group.insertBefore(labelEl, group.firstChild);
             }

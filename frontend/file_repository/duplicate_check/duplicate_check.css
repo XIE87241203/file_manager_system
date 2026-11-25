@@ -21,14 +21,14 @@
     display: flex;
     justify-content: center;
     align-items: center;
-    background-color: #f1f3f4;
+    background-color: var(--color-surface-muted);
     z-index: 50;
 }
 
 /* 引导提示样式 */
 .empty-hint {
     text-align: center; 
-    color: #9aa0a6; 
+    color: var(--color-text-disabled);
     margin-top: 100px;
     font-size: 15px;
 }
@@ -43,8 +43,8 @@
 
 /* 结果统计标题栏 */
 .summary-bar {
-    background-color: #fff;
-    border-bottom: 1px solid #e8eaed;
+    background-color: var(--color-surface);
+    border-bottom: 1px solid var(--color-border-light);
     padding: 10px 10px;
     flex-shrink: 0;
 }
@@ -56,7 +56,7 @@
     gap: 5px;
     font-size: 14px;
     font-weight: bold;
-    color: #3c4043;
+    color: var(--color-text-secondary);
 }
 
 .summary-stats {
@@ -66,7 +66,7 @@
 }
 
 .summary-divider {
-    color: #dadce0;
+    color: var(--color-border);
     font-weight: normal;
     flex: auto;
     text-align: center;
@@ -95,30 +95,30 @@
 
 .common-select {
     padding: 4px 8px;
-    border: 1px solid #dadce0;
+    border: 1px solid var(--color-border);
     border-radius: 4px;
     outline: none;
     font-size: 13px;
-    color: #3c4043;
-    background-color: #fff;
+    color: var(--color-text-secondary);
+    background-color: var(--color-surface);
     cursor: pointer;
     transition: border-color 0.2s;
 }
 
 .common-select:focus {
-    border-color: #1a73e8;
+    border-color: var(--color-primary);
 }
 
 /* 查重结果区域：核心修改，占满剩余高度 */
 .results-wrapper {
     flex: 1;
     overflow-y: auto;
-    background-color: #f1f3f4;
+    background-color: var(--color-surface-muted);
 }
 
 .duplicate-group {
-    background-color: #fff;
-    border: 1px solid #dee2e6;
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border-table);
     margin-bottom: 12px;
 }
 
@@ -133,7 +133,7 @@
 }
 
 .group-header:hover {
-    background-color: #f8f9fa;
+    background-color: var(--color-surface-subtle);
 }
 
 .group-info {
@@ -146,7 +146,7 @@
 
 .group-title {
     font-weight: 600;
-    color: #3c4043;
+    color: var(--color-text-secondary);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -154,11 +154,11 @@
 }
 
 .group-count {
-    background-color: #e8eaed;
+    background-color: var(--color-border-light);
     padding: 2px 8px;
     border-radius: 12px;
     font-size: 12px;
-    color: #5f6368;
+    color: var(--color-text-tertiary);
     white-space: nowrap;
 }
 
@@ -167,19 +167,16 @@
     font-size: 12px;
     flex: auto;
     text-align: end;
-    color: #70757a;
+    color: var(--color-text-quaternary);
     white-space: nowrap;
 }
 
 .expand-icon {
     display: inline-block;
     transition: transform 0.1s ease;
-    font-size: 12px;
-    color: #5f6368;
+    color: var(--color-text-tertiary);
     width: 12px;
     height: 12px;
-    line-height: 12px;
-    text-align: center;
 }
 
 .duplicate-group.expanded .expand-icon {
@@ -188,7 +185,7 @@
 
 .group-content {
     display: none;
-    border-top: 1px solid #f1f3f4;
+    border-top: 1px solid var(--color-surface-muted);
     overflow: auto;
 }
 
@@ -205,7 +202,7 @@
 .btn-delete-icon {
     width: 40px;
     height: 40px;
-    background-color: #dc3545;
+    background-color: var(--color-danger-bootstrap);
     border: none;
     border-radius: 8px;
     cursor: pointer;
@@ -217,7 +214,7 @@
 }
 
 .btn-delete-icon:hover {
-    background-color: #c82333;
+    background-color: var(--color-danger-hover);
 }
 
 /* 组内文件列表 */
@@ -230,7 +227,7 @@
 .file-item-table th, .file-item-table td {
     padding: 5px 10px;
     font-size: 13px;
-    border-bottom: 1px solid #f1f3f4;
+    border-bottom: 1px solid var(--color-surface-muted);
     /* 核心修改：支持多行显示 */
     white-space: normal;
     word-break: break-all;
@@ -256,11 +253,11 @@
 }
 
 .clickable-row:hover {
-    background-color: #f8f9fa;
+    background-color: var(--color-surface-subtle);
 }
 
 .file-path {
-    color: #70757a;
+    color: var(--color-text-quaternary);
 }
 
 /* 视频播放按钮样式 (与文件仓库页面保持一致) */
@@ -272,8 +269,8 @@
     height: 24px;
     margin-right: 8px;
     cursor: pointer;
-    color: #1a73e8;
-    background-color: #e8f0fe;
+    color: var(--color-primary);
+    background-color: var(--color-primary-soft);
     border-radius: 50%;
     transition: background-color 0.2s, transform 0.1s;
     user-select: none;
@@ -281,7 +278,7 @@
 }
 
 .play-btn:hover {
-    background-color: #d2e3fc;
+    background-color: var(--color-primary-soft-hover);
     transform: scale(1.1);
 }
 
@@ -290,7 +287,8 @@
 }
 
 .play-icon {
-    font-size: 12px;
+    width: 12px;
+    height: 12px;
     margin-left: 2px; /* 微调三角位置 */
 }
 
@@ -303,8 +301,8 @@
     height: 24px;
     margin-right: 8px;
     cursor: pointer;
-    color: #1a73e8;
-    background-color: #e8f0fe;
+    color: var(--color-primary);
+    background-color: var(--color-primary-soft);
     border-radius: 50%;
     transition: background-color 0.2s, transform 0.1s;
     user-select: none;
@@ -312,7 +310,7 @@
 }
 
 .preview-btn:hover {
-    background-color: #d2e3fc;
+    background-color: var(--color-primary-soft-hover);
     transform: scale(1.1);
 }
 
@@ -320,13 +318,8 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-}
-
-.preview-icon svg {
     width: 14px;
     height: 14px;
-    fill: currentColor;
-    display: block;
 }
 
 /* 查重模式选择弹窗 */
@@ -340,29 +333,29 @@
     text-align: left;
     padding: 14px 16px;
     margin-bottom: 12px;
-    border: 1px solid #dadce0;
+    border: 1px solid var(--color-border);
     border-radius: 8px;
-    background: #fff;
+    background: var(--color-surface);
     cursor: pointer;
     transition: border-color 0.2s, background-color 0.2s;
 }
 
 .mode-option:hover {
-    border-color: #1a73e8;
-    background-color: #f5f9ff;
+    border-color: var(--color-primary);
+    background-color: var(--palette-f5f9ff);
 }
 
 .mode-option-title {
     display: block;
     font-size: 1rem;
     font-weight: 600;
-    color: #202124;
+    color: var(--color-text-primary);
     margin-bottom: 4px;
 }
 
 .mode-option-desc {
     display: block;
     font-size: 0.85rem;
-    color: #5f6368;
+    color: var(--color-text-tertiary);
     line-height: 1.4;
 }

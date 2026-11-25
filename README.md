@@ -89,6 +89,8 @@ Portainer deploys via a **Stack**, reusing the Compose content above:
 6.  **Generate Previews**: Click "Generate Thumbnails" below, and the system will silently prepare preview images for you in the background.
 7.  **Deduplicate**: Feeling like your hard drive is almost full? Run "File Deduplication" to delete all those useless "clones".
 
+> 🔑 **Forgot the admin password? Don't panic**: Open `data/setting.json` (`/app/data/setting.json` inside the container), set the `password` field under `USER_DATA` to a new password (plain text is fine), save and restart the service. The system resets the original administrator's password to it and automatically replaces the plain text in the file with ciphertext. Log in with the new password, then change it again under "System Settings → User Management".
+
 ---
 
 ## ⚙️ Common Configuration (Mapping)

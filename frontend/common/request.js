@@ -143,8 +143,9 @@ const Request = {
 
                 // --- 全局拦截 500 错误并弹窗提示 ---
                 if (response.status === 500 && typeof Toast !== 'undefined') {
+                    // 文案占位符为 {msg}，需按占位符替换，否则会原样显示 "{msg}" 导致异常信息不可读
                     const errorMsg = (typeof I18nManager !== 'undefined'
-                        ? I18nManager.t('common.server_error').replace('{}', result.message || 'Unknown')
+                        ? I18nManager.t('common.server_error').replace('{msg}', result.message || 'Unknown')
                         : '');
                     Toast.show(errorMsg);
                 }

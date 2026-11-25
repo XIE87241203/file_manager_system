@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-i18n="organize.task.title"></title>
+    <script src="/common/theme_manager.js"></script>
+    <link rel="stylesheet" href="../common/common.css">
+    <link rel="stylesheet" href="../common/themes/light/theme.css">
+    <link rel="stylesheet" href="../common/themes/dark/theme.css">
+    <link rel="stylesheet" href="../common/header_toolbar/default/default_header_toolbar.css">
+    <link rel="stylesheet" href="../common/page_bar/page_bar.css">
+    <link rel="stylesheet" href="organize_task.css">
+</head>
+<body>
+<!-- 顶部工具栏容器，由 default_header_toolbar.js 动态初始化 -->
+<header class="header-bar"></header>
+
+<main class="main-content organize-task-main">
+    <div id="task-layout" class="task-layout">
+        <!-- 左侧待整理文件列表（默认折叠，可拖动右边缘调整宽度） -->
+        <aside id="task-sidebar" class="task-sidebar">
+            <div class="sidebar-header">
+                <span class="sidebar-title" data-i18n="organize.task.sidebar_title"></span>
+                <span id="sidebar-count" class="sidebar-count">0</span>
+            </div>
+            <div id="sidebar-list" class="sidebar-list"></div>
+            <div id="sidebar-page-bar" class="sidebar-page-bar"></div>
+        </aside>
+        <!-- 侧栏宽度拖动条 -->
+        <div id="sidebar-resizer" class="sidebar-resizer hidden"></div>
+        <!-- 移动端展开侧栏时的遮罩 -->
+        <div id="sidebar-scrim" class="sidebar-scrim hidden"></div>
+
+        <!-- 当前文件整理区 -->
+        <section class="task-current">
+            <button id="sidebar-toggle" class="sidebar-toggle" data-i18n-title="organize.task.sidebar_open">
+                <span class="toggle-chevron"></span>
+            </button>
+
+            <!-- 状态：扫描中 -->
+            <div id="state-loading" class="task-state">
+                <div class="loading-spinner"></div>
+                <p class="state-text" data-i18n="organize.task.scanning"></p>
+            </div>
+
+            <!-- 状态：未配置整理目录 -->
+            <div id="state-noconfig" class="task-state hidden">
+                <div class="state-icon state-icon-config"></div>
+                <p class="state-title" data-i18n="organize.task.no_config"></p>
+                <p class="state-text" data-i18n="organize.task.no_config_hint"></p>
+                <button id="noconfig-setting-btn" class="btn-primary-large" data-i18n="organize.task.go_setting"></button>
+            </div>
+
+            <!-- 状态：没有待整理文件 -->
+            <div id="state-empty" class="task-state hidden">
+                <div class="state-icon state-icon-empty"></div>
+                <p class="state-title" data-i18n="organize.task.empty"></p>
+                <p class="state-text" data-i18n="organize.task.empty_hint"></p>
+                <div class="state-actions">
+                    <button id="empty-rescan-btn" class="btn-primary-large" data-i18n="organize.task.rescan"></button>
+                    <button id="empty-setting-btn" class="btn-secondary-large" data-i18n="organize.task.go_setting"></button>
+                </div>
+            </div>
+
+            <!-- 工作区：预览 + 改名保存 -->
+            <div id="work-area" class="work-area hidden">
+                <div class="work-stats">
+                    <div class="stats-text">
+                        <span class="stats-remaining-label" data-i18n="organize.task.remaining"></span>
+                        <b id="stat-remaining" class="stats-remaining">0</b>
+                        <span id="stat-progress" class="stats-progress"></span>
+                    </div>
+                    <button id="rescan-btn" class="btn-rescan" data-i18n="organize.task.rescan"></button>
+                </div>
+                <div class="progress-track">
+                    <div id="progress-fill" class="progress-fill"></div>
+                </div>
+
+                <!-- 文件预览框（图片 / 视频 / 其他类型占位） -->
+                <div id="preview-box" class="preview-box"></div>
+
+                <!-- 文件名面板 -->
+                <div class="name-panel">
+                    <div class="original-row">
+                        <span class="field-label" data-i18n="organize.task.original_name"></span>
+                        <span id="original-name" class="original-name"></span>
+                        <button id="copy-name-btn" class="btn-copy" data-i18n="organize.task.copy"></button>
+                    </div>
+                    <!-- 当前文件路径与大小 -->
+                    <div class="file-meta-row">
+                        <span class="field-label" data-i18n="organize.task.file_path"></span>
+                        <span id="file-path" class="file-path"></span>
+                        <span class="file-size-chip">
+                            <span class="file-size-label" data-i18n="organize.task.file_size"></span>
+                            <span id="file-size" class="file-size-value"></span>
+                        </span>
+                    </div>
+                    <div class="newname-row">
+                        <label class="field-label" for="new-name-input" data-i18n="organize.task.new_name"></label>
+                        <div class="newname-input-wrap">
+                            <input type="text" id="new-name-input" class="input-field new-name-input" data-i18n-placeholder="organize.task.new_name_placeholder" autocomplete="off">
+                            <button id="save-btn" class="btn-save" data-i18n="organize.task.save"></button>
+                        </div>
+                        <small class="newname-hint" data-i18n="organize.task.new_name_hint"></small>
+                    </div>
+                    <div class="task-actions">
+                        <button id="skip-btn" class="btn-task-skip" data-i18n="organize.task.skip" data-i18n-title="organize.task.skip_hint"></button>
+                        <button id="recycle-btn" class="btn-task-recycle" data-i18n="organize.task.recycle" data-i18n-title="organize.task.recycle_hint"></button>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+</main>
+
+<!-- 整理完成庆祝弹窗 -->
+<div id="complete-modal" class="complete-mask hidden">
+    <div class="complete-card">
+        <div class="confetti-layer">
+            <i class="confetti-piece c1"></i><i class="confetti-piece c2"></i><i class="confetti-piece c3"></i>
+            <i class="confetti-piece c4"></i><i class="confetti-piece c5"></i><i class="confetti-piece c6"></i>
+            <i class="confetti-piece c7"></i><i class="confetti-piece c8"></i><i class="confetti-piece c9"></i>
+            <i class="confetti-piece c10"></i><i class="confetti-piece c11"></i><i class="confetti-piece c12"></i>
+        </div>
+        <div class="complete-badge"><span class="complete-check"></span></div>
+        <h2 class="complete-title" data-i18n="organize.task.complete_title"></h2>
+        <p id="complete-msg" class="complete-msg"></p>
+        <p id="complete-stat" class="complete-stat"></p>
+        <div class="complete-actions">
+            <button id="complete-close-btn" class="btn-primary-large" data-i18n="organize.task.complete_close"></button>
+            <button id="complete-again-btn" class="btn-secondary-large" data-i18n="organize.task.complete_again"></button>
+        </div>
+    </div>
+</div>
+
+<!-- 引入多语言资源包 -->
+<script src="../common/i18n/zh.js"></script>
+<script src="../common/i18n/en.js"></script>
+<script src="../common/i18n/i18n_utils.js"></script>
+
+<!-- 引入公用脚本 -->
+<script src="../common/common.js"></script>
+<script src="../common/repo_context.js"></script>
+<script src="../common/request.js"></script>
+<script src="../common/ui_components.js"></script>
+<script src="../common/toast.js"></script>
+<script src="../common/page_bar/page_bar.js"></script>
+<script src="../common/header_toolbar/default/default_header_toolbar.js"></script>
+<!-- 引入页面逻辑 -->
+<script src="organize_task_request.js"></script>
+<script src="organize_task.js"></script>
+</body>
+</html>

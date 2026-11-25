@@ -30,7 +30,7 @@
 
 .checkbox-label {
     font-size: 14px;
-    color: #5f6368;
+    color: var(--color-text-tertiary);
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -53,9 +53,9 @@
 /* 7. 按钮样式微调 */
 .btn-secondary-small {
     padding: 6px 12px;
-    background-color: #f1f3f4;
-    color: #3c4043;
-    border: 1px solid transparent;
+    background-color: var(--color-surface-muted);
+    color: var(--color-text-secondary);
+    border: 1px solid var(--color-transparent);
     border-radius: 4px;
     cursor: pointer;
     font-size: 12px;
@@ -63,25 +63,25 @@
 }
 
 .btn-secondary-small:hover:not(:disabled) {
-    background-color: #e8eaed;
+    background-color: var(--color-border-light);
 }
 
 .btn-secondary-small:disabled {
-    color: #bdc1c6;
+    color: var(--palette-bdc1c6);
     cursor: not-allowed;
-    background-color: #f8f9fa;
+    background-color: var(--color-surface-subtle);
 }
 
 /* 8. 缩略图生成相关 (菜单内样式) */
 .menu-item.thumbnail-btn-generating {
-    color: #1a73e8;
+    color: var(--color-primary);
     transition: all 0.2s;
     position: relative;
 }
 
 .menu-item.thumbnail-btn-generating:hover {
-    background-color: #d93025 !important;
-    color: #ffffff !important;
+    background-color: var(--color-danger) !important;
+    color: var(--color-text-inverse) !important;
 }
 
 /* 移除 CSS 中的硬编码文案，改由 JS 动态控制文本内容 */
@@ -92,15 +92,15 @@
 
 .progress-text {
     font-size: 13px;
-    color: #1a73e8;
+    color: var(--color-primary);
     font-weight: 500;
 }
 
 .btn-text-danger-small {
     padding: 6px 12px;
-    background-color: #fce8e6;
-    color: #d93025;
-    border: 1px solid transparent;
+    background-color: var(--color-danger-soft);
+    color: var(--color-danger);
+    border: 1px solid var(--color-transparent);
     border-radius: 4px;
     cursor: pointer;
     font-size: 12px;
@@ -108,7 +108,7 @@
 }
 
 .btn-text-danger-small:hover {
-    background-color: #fad2cf;
+    background-color: var(--palette-fad2cf);
 }
 
 /* 9. 表头筛选样式 */
@@ -127,10 +127,10 @@
     min-width: 60px;
     padding: 2px 4px;
     font-size: 12px;
-    border: 1px solid #dadce0;
+    border: 1px solid var(--color-border);
     border-radius: 4px;
-    background-color: #fff;
-    color: #3c4043;
+    background-color: var(--color-surface);
+    color: var(--color-text-secondary);
     cursor: pointer;
     outline: none;
     text-align: center;
@@ -138,7 +138,7 @@
 }
 
 .filter-select:focus {
-    border-color: #1a73e8;
+    border-color: var(--color-primary);
 }
 
 /* 10. 播放按钮样式 */
@@ -150,8 +150,8 @@
     height: 24px;
     margin-right: 8px;
     cursor: pointer;
-    color: #1a73e8;
-    background-color: #e8f0fe;
+    color: var(--color-primary);
+    background-color: var(--color-primary-soft);
     border-radius: 50%;
     transition: background-color 0.2s, transform 0.1s;
     user-select: none;
@@ -159,7 +159,7 @@
 }
 
 .play-btn:hover {
-    background-color: #d2e3fc;
+    background-color: var(--color-primary-soft-hover);
     transform: scale(1.1);
 }
 
@@ -168,7 +168,8 @@
 }
 
 .play-icon {
-    font-size: 12px;
+    width: 12px;
+    height: 12px;
     margin-left: 2px; /* 微调三角位置 */
 }
 
@@ -181,8 +182,8 @@
     height: 24px;
     margin-right: 8px;
     cursor: pointer;
-    color: #1a73e8;
-    background-color: #e8f0fe;
+    color: var(--color-primary);
+    background-color: var(--color-primary-soft);
     border-radius: 50%;
     transition: background-color 0.2s, transform 0.1s;
     user-select: none;
@@ -190,7 +191,7 @@
 }
 
 .preview-btn:hover {
-    background-color: #d2e3fc;
+    background-color: var(--color-primary-soft-hover);
     transform: scale(1.1);
 }
 
@@ -198,20 +199,15 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-}
-
-.preview-icon svg {
     width: 14px;
     height: 14px;
-    fill: currentColor;
-    display: block;
 }
 
 /* 11. 批量删除按钮图标化样式 */
 .btn-delete-icon {
     width: 40px;
     height: 40px;
-    background-color: #dc3545;
+    background-color: var(--color-danger-bootstrap);
     border: none;
     border-radius: 8px;
     cursor: pointer;
@@ -223,7 +219,7 @@
 }
 
 .btn-delete-icon:hover {
-    background-color: #c82333;
+    background-color: var(--color-danger-hover);
 }
 
 .col-time {

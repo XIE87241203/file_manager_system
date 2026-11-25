@@ -1,0 +1,150 @@
+/**
+ * 用途：整理设置页面样式，定义设置分区、目录/后缀名列表及增删按钮的布局。
+ */
+
+/* 页面基础样式调整：强制纯白背景，滚动交由 main-content 处理 */
+body {
+    background-color: var(--color-surface) !important;
+    overflow-y: hidden;
+}
+
+/* 主内容容器：占据剩余高度并支持滚动 */
+.main-content {
+    display: block;
+    height: calc(100vh - 60px);
+    overflow-y: auto;
+    box-sizing: border-box;
+    background-color: var(--color-surface);
+}
+
+/* 设置内容容器：限制最大宽度并居中 */
+.organize-setting-container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+/* 单个设置分区 */
+.organize-section {
+    margin-bottom: 30px;
+}
+
+/* 章节头部样式：标题与添加按钮左右分布 */
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.section-header h3 {
+    margin: 0;
+}
+
+/* 目录/后缀名列表容器：限制高度，超出滚动 */
+.organize-list {
+    margin-bottom: 10px;
+    max-height: 240px;
+    overflow-y: auto;
+    overflow-x: auto;
+    border: 1px solid var(--color-surface-active);
+    border-radius: 8px;
+    padding: 10px;
+}
+
+/* 列表条目 */
+.organize-item {
+    display: flex;
+    align-items: center;
+    padding: 10px;
+    background: var(--palette-fcfcfc);
+    border: 1px solid var(--color-surface-active);
+    border-radius: 6px;
+    margin-bottom: 10px;
+    transition: border-color 0.2s;
+}
+
+.organize-item:last-child {
+    margin-bottom: 0;
+}
+
+.organize-item:hover {
+    border-color: var(--color-primary-soft-hover);
+}
+
+/* 条目文本（目录路径或后缀名） */
+.organize-item-text {
+    flex: 1;
+    font-size: 0.95rem;
+    color: var(--color-text-secondary);
+    word-break: break-all;
+}
+
+/* 条目操作区 */
+.organize-item-actions {
+    margin-left: 15px;
+}
+
+/* 移除按钮 */
+.btn-delete {
+    background: none;
+    border: none;
+    color: var(--color-danger);
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.btn-delete:hover {
+    text-decoration: underline;
+}
+
+/* 添加按钮小型化 */
+.btn-add-small {
+    white-space: nowrap;
+    padding: 6px 16px !important;
+    font-size: 0.9rem;
+    height: auto !important;
+    max-width: 140px;
+    width: auto !important;
+}
+
+/* 空列表提示文案 */
+.empty-hint-text {
+    color: var(--color-text-disabled);
+    font-size: 0.9rem;
+    text-align: center;
+    padding: 10px 0;
+}
+
+/* 文件大小筛选组合控件行：比较符下拉框 + 数值输入框 + 单位下拉框 */
+.size-filter-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+/* 大小筛选下拉框：与输入框统一的边框圆角风格 */
+.size-filter-select {
+    flex: 0 0 auto;
+    padding: 0.75rem 0.5rem;
+    border: 1px solid var(--color-border-strong);
+    border-radius: 4px;
+    background-color: var(--color-surface);
+    color: var(--color-text-secondary);
+    font-size: 1rem;
+    line-height: 1.5;
+    cursor: pointer;
+    transition: border-color 0.3s;
+}
+
+.size-filter-select:focus {
+    border-color: var(--color-primary-bootstrap);
+    outline: none;
+}
+
+/* 大小数值输入框：占据组合行剩余宽度 */
+.size-filter-input {
+    flex: 1 1 auto;
+    min-width: 0;
+}

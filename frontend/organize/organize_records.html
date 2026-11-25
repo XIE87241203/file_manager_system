@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-i18n="organize.records.title"></title>
+    <script src="/common/theme_manager.js"></script>
+    <link rel="stylesheet" href="../common/common.css">
+    <link rel="stylesheet" href="../common/themes/light/theme.css">
+    <link rel="stylesheet" href="../common/themes/dark/theme.css">
+    <link rel="stylesheet" href="../common/header_toolbar/search/search_header_toolbar.css">
+    <link rel="stylesheet" href="../common/page_bar/page_bar.css">
+    <link rel="stylesheet" href="../common/table.css">
+    <link rel="stylesheet" href="organize_records.css">
+</head>
+<body>
+<!-- 顶部工具栏容器，由 search_header_toolbar.js 动态初始化（中部搜索框，右上角为导出按钮） -->
+<header class="header-bar"></header>
+
+<main class="main-content records-main">
+    <div class="records-container">
+        <!-- 记录总数摘要条 -->
+        <div class="records-summary-bar">
+            <span class="summary-dot"></span>
+            <span id="records-summary-text" class="summary-text"></span>
+        </div>
+
+        <!-- 整理记录表格（序号 / 整理后文件名 / 整理前文件名 / 整理时间，时间倒序） -->
+        <div id="records-table-wrapper" class="table-wrapper records-table-wrapper">
+            <table id="records-table" class="file-table records-table">
+                <thead>
+                    <tr>
+                        <th class="col-seq" data-i18n="organize.records.col_seq"></th>
+                        <th class="col-organized" data-i18n="organize.records.col_organized"></th>
+                        <th class="col-original" data-i18n="organize.records.col_original"></th>
+                        <th class="col-organize-time" data-i18n="organize.records.col_time"></th>
+                    </tr>
+                </thead>
+                <tbody id="records-table-body"></tbody>
+            </table>
+            <!-- 空状态：暂无整理记录 -->
+            <div id="records-empty" class="records-empty hidden">
+                <span class="empty-icon theme-icon icon-document" aria-hidden="true"></span>
+                <p class="empty-title" id="records-empty-title" data-i18n="organize.records.empty"></p>
+                <p class="empty-hint" id="records-empty-hint" data-i18n="organize.records.empty_hint"></p>
+                <button id="empty-go-btn" class="empty-go-btn" data-i18n="organize.records.go_organize"></button>
+                <button id="empty-clear-btn" class="empty-clear-btn hidden" data-i18n="organize.records.clear_search"></button>
+            </div>
+        </div>
+
+        <!-- 分页栏容器，由 page_bar.js 动态初始化 -->
+        <div id="records-page-bar" class="records-page-bar"></div>
+    </div>
+</main>
+
+<!-- 引入多语言资源包 -->
+<script src="../common/i18n/zh.js"></script>
+<script src="../common/i18n/en.js"></script>
+<script src="../common/i18n/i18n_utils.js"></script>
+
+<!-- 引入公用脚本 -->
+<script src="../common/common.js"></script>
+<script src="../common/repo_context.js"></script>
+<script src="../common/request.js"></script>
+<script src="../common/ui_components.js"></script>
+<script src="../common/toast.js"></script>
+<script src="../common/page_bar/page_bar.js"></script>
+<script src="../common/header_toolbar/search/search_header_toolbar.js"></script>
+<!-- 引入页面逻辑 -->
+<script src="organize_records_request.js"></script>
+<script src="organize_records.js"></script>
+</body>
+</html>

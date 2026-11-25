@@ -1,9 +1,11 @@
+from dataclasses import asdict
+
 from flask import Blueprint, request
 
 from backend.auth.auth_middleware import token_required
 from backend.common.i18n_utils import t
 from backend.common.response import success_response
-from backend.system.system_service import SystemService
+from backend.system.system_service import LogDirectoryInfo, SystemService
 from config import GlobalConfig
 
 # 创建系统管理模块的蓝图
@@ -39,6 +41,17 @@ def get_log_files():
     """
     files: list = SystemService.get_available_log_files()
     return success_response(t('sys_get_log_files_success'), data={"files": files})
+
+@system_bp.route('/logs/size', methods=['GET'])
+@token_required
+def get_log_dir_size():
+    """
+    用途说明：获取当前日志目录的总大小与文件数量。
+    入参说明：无。
+    返回值说明：JSON 响应，data 字段包含 size_bytes（字节数）与 file_count（文件数量）。
+    """
+    info: LogDirectoryInfo = SystemService.get_log_dir_size()
+    return success_response(t('sys_get_log_size_success'), data=asdict(info), log=False)
 
 @system_bp.route('/version', methods=['GET'])
 def get_app_version():

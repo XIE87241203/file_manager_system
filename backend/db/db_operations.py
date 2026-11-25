@@ -121,6 +121,24 @@ class DBOperations:
         return processor_manager.file_index_processor.get_paged_list(page, limit, sort_by, order, search_query, is_in_recycle_bin, file_type)
 
     @staticmethod
+    def search_album_file_list(page: int, limit: int, sort_by: str, order: bool,
+                               search_query: str, file_types: List[str]) -> PaginationResult[FileIndexDBModel]:
+        """
+        用途说明：分页查询相册媒体文件（图片/视频）列表，排除回收站文件。
+        入参说明：
+            page (int): 当前页码。
+            limit (int): 每页条数。
+            sort_by (str): 排序字段。
+            order (bool): 是否为升序。
+            search_query (str): 文件名搜索关键词。
+            file_types (List[str]): 文件类型列表（如 ['image', 'video']）。
+        返回值说明：PaginationResult[FileIndexDBModel] - 分页结果对象。
+        """
+        return processor_manager.file_index_processor.get_album_paged_list(
+            page, limit, sort_by, order, search_query, file_types
+        )
+
+    @staticmethod
     def search_history_file_index_list(page: int, limit: int, sort_by: str, order: bool,
                                        search_query: str, file_type: Optional[str] = None) -> PaginationResult[HistoryFileIndexDBModule]:
         """
@@ -144,15 +162,29 @@ class DBOperations:
         return processor_manager.file_index_processor.get_count(only_no_thumbnail)
 
     @staticmethod
-    def get_files_by_scan_time(checkpoint: Optional[str], newer: bool) -> List[FileIndexDBModel]:
+    def get_files_by_scan_time(checkpoint: Optional[str], newer: bool,
+                               limit: Optional[int] = None, offset: int = 0) -> List[FileIndexDBModel]:
         """
         用途说明：按扫描时间与查重时间点的关系获取文件列表（排除回收站文件）。
         入参说明：
             checkpoint (Optional[str]): 查重时间点，为 None 时 newer=True 返回全部、newer=False 返回空。
             newer (bool): True 取新索引文件，False 取旧索引文件。
-        返回值说明：List[FileIndexDBModel]: 文件索引模型列表。
+            limit (Optional[int]): 单批返回上限；为 None 时返回全部，大库建议分批传入。
+            offset (int): 分批查询偏移量，仅在传入 limit 时生效。
+        返回值说明：List[FileIndexDBModel]: 文件索引模型列表（按主键 ID 升序）。
         """
-        return processor_manager.file_index_processor.get_files_by_scan_time(checkpoint, newer)
+        return processor_manager.file_index_processor.get_files_by_scan_time(checkpoint, newer, limit, offset)
+
+    @staticmethod
+    def count_files_by_scan_time(checkpoint: Optional[str], newer: bool) -> int:
+        """
+        用途说明：统计按扫描时间筛选的文件数量（排除回收站文件）。
+        入参说明：
+            checkpoint (Optional[str]): 查重时间点。
+            newer (bool): True 统计新索引文件，False 统计旧索引文件。
+        返回值说明：int: 符合条件的文件数量。
+        """
+        return processor_manager.file_index_processor.count_files_by_scan_time(checkpoint, newer)
 
     @staticmethod
     def check_file_md5_exists(file_md5: str) -> bool:
@@ -191,6 +223,15 @@ class DBOperations:
         用途说明：批量将文件从回收站恢复。
         """
         return processor_manager.file_index_processor.restore_from_recycle_bin(file_paths) > 0
+
+    @staticmethod
+    def get_recycle_bin_paths_under(dir_prefixes: List[str]) -> Set[str]:
+        """
+        用途说明：查询指定目录（含子目录）下已移入回收站的文件路径集合（供整理扫描排除已删除文件）。
+        入参说明：dir_prefixes (List[str]): 目录路径列表。
+        返回值说明：Set[str] - 位于这些目录下且回收站标记非空的文件完整路径集合。
+        """
+        return processor_manager.file_index_processor.get_recycle_bin_paths_under(dir_prefixes)
 
     # --- 视频特征相关操作 (Video Features) ---
 
@@ -247,6 +288,24 @@ class DBOperations:
         返回值说明：Optional[ImageFeatureDBModel]: 图片特征模型，不存在则返回 None。
         """
         return processor_manager.image_feature_processor.get_feature_by_md5(md5)
+
+    @staticmethod
+    def get_image_features_by_md5s(md5s: List[str]) -> List[ImageFeatureDBModel]:
+        """
+        用途说明：根据 MD5 列表批量获取图片感知哈希特征（单次连接查询）。
+        入参说明：md5s (List[str]): 文件 MD5 值列表，单批建议 <= 500。
+        返回值说明：List[ImageFeatureDBModel]: 命中的图片特征模型列表。
+        """
+        return processor_manager.image_feature_processor.get_features_by_md5s(md5s)
+
+    @staticmethod
+    def add_image_features_batch(features: List[ImageFeatureDBModel]) -> bool:
+        """
+        用途说明：批量添加或更新图片感知哈希特征（单事务提交）。
+        入参说明：features (List[ImageFeatureDBModel]): 图片特征模型列表，单批建议 <= 500。
+        返回值说明：bool: 是否成功。
+        """
+        return processor_manager.image_feature_processor.add_or_update_features_batch(features)
 
     # --- 查重结果相关操作 (Duplicate Results) ---
 
@@ -360,6 +419,17 @@ class DBOperations:
         返回值说明：int - 受影响的记录数。
         """
         return processor_manager.file_index_processor.update_thumbnail_path_by_md5(file_md5, thumbnail_path)
+
+    @staticmethod
+    def update_file_path(old_path: str, new_path: str) -> int:
+        """
+        用途说明：文件移动/改名后，将文件索引中的原路径更新为新路径并同步文件名。
+        入参说明：
+            old_path (str): 索引中记录的原文件路径。
+            new_path (str): 文件移动/改名后的新文件路径。
+        返回值说明：int - 实际更新的记录数；0 表示原路径不在索引或新路径唯一约束冲突被忽略。
+        """
+        return processor_manager.file_index_processor.update_file_path(old_path, new_path)
 
     @staticmethod
     def get_files_without_thumbnail() -> List[FileIndexDBModel]:

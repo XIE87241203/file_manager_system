@@ -1,0 +1,317 @@
+/**
+ * 用途：整理记录页面样式，定义摘要条、记录表格（文件名悬停提示路径）、空状态与分页栏布局。
+ */
+
+/* 页面基础样式调整：纯白背景，滚动交由表格区域处理 */
+body {
+    background-color: var(--color-surface) !important;
+    overflow-y: hidden;
+}
+
+/* 主内容容器：占据剩余高度，内部纵向布局 */
+.records-main {
+    display: flex;
+    height: calc(100vh - 60px);
+    overflow: hidden;
+    box-sizing: border-box;
+    background-color: var(--color-surface);
+}
+
+/* 记录内容容器：限制最大宽度并居中，表格区域弹性撑满 */
+.records-container {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 16px 20px 12px;
+    box-sizing: border-box;
+}
+
+/* 记录总数摘要条 */
+.records-summary-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+    flex-shrink: 0;
+}
+
+.summary-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: var(--color-primary);
+    box-shadow: 0 0 0 3px var(--color-primary-soft);
+    flex-shrink: 0;
+}
+
+.summary-text {
+    font-size: 13px;
+    color: var(--color-text-tertiary);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* 搜索命中文本高亮：浅蓝底 + 主题蓝字，与选中行色系一致 */
+.search-hit {
+    background-color: var(--color-primary-soft);
+    color: var(--color-primary);
+    border-radius: 3px;
+    padding: 0 1px;
+    font-weight: 600;
+}
+
+/* 搜索框内清除按钮（页面级追加到搜索头部组件中） */
+.search-clear-btn {
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-right: 4px;
+    border-radius: 50%;
+    cursor: pointer;
+    color: var(--color-text-tertiary);
+    font-size: 17px;
+    line-height: 1;
+    user-select: none;
+    transition: background-color 0.2s, color 0.2s;
+}
+
+.search-clear-btn .theme-icon {
+    width: 14px;
+    height: 14px;
+}
+
+.search-clear-btn:hover {
+    background-color: var(--color-border-control);
+    color: var(--color-text-primary);
+}
+
+.search-clear-btn.hidden {
+    display: none;
+}
+
+/* 搜索框聚焦态：主题蓝描边提示 */
+.search-input-container:focus-within {
+    border-color: var(--color-primary);
+    background-color: var(--color-surface);
+    box-shadow: 0 0 0 2px var(--color-primary-soft);
+}
+
+/* 表格滚动区域：圆角边框包裹，内部滚动（移动端横向滚动） */
+.records-table-wrapper {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    border: 1px solid var(--color-border-light);
+    border-radius: 8px;
+    background-color: var(--color-surface);
+}
+
+/* 表格最小宽度：窄屏时横向滚动，避免列被过度压缩 */
+.records-table {
+    min-width: 640px;
+}
+
+/* 列宽控制：序号窄列、时间固定列，两个文件名列平分剩余宽度 */
+.records-table .col-seq {
+    width: 64px;
+}
+
+.records-table .col-organize-time {
+    width: 170px;
+}
+
+/* 文件名单元格：悬停显示对应路径（title 提示），给出可提示的光标与颜色反馈 */
+.records-table .name-cell {
+    cursor: help;
+    text-align: left;
+}
+
+.records-table .name-cell:hover {
+    color: var(--color-primary);
+}
+
+/* 整理后文件名：主信息，加重显示 */
+.records-table .organized-name {
+    color: var(--color-text-primary);
+    font-weight: 500;
+}
+
+/* 整理前文件名：次要信息 */
+.records-table .original-name {
+    color: var(--color-text-tertiary);
+}
+
+/* 整理时间列：等宽数字，避免跳动 */
+.records-table .time-cell {
+    color: var(--color-text-tertiary);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+/* 序号列：弱化显示 */
+.records-table .seq-cell {
+    color: var(--color-text-disabled);
+}
+
+/* 行入场动画：逐行轻微上浮淡入 */
+.records-table tbody tr {
+    animation: record-row-in 0.25s ease both;
+}
+
+/* 前几行依次延迟入场，形成轻微的瀑布节奏 */
+.records-table tbody tr:nth-child(2) { animation-delay: 0.03s; }
+.records-table tbody tr:nth-child(3) { animation-delay: 0.06s; }
+.records-table tbody tr:nth-child(4) { animation-delay: 0.09s; }
+.records-table tbody tr:nth-child(5) { animation-delay: 0.12s; }
+.records-table tbody tr:nth-child(6) { animation-delay: 0.15s; }
+.records-table tbody tr:nth-child(7) { animation-delay: 0.18s; }
+.records-table tbody tr:nth-child(8) { animation-delay: 0.21s; }
+
+@keyframes record-row-in {
+    from {
+        opacity: 0;
+        transform: translateY(4px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* 空状态：居中展示图标、文案与前往整理按钮 */
+.records-empty {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 30px 20px;
+    box-sizing: border-box;
+    text-align: center;
+    background-color: var(--color-surface);
+}
+
+.empty-icon {
+    width: 56px;
+    height: 56px;
+    color: var(--palette-bdc1c6);
+    margin-bottom: 14px;
+}
+
+.empty-title {
+    margin: 0 0 6px;
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--color-text-secondary);
+}
+
+.empty-hint {
+    margin: 0 0 18px;
+    font-size: 13px;
+    color: var(--color-text-disabled);
+    max-width: 320px;
+    line-height: 1.6;
+}
+
+.empty-go-btn {
+    padding: 8px 22px;
+    border: none;
+    border-radius: 18px;
+    background-color: var(--color-primary);
+    color: var(--color-text-inverse);
+    font-size: 13px;
+    cursor: pointer;
+    transition: background-color 0.2s, box-shadow 0.2s;
+}
+
+.empty-go-btn:hover {
+    background-color: var(--color-primary-hover);
+    box-shadow: 0 1px 6px var(--alpha-primary-40);
+}
+
+/* 空状态清除搜索按钮：描边次要样式 */
+.empty-clear-btn {
+    padding: 8px 22px;
+    border: 1px solid var(--color-border);
+    border-radius: 18px;
+    background-color: var(--color-surface);
+    color: var(--color-primary);
+    font-size: 13px;
+    cursor: pointer;
+    transition: background-color 0.2s, border-color 0.2s;
+}
+
+.empty-clear-btn:hover {
+    background-color: var(--color-primary-soft);
+    border-color: var(--color-primary);
+}
+
+.empty-clear-btn.hidden {
+    display: none;
+}
+
+/* 分页栏：表格下方居中 */
+.records-page-bar {
+    flex-shrink: 0;
+    padding-top: 10px;
+}
+
+/* 导出按钮禁用态（导出进行中） */
+.icon-btn.export-disabled {
+    opacity: 0.45;
+    pointer-events: none;
+}
+
+/* 滚动条样式：与页面 Material 视觉语言一致 */
+.records-table-wrapper::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.records-table-wrapper::-webkit-scrollbar-track {
+    background: var(--color-surface-subtle);
+    border-radius: 4px;
+}
+
+.records-table-wrapper::-webkit-scrollbar-thumb {
+    background: var(--palette-c1c7d0);
+    border-radius: 4px;
+}
+
+.records-table-wrapper::-webkit-scrollbar-thumb:hover {
+    background: var(--color-primary);
+}
+
+/* 尊重系统减弱动态效果设置 */
+@media (prefers-reduced-motion: reduce) {
+    .records-table tbody tr {
+        animation: none;
+    }
+}
+
+/* 移动端适配：收紧边距，表格横向滚动 */
+@media (max-width: 600px) {
+    .records-container {
+        padding: 12px 12px 8px;
+    }
+
+    .records-table .col-organize-time {
+        width: 150px;
+    }
+
+    /* 窄屏收紧搜索框左右间距，保证输入区可用宽度 */
+    .header-bar .search-input-container {
+        margin: 0 8px;
+        padding: 0 10px;
+    }
+}

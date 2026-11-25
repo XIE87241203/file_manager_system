@@ -7,7 +7,7 @@
 .btn-delete-icon {
     width: 40px;
     height: 40px;
-    background-color: #dc3545;
+    background-color: var(--color-danger-bootstrap);
     border: none;
     border-radius: 8px;
     cursor: pointer;
@@ -19,15 +19,15 @@
 }
 
 .btn-delete-icon:hover {
-    background-color: #c82333;
+    background-color: var(--color-danger-hover);
 }
 
 .trash-icon {
     width: 20px;
     height: 20px;
-    background-color: #fff;
-    -webkit-mask-image: url("../../common/icons/trash_icon.svg");
-    mask-image: url("../../common/icons/trash_icon.svg");
+    background-color: var(--color-surface);
+    -webkit-mask-image: var(--icon-trash);
+    mask-image: var(--icon-trash);
     -webkit-mask-repeat: no-repeat;
     mask-repeat: no-repeat;
     -webkit-mask-position: center;

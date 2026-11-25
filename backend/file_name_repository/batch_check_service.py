@@ -150,7 +150,3 @@ class BatchCheckService(BaseAsyncService):
         cls._progress_manager.set_status(ProgressStatus.IDLE)
         cls._progress_manager.reset_progress()
         return True
-
-
-# 在模块加载时执行初始化
-BatchCheckService.init_service()

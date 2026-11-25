@@ -1,20 +1,20 @@
 
 /* 页面基础样式调整：强制纯白背景并启用滚动 */
 body {
-    background-color: #ffffff !important; /* 确保背景是极致纯白 */
+    background-color: var(--color-surface) !important; /* 确保背景是极致纯白 */
     overflow-y: hidden; /* 防止 body 滚动，由 main-content 处理 */
 }
 
 /* 选项卡容器 */
 .tabs {
     display: flex;
-    border-bottom: 2px solid #f0f0f0;
+    border-bottom: 2px solid var(--color-surface-active);
     margin-bottom: 15px;
     padding: 0px 10px;
     position: sticky;
     top: 0;
     z-index: 10;
-    background-color: #ffffff;
+    background-color: var(--color-surface);
     overflow-x: auto;
     overflow-y: hidden;
 }
@@ -27,22 +27,22 @@ body {
     background: none;
     border: none;
     font-size: 1rem;
-    color: #888;
+    color: var(--palette-888);
     text-align: center;
     transition: all 0.2s ease-in-out;
-    border-bottom: 2px solid transparent;
+    border-bottom: 2px solid var(--color-transparent);
     font-weight: 500;
     min-width: 120px;
 }
 
 .tab-btn.active {
-    color: #1a73e8;
-    border-bottom: 2px solid #1a73e8;
+    color: var(--color-primary);
+    border-bottom: 2px solid var(--color-primary);
 }
 
 .tab-btn:hover:not(.active) {
-    color: #333;
-    background-color: #f8f9fa;
+    color: var(--color-text-strong);
+    background-color: var(--color-surface-subtle);
 }
 
 .tab-content {
@@ -61,7 +61,7 @@ body {
     height: calc(100vh - 60px);
     overflow-y: auto;
     box-sizing: border-box;
-    background-color: #ffffff; /* 内部也保持纯白 */
+    background-color: var(--color-surface); /* 内部也保持纯白 */
 }
 
 /* 章节头部样式：用于标题和按钮右对齐 */
@@ -101,7 +101,7 @@ body {
     min-width: 160px;
     max-width: 320px;
     border-radius: 0;
-    background-color: #ffffff;
+    background-color: var(--color-surface);
 }
 
 .repo-config-toolbar .btn-danger {
@@ -117,7 +117,7 @@ body {
     max-height: 200px; /* 限制高度约为3行，超过则显示滚动条 */
     overflow-y: auto;
     overflow-x: auto;
-    border: 1px solid #f0f0f0;
+    border: 1px solid var(--color-surface-active);
     border-radius: 8px;
     padding: 10px;
 }
@@ -126,8 +126,8 @@ body {
     display: flex;
     align-items: center;
     padding: 10px 10px;
-    background: #fcfcfc;
-    border: 1px solid #f0f0f0;
+    background: var(--palette-fcfcfc);
+    border: 1px solid var(--color-surface-active);
     border-radius: 6px;
     margin-bottom: 10px;
     transition: border-color 0.2s;
@@ -138,13 +138,13 @@ body {
 }
 
 .repo-item:hover {
-    border-color: #d2e3fc;
+    border-color: var(--color-primary-soft-hover);
 }
 
 .repo-path {
     flex: 1;
     font-size: 0.95rem;
-    color: #3c4043;
+    color: var(--color-text-secondary);
     word-break: break-all;
 }
 
@@ -155,7 +155,7 @@ body {
 .btn-delete {
     background: none;
     border: none;
-    color: #d93025;
+    color: var(--color-danger);
     cursor: pointer;
     font-size: 0.85rem;
     font-weight: 500;
@@ -177,8 +177,8 @@ body {
 
 /* 复选框组容器 */
 .checkbox-options-group {
-    background: #f8f9fa;
-    border: 1px solid #f1f3f4;
+    background: var(--color-surface-subtle);
+    border: 1px solid var(--color-surface-muted);
     border-radius: 12px;
     padding: 10px 15px;
     display: grid;
@@ -188,10 +188,10 @@ body {
 .group-title {
     font-size: 1rem;
     font-weight: 600;
-    color: #202124;
+    color: var(--color-text-primary);
     margin-bottom: 15px;
     grid-column: 1 / -1;
-    border-left: 4px solid #1a73e8;
+    border-left: 4px solid var(--color-primary);
     padding-left: 15px;
 }
 
@@ -207,7 +207,7 @@ body {
     margin-bottom: 0;
     cursor: pointer;
     font-size: 0.95rem;
-    color: #3c4043;
+    color: var(--color-text-secondary);
     user-select: none;
 }
 
@@ -236,7 +236,7 @@ body {
     margin-bottom: 0;
     white-space: nowrap;
     font-size: 0.95rem;
-    color: #3c4043;
+    color: var(--color-text-secondary);
 }
 
 .input-inline {
@@ -271,15 +271,15 @@ body {
     align-items: flex-start;
     gap: 12px;
     padding: 18px 20px;
-    background: #fff;
-    border: 1px solid #eee;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border-muted);
     border-radius: 8px;
     transition: all 0.2s ease;
 }
 
 .maintenance-item:hover {
-    background-color: #fff9f9;
-    border-color: #ffdada;
+    background-color: var(--palette-fff9f9);
+    border-color: var(--palette-ffdada);
 }
 
 .maintenance-info {
@@ -290,19 +290,56 @@ body {
 
 .maintenance-title {
     font-weight: 600;
-    color: #333;
+    color: var(--color-text-strong);
     font-size: 1.05rem;
 }
 
 .maintenance-desc {
     font-size: 0.85rem;
-    color: #666;
+    color: var(--color-text-body-muted);
     line-height: 1.4;
 }
 
-/* 同步按钮容器：使其宽度撑满父容器，与下面的危险按钮对齐 */
-.sync-btn-container {
-    width: 100%;
+/* --- 日志管理分页 --- */
+.log-size-card {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 18px 20px;
+    background: var(--color-surface-subtle);
+    border: 1px solid var(--color-border-muted);
+    border-radius: 8px;
+}
+
+.log-size-label {
+    font-size: 0.9rem;
+    color: var(--color-text-tertiary);
+}
+
+.log-size-value {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--color-primary);
+    word-break: break-all;
+}
+
+.log-retention-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.log-retention-row .input-field {
+    width: 160px;
+}
+
+.log-forever-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    user-select: none;
 }
 
 /* 辅助布局类 */
@@ -339,5 +376,148 @@ body {
     min-height: 2rem;
     text-align: center;
     font-weight: 600;
-    color: #1a73e8;
+    color: var(--color-primary);
+}
+
+/* --- 用户管理分页 --- */
+/* 用户管理分页整体纵向布局：新增按钮与表格上下垂直排列，不再左右并排 */
+.user-tab-content.active {
+    flex-direction: column;
+    align-items: stretch;
+}
+
+/* 工具栏独占一行位于表格上方，新增按钮靠右 */
+.user-toolbar {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    margin-bottom: 12px;
+}
+
+/* 新增按钮改为自适应宽度，避免撑满整行 */
+.user-toolbar .btn-primary {
+    width: auto;
+    padding: 8px 24px;
+}
+
+.user-table th,
+.user-table td {
+    text-align: left;
+}
+
+/* 角色徽标 */
+.role-badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.role-badge.admin {
+    background-color: var(--color-primary-soft);
+    color: var(--color-primary);
+}
+
+.role-badge.normal {
+    background-color: var(--color-surface-muted);
+    color: var(--color-text-tertiary);
+}
+
+/* 行内操作按钮容器：垂直排列，按钮之间留出间距防止误触 */
+.user-action-group {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+/* 行内操作按钮：统一宽度并居中，删除按钮固定排在最下 */
+.user-action-btn {
+    width: 88px;
+    box-sizing: border-box;
+    padding: 4px 8px;
+    border: none;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    background-color: var(--color-surface-muted);
+    color: var(--color-text-secondary);
+    text-align: center;
+}
+
+.user-action-btn:hover {
+    background-color: var(--color-border-light);
+}
+
+.user-action-btn.danger {
+    background-color: var(--color-danger-soft);
+    color: var(--color-danger);
+}
+
+.user-action-btn.danger:hover {
+    background-color: var(--palette-fad2cf);
+}
+
+/* 用户表格最小宽度：固定列宽合计 540px，另留 140px 给登录名列；
+   窄屏（手机）下表格不被压缩，超出部分由 .table-wrapper 横向滚动 */
+.user-table { min-width: 680px; }
+
+/* 用户表格列宽：角色/时间列定宽，操作列按钮垂直排列只需容纳单个按钮宽度，登录名列自适应剩余宽度 */
+.user-table .col-role { width: 100px; }
+.user-table .col-time { width: 160px; }
+.user-table .col-actions { width: 120px; }
+
+/* --- 登录历史弹窗 --- */
+.login-history-modal-content {
+    width: 90%;
+    max-width: 600px;
+}
+
+.login-history-table-wrapper {
+    max-height: 320px;
+    overflow-y: auto;
+    margin-bottom: 10px;
+}
+
+.login-history-table th,
+.login-history-table td {
+    text-align: left;
+}
+
+#login-history-pagination {
+    margin-bottom: 12px;
+}
+
+/* --- 用户仓库权限弹窗 --- */
+.user-permission-modal-content {
+    width: 90%;
+    max-width: 680px;
+}
+
+.user-permission-tip {
+    margin: 0 0 12px;
+    color: var(--color-text-tertiary);
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+.user-permission-table-wrapper {
+    max-height: 360px;
+    overflow-y: auto;
+    margin-bottom: 12px;
+}
+
+.user-permission-table th,
+.user-permission-table td {
+    text-align: left;
+}
+
+.user-permission-repo-name {
+    margin-left: 8px;
+}
+
+.user-permission-select {
+    width: 160px;
+    max-width: 100%;
 }

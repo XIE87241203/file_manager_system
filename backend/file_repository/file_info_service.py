@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 from typing import Tuple, Optional
 
 import cv2
@@ -7,6 +8,8 @@ from backend.common.file_type_enum import FileType
 from backend.common.i18n_utils import t
 from backend.common.log_utils import LogUtils
 from backend.common.utils import Utils
+from backend.file_repository.media_location_service import MediaLocationService
+from backend.file_repository.media_time_service import MediaTimeService
 from backend.model.db.file_index_db_model import FileIndexDBModel
 
 
@@ -64,6 +67,12 @@ class FileInfoService:
             
             f_size: int = os.path.getsize(file_path)
             f_name: str = os.path.basename(file_path)
+            # 文件最后修改时间：相册时间轴按此时间分组，取不到时留空由相册按扫描时间兜底
+            f_mtime: Optional[str] = None
+            try:
+                f_mtime = datetime.fromtimestamp(os.path.getmtime(file_path)).strftime('%Y-%m-%d %H:%M:%S')
+            except OSError as stat_error:
+                LogUtils.error(t('utils_get_file_info_failed', path=file_path, error=str(stat_error)))
             
             # 2. 识别文件类型及提取扩展属性
             file_type: str = FileType.OTHER.value
@@ -75,6 +84,14 @@ class FileInfoService:
                 video_duration, video_codec = FileInfoService.get_video_params(file_path)
             elif Utils.is_image_file(file_path):
                 file_type = FileType.IMAGE.value
+
+            # 2.1 读取 EXIF/拍摄时间：相册优先使用该时间，缺失时回退文件修改时间
+            exif_time: Optional[str] = None
+            # 2.2 读取拍摄地点：图片读 EXIF GPS，视频读容器 ISO 6709 元数据
+            file_location: Optional[str] = None
+            if file_type in (FileType.IMAGE.value, FileType.VIDEO.value):
+                exif_time = MediaTimeService.get_exif_time(file_path, file_type)
+                file_location = MediaLocationService.get_location(file_path, file_type)
 
             # 3. 复用同 MD5 文件已生成的缩略图（缩略图按内容 MD5 命名，同内容文件共享，避免副本无法预览）
             thumbnail_path: Optional[str] = None
@@ -90,7 +107,10 @@ class FileInfoService:
                 file_type=file_type,
                 video_duration=video_duration,
                 video_codec=video_codec,
-                thumbnail_path=thumbnail_path
+                thumbnail_path=thumbnail_path,
+                file_mtime=f_mtime,
+                file_exif_time=exif_time,
+                file_location=file_location
             )
         except Exception as e:
             LogUtils.error(t('utils_get_file_info_failed', path=file_path, error=str(e)))

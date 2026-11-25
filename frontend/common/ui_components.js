@@ -64,7 +64,7 @@ const UIComponents = {
      */
     getEmptyTableHtml(colspan, message) {
         const displayMsg = message || (typeof I18nManager !== 'undefined' ? I18nManager.t('common.no_data') : '');
-        return `<tr><td colspan="${colspan}" style="text-align:center; padding: 100px; color: #9aa0a6;">${displayMsg}</td></tr>`;
+        return `<tr><td colspan="${colspan}" style="text-align:center; padding: 100px; color: var(--color-text-disabled);">${displayMsg}</td></tr>`;
     },
 
     /**

@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title data-i18n="album.browse_title"></title>
+    <script src="/common/theme_manager.js"></script>
+    <link rel="stylesheet" href="../common/common.css">
+    <link rel="stylesheet" href="../common/themes/light/theme.css">
+    <link rel="stylesheet" href="../common/themes/dark/theme.css">
+    <link rel="stylesheet" href="../common/header_toolbar/search/search_header_toolbar.css">
+    <link rel="stylesheet" href="album_browse.css">
+</head>
+<body>
+    <!-- 顶部工具栏：由 SearchHeaderToolbar 动态初始化 -->
+    <header class="header-bar"></header>
+
+    <main id="album-main-content" class="main-content album-main">
+        <div id="album-page-content" class="album-page">
+            <!-- 多选操作栏：选中项后显示 -->
+            <div id="album-selection-bar" class="album-selection-bar hidden">
+                <span id="album-selected-count" class="album-selected-count"></span>
+                <div class="album-selection-actions">
+                    <button id="btn-download-selected" class="album-bar-btn" data-i18n="album.download_selected"></button>
+                    <button id="btn-delete-selected" class="album-bar-btn album-bar-danger" data-i18n="album.delete_selected"></button>
+                    <button id="btn-cancel-selection" class="album-bar-btn album-bar-cancel" data-i18n="album.cancel_selection"></button>
+                </div>
+            </div>
+
+            <!-- 筛选工具栏：排序、媒体类型与侧边栏开关，整体位于列表上方左对齐 -->
+            <div class="album-toolbar">
+                <button id="album-sidebar-toggle" class="album-sidebar-toggle" type="button"
+                        data-i18n-title="album.sidebar_hide" title="" aria-controls="album-timeline" aria-expanded="true">
+                    <span class="theme-icon icon-chevron-left" aria-hidden="true"></span>
+                </button>
+                <select id="album-sort-filter" class="album-filter-select" data-i18n-title="album.sort_title" title="">
+                    <option value="album_time" data-i18n="album.sort_time"></option>
+                    <option value="file_name" data-i18n="album.sort_name"></option>
+                    <option value="file_size" data-i18n="album.sort_size"></option>
+                </select>
+                <!-- 媒体类型筛选下拉框：所有 / 仅图片 / 仅视频 -->
+                <select id="album-type-filter" class="album-filter-select" data-i18n-title="album.filter_type_title" title="">
+                    <option value="" data-i18n="album.filter_all"></option>
+                    <option value="image" data-i18n="album.filter_image"></option>
+                    <option value="video" data-i18n="album.filter_video"></option>
+                </select>
+            </div>
+
+            <!-- 相册主体：左侧动态标尺侧边栏 + 右侧按当前排序分组的瀑布流 -->
+            <div id="album-layout" class="album-layout">
+                <!-- 动态标尺：时间排序显示时间轴，文件名排序显示字母尺，文件大小排序隐藏 -->
+                <aside id="album-timeline" class="album-timeline" data-i18n-title="album.timeline_title" title="">
+                    <div id="album-axis" class="album-axis">
+                        <div id="album-axis-title" class="album-axis-title" data-i18n="album.time_axis_label"></div>
+                        <!-- 标尺刻度容器：由 JS 根据排序方式动态生成 -->
+                        <div id="album-timeline-ticks" class="album-timeline-ticks"></div>
+                    </div>
+                </aside>
+
+                <!-- 瀑布流容器：卡片严格按接口返回的全局排序顺序追加 -->
+                <div id="album-waterfall" class="album-waterfall"></div>
+            </div>
+
+            <!-- 空数据提示 -->
+            <div id="album-empty" class="album-empty hidden" data-i18n="album.empty"></div>
+
+            <!-- 无限滚动哨兵与加载提示 -->
+            <div id="album-sentinel" class="album-sentinel"></div>
+            <div id="album-end-tip" class="album-end-tip hidden" data-i18n="album.no_more"></div>
+        </div>
+    </main>
+
+    <!-- 媒体预览弹窗 -->
+    <div id="album-preview-mask" class="album-preview-mask hidden">
+        <div class="album-preview-top">
+            <div id="album-preview-name" class="album-preview-name"></div>
+            <div class="album-preview-actions">
+                <button id="album-preview-select" class="album-preview-btn album-preview-btn-select" data-i18n-title="album.select_item" title=""><span class="theme-icon icon-check" aria-hidden="true"></span></button>
+                <span id="album-preview-selected-count" class="album-preview-selected-count hidden"></span>
+                <button id="album-preview-download" class="album-preview-btn album-preview-btn-download" data-i18n-title="album.download" title=""><span class="theme-icon icon-download" aria-hidden="true"></span></button>
+                <button id="album-preview-delete" class="album-preview-btn album-preview-btn-danger" data-i18n-title="album.delete" title=""><span class="theme-icon icon-trash" aria-hidden="true"></span></button>
+                <button id="album-preview-detail" class="album-preview-btn" data-i18n-title="album.detail_open" title=""><span class="theme-icon icon-info" aria-hidden="true"></span></button>
+                <button id="album-preview-close" class="album-preview-btn" data-i18n-title="album.preview_close" title=""><span class="theme-icon icon-close" aria-hidden="true"></span></button>
+            </div>
+        </div>
+        <button id="album-preview-prev" class="album-preview-nav album-preview-prev" data-i18n-title="album.preview_prev" title=""><span class="theme-icon icon-chevron-left" aria-hidden="true"></span></button>
+        <div id="album-preview-body" class="album-preview-body"></div>
+        <button id="album-preview-next" class="album-preview-nav album-preview-next" data-i18n-title="album.preview_next" title=""><span class="theme-icon icon-chevron-right" aria-hidden="true"></span></button>
+    </div>
+
+    <!-- 媒体详情侧边栏：展示文件名、路径、拍摄时间、修改时间、大小与拍摄地点 -->
+    <aside id="album-detail-panel" class="album-detail-panel hidden">
+        <div id="album-detail-resize" class="album-detail-resize" data-i18n-title="album.detail_resize" title=""></div>
+        <div class="album-detail-header">
+            <h3 id="album-detail-title" class="album-detail-title" data-i18n="album.detail_title"></h3>
+            <button id="album-detail-close" class="album-detail-close" data-i18n-title="album.detail_close" title=""><span class="theme-icon icon-close" aria-hidden="true"></span></button>
+        </div>
+        <dl class="album-detail-list">
+            <div class="album-detail-row">
+                <dt data-i18n="album.detail_name"></dt>
+                <dd id="album-detail-name"></dd>
+            </div>
+            <div class="album-detail-row">
+                <dt data-i18n="album.detail_path"></dt>
+                <dd id="album-detail-path"></dd>
+            </div>
+            <div class="album-detail-row">
+                <dt data-i18n="album.detail_capture_time"></dt>
+                <dd id="album-detail-capture-time"></dd>
+            </div>
+            <div class="album-detail-row">
+                <dt data-i18n="album.detail_mtime"></dt>
+                <dd id="album-detail-mtime"></dd>
+            </div>
+            <div class="album-detail-row">
+                <dt data-i18n="album.detail_size"></dt>
+                <dd id="album-detail-size"></dd>
+            </div>
+            <div class="album-detail-row">
+                <dt data-i18n="album.detail_location"></dt>
+                <dd id="album-detail-location"></dd>
+            </div>
+        </dl>
+    </aside>
+
+    <!-- 多语言资源 -->
+    <script src="../common/i18n/zh.js"></script>
+    <script src="../common/i18n/en.js"></script>
+    <script src="../common/i18n/i18n_utils.js"></script>
+
+    <!-- 公用工具 -->
+    <script src="../common/common.js"></script>
+    <script src="../common/ui_components.js"></script>
+    <script src="../common/repo_context.js"></script>
+    <script src="../common/request.js"></script>
+    <script src="../common/toast.js"></script>
+    <script src="../common/header_toolbar/search/search_header_toolbar.js"></script>
+
+    <!-- 页面逻辑 -->
+    <script src="album_browse_request.js"></script>
+    <script src="album_browse.js"></script>
+</body>
+</html>

@@ -1,16 +1,29 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title data-i18n="login.title"></title>
-    <!-- 引入第三方加密库 -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <!-- 引入本地自托管的加密库（离线可用，避免第三方 CDN 风险） -->
+    <script src="/common/lib/crypto-js.min.js"></script>
     <!-- 使用绝对路径引入资源 -->
-    <link rel="stylesheet" href="/login/login.css">
+    <script src="/common/theme_manager.js"></script>
     <link rel="stylesheet" href="/common/common.css">
+    <link rel="stylesheet" href="../common/themes/light/theme.css">
+    <link rel="stylesheet" href="../common/themes/dark/theme.css">
+    <link rel="stylesheet" href="../common/appearance_manager.css">
+    <link rel="stylesheet" href="/login/login.css">
 </head>
 <body>
+    <div class="login-appearance-actions appearance-actions">
+        <button type="button" class="appearance-btn appearance-theme-btn" data-appearance-theme-toggle>
+            <span class="theme-icon appearance-sun icon-sun" aria-hidden="true"></span>
+            <span class="theme-icon appearance-moon icon-moon" aria-hidden="true"></span>
+        </button>
+        <button type="button" class="appearance-btn appearance-language-btn" data-appearance-language-open>
+            <span class="appearance-language-code" aria-hidden="true"></span>
+        </button>
+    </div>
     <main class="main-content">
         <div class="card-container">
             <h2 class="title" data-i18n="login.title"></h2>
@@ -34,7 +47,8 @@
     <!-- 引入多语言资源 -->
     <script src="/common/i18n/zh.js"></script>
     <script src="/common/i18n/en.js"></script>
-    <script src="/common/i18n/i18n_utils.js"></script>
+    <script src="../common/i18n/i18n_utils.js"></script>
+    <script src="../common/appearance_manager.js"></script>
 
     <!-- 使用绝对路径引入基础依赖库 -->
     <script src="/common/request.js"></script>

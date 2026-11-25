@@ -97,6 +97,22 @@ const DuplicateCheckAPI = {
     },
 
     /**
+     * @description 用途说明：按需生成或复用单个文件缩略图（与相册缩略图共用同一接口）
+     * @param {string} filePath - 入参说明：文件完整路径
+     * @param {Function} onSuccess - 入参说明：成功回调，参数为 {file_path, thumbnail_path}
+     * @param {Function} onError - 入参说明：失败回调
+     * @returns {void} - 返回值说明：无
+     */
+    ensureThumbnail(filePath, onSuccess, onError) {
+        Request.post('/api/file_repository/thumbnail/ensure', { file_path: filePath }, {}, false)
+            .then(res => {
+                if (res.status === 'success') onSuccess(res.data);
+                else onError(res.message);
+            })
+            .catch(err => onError(err.message || I18nManager.t('common.network_error')));
+    },
+
+    /**
      * @description 用途说明：获取系统设置
      * @param {Function} onSuccess - 入参说明：成功回调
      * @param {Function} onError - 入参说明：失败回调

@@ -16,7 +16,7 @@ const ProgressButtonWidget = {
      *   options (Object): 配置对象
      *     - normalText (String): 无任务状态（idle）时的按钮文字。
      *     - stopText (String): 任务进行中（processing）且鼠标悬停时的停止文案。
-     *     - defaultBgColor (String): 无任务状态下的背景颜色，默认为 '#f0f0f0'。
+     *     - defaultBgColor (String): 无任务状态下的背景颜色，默认为 'var(--color-surface-active)'。
      *     - onStart (Function): idle 状态下点击按钮的回调。
      *     - onStop (Function): processing 状态下点击按钮的回调。
      * 返回值说明：Object - 包含 setState, setProgress 和 getElement 方法的按钮控制器。
@@ -27,7 +27,7 @@ const ProgressButtonWidget = {
         const settings = {
             normalText: options.normalText || t('common.start_task'),
             stopText: options.stopText || t('common.stop_task'),
-            defaultBgColor: options.defaultBgColor || '#f0f0f0',
+            defaultBgColor: options.defaultBgColor || 'var(--color-surface-active)',
             onStart: options.onStart || (() => {}),
             onStop: options.onStop || (() => {})
         };
@@ -83,7 +83,7 @@ const ProgressButtonWidget = {
             if (state === 'processing') {
                 textLayer.innerText = settings.stopText;
                 // 只有在显示 stopText 的时候背景色才变红
-                container.style.backgroundColor = '#c82333';
+                container.style.backgroundColor = 'var(--color-danger-hover)';
             }
         });
 

@@ -3,6 +3,21 @@
  */
 const HomeRequest = {
     /**
+     * @description 用途说明：获取当前登录用户的系统角色与仓库权限
+     * @param {Function} onSuccess - 入参说明：成功回调，参数为 {username, is_admin, repo_permission}
+     * @param {Function} onError - 入参说明：失败回调，参数为错误信息
+     * @returns {void} - 返回值说明：无
+     */
+    getCurrentUser(onSuccess, onError) {
+        Request.get('/api/user/me', {}, false)
+            .then(res => {
+                if (res.status === 'success') onSuccess(res.data);
+                else onError(res.message);
+            })
+            .catch(err => onError(err.message || I18nManager.t('common.network_error')));
+    },
+
+    /**
      * @description 用途说明：从后端获取文件仓库详情统计信息
      * @param {Function} onSuccess - 入参说明：成功回调，参数为统计数据对象
      * @param {Function} onError - 入参说明：失败回调，参数为错误信息
@@ -43,6 +58,22 @@ const HomeRequest = {
         Request.get('/api/system/version', {}, false)
             .then(res => {
                 if (res.status === 'success') onSuccess(res.data);
+                else onError(res.message);
+            })
+            .catch(err => onError(err.message || I18nManager.t('common.network_error')));
+    },
+
+    /**
+     * @description 用途说明：同步首页选择的语言到后端全局配置，使接口提示与页面文案保持一致
+     * @param {string} language - 入参说明：语言标识 zh 或 en
+     * @param {Function} onSuccess - 入参说明：成功回调
+     * @param {Function} onError - 入参说明：失败回调，参数为错误信息
+     * @returns {void} - 返回值说明：无
+     */
+    updateLanguage(language, onSuccess, onError) {
+        Request.post('/api/setting/update', { user_data: { language } }, {}, false)
+            .then(res => {
+                if (res.status === 'success') onSuccess(res);
                 else onError(res.message);
             })
             .catch(err => onError(err.message || I18nManager.t('common.network_error')));

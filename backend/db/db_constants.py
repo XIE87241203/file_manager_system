@@ -3,7 +3,7 @@ class DBConstants:
     用途：数据库表名及列名常量类，统一管理所有数据库结构相关的硬编码字符串
     """
 
-    DB_VERSION: int = 16  # 当前数据库版本，升级至 16 以支持查重耗时元数据
+    DB_VERSION: int = 23  # 当前数据库版本，升级至 23 以支持记录图片/视频拍摄地点
 
     class VersionInfo:
         """用途：version_info 表相关的常量"""
@@ -24,6 +24,13 @@ class DBConstants:
         COL_RECYCLE_BIN_TIME: str = 'recycle_bin_time'
         COL_THUMBNAIL_PATH: str = 'thumbnail_path'
         COL_SCAN_TIME: str = 'scan_time'
+        COL_FILE_MTIME: str = 'file_mtime'         # 新增：文件最后修改时间（用于相册时间轴分组）
+        COL_FILE_EXIF_TIME: str = 'file_exif_time' # 新增：EXIF 拍摄时间/视频创建时间（相册优先使用）
+        COL_FILE_LOCATION: str = 'file_location'   # 新增：拍摄地点（EXIF GPS / 视频 ISO 6709 坐标文本）
+        # 相册实际排序时间表达式：优先 EXIF/拍摄时间，缺失时回退文件修改时间
+        ALBUM_TIME_EXPRESSION: str = f'COALESCE({COL_FILE_EXIF_TIME}, {COL_FILE_MTIME})'
+        # 相册逻辑排序字段名（非真实列，仅用于接口参数与排序表达式映射）
+        ALBUM_TIME_FIELD: str = 'album_time'
 
     class HistoryFileIndex:
         """用途：history_file_index 表相关的常量"""
@@ -107,6 +114,29 @@ class DBConstants:
         COL_SOURCE: str = 'source'
         COL_DETAIL: str = 'detail'
 
+    class OrganizeSetting:
+        """用途：organize_settings 表相关的常量（整理模块专用设置，单行记录，列表字段以 JSON 文本存储）"""
+        TABLE_NAME: str = 'organize_settings'
+        COL_ID: str = 'id'
+        COL_PENDING_DIRS: str = 'pending_dirs'      # 待整理目录列表 (JSON 数组文本)
+        COL_ORGANIZED_DIR: str = 'organized_dir'    # 已整理目录 (整理完成后文件转移至此)
+        COL_EXTENSIONS: str = 'extensions'          # 需要整理的后缀名列表 (JSON 数组文本)
+        COL_RENAME_SCRIPT_PATH: str = 'rename_script_path'  # 文件名整理脚本路径 (空串表示默认脚本)
+        COL_SIZE_OP: str = 'size_op'                # 文件大小筛选比较符 (gt 大于 / lt 小于，空串表示不启用)
+        COL_SIZE_VALUE: str = 'size_value'          # 文件大小筛选数值 (不大于 0 表示不启用)
+        COL_SIZE_UNIT: str = 'size_unit'            # 文件大小筛选单位 (KB / MB / GB)
+        COL_UPDATE_TIME: str = 'update_time'
+
+    class OrganizeRecord:
+        """用途：organize_records 表相关的常量（整理历史，每整理一个文件记录一条）"""
+        TABLE_NAME: str = 'organize_records'
+        COL_ID: str = 'id'
+        COL_ORIGINAL_PATH: str = 'original_path'      # 原文件完整路径
+        COL_ORIGINAL_NAME: str = 'original_name'      # 原文件名 (含后缀)
+        COL_ORGANIZED_PATH: str = 'organized_path'    # 整理后文件完整路径
+        COL_ORGANIZED_NAME: str = 'organized_name'    # 整理后文件名 (含后缀)
+        COL_ORGANIZE_TIME: str = 'organize_time'
+
     class Repository:
         """用途：repositories 主表相关的常量（多仓库元数据，存于独立主数据库）"""
         TABLE_NAME: str = 'repositories'
@@ -115,3 +145,31 @@ class DBConstants:
         COL_CONFIG: str = 'config'
         COL_DB_FILE: str = 'db_file'
         COL_CREATE_TIME: str = 'create_time'
+
+    class User:
+        """用途：users 主表相关的常量（全局用户账户，存于独立主数据库，登录不分仓库）"""
+        TABLE_NAME: str = 'users'
+        COL_ID: str = 'id'
+        COL_USERNAME: str = 'username'              # 登录名（唯一）
+        COL_PASSWORD_HASH: str = 'password_hash'    # PBKDF2 加盐慢哈希
+        COL_IS_ADMIN: str = 'is_admin'              # 是否管理员（1 是 / 0 否）
+        COL_CREATE_TIME: str = 'create_time'
+        COL_UPDATE_TIME: str = 'update_time'
+
+    class UserRepositoryPermission:
+        """用途：user_repository_permissions 表相关的常量（系统使用者与仓库的授权关系，存于主数据库）"""
+        TABLE_NAME: str = 'user_repository_permissions'
+        COL_USER_ID: str = 'user_id'
+        COL_REPO_ID: str = 'repo_id'
+        COL_PERMISSION: str = 'permission'
+        PERMISSION_ADMIN: str = 'admin'
+        PERMISSION_MEMBER: str = 'member'
+
+    class LoginHistory:
+        """用途：login_history 表相关的常量（全局用户登录历史，存于独立主数据库，按用户追溯登录记录）"""
+        TABLE_NAME: str = 'login_history'
+        COL_ID: str = 'id'
+        COL_USER_ID: str = 'user_id'                # 关联 users.id（无物理外键，删除用户时同步清理）
+        COL_USERNAME: str = 'username'              # 登录名快照（便于追溯）
+        COL_LOGIN_TIME: str = 'login_time'          # 登录成功时间
+        COL_IP: str = 'ip'                          # 登录来源 IP

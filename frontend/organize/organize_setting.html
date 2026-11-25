@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-i18n="organize.setting.title"></title>
+    <script src="/common/theme_manager.js"></script>
+    <link rel="stylesheet" href="../common/common.css">
+    <link rel="stylesheet" href="../common/themes/light/theme.css">
+    <link rel="stylesheet" href="../common/themes/dark/theme.css">
+    <link rel="stylesheet" href="../common/header_toolbar/default/default_header_toolbar.css">
+    <link rel="stylesheet" href="organize_setting.css">
+</head>
+<body>
+<!-- 顶部工具栏容器，由 default_header_toolbar.js 动态初始化 -->
+<header class="header-bar"></header>
+
+<main class="main-content">
+    <div class="organize-setting-container">
+        <!-- 待整理目录列表 -->
+        <div class="organize-section">
+            <div class="section-header">
+                <h3 data-i18n="organize.setting.pending_dirs"></h3>
+                <button id="add-pending-dir-btn" class="btn-primary btn-add-small" data-i18n="organize.setting.add_dir"></button>
+            </div>
+            <div id="pending-dir-list" class="organize-list">
+                <!-- 动态生成待整理目录列表 -->
+            </div>
+            <small class="form-hint" data-i18n="organize.setting.pending_dirs_hint"></small>
+        </div>
+
+        <!-- 已整理目录 -->
+        <div class="organize-section">
+            <div class="form-group">
+                <label class="label-text" for="organized-dir-input" data-i18n="organize.setting.organized_dir"></label>
+                <input type="text" id="organized-dir-input" class="input-field" placeholder="" data-i18n-placeholder="organize.setting.organized_dir_placeholder" autocomplete="off">
+                <small class="form-hint" data-i18n="organize.setting.organized_dir_hint"></small>
+            </div>
+        </div>
+
+        <!-- 需要整理的后缀名 -->
+        <div class="organize-section">
+            <div class="form-group">
+                <label class="label-text" for="extensions-input" data-i18n="organize.setting.extensions"></label>
+                <input type="text" id="extensions-input" class="input-field" placeholder="" data-i18n-placeholder="organize.setting.extensions_placeholder" autocomplete="off">
+                <small class="form-hint" data-i18n="organize.setting.extensions_hint"></small>
+            </div>
+        </div>
+
+        <!-- 文件大小筛选（后缀名不匹配时的补充纳入条件） -->
+        <div class="organize-section">
+            <div class="form-group">
+                <label class="label-text" for="size-value-input" data-i18n="organize.setting.size_filter"></label>
+                <div class="size-filter-row">
+                    <select id="size-op-select" class="size-filter-select">
+                        <option value="gt" data-i18n="organize.setting.size_gt"></option>
+                        <option value="lt" data-i18n="organize.setting.size_lt"></option>
+                    </select>
+                    <input type="text" id="size-value-input" class="input-field size-filter-input" inputmode="decimal" placeholder="" data-i18n-placeholder="organize.setting.size_value_placeholder" autocomplete="off">
+                    <select id="size-unit-select" class="size-filter-select">
+                        <option value="KB" data-i18n="organize.setting.size_unit_kb"></option>
+                        <option value="MB" data-i18n="organize.setting.size_unit_mb"></option>
+                        <option value="GB" data-i18n="organize.setting.size_unit_gb"></option>
+                    </select>
+                </div>
+                <small class="form-hint" data-i18n="organize.setting.size_hint"></small>
+            </div>
+        </div>
+
+        <!-- 文件名整理脚本（用户自定义 rename 逻辑） -->
+        <div class="organize-section">
+            <div class="form-group">
+                <label class="label-text" for="rename-script-input" data-i18n="organize.setting.rename_script"></label>
+                <input type="text" id="rename-script-input" class="input-field" placeholder="" data-i18n-placeholder="organize.setting.rename_script_placeholder" autocomplete="off">
+                <small class="form-hint" data-i18n="organize.setting.rename_script_hint"></small>
+            </div>
+        </div>
+    </div>
+</main>
+
+<!-- 引入多语言资源包 -->
+<script src="../common/i18n/zh.js"></script>
+<script src="../common/i18n/en.js"></script>
+<script src="../common/i18n/i18n_utils.js"></script>
+
+<!-- 引入公用脚本 -->
+<script src="../common/common.js"></script>
+<script src="../common/repo_context.js"></script>
+<script src="../common/request.js"></script>
+<script src="../common/ui_components.js"></script>
+<script src="../common/toast.js"></script>
+<script src="../common/header_toolbar/default/default_header_toolbar.js"></script>
+<!-- 引入页面逻辑 -->
+<script src="organize_setting_request.js"></script>
+<script src="organize_setting.js"></script>
+</body>
+</html>

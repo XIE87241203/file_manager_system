@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title data-i18n="album.setting_title"></title>
+    <script src="/common/theme_manager.js"></script>
+    <link rel="stylesheet" href="../common/common.css">
+    <link rel="stylesheet" href="../common/themes/light/theme.css">
+    <link rel="stylesheet" href="../common/themes/dark/theme.css">
+    <link rel="stylesheet" href="../common/header_toolbar/default/default_header_toolbar.css">
+    <link rel="stylesheet" href="../common/widget/progress_button.css">
+    <link rel="stylesheet" href="album_setting.css">
+</head>
+<body>
+    <!-- 顶部工具栏：由 HeaderToolbar 动态初始化 -->
+    <header class="header-bar"></header>
+
+    <main class="main-content album-setting-main">
+        <div class="album-setting-container">
+            <div class="album-setting-card">
+                <div class="form-group">
+                    <label class="label-text" for="thumbnail-dir-input" data-i18n="album.thumbnail_dir_label"></label>
+                    <input type="text" id="thumbnail-dir-input" class="input-field"
+                           data-i18n-placeholder="album.thumbnail_dir_placeholder" placeholder="">
+                    <span class="form-hint" data-i18n="album.thumbnail_dir_hint"></span>
+                </div>
+
+                <div class="form-group">
+                    <label class="label-text" for="thumbnail-size-select" data-i18n="album.thumbnail_size_label"></label>
+                    <select id="thumbnail-size-select" class="input-field"></select>
+                    <span class="form-hint" data-i18n="album.thumbnail_size_hint"></span>
+                </div>
+
+                <div class="album-effective-row">
+                    <span class="album-effective-label" data-i18n="album.thumbnail_dir_effective"></span>
+                    <span id="thumbnail-dir-effective" class="album-effective-value">--</span>
+                </div>
+
+                <button id="btn-save-album-setting" class="btn-primary album-save-btn" data-i18n="common.save"></button>
+            </div>
+
+            <!-- 缩略图维护：物理缩略图同步任务（由系统设置迁入） -->
+            <div class="album-setting-card album-sync-card">
+                <h3 class="album-sync-title" data-i18n="album.sync_title"></h3>
+                <p class="album-sync-hint" data-i18n="album.sync_hint"></p>
+                <div class="album-sync-item">
+                    <div class="album-sync-info">
+                        <span class="album-sync-name" data-i18n="album.sync_thumb"></span>
+                        <span class="album-sync-desc" data-i18n="album.sync_thumb_desc"></span>
+                    </div>
+                    <div id="sync-thumbnail-btn-container" class="album-sync-btn-container"></div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- 多语言资源 -->
+    <script src="../common/i18n/zh.js"></script>
+    <script src="../common/i18n/en.js"></script>
+    <script src="../common/i18n/i18n_utils.js"></script>
+
+    <!-- 公用工具 -->
+    <script src="../common/common.js"></script>
+    <script src="../common/repo_context.js"></script>
+    <script src="../common/request.js"></script>
+    <script src="../common/toast.js"></script>
+    <script src="../common/ui_components.js"></script>
+    <script src="../common/widget/progress_button.js"></script>
+    <script src="../common/header_toolbar/default/default_header_toolbar.js"></script>
+
+    <!-- 页面逻辑 -->
+    <script src="album_setting_request.js"></script>
+    <script src="album_setting.js"></script>
+</body>
+</html>
