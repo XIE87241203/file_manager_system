@@ -306,7 +306,3 @@ class DuplicateService(BaseAsyncService):
         返回值说明：Optional[float]: 耗时秒数，若从未查重则返回 None。
         """
         return DBOperations.get_last_check_duration()
-
-
-# 在模块加载时执行初始化
-DuplicateService.init_service()

@@ -31,7 +31,9 @@ from backend.auth.auth_routes import auth_bp
 from backend.db.db_constants import DBConstants
 from backend.setting.setting_routes import setting_bp
 from backend.file_repository.file_repository_routes import file_repo_bp
+from backend.file_repository.duplicate_check.duplicate_service import DuplicateService
 from backend.file_name_repository.file_name_repository_routes import file_name_repo_bp
+from backend.file_name_repository.batch_check_service import BatchCheckService
 from backend.system.system_routes import system_bp
 from backend.repository.repository_routes import repository_bp
 from backend.repository.repository_service import repositoryService
@@ -233,6 +235,9 @@ def start_server() -> None:
     ensure_default_script()
     # 初始化默认仓库业务库
     db_manager.init_db()
+    # 业务库建表完成后恢复查重与批量检测状态，避免模块导入时查询尚未创建的表
+    DuplicateService.init_service()
+    BatchCheckService.init_service()
 
     # 启动心跳服务
     HeartbeatService.start()
