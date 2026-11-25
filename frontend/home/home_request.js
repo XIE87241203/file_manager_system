@@ -64,6 +64,38 @@ const HomeRequest = {
     },
 
     /**
+     * @description 用途说明：获取更新日志，自动检查使用 unread，手动入口使用 all。
+     * @param {string} scope - 入参说明：展示范围，取值 all 或 unread。
+     * @param {Function} onSuccess - 入参说明：成功回调，参数为 {current_version, seen_version, auto_show, entries}。
+     * @param {Function} onError - 入参说明：失败回调，参数为错误信息。
+     * @returns {void} - 返回值说明：无。
+     */
+    getChangelog(scope, onSuccess, onError) {
+        Request.get(`/api/system/changelog?scope=${encodeURIComponent(scope)}`, {}, false)
+            .then(res => {
+                if (res.status === 'success') onSuccess(res.data);
+                else onError(res.message);
+            })
+            .catch(err => onError(err.message || I18nManager.t('common.network_error')));
+    },
+
+    /**
+     * @description 用途说明：保存当前用户已读的更新日志版本，避免同一版本重复自动弹出。
+     * @param {string} version - 入参说明：弹窗展示的版本号。
+     * @param {Function} onSuccess - 入参说明：成功回调。
+     * @param {Function} onError - 入参说明：失败回调，参数为错误信息。
+     * @returns {void} - 返回值说明：无。
+     */
+    markChangelogRead(version, onSuccess, onError) {
+        Request.post('/api/system/changelog/read', { version }, {}, false)
+            .then(res => {
+                if (res.status === 'success') onSuccess(res);
+                else onError(res.message);
+            })
+            .catch(err => onError(err.message || I18nManager.t('common.network_error')));
+    },
+
+    /**
      * @description 用途说明：同步首页选择的语言到后端全局配置，使接口提示与页面文案保持一致
      * @param {string} language - 入参说明：语言标识 zh 或 en
      * @param {Function} onSuccess - 入参说明：成功回调

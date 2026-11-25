@@ -132,6 +132,22 @@ const AlbumBrowseRequest = {
     },
 
     /**
+     * 用途说明：启动当前索引缺失媒体信息的手动补全任务。
+     * 入参说明：
+     *   onSuccess (Function) - 成功回调，参数为响应对象。
+     *   onError (Function) - 失败回调，参数为错误信息。
+     * 返回值说明：无
+     */
+    refreshMetadata(onSuccess, onError) {
+        Request.post('/api/file_repository/metadata-refresh', {}, {}, false)
+            .then(res => {
+                if (res.status === 'success') onSuccess(res);
+                else onError(res.message);
+            })
+            .catch(err => onError(err.message || I18nManager.t('common.network_error')));
+    },
+
+    /**
      * 用途说明：停止正在进行的索引扫描任务。
      * 入参说明：
      *   onSuccess (Function) - 成功回调，参数为响应对象。

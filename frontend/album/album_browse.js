@@ -33,7 +33,8 @@ const State = {
     detailDragStartX: 0, // 拖动开始时的鼠标横坐标
     detailDragStartWidth: 0, // 拖动开始时的侧边栏宽度
     queryToken: 0, // 请求代次，用于丢弃搜索切换后的过期响应
-    scanInterval: null, // 索引扫描进度轮询定时器，null 表示当前未在扫描
+    scanInterval: null, // 索引扫描或缺失信息补全的进度轮询定时器，null 表示当前未运行
+    scanTaskType: '', // 当前任务类型：scan 表示建立索引，metadata 表示补全缺少信息
     repoPermission: '', // 当前仓库权限：admin/member，成员仅可浏览
     sentinelObserver: null,
     cardObserver: null
@@ -91,6 +92,15 @@ const API = {
      */
     startScan(fullScan, onSuccess, onError) {
         AlbumBrowseRequest.startScan(fullScan, onSuccess, onError);
+    },
+
+    /**
+     * 用途说明：启动缺失媒体信息补全任务。
+     * 入参说明：onSuccess (Function) - 成功回调；onError (Function) - 失败回调。
+     * 返回值说明：无
+     */
+    refreshMetadata(onSuccess, onError) {
+        AlbumBrowseRequest.refreshMetadata(onSuccess, onError);
     },
 
     /**
@@ -229,12 +239,25 @@ const UIController = {
         }
 
         const isScanning = App.isScanning();
+        const isMetadataRefresh = isScanning && State.scanTaskType === 'metadata';
         const scanText = isScanning
-            ? I18nManager.t('file_repo.menu_stop_scan')
+            ? I18nManager.t(isMetadataRefresh ? 'file_repo.menu_stop_metadata' : 'file_repo.menu_stop_scan')
             : I18nManager.t('file_repo.menu_start_scan');
         const scanClass = isScanning ? 'menu-item text-danger' : 'menu-item';
 
         menu.textContent = '';
+        const refreshItem = document.createElement('div');
+        refreshItem.className = isScanning ? 'menu-item disabled' : 'menu-item';
+        refreshItem.id = 'album-menu-refresh-metadata';
+        refreshItem.textContent = I18nManager.t('file_repo.menu_refresh_metadata');
+        refreshItem.setAttribute('aria-disabled', String(isScanning));
+        menu.appendChild(refreshItem);
+
+        refreshItem.onclick = () => {
+            menu.classList.remove('show');
+            if (!App.isScanning()) App.confirmMetadataRefresh();
+        };
+
         const scanItem = document.createElement('div');
         scanItem.className = scanClass;
         scanItem.id = 'album-menu-scan';
@@ -269,7 +292,10 @@ const UIController = {
      * 返回值说明：无
      */
     showScanProgress() {
-        UIComponents.showProgressBar('#album-main-content', I18nManager.t('file_repo.scanning'));
+        const progressText = State.scanTaskType === 'metadata'
+            ? I18nManager.t('file_repo.metadata_refreshing')
+            : I18nManager.t('file_repo.scanning');
+        UIComponents.showProgressBar('#album-main-content', progressText);
         const overlay = document.querySelector('#album-main-content .common-progress-overlay');
         if (overlay) overlay.style.display = 'flex';
     },
@@ -1227,6 +1253,42 @@ const App = {
     },
 
     /**
+     * 用途说明：弹出确认框，询问是否补全当前索引中缺少的媒体信息。
+     * 入参说明：无
+     * 返回值说明：无
+     */
+    confirmMetadataRefresh() {
+        if (State.repoPermission !== 'admin' || this.isScanning()) return;
+        UIComponents.showConfirmModal({
+            title: I18nManager.t('file_repo.metadata_refresh_confirm_title'),
+            message: I18nManager.t('file_repo.metadata_refresh_confirm_msg'),
+            confirmText: I18nManager.t('file_repo.menu_refresh_metadata'),
+            onConfirm: () => this.handleMetadataRefresh()
+        });
+    },
+
+    /**
+     * 用途说明：启动缺失信息补全任务，并复用索引任务的进度展示与轮询。
+     * 入参说明：无
+     * 返回值说明：无
+     */
+    handleMetadataRefresh() {
+        State.scanTaskType = 'metadata';
+        API.refreshMetadata(
+            () => {
+                Toast.show(I18nManager.t('file_repo.metadata_refresh_started'));
+                UIController.toggleScanUI(true);
+                UIController.showScanProgress();
+                this.startScanPolling();
+            },
+            (msg) => {
+                State.scanTaskType = '';
+                Toast.show(msg);
+            }
+        );
+    },
+
+    /**
      * 用途说明：弹出确认框询问是否开始建立索引，支持选择重新扫描全部索引。
      * 入参说明：无
      * 返回值说明：无
@@ -1248,6 +1310,7 @@ const App = {
      * 返回值说明：无
      */
     handleStartScan(fullScan = false) {
+        State.scanTaskType = 'scan';
         API.startScan(fullScan,
             () => {
                 Toast.show(I18nManager.t('file_repo.scan_started'));
@@ -1255,7 +1318,10 @@ const App = {
                 UIController.showScanProgress();
                 this.startScanPolling();
             },
-            (msg) => Toast.show(msg)
+            (msg) => {
+                State.scanTaskType = '';
+                Toast.show(msg);
+            }
         );
     },
 
@@ -1284,10 +1350,14 @@ const App = {
                     if (data.status === ProgressStatus.PROCESSING) {
                         UIComponents.renderProgress('#album-main-content', data.progress);
                     } else {
+                        /** @type {string} */
+                        const taskType = State.scanTaskType;
                         this.stopScanPolling();
                         UIController.toggleScanUI(false);
                         if (data.status === ProgressStatus.COMPLETED) {
-                            Toast.show(I18nManager.t('file_repo.scan_finished'));
+                            Toast.show(I18nManager.t(
+                                taskType === 'metadata' ? 'file_repo.metadata_refresh_finished' : 'file_repo.scan_finished'
+                            ));
                             this.loadFirstPage();
                         }
                     }
@@ -1311,6 +1381,7 @@ const App = {
             clearInterval(State.scanInterval);
             State.scanInterval = null;
         }
+        State.scanTaskType = '';
         UIComponents.hideProgressBar('#album-main-content');
     },
 
@@ -1323,6 +1394,7 @@ const App = {
         API.getScanProgress(
             (data) => {
                 if (data.status === ProgressStatus.PROCESSING) {
+                    State.scanTaskType = 'scan';
                     UIController.toggleScanUI(true);
                     UIController.showScanProgress();
                     this.startScanPolling();

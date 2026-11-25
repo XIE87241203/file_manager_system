@@ -9,7 +9,9 @@ class ProgressStatus(Enum):
     """
     IDLE = "idle"
     PROCESSING = "processing"
+    PAUSED = "paused"
     COMPLETED = "completed"
+    STOPPED = "stopped"
     ERROR = "error"
 
 @dataclass

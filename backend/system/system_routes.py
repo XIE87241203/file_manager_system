@@ -1,15 +1,78 @@
 from dataclasses import asdict
+from typing import Any, Tuple
 
 from flask import Blueprint, request
 
 from backend.auth.auth_middleware import token_required
 from backend.common.i18n_utils import t
-from backend.common.response import success_response
+from backend.common.response import error_response, success_response
+from backend.db.db_constants import DBConstants
+from backend.system.changelog_models import ChangelogResult
+from backend.system.changelog_service import ChangelogService
 from backend.system.system_service import LogDirectoryInfo, SystemService
+from backend.user.user_service import userService
 from config import GlobalConfig
 
 # 创建系统管理模块的蓝图
 system_bp = Blueprint('system', __name__)
+
+
+def _can_view_changelog(username: str) -> bool:
+    """
+    用途说明：判断用户是否有权查看更新日志。
+    入参说明：username (str): 已通过 Token 校验的登录名。
+    返回值说明：bool: 系统管理员或任一仓库管理员返回 True，普通成员返回 False。
+    """
+    if userService.is_admin(username):
+        return True
+    permissions: dict[int, str] = userService.get_repo_permissions(username)
+    return any(
+        permission == DBConstants.UserRepositoryPermission.PERMISSION_ADMIN
+        for permission in permissions.values()
+    )
+
+
+@system_bp.route('/changelog', methods=['GET'])
+@token_required
+def get_changelog() -> Tuple[Any, int]:
+    """
+    用途说明：获取首页更新日志，支持全部展示和仅展示未读版本。
+    入参说明：Query 参数 scope (str, 可选): all 或 unread，默认 unread；用户名来自 Token。
+    返回值说明：Tuple[Any, int]: 统一 JSON 响应，data 包含当前版本、已读版本、自动弹出标识和日志条目。
+    """
+    if not _can_view_changelog(request.username):
+        return error_response(t('sys_changelog_forbidden'), 403)
+    scope: str = request.args.get('scope', default='unread', type=str)
+    if scope not in ('all', 'unread'):
+        return error_response(t('sys_changelog_scope_invalid'), 400)
+    try:
+        seen_version: str | None = userService.get_changelog_seen_version(request.username)
+        result: ChangelogResult = ChangelogService.get_changelog(scope, seen_version)
+        return success_response(t('sys_changelog_get_success'), data=asdict(result), log=False)
+    except Exception:
+        return error_response(t('sys_changelog_load_failed'), 500)
+
+
+@system_bp.route('/changelog/read', methods=['POST'])
+@token_required
+def mark_changelog_read() -> Tuple[Any, int]:
+    """
+    用途说明：记录当前用户已看过指定版本的更新日志。
+    入参说明：JSON Body 字段 version (str): 弹窗展示的当前版本号，必须存在于日志文件；用户名来自 Token。
+    返回值说明：Tuple[Any, int]: 统一 JSON 响应，成功时不再自动弹出同版本日志。
+    """
+    if not _can_view_changelog(request.username):
+        return error_response(t('sys_changelog_forbidden'), 403)
+    data: Any = request.get_json(silent=True)
+    if not isinstance(data, dict) or not isinstance(data.get('version'), str):
+        return error_response(t('sys_changelog_version_invalid'), 400)
+    version: str = data['version'].strip()
+    if not ChangelogService.is_known_version(version):
+        return error_response(t('sys_changelog_version_unknown'), 400)
+    if not userService.mark_changelog_seen(request.username, version):
+        return error_response(t('sys_changelog_save_failed'), 500)
+    return success_response(t('sys_changelog_save_success'), log=False)
+
 
 @system_bp.route('/logs', methods=['GET'])
 @token_required

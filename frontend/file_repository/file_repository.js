@@ -12,6 +12,7 @@ const State = {
     fileType: '', // 新增：文件类型筛选
     searchHistory: false,
     scanInterval: null,
+    scanTaskType: '', // 当前任务类型：scan 表示建立索引，metadata 表示补全缺少信息
     thumbnailInterval: null,
     thumbnailCount: 0, // 新增：记录缩略图剩余数量
     selectedPaths: new Set(),
@@ -89,8 +90,12 @@ const UIController = {
         }
 
         const isScanning = App.isScanning();
-        const scanBtnText = isScanning ? I18nManager.t('file_repo.menu_stop_scan') : I18nManager.t('file_repo.menu_start_scan');
+        const isMetadataRefresh = isScanning && State.scanTaskType === 'metadata';
+        const scanBtnText = isScanning
+            ? I18nManager.t(isMetadataRefresh ? 'file_repo.menu_stop_metadata' : 'file_repo.menu_stop_scan')
+            : I18nManager.t('file_repo.menu_start_scan');
         const scanBtnClass = isScanning ? 'menu-item text-danger' : 'menu-item';
+        const refreshMetadataClass = isScanning ? 'menu-item disabled' : 'menu-item';
 
         const isThumbnailGenerating = State.thumbnailInterval !== null;
         const thumbnailProgressText = I18nManager.t('file_repo.menu_thumb_remaining', { count: State.thumbnailCount });
@@ -102,6 +107,7 @@ const UIController = {
 
         // 渲染菜单内容
         menu.innerHTML = `
+            <div class="${refreshMetadataClass}" id="menu-btn-refresh-metadata" aria-disabled="${isScanning}">${I18nManager.t('file_repo.menu_refresh_metadata')}</div>
             <div class="${scanBtnClass}" id="menu-btn-scan">${scanBtnText}</div>
             <div class="${thumbnailClass}" id="menu-btn-thumbnail"><span>${initialThumbnailText}</span></div>
             <div class="menu-divider"></div>
@@ -121,6 +127,11 @@ const UIController = {
         }
 
         // 绑定菜单项事件
+        menu.querySelector('#menu-btn-refresh-metadata').onclick = () => {
+            menu.classList.remove('show');
+            if (!isScanning) App.confirmMetadataRefresh();
+        };
+
         menu.querySelector('#menu-btn-scan').onclick = () => {
             menu.classList.remove('show');
             if (isScanning) App.handleStopScan();
@@ -490,6 +501,42 @@ const App = {
     },
 
     /**
+     * 用途说明：弹出确认框，询问是否补全当前索引中缺少的媒体信息。
+     * 入参说明：无
+     * 返回值说明：无
+     */
+    confirmMetadataRefresh() {
+        if (this.isScanning()) return;
+        UIComponents.showConfirmModal({
+            title: I18nManager.t('file_repo.metadata_refresh_confirm_title'),
+            message: I18nManager.t('file_repo.metadata_refresh_confirm_msg'),
+            confirmText: I18nManager.t('file_repo.menu_refresh_metadata'),
+            onConfirm: () => this.handleMetadataRefresh()
+        });
+    },
+
+    /**
+     * 用途说明：启动缺失信息补全任务，并复用索引任务的进度展示与轮询。
+     * 入参说明：无
+     * 返回值说明：无
+     */
+    handleMetadataRefresh() {
+        State.scanTaskType = 'metadata';
+        FileRepositoryAPI.refreshMetadata(
+            () => {
+                Toast.show(I18nManager.t('file_repo.metadata_refresh_started'));
+                UIController.toggleScanUI(true);
+                UIComponents.showProgressBar('.main-content', I18nManager.t('file_repo.metadata_refreshing'));
+                this.startScanPolling();
+            },
+            (msg) => {
+                State.scanTaskType = '';
+                Toast.show(msg);
+            }
+        );
+    },
+
+    /**
      * 用途说明：弹出确认框询问是否开始建立索引
      * 入参说明：无
      * 返回值说明：无
@@ -510,6 +557,7 @@ const App = {
      * @returns {void} - 返回值说明：无
      */
     handleStartScan(fullScan = false) {
+        State.scanTaskType = 'scan';
         FileRepositoryAPI.startScan(fullScan,
             () => {
                 Toast.show(I18nManager.t('file_repo.scan_started'));
@@ -517,7 +565,10 @@ const App = {
                 UIComponents.showProgressBar('.main-content', I18nManager.t('file_repo.scanning'));
                 this.startScanPolling();
             },
-            (msg) => Toast.show(msg)
+            (msg) => {
+                State.scanTaskType = '';
+                Toast.show(msg);
+            }
         );
     },
 
@@ -546,10 +597,14 @@ const App = {
                     if (data.status === ProgressStatus.PROCESSING) {
                         UIComponents.renderProgress('.main-content', data.progress);
                     } else {
+                        /** @type {string} */
+                        const taskType = State.scanTaskType;
                         this.stopScanPolling();
                         UIController.toggleScanUI(false);
                         if (data.status === ProgressStatus.COMPLETED) {
-                            Toast.show(I18nManager.t('file_repo.scan_finished'));
+                            Toast.show(I18nManager.t(
+                                taskType === 'metadata' ? 'file_repo.metadata_refresh_finished' : 'file_repo.scan_finished'
+                            ));
                             State.page = 1;
                             this.loadFileList();
                         }
@@ -574,6 +629,7 @@ const App = {
             clearInterval(State.scanInterval);
             State.scanInterval = null;
         }
+        State.scanTaskType = '';
         UIComponents.hideProgressBar('.main-content');
     },
 
@@ -586,6 +642,7 @@ const App = {
         FileRepositoryAPI.getProgress(
             (data) => {
                 if (data.status === ProgressStatus.PROCESSING) {
+                    State.scanTaskType = 'scan';
                     UIController.toggleScanUI(true);
                     UIComponents.showProgressBar('.main-content', I18nManager.t('file_repo.scanning'));
                     this.startScanPolling();

@@ -58,6 +58,8 @@ class AlbumSettings:
     """
     # 缩略图存储路径：相对路径以 data 目录为基准（默认 data/thumb），也支持绝对路径
     thumbnail_dir: str = "thumb"
+    # 开启后，新建索引发现的新增图片会自动去重加入人脸识别队列
+    auto_face_recognition: bool = False
 
 
 @dataclass

@@ -94,6 +94,95 @@ class FileIndexProcessor(BaseDBProcessor):
         return BaseDBProcessor._execute_batch(query, data, conn=conn)
 
     @staticmethod
+    def get_missing_album_metadata(after_id: int, limit: int = 200,
+                                   conn: Optional[sqlite3.Connection] = None) -> List[FileIndexDBModel]:
+        """
+        用途说明：按主键游标分批获取当前仓库中缺少媒体信息的有效图片或视频索引。
+        入参说明：
+            after_id (int): 上一批最后一个文件索引主键，首批传 0。
+            limit (int): 单批最大记录数，默认 200。
+            conn (Optional[sqlite3.Connection]): 可选的外部事务连接。
+        返回值说明：List[FileIndexDBModel] - 按主键升序排列的待补全索引记录。
+        """
+        file_index: type = DBConstants.FileIndex
+        missing_clause: str = ' OR '.join(
+            f"({column} IS NULL OR {column} = '')" for column in (
+                file_index.COL_FILE_MTIME,
+                file_index.COL_FILE_EXIF_TIME,
+                file_index.COL_FILE_LOCATION
+            )
+        )
+        query: str = (
+            f"SELECT * FROM {file_index.TABLE_NAME} "
+            f"WHERE {file_index.COL_ID} > ? "
+            f"AND {file_index.COL_FILE_TYPE} IN (?, ?) "
+            f"AND ({file_index.COL_RECYCLE_BIN_TIME} IS NULL OR {file_index.COL_RECYCLE_BIN_TIME} = '') "
+            f"AND ({missing_clause}) ORDER BY {file_index.COL_ID} ASC LIMIT ?"
+        )
+        rows: List[dict] = BaseDBProcessor._execute(
+            query, (after_id, 'image', 'video', limit), is_query=True, conn=conn
+        )
+        return [FileIndexDBModel(**row) for row in rows]
+
+    @staticmethod
+    def count_missing_album_metadata(conn: Optional[sqlite3.Connection] = None) -> int:
+        """
+        用途说明：统计当前仓库中缺少媒体信息的有效图片或视频索引数量。
+        入参说明：conn (Optional[sqlite3.Connection]): 可选的外部事务连接。
+        返回值说明：int - 待补全记录数量。
+        """
+        file_index: type = DBConstants.FileIndex
+        missing_clause: str = ' OR '.join(
+            f"({column} IS NULL OR {column} = '')" for column in (
+                file_index.COL_FILE_MTIME,
+                file_index.COL_FILE_EXIF_TIME,
+                file_index.COL_FILE_LOCATION
+            )
+        )
+        query: str = (
+            f"SELECT COUNT(*) AS total FROM {file_index.TABLE_NAME} "
+            f"WHERE {file_index.COL_FILE_TYPE} IN (?, ?) "
+            f"AND ({file_index.COL_RECYCLE_BIN_TIME} IS NULL OR {file_index.COL_RECYCLE_BIN_TIME} = '') "
+            f"AND ({missing_clause})"
+        )
+        result: Optional[dict] = BaseDBProcessor._execute(
+            query, ('image', 'video'), is_query=True, fetch_one=True, conn=conn
+        )
+        return int(result['total']) if result else 0
+
+    @staticmethod
+    def batch_update_album_metadata(data_list: List[FileIndexDBModel],
+                                    conn: Optional[sqlite3.Connection] = None) -> int:
+        """
+        用途说明：批量补全索引中的媒体修改时间、拍摄时间和拍摄地点，只覆盖原本为空的字段。
+        入参说明：
+            data_list (List[FileIndexDBModel]): 从物理文件读取的媒体信息列表，单批不超过 200 条。
+            conn (Optional[sqlite3.Connection]): 可选的外部事务连接。
+        返回值说明：int - 实际更新的索引记录数量；不修改主键、扫描时间和回收站状态。
+        """
+        if not data_list:
+            return 0
+        file_index: type = DBConstants.FileIndex
+        query: str = (
+            f"UPDATE {file_index.TABLE_NAME} SET "
+            f"{file_index.COL_FILE_MTIME} = CASE "
+            f"WHEN {file_index.COL_FILE_MTIME} IS NULL OR {file_index.COL_FILE_MTIME} = '' "
+            f"THEN ? ELSE {file_index.COL_FILE_MTIME} END, "
+            f"{file_index.COL_FILE_EXIF_TIME} = CASE "
+            f"WHEN {file_index.COL_FILE_EXIF_TIME} IS NULL OR {file_index.COL_FILE_EXIF_TIME} = '' "
+            f"THEN ? ELSE {file_index.COL_FILE_EXIF_TIME} END, "
+            f"{file_index.COL_FILE_LOCATION} = CASE "
+            f"WHEN {file_index.COL_FILE_LOCATION} IS NULL OR {file_index.COL_FILE_LOCATION} = '' "
+            f"THEN ? ELSE {file_index.COL_FILE_LOCATION} END "
+            f"WHERE {file_index.COL_FILE_PATH} = ?"
+        )
+        data: List[tuple] = [
+            (item.file_mtime, item.file_exif_time, item.file_location, item.file_path)
+            for item in data_list
+        ]
+        return BaseDBProcessor._execute_batch(query, data, conn=conn)
+
+    @staticmethod
     def delete_by_scan_time_not_equal(scan_time: str, conn: Optional[sqlite3.Connection] = None) -> int:
         """
         用途说明：删除扫描时间不等于指定时间戳的所有记录。
@@ -197,11 +286,20 @@ class FileIndexProcessor(BaseDBProcessor):
         return result if result is not None else 0
 
     @staticmethod
-    def clear_all_table() -> bool:
+    def clear_all_table(conn: Optional[sqlite3.Connection] = None) -> bool:
         """
-        用途说明：清空文件索引表的所有内容。
+        用途说明：清空文件索引表的所有内容，可参与调用方事务。
+        入参说明：conn (Optional[sqlite3.Connection]) - 可选的外部事务连接。
         返回值说明：返回是否清空成功。
         """
+        if conn is not None:
+            BaseDBProcessor._execute(f"DELETE FROM {DBConstants.FileIndex.TABLE_NAME}", conn=conn)
+            BaseDBProcessor._execute(
+                "DELETE FROM sqlite_sequence WHERE name=?",
+                (DBConstants.FileIndex.TABLE_NAME,),
+                conn=conn
+            )
+            return True
         return BaseDBProcessor._clear_table(DBConstants.FileIndex.TABLE_NAME)
 
     @staticmethod

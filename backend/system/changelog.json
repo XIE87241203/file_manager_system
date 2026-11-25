@@ -1,0 +1,80 @@
+{
+  "entries": [
+    {
+      "version": "1.1.1",
+      "date": "2026-11-25",
+      "highlights": [
+        {
+          "zh": "相册新增 YuNet + SFace CPU 人脸识别，普通双核 CPU 也能运行。",
+          "en": "Added YuNet + SFace face recognition on CPU, suitable for machines without a dedicated GPU."
+        },
+        {
+          "zh": "人脸识别队列持久化保存，全系统同一时间只运行一个任务，支持开始、暂停、停止并清空，重启后可继续处理。",
+          "en": "Added a persistent, system-wide single-task face queue with start, pause, stop and clear controls, plus resume support after restart."
+        },
+        {
+          "zh": "可自动将新增图片加入识别队列并自动去重，人脸识别设置仅系统管理员可见。",
+          "en": "New images can join the face queue automatically with deduplication; face recognition settings are restricted to system administrators."
+        },
+        {
+          "zh": "人脸数据支持一张图片对应多个人脸，方便后续按人物整理和检索。",
+          "en": "Face data now supports multiple people in one image, laying the foundation for future people-based organization and search."
+        },
+        {
+          "zh": "文件索引新增“补全缺少信息”，只处理缺少修改时间、拍摄时间或拍摄地点的记录，无信息的字段会写入标记，避免重复读取。",
+          "en": "Added “Fill Missing Information” for index records lacking modification time, capture time, or location; empty values are marked to avoid repeated reads."
+        },
+        {
+          "zh": "系统启动时检查全部仓库数据库版本，自动执行可靠迁移；迁移失败会回滚并停止启动，且不会在启动时扫描文件。",
+          "en": "Startup now checks every repository database and runs reliable migrations; failed migrations roll back and stop startup, with no startup file scans."
+        },
+        {
+          "zh": "首页新增更新日志入口，管理员打开首页时可自动查看新版主要改动，关闭后同版本不再提醒。",
+          "en": "Added a Home changelog entry; administrators can automatically see new release highlights, with no repeated reminder after closing that version."
+        }
+      ],
+      "rebuild_index_notice": {
+        "zh": "历史图片不会在系统启动时自动扫描或识别人脸。需要人脸结果时，请在相册设置点击“开始识别”；索引缺少媒体信息时，请使用“补全缺少信息”，无需为了数据库迁移重建全量索引。",
+        "en": "Existing images are not scanned or face-indexed automatically at startup. Use “Start Recognition” in Album Settings for face results and “Fill Missing Information” for incomplete media metadata; database migration does not require a full index rebuild."
+      }
+    },
+    {
+      "version": "1.1.0",
+      "date": "2026-11-15",
+      "highlights": [
+        {
+          "zh": "相册新增文件名和文件大小排序、字母标尺，并可隐藏标尺侧边栏。",
+          "en": "Added filename and file-size sorting, an alphabet ruler, and an optional ruler sidebar to the album."
+        },
+        {
+          "zh": "相册支持时间轴、图片/视频筛选、批量选择、媒体预览和详情侧边栏。",
+          "en": "Added album timelines, image/video filters, batch selection, media previews, and a details sidebar."
+        },
+        {
+          "zh": "文件索引新增修改时间、拍摄时间和拍摄地点，媒体详情可直接查看。",
+          "en": "File indexes now include modification time, capture time, and location for display in media details."
+        },
+        {
+          "zh": "新增系统管理员、仓库管理员和仓库成员权限，成员仅可浏览相册。",
+          "en": "Added system administrator, repository administrator, and member roles; members can only browse albums."
+        },
+        {
+          "zh": "首页和登录页支持亮色/暗色主题及中英文切换，接口提示随全站语言变化。",
+          "en": "Added light/dark themes and Chinese/English switching on Home and Login, with matching API messages."
+        },
+        {
+          "zh": "相册缩略图分辨率可配置，文件仓库与相册统一使用按需生成接口。",
+          "en": "Added configurable album thumbnail resolution and a shared on-demand thumbnail endpoint."
+        },
+        {
+          "zh": "系统新增时区设置和日志自动清理，可按保留天数清理过期日志。",
+          "en": "Added system timezone settings and automatic log cleanup based on a configurable retention period."
+        }
+      ],
+      "rebuild_index_notice": {
+        "zh": "历史图片/视频需要重新建立索引，才能补全修改时间、拍摄时间和拍摄地点；也可以使用“补全缺少信息”只处理索引中缺失的记录。",
+        "en": "Rebuild the index for existing images/videos to populate modification time, capture time, and location, or use “Fill Missing Information” to process only incomplete index records."
+      }
+    }
+  ]
+}

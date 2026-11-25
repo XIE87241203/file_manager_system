@@ -3,7 +3,7 @@ class DBConstants:
     用途：数据库表名及列名常量类，统一管理所有数据库结构相关的硬编码字符串
     """
 
-    DB_VERSION: int = 23  # 当前数据库版本，升级至 23 以支持记录图片/视频拍摄地点
+    DB_VERSION: int = 25  # 当前数据库版本，升级至 25 以支持持久化图片人脸识别队列
 
     class VersionInfo:
         """用途：version_info 表相关的常量"""
@@ -27,8 +27,13 @@ class DBConstants:
         COL_FILE_MTIME: str = 'file_mtime'         # 新增：文件最后修改时间（用于相册时间轴分组）
         COL_FILE_EXIF_TIME: str = 'file_exif_time' # 新增：EXIF 拍摄时间/视频创建时间（相册优先使用）
         COL_FILE_LOCATION: str = 'file_location'   # 新增：拍摄地点（EXIF GPS / 视频 ISO 6709 坐标文本）
-        # 相册实际排序时间表达式：优先 EXIF/拍摄时间，缺失时回退文件修改时间
-        ALBUM_TIME_EXPRESSION: str = f'COALESCE({COL_FILE_EXIF_TIME}, {COL_FILE_MTIME})'
+        # 已检查但确实不存在的媒体信息标记，避免每次手动补全都重复读取同一文件
+        NO_INFO_VALUE: str = '__NO_INFO__'
+        # 相册实际排序时间表达式：优先 EXIF/拍摄时间，缺失时回退文件修改时间；无信息标记按空值处理
+        ALBUM_TIME_EXPRESSION: str = (
+            f"COALESCE(NULLIF({COL_FILE_EXIF_TIME}, '{NO_INFO_VALUE}'), "
+            f"NULLIF({COL_FILE_MTIME}, '{NO_INFO_VALUE}'))"
+        )
         # 相册逻辑排序字段名（非真实列，仅用于接口参数与排序表达式映射）
         ALBUM_TIME_FIELD: str = 'album_time'
 
@@ -137,6 +142,40 @@ class DBConstants:
         COL_ORGANIZED_NAME: str = 'organized_name'    # 整理后文件名 (含后缀)
         COL_ORGANIZE_TIME: str = 'organize_time'
 
+    class FaceIndexState:
+        """用途：face_file_index_state 表相关的常量（记录图片已处理状态，含无脸图片）"""
+        TABLE_NAME: str = 'face_file_index_state'
+        COL_ID: str = 'id'
+        COL_FILE_PATH: str = 'file_path'
+        COL_FILE_MD5: str = 'file_md5'
+        COL_PIPELINE_VERSION: str = 'pipeline_version'
+        COL_FACE_COUNT: str = 'face_count'
+        COL_PROCESSED_AT: str = 'processed_at'
+
+    class FaceRecognitionQueue:
+        """用途：face_recognition_queue 表相关的常量（按文件路径去重的待识别图片队列）"""
+        TABLE_NAME: str = 'face_recognition_queue'
+        COL_ID: str = 'id'
+        COL_FILE_PATH: str = 'file_path'
+        COL_FILE_MD5: str = 'file_md5'
+        COL_QUEUED_AT: str = 'queued_at'
+
+    class FaceEmbedding:
+        """用途：face_embeddings 表相关的常量（一张图片中的每个人脸独立一行）"""
+        TABLE_NAME: str = 'face_embeddings'
+        COL_ID: str = 'id'
+        COL_FILE_PATH: str = 'file_path'
+        COL_FILE_MD5: str = 'file_md5'
+        COL_FACE_INDEX: str = 'face_index'
+        COL_BBOX_X: str = 'bbox_x'
+        COL_BBOX_Y: str = 'bbox_y'
+        COL_BBOX_WIDTH: str = 'bbox_width'
+        COL_BBOX_HEIGHT: str = 'bbox_height'
+        COL_CONFIDENCE: str = 'confidence'
+        COL_EMBEDDING: str = 'embedding'
+        COL_PIPELINE_VERSION: str = 'pipeline_version'
+        COL_CREATED_AT: str = 'created_at'
+
     class Repository:
         """用途：repositories 主表相关的常量（多仓库元数据，存于独立主数据库）"""
         TABLE_NAME: str = 'repositories'
@@ -155,6 +194,13 @@ class DBConstants:
         COL_IS_ADMIN: str = 'is_admin'              # 是否管理员（1 是 / 0 否）
         COL_CREATE_TIME: str = 'create_time'
         COL_UPDATE_TIME: str = 'update_time'
+
+    class UserChangelogRead:
+        """用途：user_changelog_reads 表相关的常量（记录全局用户最后看过的更新日志版本）"""
+        TABLE_NAME: str = 'user_changelog_reads'
+        COL_USER_ID: str = 'user_id'
+        COL_VERSION: str = 'version'
+        COL_READ_TIME: str = 'read_time'
 
     class UserRepositoryPermission:
         """用途：user_repository_permissions 表相关的常量（系统使用者与仓库的授权关系，存于主数据库）"""

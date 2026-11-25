@@ -92,6 +92,13 @@ _MEMBER_ALLOWED_PATHS: set[str] = {
     '/api/file_repository/thumbnail/view',
     '/api/file_repository/thumbnail/ensure',
     '/api/system/version',
+    '/api/system/changelog',
+    '/api/system/changelog/read',
+}
+# 更新日志是全局功能，不依赖当前仓库；由路由自身校验系统管理员或任一仓库管理员权限。
+_CHANGELOG_PATHS: set[str] = {
+    '/api/system/changelog',
+    '/api/system/changelog/read',
 }
 
 
@@ -105,6 +112,8 @@ def enforce_repo_permissions() -> Optional[Tuple[Any, int]]:
     path: str = request.path
     is_repo_scoped: bool = path.startswith(_REPO_SCOPED_PREFIXES)
     is_member_restricted_global: bool = path.startswith(('/api/setting/', '/api/system/'))
+    if path in _CHANGELOG_PATHS:
+        return None
     if not path.startswith('/api/') or not (is_repo_scoped or is_member_restricted_global):
         return None
     token: Optional[str] = get_request_token()
@@ -233,8 +242,8 @@ def start_server() -> None:
     # 首次运行生成默认文件名整理脚本（整理脚本路径留空时使用；已存在则不覆盖）
     from backend.organize.rename_script import ensure_default_script
     ensure_default_script()
-    # 初始化默认仓库业务库
-    db_manager.init_db()
+    # 启动时检查全部仓库业务库版本，旧库迁移完成后才继续启动服务
+    db_manager.init_all_repo_databases()
     # 业务库建表完成后恢复查重与批量检测状态，避免模块导入时查询尚未创建的表
     DuplicateService.init_service()
     BatchCheckService.init_service()

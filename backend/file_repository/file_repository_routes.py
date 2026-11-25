@@ -8,9 +8,11 @@ from backend.auth.auth_middleware import token_required
 from backend.common.i18n_utils import t
 from backend.common.log_utils import LogUtils
 from backend.common.progress_manager import ProgressStatus
+from backend.common.repo_context import get_current_repo_id
 from backend.common.response import success_response, error_response
 from backend.common.timezone_utils import TimezoneUtils
 from backend.common.utils import Utils
+from backend.db.db_constants import DBConstants
 from backend.file_repository.duplicate_check.duplicate_service import DuplicateService
 from backend.file_repository.file_service import FileService
 from backend.file_repository.recycle_bin_service import RecycleBinService
@@ -18,6 +20,7 @@ from backend.file_repository.scan_service import ScanService, ScanMode
 from backend.file_repository.thumbnail.thumbnail_path_utils import ThumbnailPathUtils
 from backend.file_repository.thumbnail.thumbnail_service import ThumbnailService
 from backend.model.thumbnail_result import ThumbnailResult
+from backend.user.user_service import userService
 
 # 创建文件仓库模块的蓝图
 file_repo_bp = Blueprint('file_repository', __name__)
@@ -71,6 +74,26 @@ def start_scan():
         return success_response(t('repo_scan_started', type=type_str))
     else:
         return error_response(t('repo_scan_running'), 400)
+
+
+@file_repo_bp.route('/metadata-refresh', methods=['POST'])
+@token_required
+def start_metadata_refresh():
+    """
+    用途说明：异步补全当前仓库索引中缺少媒体信息的文件，仅仓库管理员可操作。
+    入参说明：无；仓库 ID 来自请求上下文。
+    返回值说明：JSON 格式响应，任务进度复用文件索引进度接口。
+    """
+    username: str = _get_current_user()
+    repo_id: int = get_current_repo_id()
+    if userService.get_repo_permission(username, repo_id) != DBConstants.UserRepositoryPermission.PERMISSION_ADMIN:
+        LogUtils.error(t('user_repo_admin_required_log', username=username, repo_id=repo_id, path=request.path))
+        return error_response(t('user_repo_admin_required'), 403)
+
+    LogUtils.info(t('repo_metadata_refresh_request_log', user=username, repo_id=repo_id))
+    if ScanService.start_metadata_refresh_task():
+        return success_response(t('repo_metadata_refresh_started'))
+    return error_response(t('repo_scan_running'), 400)
 
 
 @file_repo_bp.route('/stop', methods=['POST'])

@@ -8,6 +8,7 @@ from backend.common.log_utils import LogUtils
 from backend.common.repo_context import get_current_repo_id
 from backend.common.utils import Utils
 from backend.db.db_operations import DBOperations
+from backend.db.db_constants import DBConstants
 from backend.file_repository.thumbnail.thumbnail_path_utils import ThumbnailPathUtils
 from backend.model.album_item_result import AlbumItemResult
 from backend.model.album_settings_result import AlbumSettingsResult
@@ -68,9 +69,13 @@ class AlbumService:
                 thumbnail_path=item.thumbnail_path or None,
                 video_duration=item.video_duration if file_type == FileType.VIDEO.value else None,
                 scan_time=item.scan_time,
-                file_mtime=item.file_mtime,
-                file_exif_time=item.file_exif_time,
-                file_location=item.file_location
+                file_mtime=None if item.file_mtime == DBConstants.FileIndex.NO_INFO_VALUE else item.file_mtime,
+                file_exif_time=(
+                    None if item.file_exif_time == DBConstants.FileIndex.NO_INFO_VALUE else item.file_exif_time
+                ),
+                file_location=(
+                    None if item.file_location == DBConstants.FileIndex.NO_INFO_VALUE else item.file_location
+                )
             ))
 
         return PaginationResult(
@@ -105,33 +110,42 @@ class AlbumService:
     @staticmethod
     def get_settings() -> AlbumSettingsResult:
         """
-        用途说明：获取相册设置（缩略图存储路径、实际路径与当前仓库缩略图最大边长）。
+        用途说明：获取相册设置（缩略图存储路径、实际路径、缩略图最大边长与自动人脸识别开关）。
         入参说明：无
         返回值说明：AlbumSettingsResult - 相册设置数据。
         """
         thumbnail_size: int = repositoryService.get_current_config().thumbnail_size
         if isinstance(thumbnail_size, bool) or not isinstance(thumbnail_size, int) or thumbnail_size <= 0:
             thumbnail_size = 256
+        auto_face_recognition: bool = settingService.get_config().album.auto_face_recognition
+        if not isinstance(auto_face_recognition, bool):
+            auto_face_recognition = False
         return AlbumSettingsResult(
             thumbnail_dir=ThumbnailPathUtils.get_configured_dir(),
             thumbnail_dir_effective=ThumbnailPathUtils.get_thumbnail_dir(),
-            thumbnail_size=thumbnail_size
+            thumbnail_size=thumbnail_size,
+            auto_face_recognition=auto_face_recognition
         )
 
     @staticmethod
     def update_settings(thumbnail_dir: str, operator_name: str,
-                        thumbnail_size: Optional[int] = None) -> Optional[AlbumSettingsResult]:
+                        thumbnail_size: Optional[int] = None,
+                        auto_face_recognition: Optional[bool] = None) -> Optional[AlbumSettingsResult]:
         """
-        用途说明：更新缩略图存储路径与当前仓库缩略图最大边长，并确保目录可用。
+        用途说明：更新缩略图存储路径、当前仓库缩略图最大边长与自动人脸识别开关，并确保目录可用。
         入参说明：
             thumbnail_dir (str): 用户输入的路径（相对 data 目录或绝对路径），空值使用默认 thumb。
             operator_name (str): 操作人用户名，用于日志。
             thumbnail_size (Optional[int]): 缩略图最大边长（像素），None 表示不修改；仅接受正整数。
+            auto_face_recognition (Optional[bool]): 自动识别新增图片开关，None 表示不修改；仅接受布尔值。
         返回值说明：Optional[AlbumSettingsResult] - 更新后的设置，失败返回 None。
         """
         if thumbnail_size is not None and (
                 isinstance(thumbnail_size, bool) or not isinstance(thumbnail_size, int) or thumbnail_size <= 0):
             LogUtils.error(t('album_thumbnail_size_invalid', value=thumbnail_size))
+            return None
+        if auto_face_recognition is not None and not isinstance(auto_face_recognition, bool):
+            LogUtils.error(t('album_auto_face_recognition_invalid', value=auto_face_recognition))
             return None
 
         raw_value: str = (thumbnail_dir or "").strip() or ThumbnailPathUtils.DEFAULT_DIR_NAME
@@ -150,9 +164,12 @@ class AlbumService:
             LogUtils.error(t('album_thumbnail_dir_create_failed', path=raw_value, error=str(e)))
             return None
 
-        # 通过统一设置服务持久化存储路径，保证 setting.json 结构与其他配置一致
+        # 通过统一设置服务持久化存储路径与自动识别开关，保证 setting.json 结构与其他配置一致
+        album_settings: dict = {"thumbnail_dir": raw_value}
+        if auto_face_recognition is not None:
+            album_settings["auto_face_recognition"] = auto_face_recognition
         updated: bool = settingService.update_settings(
-            {"album": {"thumbnail_dir": raw_value}}, operator_name
+            {"album": album_settings}, operator_name
         )
         if not updated:
             LogUtils.error(t('album_settings_update_failed_log', user=operator_name))

@@ -7,6 +7,8 @@ from backend.db.db_manager import db_manager
 from backend.db.processor_manager import processor_manager
 from backend.model.db.already_entered_file_db_model import AlreadyEnteredFileDBModel
 from backend.model.db.duplicate_group_db_model import DuplicateGroupDBModel
+from backend.model.db.face_embedding_db_model import FaceEmbeddingDBModel
+from backend.model.db.face_queue_item_db_model import FaceQueueItemDBModel
 from backend.model.db.file_index_db_model import FileIndexDBModel
 from backend.model.db.file_repo_detail_db_model import FileRepoDetailDBModel
 from backend.model.db.history_file_index_db_model import HistoryFileIndexDBModule
@@ -14,6 +16,7 @@ from backend.model.db.image_feature_db_model import ImageFeatureDBModel
 from backend.model.db.pending_entry_file_db_model import PendingEntryFileDBModel
 from backend.model.db.video_feature_db_model import VideoFeatureDBModel
 from backend.model.duplicate_group_result import DuplicateGroupResult
+from backend.model.face_index_result import FaceIndexSummaryResult
 from backend.model.pagination_result import PaginationResult
 from backend.model.video_file_info_result import VideoFileInfoResult
 
@@ -45,25 +48,67 @@ class DBOperations:
         return bool(processor_manager.file_index_processor.batch_update_scan_time(file_paths, scan_time))
 
     @staticmethod
+    def get_missing_album_metadata(after_id: int, limit: int = 200) -> List[FileIndexDBModel]:
+        """
+        用途说明：分批获取缺少媒体信息的有效图片或视频索引。
+        入参说明：after_id (int): 上一批最后主键；limit (int): 单批最大数量，默认 200。
+        返回值说明：List[FileIndexDBModel] - 按主键升序排列的待补全记录。
+        """
+        return processor_manager.file_index_processor.get_missing_album_metadata(after_id, limit)
+
+    @staticmethod
+    def count_missing_album_metadata() -> int:
+        """
+        用途说明：统计当前仓库缺少媒体信息的有效媒体索引数量。
+        入参说明：无。
+        返回值说明：int - 待补全记录数量。
+        """
+        return processor_manager.file_index_processor.count_missing_album_metadata()
+
+    @staticmethod
+    def batch_update_album_metadata(data_list: List[FileIndexDBModel]) -> int:
+        """
+        用途说明：批量补全媒体索引的三个相册字段，仅覆盖空字段。
+        入参说明：data_list (List[FileIndexDBModel]): 从文件读取的媒体信息列表。
+        返回值说明：int - 实际更新的索引记录数量。
+        """
+        return processor_manager.file_index_processor.batch_update_album_metadata(data_list)
+
+    @staticmethod
     def delete_files_by_not_scan_time(scan_time: str) -> int:
         """
-        用途说明：删除扫描时间不等于指定时间戳的文件索引（用于清理已失效的文件）。
+        用途说明：删除扫描时间不等于指定时间戳的文件索引，并同步清理已失效的人脸数据。
         入参说明：scan_time (str): 当前有效的扫描时间戳。
         返回值说明：int: 删除的记录数量。
         """
-        return processor_manager.file_index_processor.delete_by_scan_time_not_equal(scan_time)
+        try:
+            with db_manager.transaction() as conn:
+                deleted_count: int = processor_manager.file_index_processor.delete_by_scan_time_not_equal(
+                    scan_time, conn=conn
+                )
+                if not processor_manager.face_data_processor.cleanup_orphan_data(conn=conn):
+                    raise RuntimeError(t('face_data_orphan_cleanup_failed'))
+                return deleted_count
+        except Exception as e:
+            LogUtils.error(t('repo_delete_stale_files_error', error=str(e)))
+            raise e
 
     @staticmethod
     def clear_all_file_index() -> bool:
         """
-        用途说明：清空文件索引及关联的重复组数据（使用事务确保原子性）。
+        用途说明：清空文件索引、重复组数据与人脸数据（使用事务确保原子性）。
         入参说明：无
         返回值说明：bool: 是否清空成功。
         """
         try:
             with db_manager.transaction() as conn:
-                return processor_manager.file_index_processor.clear_all_table()
-        except Exception:
+                face_cleared: bool = processor_manager.face_data_processor.clear_all_data(conn=conn)
+                if not face_cleared:
+                    raise RuntimeError(t('face_data_operation_failed'))
+                index_cleared: bool = processor_manager.file_index_processor.clear_all_table(conn=conn)
+                return index_cleared
+        except Exception as e:
+            LogUtils.error(t('repo_clear_error', error=str(e)))
             return False
 
     @staticmethod
@@ -96,7 +141,7 @@ class DBOperations:
     @staticmethod
     def delete_file_index_by_path(file_path: str) -> bool:
         """
-        用途说明：删除指定文件索引，并同步维护重复文件分组（使用事务确保原子性）。
+        用途说明：删除指定文件索引，并同步维护重复文件分组与人脸数据（使用事务确保原子性）。
         入参说明：file_path (str): 文件完整路径。
         返回值说明：bool: 是否删除成功。
         """
@@ -106,7 +151,11 @@ class DBOperations:
                 res1: bool = processor_manager.file_index_processor.delete_by_path(file_path, conn=conn)
                 # 2. 从重复组中批量移除（虽然是单个，也调用批量接口）
                 res2: bool = processor_manager.duplicate_group_processor.delete_files_by_paths([file_path], conn=conn)
-                return res1 and res2
+                # 3. 清理该文件的人脸特征与处理状态
+                res3: bool = processor_manager.face_data_processor.delete_by_path(file_path, conn=conn)
+                if not res3:
+                    raise RuntimeError(t('face_data_operation_failed'))
+                return res1 and res2 and res3
         except Exception as e:
             LogUtils.error(t('repo_delete_crash', error=str(e)))
             return False
@@ -203,7 +252,9 @@ class DBOperations:
     @staticmethod
     def batch_move_to_recycle_bin(file_paths: List[str]) -> bool:
         """
-        用途说明：批量将文件移入回收站，并同步维护重复分组（使用事务）。
+        用途说明：批量将文件移入回收站，并同步维护重复分组与人脸队列（使用事务）。
+        入参说明：file_paths (List[str]) - 需要移入回收站的文件完整路径列表。
+        返回值说明：bool - 是否至少移动成功一条记录。
         """
         recycle_time: str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         try:
@@ -212,6 +263,9 @@ class DBOperations:
                 res1: int = processor_manager.file_index_processor.move_to_recycle_bin(file_paths, recycle_time, conn=conn)
                 # 2. 批量从查重结果中移除
                 processor_manager.duplicate_group_processor.delete_files_by_paths(file_paths, conn=conn)
+                # 3. 移除待识别队列项，避免继续识别已移入回收站的图片
+                if not processor_manager.face_data_processor.delete_queue_by_paths(file_paths, conn=conn):
+                    raise RuntimeError(t('face_queue_delete_failed'))
                 return res1 > 0
         except Exception as e:
             LogUtils.error(t('repo_clear_error', error=str(e)))
@@ -232,6 +286,122 @@ class DBOperations:
         返回值说明：Set[str] - 位于这些目录下且回收站标记非空的文件完整路径集合。
         """
         return processor_manager.file_index_processor.get_recycle_bin_paths_under(dir_prefixes)
+
+    # --- 图片人脸索引相关操作 (Face Index) ---
+    @staticmethod
+    def enqueue_pending_face_images(pipeline_version: str) -> bool:
+        """
+        用途说明：将当前仓库全部未按指定流水线处理的图片去重加入人脸识别队列。
+        入参说明：pipeline_version (str) - 当前人脸识别流水线版本。
+        返回值说明：bool - 是否完成入队。
+        """
+        return processor_manager.face_data_processor.enqueue_pending_images(pipeline_version)
+
+    @staticmethod
+    def enqueue_face_images(images: List[FileIndexDBModel]) -> bool:
+        """
+        用途说明：将新建索引发现的图片去重加入人脸识别队列。
+        入参说明：images (List[FileIndexDBModel]) - 新写入的图片索引记录，单批通常不超过 100 条。
+        返回值说明：bool - 是否完成入队。
+        """
+        return processor_manager.face_data_processor.enqueue_images(images)
+
+    @staticmethod
+    def get_queued_face_images(after_queue_id: int = 0,
+                               limit: int = 200) -> List[FaceQueueItemDBModel]:
+        """
+        用途说明：按队列 ID 游标分批读取待识别图片。
+        入参说明：after_queue_id (int) - 上一批最后一个队列 ID；limit (int) - 单批最大数量。
+        返回值说明：List[FaceQueueItemDBModel] - 有序的队列项列表。
+        """
+        return processor_manager.face_data_processor.get_queued_images(after_queue_id, limit)
+
+    @staticmethod
+    def get_face_queue_count() -> int:
+        """
+        用途说明：获取当前仓库待识别队列数量。
+        入参说明：无
+        返回值说明：int - 队列中的图片数量。
+        """
+        return processor_manager.face_data_processor.get_queue_count()
+
+    @staticmethod
+    def delete_face_queue_item(queue_id: int, file_md5: str) -> bool:
+        """
+        用途说明：按队列 ID 和 MD5 移除单个待识别项。
+        入参说明：queue_id (int) - 队列主键；file_md5 (str) - 入队时的 MD5。
+        返回值说明：bool - 是否移除成功。
+        """
+        return processor_manager.face_data_processor.delete_queue_item(queue_id, file_md5)
+
+    @staticmethod
+    def clear_face_queue() -> bool:
+        """
+        用途说明：清空当前仓库待识别队列，保留已保存的人脸特征和处理状态。
+        入参说明：无
+        返回值说明：bool - 是否清空成功。
+        """
+        return processor_manager.face_data_processor.clear_queue()
+
+    @staticmethod
+    def get_pending_face_images(pipeline_version: str, after_file_path: str = '',
+                                limit: int = 200) -> List[FileIndexDBModel]:
+        """
+        用途说明：分批获取尚未按指定流水线处理的相册图片。
+        入参说明：
+            pipeline_version (str): 人脸模型与处理流水线版本。
+            after_file_path (str): 上一批最后一个文件路径。
+            limit (int): 单批最大记录数。
+        返回值说明：List[FileIndexDBModel] - 按文件路径升序排列的图片列表。
+        """
+        return processor_manager.face_data_processor.get_pending_images(
+            pipeline_version, after_file_path, limit
+        )
+
+    @staticmethod
+    def get_face_index_summary(pipeline_version: str) -> FaceIndexSummaryResult:
+        """
+        用途说明：获取当前仓库的图片总数、待处理数量和人脸数量。
+        入参说明：pipeline_version (str): 人脸模型与处理流水线版本。
+        返回值说明：FaceIndexSummaryResult - 人脸索引统计结果。
+        """
+        return processor_manager.face_data_processor.get_index_summary(pipeline_version)
+
+    @staticmethod
+    def save_face_file_result(file_info: FileIndexDBModel, faces: List[FaceEmbeddingDBModel],
+                              pipeline_version: str, queue_id: Optional[int] = None,
+                              queued_md5: Optional[str] = None) -> bool:
+        """
+        用途说明：原子保存一张图片中的全部人脸、处理状态，并移除匹配的队列项。
+        入参说明：
+            file_info (FileIndexDBModel): 图片索引记录。
+            faces (List[FaceEmbeddingDBModel]): 图片中的全部人脸，一人一条。
+            pipeline_version (str): 人脸模型与处理流水线版本。
+            queue_id (Optional[int]): 本次消费的队列主键。
+            queued_md5 (Optional[str]): 入队时的 MD5。
+        返回值说明：bool - 是否保存成功。
+        """
+        return processor_manager.face_data_processor.save_file_result(
+            file_info, faces, pipeline_version, queue_id, queued_md5
+        )
+
+    @staticmethod
+    def cleanup_orphan_face_data() -> bool:
+        """
+        用途说明：清理文件索引中已不存在的人脸数据。
+        入参说明：无
+        返回值说明：bool - 是否清理成功。
+        """
+        return processor_manager.face_data_processor.cleanup_orphan_data()
+
+    @staticmethod
+    def clear_face_data() -> bool:
+        """
+        用途说明：清空当前仓库的全部人脸特征、图片处理状态和待识别队列。
+        入参说明：无
+        返回值说明：bool - 是否清理成功。
+        """
+        return processor_manager.face_data_processor.clear_all_data()
 
     # --- 视频特征相关操作 (Video Features) ---
 
@@ -423,13 +593,24 @@ class DBOperations:
     @staticmethod
     def update_file_path(old_path: str, new_path: str) -> int:
         """
-        用途说明：文件移动/改名后，将文件索引中的原路径更新为新路径并同步文件名。
+        用途说明：文件移动/改名后更新文件索引，并清理旧路径的人脸数据与队列项，下次识别时重新建立关联。
         入参说明：
             old_path (str): 索引中记录的原文件路径。
             new_path (str): 文件移动/改名后的新文件路径。
         返回值说明：int - 实际更新的记录数；0 表示原路径不在索引或新路径唯一约束冲突被忽略。
         """
-        return processor_manager.file_index_processor.update_file_path(old_path, new_path)
+        try:
+            with db_manager.transaction() as conn:
+                updated_count: int = processor_manager.file_index_processor.update_file_path(
+                    old_path, new_path, conn=conn
+                )
+                if updated_count > 0:
+                    if not processor_manager.face_data_processor.delete_by_path(old_path, conn=conn):
+                        raise RuntimeError(t('face_data_operation_failed'))
+                return updated_count
+        except Exception as e:
+            LogUtils.error(t('repo_update_index_error', old_path=old_path, error=str(e)))
+            return 0
 
     @staticmethod
     def get_files_without_thumbnail() -> List[FileIndexDBModel]:

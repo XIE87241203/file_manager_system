@@ -796,6 +796,7 @@ a.file-link:visited {
 .icon-chevron-right { -webkit-mask-image: var(--icon-chevron-right); mask-image: var(--icon-chevron-right); }
 .icon-close { -webkit-mask-image: var(--icon-close); mask-image: var(--icon-close); }
 .icon-check { -webkit-mask-image: var(--icon-check); mask-image: var(--icon-check); }
+.icon-changelog { -webkit-mask-image: var(--icon-changelog); mask-image: var(--icon-changelog); }
 .icon-download { -webkit-mask-image: var(--icon-download); mask-image: var(--icon-download); }
 .icon-info { -webkit-mask-image: var(--icon-info); mask-image: var(--icon-info); }
 .icon-language { -webkit-mask-image: var(--icon-language); mask-image: var(--icon-language); }

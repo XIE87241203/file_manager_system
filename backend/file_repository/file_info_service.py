@@ -8,6 +8,7 @@ from backend.common.file_type_enum import FileType
 from backend.common.i18n_utils import t
 from backend.common.log_utils import LogUtils
 from backend.common.utils import Utils
+from backend.db.db_constants import DBConstants
 from backend.file_repository.media_location_service import MediaLocationService
 from backend.file_repository.media_time_service import MediaTimeService
 from backend.model.db.file_index_db_model import FileIndexDBModel
@@ -48,6 +49,52 @@ class FileInfoService:
             if cap:
                 cap.release()
         return duration, codec
+
+    @staticmethod
+    def _normalize_metadata_value(value: Optional[str]) -> str:
+        """
+        用途说明：把空媒体信息转换为统一的“无信息”标记，防止补全任务反复读取同一文件。
+        入参说明：value (Optional[str]) - 文件修改时间、拍摄时间或拍摄地点。
+        返回值说明：str - 有信息时返回原值，否则返回 DBConstants.FileIndex.NO_INFO_VALUE。
+        """
+        return value if value else DBConstants.FileIndex.NO_INFO_VALUE
+
+    @staticmethod
+    def get_album_metadata(file_path: str) -> Optional[FileIndexDBModel]:
+        """
+        用途说明：仅为手动补全任务读取媒体修改时间、拍摄时间和拍摄地点，不计算 MD5 或生成缩略图。
+        入参说明：file_path (str) - 当前索引中缺失媒体信息的图片或视频完整路径。
+        返回值说明：Optional[FileIndexDBModel] - 包含三个媒体字段的索引模型；文件不存在或非媒体时返回 None。
+        """
+        try:
+            if not os.path.isfile(file_path):
+                return None
+            if Utils.is_video_file(file_path):
+                file_type: str = FileType.VIDEO.value
+            elif Utils.is_image_file(file_path):
+                file_type = FileType.IMAGE.value
+            else:
+                return None
+
+            file_mtime: Optional[str] = None
+            try:
+                file_mtime = datetime.fromtimestamp(os.path.getmtime(file_path)).strftime('%Y-%m-%d %H:%M:%S')
+            except OSError as stat_error:
+                LogUtils.error(t('utils_get_file_info_failed', path=file_path, error=str(stat_error)))
+                return None
+
+            exif_time: Optional[str] = MediaTimeService.get_exif_time(file_path, file_type)
+            file_location: Optional[str] = MediaLocationService.get_location(file_path, file_type)
+            return FileIndexDBModel(
+                file_path=file_path,
+                file_type=file_type,
+                file_mtime=FileInfoService._normalize_metadata_value(file_mtime),
+                file_exif_time=FileInfoService._normalize_metadata_value(exif_time),
+                file_location=FileInfoService._normalize_metadata_value(file_location)
+            )
+        except Exception as e:
+            LogUtils.error(t('utils_get_file_info_failed', path=file_path, error=str(e)))
+            return None
 
     @staticmethod
     def get_file_info(file_path: str) -> Optional[FileIndexDBModel]:
@@ -108,9 +155,9 @@ class FileInfoService:
                 video_duration=video_duration,
                 video_codec=video_codec,
                 thumbnail_path=thumbnail_path,
-                file_mtime=f_mtime,
-                file_exif_time=exif_time,
-                file_location=file_location
+                file_mtime=FileInfoService._normalize_metadata_value(f_mtime),
+                file_exif_time=FileInfoService._normalize_metadata_value(exif_time),
+                file_location=FileInfoService._normalize_metadata_value(file_location)
             )
         except Exception as e:
             LogUtils.error(t('utils_get_file_info_failed', path=file_path, error=str(e)))

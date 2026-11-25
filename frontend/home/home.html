@@ -112,6 +112,12 @@
                     <div class="menu-label" data-i18n="home.menu_logs"></div>
                 </div>
 
+                <!-- 更新日志入口：权限加载完成前默认隐藏 -->
+                <div id="menu-changelog" class="menu-item hidden">
+                    <span class="menu-icon theme-icon icon-changelog" aria-hidden="true"></span>
+                    <div class="menu-label" data-i18n="home.menu_changelog"></div>
+                </div>
+
                 <!-- 退出登录 -->
                 <div id="menu-logout" class="menu-item">
                     <span class="menu-icon theme-icon icon-logout" aria-hidden="true"></span>
@@ -129,6 +135,22 @@
             <div id="app-version-display" class="app-version-footer"></div>
         </div>
     </main>
+
+    <!-- 更新日志弹窗：内容由 home.js 根据后端数据渲染 -->
+    <div id="changelog-modal" class="changelog-modal hidden" role="dialog" aria-modal="true" aria-labelledby="changelog-modal-title" aria-hidden="true">
+        <div class="changelog-dialog">
+            <div class="changelog-header">
+                <h2 id="changelog-modal-title" class="changelog-title" data-i18n="home.changelog_title"></h2>
+                <button id="changelog-close-icon" class="changelog-icon-close" type="button" data-i18n-title="home.changelog_close" title="">
+                    <span class="theme-icon icon-close" aria-hidden="true"></span>
+                </button>
+            </div>
+            <div id="changelog-content" class="changelog-content" aria-live="polite"></div>
+            <div class="changelog-footer">
+                <button id="changelog-close-button" class="btn-primary-large" type="button" data-i18n="home.changelog_close"></button>
+            </div>
+        </div>
+    </div>
 
     <!-- 引入多语言资源 -->
     <script src="../common/i18n/zh.js"></script>

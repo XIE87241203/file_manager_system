@@ -17,6 +17,7 @@ from backend.user.user_models import (
     UserRepositoryPermissionResult,
     UserResult,
 )
+from config import GlobalConfig
 
 
 class UserService:
@@ -42,10 +43,84 @@ class UserService:
             update_time=row[DBConstants.User.COL_UPDATE_TIME]
         )
 
+    @staticmethod
+    def _write_changelog_seen(cursor: sqlite3.Cursor, user_id: int, version: str) -> None:
+        """
+        用途：在指定主库事务中写入或更新用户的更新日志已读版本。
+        入参说明：
+            cursor (sqlite3.Cursor): 主库事务游标。
+            user_id (int): 全局用户 ID。
+            version (str): 已读版本号。
+        返回值说明：无；写入失败由上层事务捕获并回滚。
+        """
+        cursor.execute(f'''
+            INSERT INTO {DBConstants.UserChangelogRead.TABLE_NAME}
+                ({DBConstants.UserChangelogRead.COL_USER_ID}, {DBConstants.UserChangelogRead.COL_VERSION})
+            VALUES (?, ?)
+            ON CONFLICT({DBConstants.UserChangelogRead.COL_USER_ID}) DO UPDATE SET
+                {DBConstants.UserChangelogRead.COL_VERSION} = excluded.{DBConstants.UserChangelogRead.COL_VERSION},
+                {DBConstants.UserChangelogRead.COL_READ_TIME} = CURRENT_TIMESTAMP
+        ''', (user_id, version))
+
+    def get_changelog_seen_version(self, username: str) -> Optional[str]:
+        """
+        用途：查询指定用户最后看过的更新日志版本。
+        入参说明：username (str): 登录名。
+        返回值说明：Optional[str]: 已读版本号；用户不存在、没有记录或查询失败时返回 None。
+        """
+        user: Optional[UserDBModel] = self.get_user_by_username(username)
+        if not user:
+            return None
+        conn: Optional[sqlite3.Connection] = None
+        try:
+            conn = db_manager.get_master_connection()
+            cursor: sqlite3.Cursor = conn.cursor()
+            cursor.execute(
+                f"SELECT {DBConstants.UserChangelogRead.COL_VERSION} "
+                f"FROM {DBConstants.UserChangelogRead.TABLE_NAME} "
+                f"WHERE {DBConstants.UserChangelogRead.COL_USER_ID} = ?",
+                (user.id,)
+            )
+            row: Optional[sqlite3.Row] = cursor.fetchone()
+            return str(row[0]) if row else None
+        except Exception as e:
+            LogUtils.error(t('user_changelog_seen_query_error', error=str(e)))
+            return None
+        finally:
+            if conn is not None:
+                conn.close()
+
+    def mark_changelog_seen(self, username: str, version: str) -> bool:
+        """
+        用途：保存指定用户最后看过的更新日志版本。
+        入参说明：
+            username (str): 登录名。
+            version (str): 已读版本号。
+        返回值说明：bool: 保存成功返回 True，用户不存在或写入失败返回 False。
+        """
+        user: Optional[UserDBModel] = self.get_user_by_username(username)
+        if not user:
+            return False
+        conn: Optional[sqlite3.Connection] = None
+        try:
+            conn = db_manager.get_master_connection()
+            cursor: sqlite3.Cursor = conn.cursor()
+            self._write_changelog_seen(cursor, user.id, version)
+            conn.commit()
+            return True
+        except Exception as e:
+            if conn is not None:
+                conn.rollback()
+            LogUtils.error(t('user_changelog_seen_save_error', error=str(e)))
+            return False
+        finally:
+            if conn is not None:
+                conn.close()
+
     def init_admin_user(self) -> None:
         """
         用途：首次启动时初始化初始管理员。若 users 表为空，则把 setting.json 中的现有用户
-        迁移为管理员（密码沿用其加盐哈希），迁移成功后清空配置文件里的密码字段，使数据库成为唯一凭据来源。
+        迁移为管理员（密码沿用其加盐哈希），同时记录其已读当前版本，迁移成功后清空配置文件里的密码字段，使数据库成为唯一凭据来源。
         入参说明：无
         返回值说明：无
         """
@@ -74,6 +149,8 @@ class UserService:
                 f"VALUES (?, ?, 1)",
                 (username, password_hash)
             )
+            # 首次部署的新用户默认已读当前版本，避免升级前没有升级日志的误提示。
+            self._write_changelog_seen(cursor, int(cursor.lastrowid), GlobalConfig.APP_VERSION)
             conn.commit()
             conn.close()
             LogUtils.info(t('user_seed_admin_log', username=username))
@@ -395,7 +472,7 @@ class UserService:
         permissions: Optional[List[RepositoryPermissionInfo]] = None
     ) -> Tuple[bool, str]:
         """
-        用途：新增系统管理员或系统使用者，并在同一事务中写入仓库授权。
+        用途：新增系统管理员或系统使用者，并在同一事务中写入仓库授权和当前版本已读记录。
         入参说明：
             username (str): 登录名。
             client_hash (str): 前端传输的密码 SHA-256 哈希。
@@ -428,6 +505,8 @@ class UserService:
                 conn.rollback()
                 conn.close()
                 return False, message
+            # 新建用户默认已读当前最新版本。
+            self._write_changelog_seen(cursor, user_id, GlobalConfig.APP_VERSION)
             conn.commit()
             conn.close()
             LogUtils.info(t('user_add_log', username=username))
@@ -441,7 +520,7 @@ class UserService:
 
     def delete_user(self, user_id: int, operator_username: str) -> Tuple[bool, str]:
         """
-        用途：删除用户。禁止删除自己，禁止删除最后一个管理员；删除成功后使该用户 Token 立即失效，并同步清理其仓库授权与登录历史。
+        用途：删除用户。禁止删除自己，禁止删除最后一个管理员；删除成功后使该用户 Token 立即失效，并同步清理其仓库授权、登录历史和更新日志已读记录。
         入参说明：
             user_id (int): 待删除用户 ID。
             operator_username (str): 执行操作的管理员登录名。
@@ -471,6 +550,11 @@ class UserService:
             )
             cursor.execute(
                 f"DELETE FROM {DBConstants.LoginHistory.TABLE_NAME} WHERE {DBConstants.LoginHistory.COL_USER_ID} = ?",
+                (user_id,)
+            )
+            cursor.execute(
+                f"DELETE FROM {DBConstants.UserChangelogRead.TABLE_NAME} "
+                f"WHERE {DBConstants.UserChangelogRead.COL_USER_ID} = ?",
                 (user_id,)
             )
             conn.commit()

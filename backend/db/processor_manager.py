@@ -1,6 +1,7 @@
 from backend.db.processor.already_entered_file_processor import AlreadyEnteredFileProcessor
 from backend.db.processor.batch_check_processor import BatchCheckProcessor
 from backend.db.processor.duplicate_group_processor import DuplicateGroupProcessor
+from backend.db.processor.face_data_processor import FaceDataProcessor
 from backend.db.processor.file_index_processor import FileIndexProcessor
 from backend.db.processor.file_repo_detail_processor import FileRepoDetailProcessor
 from backend.db.processor.history_file_index_processor import HistoryFileIndexProcessor
@@ -43,6 +44,7 @@ class ProcessorManager:
         self.video_feature_processor: VideoFeatureProcessor = VideoFeatureProcessor()
         self.image_feature_processor: ImageFeatureProcessor = ImageFeatureProcessor()
         self.duplicate_group_processor: DuplicateGroupProcessor = DuplicateGroupProcessor()
+        self.face_data_processor: FaceDataProcessor = FaceDataProcessor()
         self.already_entered_file_processor: AlreadyEnteredFileProcessor = AlreadyEnteredFileProcessor()
         self.pending_entry_file_processor: PendingEntryFileProcessor = PendingEntryFileProcessor()
         self.file_repo_detail_processor: FileRepoDetailProcessor = FileRepoDetailProcessor()

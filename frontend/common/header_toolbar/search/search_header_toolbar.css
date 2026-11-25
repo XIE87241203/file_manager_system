@@ -175,6 +175,16 @@
     background-color: var(--color-danger-soft);
 }
 
+.menu-item.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+.menu-item.disabled:hover {
+    background-color: transparent;
+}
+
 .menu-divider {
     height: 1px;
     background-color: var(--color-border-control);

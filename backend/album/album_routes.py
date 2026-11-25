@@ -1,11 +1,12 @@
 import os
 from dataclasses import asdict
-from typing import Optional
+from typing import Any, Optional, Tuple
 
 from flask import Blueprint, request, send_file
 
 from backend.album.album_service import AlbumService
-from backend.auth.auth_middleware import token_required
+from backend.album.face_service import FaceService
+from backend.auth.auth_middleware import admin_required, token_required
 from backend.common.file_type_enum import FileType
 from backend.common.i18n_utils import t
 from backend.common.log_utils import LogUtils
@@ -14,6 +15,7 @@ from backend.common.response import success_response, error_response
 from backend.db.db_constants import DBConstants
 from backend.model.album_settings_result import AlbumSettingsResult
 from backend.model.db.file_index_db_model import FileIndexDBModel
+from backend.model.face_index_result import FaceTaskStatusResult
 from backend.model.pagination_result import PaginationResult
 from backend.user.user_service import userService
 
@@ -131,15 +133,17 @@ def get_album_settings():
 @token_required
 def update_album_settings():
     """
-    用途说明：更新相册设置中的缩略图存储路径与当前仓库缩略图最大边长。
+    用途说明：更新相册设置中的缩略图存储路径、当前仓库缩略图最大边长与自动人脸识别开关。
     入参说明（JSON）：
         thumbnail_dir (str) - 新的缩略图存储路径。
         thumbnail_size (int, 可选) - 缩略图最大边长（像素），仅当前仓库管理员可修改。
+        auto_face_recognition (bool, 可选) - 自动识别新增图片开关，仅系统管理员可修改。
     返回值说明：统一 JSON 响应，data 为更新后的相册设置对象。
     """
     data: dict = request.get_json(silent=True) or {}
     thumbnail_dir: str = data.get('thumbnail_dir', '')
     thumbnail_size: Optional[int] = data.get('thumbnail_size')
+    auto_face_recognition: Optional[bool] = data.get('auto_face_recognition')
     if thumbnail_size is not None:
         if isinstance(thumbnail_size, bool) or not isinstance(thumbnail_size, int) or thumbnail_size <= 0:
             return error_response(t('album_thumbnail_size_invalid', value=thumbnail_size), 400)
@@ -147,10 +151,104 @@ def update_album_settings():
         if userService.get_repo_permission(request.username, repo_id) \
                 != DBConstants.UserRepositoryPermission.PERMISSION_ADMIN:
             return error_response(t('user_repo_admin_required'), 403)
+    if auto_face_recognition is not None:
+        if not isinstance(auto_face_recognition, bool):
+            return error_response(t('album_auto_face_recognition_invalid', value=auto_face_recognition), 400)
+        if not userService.is_admin(request.username):
+            return error_response(t('user_admin_required'), 403)
 
     settings: Optional[AlbumSettingsResult] = AlbumService.update_settings(
-        thumbnail_dir, _get_current_user(), thumbnail_size
+        thumbnail_dir, _get_current_user(), thumbnail_size, auto_face_recognition
     )
     if settings is None:
         return error_response(t('album_settings_update_failed'), 500)
     return success_response(t('album_settings_update_success'), data=asdict(settings))
+
+
+@album_bp.route('/face/status', methods=['GET'])
+@admin_required
+def get_face_recognition_status() -> Tuple[Any, int]:
+    """
+    用途说明：获取人脸识别任务状态、队列数量、暂停标志和当前仓库已保存的人脸数量。
+    入参说明：无（仓库 ID 来自请求上下文）。
+    返回值说明：统一 JSON 响应，data 为 FaceTaskStatusResult；仅系统管理员可访问。
+    """
+    result: FaceTaskStatusResult = FaceService.get_status()
+    return success_response(t('face_status_success'), data=asdict(result))
+
+
+@album_bp.route('/face/start', methods=['POST'])
+@admin_required
+def start_face_recognition() -> Tuple[Any, int]:
+    """
+    用途说明：将当前仓库全部未识别图片去重加入队列，并启动或恢复单线程人脸识别任务。
+    入参说明：无（仓库 ID 来自请求上下文）。
+    返回值说明：统一 JSON 响应，data 为开始后的任务状态；已有任务运行时返回 409；仅系统管理员可访问。
+    """
+    if not FaceService.start_task():
+        status: FaceTaskStatusResult = FaceService.get_status()
+        if status.running:
+            return error_response(t('face_task_already_running'), 409)
+        return error_response(
+            status.message or t('face_task_start_failed', error=t('common.error')),
+            500
+        )
+    result: FaceTaskStatusResult = FaceService.get_status()
+    return success_response(t('face_task_start_success'), data=asdict(result))
+
+
+@album_bp.route('/face/pause', methods=['POST'])
+@admin_required
+def pause_face_recognition() -> Tuple[Any, int]:
+    """
+    用途说明：暂停当前仓库的人脸识别任务，保留队列和已处理数据，等待开始按钮恢复。
+    入参说明：无（仓库 ID 来自请求上下文）。
+    返回值说明：统一 JSON 响应，data 为暂停后的任务状态；当前仓库没有运行任务时返回 409。
+    """
+    if not FaceService.pause_task():
+        return error_response(t('face_task_not_running'), 409)
+    result: FaceTaskStatusResult = FaceService.get_status()
+    return success_response(t('face_task_pause_success'), data=asdict(result))
+
+
+@album_bp.route('/face/stop', methods=['POST'])
+@admin_required
+def stop_face_recognition() -> Tuple[Any, int]:
+    """
+    用途说明：停止当前仓库的人脸识别任务，并在当前图片处理结束后清空整个待识别队列。
+    入参说明：无（仓库 ID 来自请求上下文）。
+    返回值说明：统一 JSON 响应，data 为最新任务状态；其他仓库运行中或停止超时返回 409。
+    """
+    if not FaceService.stop_task():
+        status: FaceTaskStatusResult = FaceService.get_status()
+        if status.running and status.active_repo_id is not None \
+                and status.active_repo_id != status.repo_id:
+            return error_response(t('face_task_other_repo_running', repo_id=status.active_repo_id), 409)
+        if status.running:
+            return error_response(t('face_clear_task_stopping'), 409)
+        return error_response(t('face_task_stop_failed'), 500)
+    result: FaceTaskStatusResult = FaceService.get_status()
+    return success_response(t('face_task_stop_success'), data=asdict(result))
+
+
+@album_bp.route('/face/clear', methods=['POST'])
+@admin_required
+def clear_face_recognition_data() -> Tuple[Any, int]:
+    """
+    用途说明：先停止并清空当前仓库队列，再清空该仓库的人脸特征与图片处理状态。
+    入参说明：无（仓库 ID 来自请求上下文）。
+    返回值说明：统一 JSON 响应，data 为清理后的任务状态；其他仓库运行中或任务未能在 30 秒内停止时返回 409。
+    """
+    if not FaceService.clear_data():
+        status: FaceTaskStatusResult = FaceService.get_status()
+        if status.running and status.active_repo_id is not None \
+                and status.active_repo_id != status.repo_id:
+            return error_response(t('face_task_other_repo_running', repo_id=status.active_repo_id), 409)
+        if status.running:
+            return error_response(t('face_clear_task_stopping'), 409)
+        return error_response(
+            t('face_data_clear_failed', error=t('face_data_operation_failed')),
+            500
+        )
+    result: FaceTaskStatusResult = FaceService.get_status()
+    return success_response(t('face_data_clear_success'), data=asdict(result))

@@ -52,6 +52,42 @@
                     <div id="sync-thumbnail-btn-container" class="album-sync-btn-container"></div>
                 </div>
             </div>
+
+            <!-- 人脸识别：持久化去重队列，支持自动入队、开始、暂停、停止与清除 -->
+            <div id="face-recognition-card" class="album-setting-card album-sync-card album-face-card hidden">
+                <h3 class="album-sync-title" data-i18n="album.face_title"></h3>
+                <p class="album-sync-hint" data-i18n="album.face_hint"></p>
+                <div class="album-face-auto-row">
+                    <label class="album-face-auto-label" for="auto-face-recognition">
+                        <input type="checkbox" id="auto-face-recognition" class="album-face-auto-checkbox">
+                        <span data-i18n="album.face_auto_label"></span>
+                    </label>
+                    <span class="album-face-auto-hint" data-i18n="album.face_auto_hint"></span>
+                </div>
+                <div class="album-sync-item">
+                    <div class="album-sync-info">
+                        <span class="album-sync-name" data-i18n="album.face_index_name"></span>
+                        <span class="album-sync-desc" data-i18n="album.face_index_desc"></span>
+                    </div>
+                    <div class="album-face-status">
+                        <span id="face-status-text" class="album-face-status-text">--</span>
+                        <span class="album-face-remaining">
+                            <span data-i18n="album.face_remaining"></span>
+                            <strong id="face-remaining-count">0</strong>
+                        </span>
+                        <span class="album-face-remaining">
+                            <span data-i18n="album.face_saved"></span>
+                            <strong id="face-saved-count">0</strong>
+                        </span>
+                    </div>
+                    <div class="album-face-actions">
+                        <button id="btn-face-start" class="btn-primary-large" data-i18n="album.face_start" disabled></button>
+                        <button id="btn-face-pause" class="btn-secondary-large" data-i18n="album.face_pause" disabled></button>
+                        <button id="btn-face-stop" class="btn-secondary-large" data-i18n="album.face_stop" disabled></button>
+                        <button id="btn-face-clear" class="btn-danger-large" data-i18n="album.face_clear" disabled></button>
+                    </div>
+                </div>
+            </div>
         </div>
     </main>
 

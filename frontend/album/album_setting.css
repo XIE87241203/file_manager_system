@@ -1,5 +1,5 @@
 /**
- * 用途说明：相册设置页样式，定义设置卡片、路径输入、分辨率选择与生效路径展示。
+ * 用途说明：相册设置页样式，定义设置卡片、路径输入、分辨率选择、生效路径与人脸队列操作区。
  * 规范：仅使用 class 绑定样式，禁止内联样式。
  */
 
@@ -104,6 +104,81 @@
     width: 100%;
 }
 
+/* 人脸自动识别开关 */
+.album-face-auto-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 14px;
+    padding: 12px 14px;
+    background: var(--palette-f5f7fa);
+    border: 1px solid var(--palette-e6e9ee);
+    border-radius: 8px;
+}
+
+.album-face-auto-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--color-text-strong);
+    font-size: 0.95rem;
+    cursor: pointer;
+}
+
+.album-face-auto-checkbox {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    accent-color: var(--color-primary);
+}
+
+.album-face-auto-hint {
+    color: var(--color-text-tertiary);
+    font-size: 0.82rem;
+    line-height: 1.45;
+}
+
+/* 人脸识别状态与操作区 */
+.album-face-status {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 16px;
+    width: 100%;
+    font-size: 0.9rem;
+    color: var(--color-text-body-muted);
+}
+
+.album-face-status-text {
+    flex-basis: 100%;
+    line-height: 1.5;
+    word-break: break-word;
+}
+
+.album-face-remaining strong {
+    margin-left: 4px;
+    color: var(--color-text-strong);
+}
+
+.album-face-actions {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+    width: 100%;
+}
+
+.album-face-actions .btn-primary-large,
+.album-face-actions .btn-secondary-large,
+.album-face-actions .btn-danger-large {
+    width: 100%;
+    margin-top: 0;
+}
+
+.album-face-actions button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
 @media (max-width: 520px) {
     .album-setting-card {
         padding: 18px 14px;
@@ -111,5 +186,9 @@
 
     .album-save-btn {
         max-width: none;
+    }
+
+    .album-face-actions {
+        grid-template-columns: 1fr;
     }
 }

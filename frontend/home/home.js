@@ -9,6 +9,7 @@ const HomeState = {
     currentRepoId: 1, // 当前选中的仓库 ID
     currentRepoPermission: '', // 当前仓库权限：admin/member
     isAdmin: false, // 当前用户是否系统管理员
+    canViewChangelog: false, // 是否为系统管理员或任一仓库管理员
     appVersion: '' // 已获取的应用版本号，语言切换时用于重新渲染版本文案
 };
 
@@ -208,7 +209,276 @@ const UIController = {
         toggle('group-album-title', !hasRepo);
         toggle('menu-setting', isMember);
         toggle('menu-logs', isMember);
+        // 更新日志按全局管理角色显示，即使当前切换到成员仓库也仍可查看。
+        toggle('menu-changelog', !HomeState.canViewChangelog);
         toggle('menu-test-page', true);
+    }
+};
+
+// --- 更新日志弹窗模块 ---
+const HomeChangelog = {
+    VISIBLE_HIGHLIGHT_COUNT: 5,
+    expandedVersions: new Set(),
+    mode: 'unread',
+    data: null,
+    modal: null,
+    content: null,
+    closeIcon: null,
+    closeButton: null,
+    previousFocus: null,
+
+    /**
+     * @description 用途说明：缓存更新日志弹窗元素并绑定关闭、折叠和键盘交互。
+     * @returns {void} - 返回值说明：无。
+     */
+    init() {
+        this.modal = document.getElementById('changelog-modal');
+        this.content = document.getElementById('changelog-content');
+        this.closeIcon = document.getElementById('changelog-close-icon');
+        this.closeButton = document.getElementById('changelog-close-button');
+        if (!this.modal || !this.content) return;
+
+        this.modal.addEventListener('click', (event) => {
+            if (event.target === this.modal) this.close();
+        });
+        this.content.addEventListener('click', (event) => this.handleContentClick(event));
+        if (this.closeIcon) this.closeIcon.addEventListener('click', () => this.close());
+        if (this.closeButton) this.closeButton.addEventListener('click', () => this.close());
+        document.addEventListener('keydown', (event) => this.handleKeydown(event));
+    },
+
+    /**
+     * @description 用途说明：权限确定后检查未读版本，仅在需要时自动弹出。
+     * @returns {void} - 返回值说明：无。
+     */
+    checkAuto() {
+        if (!HomeState.canViewChangelog) return;
+        HomeRequest.getChangelog(
+            'unread',
+            (data) => {
+                if (data && data.auto_show) this.open('unread', data);
+            },
+            () => {} // 自动检查失败时保持安静，用户仍可通过菜单手动打开。
+        );
+    },
+
+    /**
+     * @description 用途说明：从菜单手动打开弹窗并展示全部版本日志。
+     * @returns {void} - 返回值说明：无。
+     */
+    openManual() {
+        if (!HomeState.canViewChangelog) return;
+        HomeRequest.getChangelog(
+            'all',
+            (data) => this.open('all', data),
+            () => Toast.show(I18nManager.t('home.changelog_load_failed'))
+        );
+    },
+
+    /**
+     * @description 用途说明：语言同步到后端后重新加载已打开弹窗的日志内容。
+     * @returns {void} - 返回值说明：无。
+     */
+    refresh() {
+        if (!this.isOpen()) return;
+        const mode = this.mode;
+        HomeRequest.getChangelog(
+            mode,
+            (data) => {
+                if (!this.isOpen() || this.mode !== mode) return;
+                this.data = data;
+                this.render();
+            },
+            () => Toast.show(I18nManager.t('home.changelog_load_failed'))
+        );
+    },
+
+    /**
+     * @description 用途说明：判断更新日志弹窗当前是否打开。
+     * @returns {boolean} - 返回值说明：打开返回 true，否则返回 false。
+     */
+    isOpen() {
+        return Boolean(this.modal && !this.modal.classList.contains('hidden'));
+    },
+
+    /**
+     * @description 用途说明：显示弹窗、渲染数据并将焦点移入弹窗。
+     * @param {string} mode - 入参说明：unread 为自动未读模式，all 为手动全部模式。
+     * @param {Object} data - 入参说明：后端返回的更新日志数据。
+     * @returns {void} - 返回值说明：无。
+     */
+    open(mode, data) {
+        if (!this.modal || !data) return;
+        this.mode = mode;
+        this.data = data;
+        this.expandedVersions.clear();
+        this.previousFocus = document.activeElement;
+        this.render();
+        this.modal.classList.remove('hidden');
+        this.modal.setAttribute('aria-hidden', 'false');
+        document.body.classList.add('changelog-open');
+        if (this.closeIcon) {
+            this.closeIcon.setAttribute('aria-label', I18nManager.t('home.changelog_close'));
+            this.closeIcon.focus();
+        }
+    },
+
+    /**
+     * @description 用途说明：关闭弹窗并异步保存当前版本已读状态。
+     * @returns {void} - 返回值说明：无。
+     */
+    close() {
+        if (!this.isOpen()) return;
+        const version = this.data && this.data.current_version ? this.data.current_version : '';
+        this.modal.classList.add('hidden');
+        this.modal.setAttribute('aria-hidden', 'true');
+        document.body.classList.remove('changelog-open');
+        if (this.previousFocus && typeof this.previousFocus.focus === 'function') {
+            this.previousFocus.focus();
+        }
+        if (!version) return;
+        HomeRequest.markChangelogRead(
+            version,
+            () => {},
+            () => Toast.show(I18nManager.t('home.changelog_read_failed'))
+        );
+    },
+
+    /**
+     * @description 用途说明：创建带主题类名和纯文本内容的 DOM 元素，避免插入日志 HTML。
+     * @param {string} tagName - 入参说明：HTML 标签名。
+     * @param {string} className - 入参说明：CSS 类名。
+     * @param {string} text - 入参说明：可选文本内容。
+     * @returns {HTMLElement} - 返回值说明：新创建的元素。
+     */
+    createElement(tagName, className = '', text = '') {
+        const element = document.createElement(tagName);
+        if (className) element.className = className;
+        if (text) element.textContent = text;
+        return element;
+    },
+
+    /**
+     * @description 用途说明：渲染空状态或全部版本卡片。
+     * @returns {void} - 返回值说明：无。
+     */
+    render() {
+        if (!this.content || !this.data) return;
+        this.content.replaceChildren();
+        const entries = Array.isArray(this.data.entries) ? this.data.entries : [];
+        if (!entries.length) {
+            this.content.appendChild(this.createElement('div', 'changelog-empty', I18nManager.t('home.changelog_empty')));
+            return;
+        }
+        entries.forEach(entry => {
+            const section = this.createElement('section', 'changelog-version');
+            section.dataset.version = entry.version;
+            this.renderVersion(section, entry, this.expandedVersions.has(entry.version));
+            this.content.appendChild(section);
+        });
+    },
+
+    /**
+     * @description 用途说明：渲染单个版本，默认只展示最重要的五条更新。
+     * @param {HTMLElement} section - 入参说明：版本卡片容器。
+     * @param {Object} entry - 入参说明：单个版本日志数据。
+     * @param {boolean} expanded - 入参说明：是否已展开全部更新。
+     * @returns {void} - 返回值说明：无。
+     */
+    renderVersion(section, entry, expanded) {
+        section.replaceChildren();
+        const header = this.createElement('div', 'changelog-version-header');
+        const titleGroup = this.createElement('div', 'changelog-version-title-group');
+        titleGroup.appendChild(this.createElement('h3', 'changelog-version-title', `v${entry.version}`));
+        if (entry.version === this.data.current_version) {
+            titleGroup.appendChild(this.createElement('span', 'changelog-latest', I18nManager.t('home.changelog_latest')));
+        }
+        header.appendChild(titleGroup);
+        if (entry.date) header.appendChild(this.createElement('span', 'changelog-version-date', entry.date));
+        section.appendChild(header);
+
+        const highlights = Array.isArray(entry.highlights) ? entry.highlights : [];
+        const visibleHighlights = expanded ? highlights : highlights.slice(0, this.VISIBLE_HIGHLIGHT_COUNT);
+        const list = this.createElement('ol', 'changelog-highlight-list');
+        visibleHighlights.forEach(highlight => {
+            list.appendChild(this.createElement('li', 'changelog-highlight', highlight));
+        });
+        section.appendChild(list);
+
+        if (highlights.length > this.VISIBLE_HIGHLIGHT_COUNT) {
+            const remaining = highlights.length - this.VISIBLE_HIGHLIGHT_COUNT;
+            const button = this.createElement(
+                'button',
+                'changelog-toggle',
+                expanded
+                    ? I18nManager.t('home.changelog_collapse')
+                    : I18nManager.t('home.changelog_expand', { count: remaining })
+            );
+            button.type = 'button';
+            button.dataset.changelogAction = 'toggle';
+            button.dataset.version = entry.version;
+            button.setAttribute('aria-expanded', String(expanded));
+            section.appendChild(button);
+        }
+
+        if (entry.rebuild_index_notice) {
+            const notice = this.createElement('div', 'changelog-rebuild-notice');
+            notice.appendChild(this.createElement(
+                'strong',
+                'changelog-rebuild-title',
+                I18nManager.t('home.changelog_rebuild_title')
+            ));
+            notice.appendChild(this.createElement('p', 'changelog-rebuild-text', entry.rebuild_index_notice));
+            section.appendChild(notice);
+        }
+    },
+
+    /**
+     * @description 用途说明：处理版本更新列表的展开与收起点击。
+     * @param {Event} event - 入参说明：内容区域冒泡的点击事件。
+     * @returns {void} - 返回值说明：无。
+     */
+    handleContentClick(event) {
+        const target = event.target;
+        if (!(target instanceof Element)) return;
+        const button = target.closest('[data-changelog-action="toggle"]');
+        if (!button || !this.data) return;
+        const version = button.dataset.version;
+        const entry = this.data.entries.find(item => item.version === version);
+        const section = button.closest('.changelog-version');
+        if (!entry || !section) return;
+        const expanded = !this.expandedVersions.has(version);
+        if (expanded) this.expandedVersions.add(version);
+        else this.expandedVersions.delete(version);
+        this.renderVersion(section, entry, expanded);
+        const nextButton = section.querySelector('.changelog-toggle');
+        if (nextButton) nextButton.focus();
+    },
+
+    /**
+     * @description 用途说明：处理 Escape 关闭和 Tab 焦点循环，避免键盘操作跑到弹窗外。
+     * @param {KeyboardEvent} event - 入参说明：文档键盘事件。
+     * @returns {void} - 返回值说明：无。
+     */
+    handleKeydown(event) {
+        if (!this.isOpen()) return;
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            this.close();
+            return;
+        }
+        if (event.key !== 'Tab') return;
+        const focusable = Array.from(this.modal.querySelectorAll('button:not([disabled])'));
+        if (!focusable.length) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+            event.preventDefault();
+            last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+            event.preventDefault();
+            first.focus();
+        }
     }
 };
 
@@ -220,13 +490,14 @@ const App = {
      */
     init() {
         UIController.init();
+        HomeChangelog.init();
         this.bindEvents();
         // 首页语言切换同时刷新动态文案，并同步后端配置以统一全站接口提示语言
         document.addEventListener('appearance:languagechange', () => {
             UIController.refreshDynamicTexts();
             HomeRequest.updateLanguage(
                 I18nManager.currentLang,
-                () => {},
+                () => HomeChangelog.refresh(),
                 () => Toast.show(I18nManager.t('common.language_sync_failed'))
             );
         });
@@ -255,9 +526,11 @@ const App = {
                         HomeState.currentRepoId = currentId;
                         const currentRepo = HomeState.repos.find(r => r.id === currentId);
                         HomeState.currentRepoPermission = currentRepo ? currentRepo.permission : '';
+                        HomeState.canViewChangelog = HomeState.isAdmin || HomeState.repos.some(repo => repo.permission === 'admin');
                         UIController.buildRepoSelector(HomeState.repos, currentId, HomeState.isAdmin);
                         this.bindRepoSelector();
                         UIController.applyMenuPermissions();
+                        HomeChangelog.checkAuto();
                         if (currentId > 0 && HomeState.currentRepoPermission !== 'member') this.loadRepoStats();
                     },
                     (msg) => console.error('Failed to load repositories:', msg)
@@ -458,6 +731,10 @@ const App = {
                 }
             };
         });
+
+        // 更新日志不跳转页面，点击后展示全部版本。
+        const changelogMenu = document.getElementById('menu-changelog');
+        if (changelogMenu) changelogMenu.onclick = () => HomeChangelog.openManual();
 
         // 绑定统计刷新按钮事件
         if (UIController.elements.btnCalc) {

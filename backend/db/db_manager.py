@@ -1,8 +1,7 @@
 import os
 import sqlite3
 from contextlib import contextmanager
-from datetime import datetime
-from typing import Generator, Optional, Dict
+from typing import Generator, List, Optional, Dict
 
 from backend.common.i18n_utils import t
 from backend.common.log_utils import LogUtils
@@ -53,14 +52,17 @@ class DBManager:
 
     def init_master(self) -> None:
         """
-        用途说明：初始化仓库元数据主数据库，创建 repositories、users、用户仓库权限与 login_history 表（若不存在）。
+        用途说明：初始化仓库元数据主数据库，创建仓库、用户、用户仓库权限、登录历史和更新日志已读表（若不存在）。
         入参说明：无
         返回值说明：无
         """
         from backend.db.db_constants import DBConstants
+        conn: Optional[sqlite3.Connection] = None
+        DBManager._master_ready = False
         try:
-            conn: sqlite3.Connection = self.get_master_connection()
+            conn = self.get_master_connection()
             cursor: sqlite3.Cursor = conn.cursor()
+            cursor.execute("BEGIN IMMEDIATE")
             cursor.execute(f'''
                 CREATE TABLE IF NOT EXISTS {DBConstants.Repository.TABLE_NAME} (
                     {DBConstants.Repository.COL_ID} INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -107,6 +109,14 @@ class DBManager:
                     CROSS JOIN {DBConstants.Repository.TABLE_NAME} r
                     WHERE u.{DBConstants.User.COL_IS_ADMIN} = 0
                 ''', (DBConstants.UserRepositoryPermission.PERMISSION_ADMIN,))
+            # 全局用户更新日志已读表（每个用户一行，不按仓库重复记录）
+            cursor.execute(f'''
+                CREATE TABLE IF NOT EXISTS {DBConstants.UserChangelogRead.TABLE_NAME} (
+                    {DBConstants.UserChangelogRead.COL_USER_ID} INTEGER PRIMARY KEY,
+                    {DBConstants.UserChangelogRead.COL_VERSION} TEXT NOT NULL,
+                    {DBConstants.UserChangelogRead.COL_READ_TIME} DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
             # 全局用户登录历史表（记录每次成功登录的时间与来源 IP，按用户追溯）
             cursor.execute(f'''
                 CREATE TABLE IF NOT EXISTS {DBConstants.LoginHistory.TABLE_NAME} (
@@ -123,10 +133,18 @@ class DBManager:
                 ON {DBConstants.LoginHistory.TABLE_NAME} ({DBConstants.LoginHistory.COL_USER_ID})
             ''')
             conn.commit()
-            conn.close()
             DBManager._master_ready = True
         except Exception as e:
+            if conn is not None:
+                try:
+                    conn.rollback()
+                except Exception as rollback_error:
+                    LogUtils.error(t('db_rollback_failed', error=str(rollback_error)))
             LogUtils.error(t('db_init_failed', error=str(e)))
+            raise
+        finally:
+            if conn is not None:
+                conn.close()
 
     def resolve_db_path(self, repo_id: int) -> str:
         """
@@ -208,49 +226,114 @@ class DBManager:
 
     def init_db(self, db_path: Optional[str] = None) -> None:
         """
-        用途说明：初始化指定仓库数据库和数据表，并执行版本检查与升级逻辑。
+        用途说明：初始化指定仓库数据库，每次调用都检查版本，并在版本落后时执行原子迁移。
         入参说明：db_path (Optional[str]): 目标库文件绝对路径；为 None 时使用当前仓库上下文对应的库。
-        返回值说明：无
+        返回值说明：无；初始化或迁移失败时记录日志并抛出异常，阻止系统带不完整结构启动。
         """
         from backend.db.db_constants import DBConstants
         target_path: str = db_path or self.resolve_db_path(get_current_repo_id())
+        conn: Optional[sqlite3.Connection] = None
         try:
-            conn: sqlite3.Connection = sqlite3.connect(target_path)
+            conn = sqlite3.connect(target_path)
             cursor: sqlite3.Cursor = conn.cursor()
 
-            # 1. 创建版本信息表
+            # 先确保版本表存在并提交，后续建表、迁移和版本号更新放在同一个事务中。
             cursor.execute(f'''
                 CREATE TABLE IF NOT EXISTS {DBConstants.VersionInfo.TABLE_NAME} (
                     {DBConstants.VersionInfo.COL_VERSION} INTEGER PRIMARY KEY
                 )
             ''')
+            conn.commit()
 
-            # 2. 获取当前数据库版本
             cursor.execute(f"SELECT {DBConstants.VersionInfo.COL_VERSION} FROM {DBConstants.VersionInfo.TABLE_NAME}")
             row = cursor.fetchone()
             current_db_version: int = row[0] if row else 0
+            target_version: int = DBConstants.DB_VERSION
             LogUtils.info(t('db_version_read_success', version=current_db_version))
 
-            # 4. 版本检查与升级
-            target_version: int = DBConstants.DB_VERSION
+            if current_db_version > target_version:
+                raise RuntimeError(t(
+                    'db_version_newer_than_supported',
+                    current=current_db_version,
+                    target=target_version
+                ))
+
+            # 显式事务覆盖 DDL，避免进程中断或某步迁移失败后留下半成品结构。
+            cursor.execute("BEGIN IMMEDIATE")
+            migrated: bool = False
             if current_db_version == 0:
-                # 3. 创建基础表结构（如果不存在）
                 self._create_tables(cursor)
-                # 新数据库，直接插入当前版本号
-                cursor.execute(f"INSERT INTO {DBConstants.VersionInfo.TABLE_NAME} ({DBConstants.VersionInfo.COL_VERSION}) VALUES (?)", (target_version,))
-                LogUtils.info(t('db_init_success', version=target_version))
+                cursor.execute(
+                    f"INSERT INTO {DBConstants.VersionInfo.TABLE_NAME} "
+                    f"({DBConstants.VersionInfo.COL_VERSION}) VALUES (?)",
+                    (target_version,)
+                )
             elif current_db_version < target_version:
-                # 需要升级
                 LogUtils.info(t('db_version_update_detected', old=current_db_version, new=target_version))
                 self.migrate_db_version(current_db_version, target_version, cursor)
-                # 更新版本号
-                cursor.execute(f"UPDATE {DBConstants.VersionInfo.TABLE_NAME} SET {DBConstants.VersionInfo.COL_VERSION} = ?", (target_version,))
-                LogUtils.info(t('db_version_update_done'))
+                cursor.execute(
+                    f"UPDATE {DBConstants.VersionInfo.TABLE_NAME} "
+                    f"SET {DBConstants.VersionInfo.COL_VERSION} = ?",
+                    (target_version,)
+                )
+                migrated = True
+            else:
+                LogUtils.info(t('db_version_latest', version=target_version))
 
+            # 兼容历史上版本号已更新但结构未完整的数据库；只补结构，不扫描文件。
+            self._ensure_file_index_album_columns(cursor)
+            DBManager._create_face_tables(cursor)
             conn.commit()
-            conn.close()
+            if current_db_version == 0:
+                LogUtils.info(t('db_init_success', version=target_version))
+            elif migrated:
+                LogUtils.info(t('db_version_update_done'))
         except Exception as e:
+            if conn is not None:
+                try:
+                    conn.rollback()
+                except Exception as rollback_error:
+                    LogUtils.error(t('db_rollback_failed', error=str(rollback_error)))
             LogUtils.error(t('db_init_failed', error=str(e)))
+            raise
+        finally:
+            if conn is not None:
+                conn.close()
+
+    def init_all_repo_databases(self) -> None:
+        """
+        用途说明：启动时读取主数据库中的全部仓库，并逐一检查、初始化或迁移其业务数据库。
+        入参说明：无；仓库清单来自主数据库，库文件路径按运行时目录解析。
+        返回值说明：无；任一仓库迁移失败时抛出异常，阻止系统继续启动。
+        """
+        from backend.db.db_constants import DBConstants
+        conn: Optional[sqlite3.Connection] = None
+        try:
+            conn = self.get_master_connection()
+            rows: List[sqlite3.Row] = conn.execute(
+                f"SELECT {DBConstants.Repository.COL_ID}, {DBConstants.Repository.COL_DB_FILE} "
+                f"FROM {DBConstants.Repository.TABLE_NAME} ORDER BY {DBConstants.Repository.COL_ID}"
+            ).fetchall()
+        except Exception as e:
+            LogUtils.error(t('db_repo_list_failed', error=str(e)))
+            raise
+        finally:
+            if conn is not None:
+                conn.close()
+
+        if not rows:
+            self.init_db()
+            return
+
+        for row in rows:
+            repo_id: int = int(row[0])
+            db_file: str = row[1] or self.DB_NAME
+            target_path: str = os.path.join(Utils.get_runtime_path(), db_file)
+            try:
+                self.init_db(target_path)
+            except Exception as e:
+                LogUtils.error(t('db_repo_init_failed', repo_id=repo_id, path=target_path, error=str(e)))
+                raise
 
     def _create_tables(self, cursor: sqlite3.Cursor) -> None:
         """
@@ -434,6 +517,105 @@ class DBManager:
             )
         ''')
 
+        # 12. 创建图片多人脸索引表（新库直接具备当前结构）
+        DBManager._create_face_tables(cursor)
+
+    @staticmethod
+    def _create_face_tables(cursor: sqlite3.Cursor) -> None:
+        """
+        用途说明：创建人脸处理状态与多人脸特征表，供新库初始化和旧库迁移共用。
+        入参说明：cursor (sqlite3.Cursor) - 数据库游标。
+        返回值说明：无
+        """
+        from backend.db.db_constants import DBConstants
+        state = DBConstants.FaceIndexState
+        face = DBConstants.FaceEmbedding
+        queue = DBConstants.FaceRecognitionQueue
+        file_index = DBConstants.FileIndex
+
+        cursor.execute(f'''
+            CREATE TABLE IF NOT EXISTS {queue.TABLE_NAME} (
+                {queue.COL_ID} INTEGER PRIMARY KEY AUTOINCREMENT,
+                {queue.COL_FILE_PATH} TEXT NOT NULL UNIQUE,
+                {queue.COL_FILE_MD5} TEXT NOT NULL,
+                {queue.COL_QUEUED_AT} DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
+        cursor.execute(f'''
+            CREATE TABLE IF NOT EXISTS {state.TABLE_NAME} (
+                {state.COL_ID} INTEGER PRIMARY KEY AUTOINCREMENT,
+                {state.COL_FILE_PATH} TEXT NOT NULL UNIQUE,
+                {state.COL_FILE_MD5} TEXT NOT NULL,
+                {state.COL_PIPELINE_VERSION} TEXT NOT NULL,
+                {state.COL_FACE_COUNT} INTEGER NOT NULL DEFAULT 0,
+                {state.COL_PROCESSED_AT} DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
+        cursor.execute(f'''
+            CREATE TABLE IF NOT EXISTS {face.TABLE_NAME} (
+                {face.COL_ID} INTEGER PRIMARY KEY AUTOINCREMENT,
+                {face.COL_FILE_PATH} TEXT NOT NULL,
+                {face.COL_FILE_MD5} TEXT NOT NULL,
+                {face.COL_FACE_INDEX} INTEGER NOT NULL,
+                {face.COL_BBOX_X} REAL NOT NULL DEFAULT 0,
+                {face.COL_BBOX_Y} REAL NOT NULL DEFAULT 0,
+                {face.COL_BBOX_WIDTH} REAL NOT NULL DEFAULT 0,
+                {face.COL_BBOX_HEIGHT} REAL NOT NULL DEFAULT 0,
+                {face.COL_CONFIDENCE} REAL NOT NULL DEFAULT 0,
+                {face.COL_EMBEDDING} BLOB NOT NULL,
+                {face.COL_PIPELINE_VERSION} TEXT NOT NULL,
+                {face.COL_CREATED_AT} DATETIME DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE ({face.COL_FILE_PATH}, {face.COL_FACE_INDEX}, {face.COL_PIPELINE_VERSION})
+            )
+        ''')
+
+        cursor.execute(f'''
+            CREATE INDEX IF NOT EXISTS idx_face_embeddings_file_path
+            ON {face.TABLE_NAME} ({face.COL_FILE_PATH})
+        ''')
+        cursor.execute(f'''
+            CREATE INDEX IF NOT EXISTS idx_file_index_face_pending
+            ON {file_index.TABLE_NAME} (
+                {file_index.COL_FILE_TYPE}, {file_index.COL_RECYCLE_BIN_TIME}, {file_index.COL_FILE_PATH}
+            )
+        ''')
+
+    @staticmethod
+    def _backfill_file_names(cursor: sqlite3.Cursor, table_name: str) -> None:
+        """
+        用途说明：分批为旧索引中缺失的文件名列补值，避免一次性读取全表。
+        入参说明：
+            cursor (sqlite3.Cursor): 数据库游标。
+            table_name (str): file_index 或 history_file_index 表名，仅使用项目内常量。
+        返回值说明：无；只更新文件名为空的历史记录。
+        """
+        from backend.db.db_constants import DBConstants
+        last_id: int = 0
+        batch_size: int = 500
+        while True:
+            rows: List[tuple] = cursor.execute(
+                f"SELECT {DBConstants.FileIndex.COL_ID}, {DBConstants.FileIndex.COL_FILE_PATH} "
+                f"FROM {table_name} "
+                f"WHERE {DBConstants.FileIndex.COL_ID} > ? "
+                f"AND ({DBConstants.FileIndex.COL_FILE_NAME} IS NULL "
+                f"OR {DBConstants.FileIndex.COL_FILE_NAME} = '') "
+                f"ORDER BY {DBConstants.FileIndex.COL_ID} LIMIT ?",
+                (last_id, batch_size)
+            ).fetchall()
+            if not rows:
+                break
+            data: List[tuple] = [
+                (os.path.basename(row[1]), row[0]) for row in rows
+            ]
+            cursor.executemany(
+                f"UPDATE {table_name} SET {DBConstants.FileIndex.COL_FILE_NAME} = ? "
+                f"WHERE {DBConstants.FileIndex.COL_ID} = ?",
+                data
+            )
+            last_id = int(rows[-1][0])
+
     def migrate_db_version(self, old_version: int, new_version: int, cursor: sqlite3.Cursor) -> None:
         """
         用途说明：数据库版本迁移适配逻辑，处理不同版本间的结构差异。
@@ -445,14 +627,24 @@ class DBManager:
         """
         from backend.db.db_constants import DBConstants
 
+        # 先补齐相册依赖列，避免旧库已有部分列时，后续索引创建因缺列而中断。
+        DBManager._ensure_file_index_album_columns(cursor)
+
         if old_version < 8:
             # 升级到版本 8: 为 duplicate_files 添加相似度字段
             try:
-                cursor.execute(f"ALTER TABLE {DBConstants.DuplicateFile.TABLE_FILES} ADD COLUMN {DBConstants.DuplicateFile.COL_SIMILARITY_TYPE} TEXT")
-                cursor.execute(f"ALTER TABLE {DBConstants.DuplicateFile.TABLE_FILES} ADD COLUMN {DBConstants.DuplicateFile.COL_SIMILARITY_RATE} REAL DEFAULT 1.0")
+                DBManager._add_column_if_missing(
+                    cursor, DBConstants.DuplicateFile.TABLE_FILES,
+                    DBConstants.DuplicateFile.COL_SIMILARITY_TYPE, 'TEXT'
+                )
+                DBManager._add_column_if_missing(
+                    cursor, DBConstants.DuplicateFile.TABLE_FILES,
+                    DBConstants.DuplicateFile.COL_SIMILARITY_RATE, 'REAL DEFAULT 1.0'
+                )
                 LogUtils.info(t('db_migrate_v8_success'))
             except Exception as e:
                 LogUtils.error(t('db_migrate_v8_failed', error=str(e)))
+                raise
 
         if old_version < 9:
             # 升级到版本 9: 添加 batch_check_results 表
@@ -469,63 +661,79 @@ class DBManager:
         if old_version < 10:
             # 升级到版本 10: 为 file_index 和 history_file_index 添加 file_name 列
             try:
-                # 1. 为 file_index 添加列并更新数据
-                cursor.execute(f"ALTER TABLE {DBConstants.FileIndex.TABLE_NAME} ADD COLUMN {DBConstants.FileIndex.COL_FILE_NAME} TEXT")
-                cursor.execute(f"SELECT {DBConstants.FileIndex.COL_ID}, {DBConstants.FileIndex.COL_FILE_PATH} FROM {DBConstants.FileIndex.TABLE_NAME}")
-                rows = cursor.fetchall()
-                for row in rows:
-                    row_id, file_path = row
-                    file_name = os.path.basename(file_path)
-                    cursor.execute(f"UPDATE {DBConstants.FileIndex.TABLE_NAME} SET {DBConstants.FileIndex.COL_FILE_NAME} = ? WHERE {DBConstants.FileIndex.COL_ID} = ?", (file_name, row_id))
-                
-                # 2. 为 history_file_index 添加列并更新数据
-                cursor.execute(f"ALTER TABLE {DBConstants.HistoryFileIndex.TABLE_NAME} ADD COLUMN {DBConstants.HistoryFileIndex.COL_FILE_NAME} TEXT")
-                cursor.execute(f"SELECT {DBConstants.HistoryFileIndex.COL_ID}, {DBConstants.HistoryFileIndex.COL_FILE_PATH} FROM {DBConstants.HistoryFileIndex.TABLE_NAME}")
-                rows = cursor.fetchall()
-                for row in rows:
-                    row_id, file_path = row
-                    file_name = os.path.basename(file_path)
-                    cursor.execute(f"UPDATE {DBConstants.HistoryFileIndex.TABLE_NAME} SET {DBConstants.HistoryFileIndex.COL_FILE_NAME} = ? WHERE {DBConstants.HistoryFileIndex.COL_ID} = ?", (file_name, row_id))
-                
+                # 1. 为 file_index 添加列并分批补全历史文件名
+                DBManager._add_column_if_missing(
+                    cursor, DBConstants.FileIndex.TABLE_NAME,
+                    DBConstants.FileIndex.COL_FILE_NAME, 'TEXT'
+                )
+                DBManager._backfill_file_names(cursor, DBConstants.FileIndex.TABLE_NAME)
+
+                # 2. 为 history_file_index 添加列并分批补全历史文件名
+                DBManager._add_column_if_missing(
+                    cursor, DBConstants.HistoryFileIndex.TABLE_NAME,
+                    DBConstants.HistoryFileIndex.COL_FILE_NAME, 'TEXT'
+                )
+                DBManager._backfill_file_names(cursor, DBConstants.HistoryFileIndex.TABLE_NAME)
+
                 LogUtils.info(t('db_migrate_v10_success'))
             except Exception as e:
                 LogUtils.error(t('db_migrate_v10_failed', error=str(e)))
+                raise
 
         if old_version < 12:
             # 升级到版本 12: 为 duplicate_groups 添加 create_time 列
             try:
                 # 使用“重建表”的方式避开 SQLite 对 ALTER TABLE ADD COLUMN 非常量默认值的限制
-                temp_table = f"{DBConstants.DuplicateGroup.TABLE_GROUPS}_backup"
-                
-                # 1. 将原表重命名
-                cursor.execute(f"ALTER TABLE {DBConstants.DuplicateGroup.TABLE_GROUPS} RENAME TO {temp_table}")
-                
-                # 2. 创建符合新结构的新表（包含 DEFAULT CURRENT_TIMESTAMP）
-                cursor.execute(f'''
-                    CREATE TABLE {DBConstants.DuplicateGroup.TABLE_GROUPS} (
-                        {DBConstants.DuplicateGroup.COL_GRP_ID_PK} INTEGER PRIMARY KEY AUTOINCREMENT,
-                        {DBConstants.DuplicateGroup.COL_GRP_GROUP_NAME} TEXT NOT NULL,
-                        {DBConstants.DuplicateGroup.COL_GRP_CREATE_TIME} DATETIME DEFAULT CURRENT_TIMESTAMP
-                    )
-                ''')
-                
-                # 3. 迁移数据，将旧数据导入新表，create_time 设为当前时间
-                cursor.execute(f'''
-                    INSERT INTO {DBConstants.DuplicateGroup.TABLE_GROUPS} (
-                        {DBConstants.DuplicateGroup.COL_GRP_ID_PK}, 
-                        {DBConstants.DuplicateGroup.COL_GRP_GROUP_NAME},
-                        {DBConstants.DuplicateGroup.COL_GRP_CREATE_TIME}
-                    )
-                    SELECT 
-                        {DBConstants.DuplicateGroup.COL_GRP_ID_PK}, 
-                        {DBConstants.DuplicateGroup.COL_GRP_GROUP_NAME},
-                        CURRENT_TIMESTAMP
-                    FROM {temp_table}
-                ''')
-                
-                # 4. 删除备份表
-                cursor.execute(f"DROP TABLE {temp_table}")
-                
+                temp_table: str = f"{DBConstants.DuplicateGroup.TABLE_GROUPS}_backup"
+                table_name: str = DBConstants.DuplicateGroup.TABLE_GROUPS
+                columns: set[str] = {
+                    row[1] for row in cursor.execute(f"PRAGMA table_info({table_name})").fetchall()
+                }
+                if not columns:
+                    # 兼容旧版本在重命名后中断的数据库，先恢复备份表再重新执行。
+                    backup_columns: set[str] = {
+                        row[1] for row in cursor.execute(f"PRAGMA table_info({temp_table})").fetchall()
+                    }
+                    if not backup_columns:
+                        raise RuntimeError(t('db_required_table_missing', table=table_name))
+                    cursor.execute(f"ALTER TABLE {temp_table} RENAME TO {table_name}")
+                    columns = backup_columns
+
+                if DBConstants.DuplicateGroup.COL_GRP_CREATE_TIME not in columns:
+                    # 原表仍存在时，先清理中断残留的旧备份，再执行可重试的重建。
+                    cursor.execute(f"DROP TABLE IF EXISTS {temp_table}")
+                    # 1. 将原表重命名
+                    cursor.execute(f"ALTER TABLE {table_name} RENAME TO {temp_table}")
+
+                    # 2. 创建符合新结构的新表（包含 DEFAULT CURRENT_TIMESTAMP）
+                    cursor.execute(f'''
+                        CREATE TABLE {table_name} (
+                            {DBConstants.DuplicateGroup.COL_GRP_ID_PK} INTEGER PRIMARY KEY AUTOINCREMENT,
+                            {DBConstants.DuplicateGroup.COL_GRP_GROUP_NAME} TEXT NOT NULL,
+                            {DBConstants.DuplicateGroup.COL_GRP_CREATE_TIME} DATETIME DEFAULT CURRENT_TIMESTAMP
+                        )
+                    ''')
+
+                    # 3. 迁移数据，将旧数据导入新表，create_time 设为当前时间
+                    cursor.execute(f'''
+                        INSERT INTO {table_name} (
+                            {DBConstants.DuplicateGroup.COL_GRP_ID_PK},
+                            {DBConstants.DuplicateGroup.COL_GRP_GROUP_NAME},
+                            {DBConstants.DuplicateGroup.COL_GRP_CREATE_TIME}
+                        )
+                        SELECT
+                            {DBConstants.DuplicateGroup.COL_GRP_ID_PK},
+                            {DBConstants.DuplicateGroup.COL_GRP_GROUP_NAME},
+                            CURRENT_TIMESTAMP
+                        FROM {temp_table}
+                    ''')
+
+                    # 4. 删除备份表
+                    cursor.execute(f"DROP TABLE {temp_table}")
+                else:
+                    # 结构已完整时清理可能残留的旧备份表，保证迁移可重复执行。
+                    cursor.execute(f"DROP TABLE IF EXISTS {temp_table}")
+
                 LogUtils.info(t('db_migrate_v12_success'))
             except Exception as e:
                 LogUtils.error(t('db_migrate_v12_failed', error=str(e)))
@@ -535,15 +743,33 @@ class DBManager:
             # 升级到版本 13: 添加文件类型、视频时长、视频编码
             try:
                 # file_index
-                cursor.execute(f"ALTER TABLE {DBConstants.FileIndex.TABLE_NAME} ADD COLUMN {DBConstants.FileIndex.COL_FILE_TYPE} TEXT")
-                cursor.execute(f"ALTER TABLE {DBConstants.FileIndex.TABLE_NAME} ADD COLUMN {DBConstants.FileIndex.COL_VIDEO_DURATION} REAL")
-                cursor.execute(f"ALTER TABLE {DBConstants.FileIndex.TABLE_NAME} ADD COLUMN {DBConstants.FileIndex.COL_VIDEO_CODEC} TEXT")
-                
+                DBManager._add_column_if_missing(
+                    cursor, DBConstants.FileIndex.TABLE_NAME,
+                    DBConstants.FileIndex.COL_FILE_TYPE, 'TEXT'
+                )
+                DBManager._add_column_if_missing(
+                    cursor, DBConstants.FileIndex.TABLE_NAME,
+                    DBConstants.FileIndex.COL_VIDEO_DURATION, 'REAL'
+                )
+                DBManager._add_column_if_missing(
+                    cursor, DBConstants.FileIndex.TABLE_NAME,
+                    DBConstants.FileIndex.COL_VIDEO_CODEC, 'TEXT'
+                )
+
                 # history_file_index
-                cursor.execute(f"ALTER TABLE {DBConstants.HistoryFileIndex.TABLE_NAME} ADD COLUMN {DBConstants.HistoryFileIndex.COL_FILE_TYPE} TEXT")
-                cursor.execute(f"ALTER TABLE {DBConstants.HistoryFileIndex.TABLE_NAME} ADD COLUMN {DBConstants.HistoryFileIndex.COL_VIDEO_DURATION} REAL")
-                cursor.execute(f"ALTER TABLE {DBConstants.HistoryFileIndex.TABLE_NAME} ADD COLUMN {DBConstants.HistoryFileIndex.COL_VIDEO_CODEC} TEXT")
-                
+                DBManager._add_column_if_missing(
+                    cursor, DBConstants.HistoryFileIndex.TABLE_NAME,
+                    DBConstants.HistoryFileIndex.COL_FILE_TYPE, 'TEXT'
+                )
+                DBManager._add_column_if_missing(
+                    cursor, DBConstants.HistoryFileIndex.TABLE_NAME,
+                    DBConstants.HistoryFileIndex.COL_VIDEO_DURATION, 'REAL'
+                )
+                DBManager._add_column_if_missing(
+                    cursor, DBConstants.HistoryFileIndex.TABLE_NAME,
+                    DBConstants.HistoryFileIndex.COL_VIDEO_CODEC, 'TEXT'
+                )
+
                 LogUtils.info(t('db_migrate_v13_success'))
             except Exception as e:
                 LogUtils.error(t('db_migrate_v13_failed', error=str(e)))
@@ -608,7 +834,10 @@ class DBManager:
         if old_version < 16:
             # 升级到版本 16: 为 duplicate_check_meta 添加查重耗时列
             try:
-                cursor.execute(f"ALTER TABLE {DBConstants.DuplicateCheckMeta.TABLE_NAME} ADD COLUMN {DBConstants.DuplicateCheckMeta.COL_LAST_CHECK_DURATION} REAL DEFAULT 0")
+                DBManager._add_column_if_missing(
+                    cursor, DBConstants.DuplicateCheckMeta.TABLE_NAME,
+                    DBConstants.DuplicateCheckMeta.COL_LAST_CHECK_DURATION, 'REAL DEFAULT 0'
+                )
                 LogUtils.info(t('db_migrate_v16_success'))
             except Exception as e:
                 LogUtils.error(t('db_migrate_v16_failed', error=str(e)))
@@ -634,7 +863,10 @@ class DBManager:
         if old_version < 18:
             # 升级到版本 18: 为 organize_settings 添加文件名整理脚本路径列
             try:
-                cursor.execute(f"ALTER TABLE {DBConstants.OrganizeSetting.TABLE_NAME} ADD COLUMN {DBConstants.OrganizeSetting.COL_RENAME_SCRIPT_PATH} TEXT NOT NULL DEFAULT ''")
+                DBManager._add_column_if_missing(
+                    cursor, DBConstants.OrganizeSetting.TABLE_NAME,
+                    DBConstants.OrganizeSetting.COL_RENAME_SCRIPT_PATH, "TEXT NOT NULL DEFAULT ''"
+                )
                 LogUtils.info(t('db_migrate_v18_success'))
             except Exception as e:
                 LogUtils.error(t('db_migrate_v18_failed', error=str(e)))
@@ -661,200 +893,131 @@ class DBManager:
         if old_version < 20:
             # 升级到版本 20: 为 organize_settings 添加文件大小筛选三列（比较符/数值/单位）
             try:
-                cursor.execute(f"ALTER TABLE {DBConstants.OrganizeSetting.TABLE_NAME} ADD COLUMN {DBConstants.OrganizeSetting.COL_SIZE_OP} TEXT NOT NULL DEFAULT ''")
-                cursor.execute(f"ALTER TABLE {DBConstants.OrganizeSetting.TABLE_NAME} ADD COLUMN {DBConstants.OrganizeSetting.COL_SIZE_VALUE} REAL NOT NULL DEFAULT 0")
-                cursor.execute(f"ALTER TABLE {DBConstants.OrganizeSetting.TABLE_NAME} ADD COLUMN {DBConstants.OrganizeSetting.COL_SIZE_UNIT} TEXT NOT NULL DEFAULT 'MB'")
+                DBManager._add_column_if_missing(
+                    cursor, DBConstants.OrganizeSetting.TABLE_NAME,
+                    DBConstants.OrganizeSetting.COL_SIZE_OP, "TEXT NOT NULL DEFAULT ''"
+                )
+                DBManager._add_column_if_missing(
+                    cursor, DBConstants.OrganizeSetting.TABLE_NAME,
+                    DBConstants.OrganizeSetting.COL_SIZE_VALUE, 'REAL NOT NULL DEFAULT 0'
+                )
+                DBManager._add_column_if_missing(
+                    cursor, DBConstants.OrganizeSetting.TABLE_NAME,
+                    DBConstants.OrganizeSetting.COL_SIZE_UNIT, "TEXT NOT NULL DEFAULT 'MB'"
+                )
                 LogUtils.info(t('db_migrate_v20_success'))
             except Exception as e:
                 LogUtils.error(t('db_migrate_v20_failed', error=str(e)))
                 raise e
 
         if old_version < 21:
-            # 升级到版本 21: 为 file_index 添加文件修改时间列，并尽力回填历史数据（用于相册时间轴分组）
+            # 升级到版本 21: 直接添加文件修改时间空列，历史数据等待下次索引扫描写入
             try:
-                cursor.execute(
-                    f"ALTER TABLE {DBConstants.FileIndex.TABLE_NAME} "
-                    f"ADD COLUMN {DBConstants.FileIndex.COL_FILE_MTIME} DATETIME"
+                DBManager._add_column_if_missing(
+                    cursor, DBConstants.FileIndex.TABLE_NAME,
+                    DBConstants.FileIndex.COL_FILE_MTIME, 'DATETIME'
                 )
                 cursor.execute(
                     f"CREATE INDEX IF NOT EXISTS idx_file_index_mtime "
                     f"ON {DBConstants.FileIndex.TABLE_NAME} ({DBConstants.FileIndex.COL_FILE_MTIME})"
                 )
-                DBManager._backfill_file_mtime(cursor)
                 LogUtils.info(t('db_migrate_v21_success'))
             except Exception as e:
                 LogUtils.error(t('db_migrate_v21_failed', error=str(e)))
                 raise e
 
         if old_version < 22:
-            # 升级到版本 22: 为 file_index 添加 EXIF/拍摄时间列，并尽力回填图片与视频的历史拍摄时间
+            # 升级到版本 22: 直接添加 EXIF/拍摄时间空列，避免启动时扫描媒体文件
             try:
-                cursor.execute(
-                    f"ALTER TABLE {DBConstants.FileIndex.TABLE_NAME} "
-                    f"ADD COLUMN {DBConstants.FileIndex.COL_FILE_EXIF_TIME} DATETIME"
+                DBManager._add_column_if_missing(
+                    cursor, DBConstants.FileIndex.TABLE_NAME,
+                    DBConstants.FileIndex.COL_FILE_EXIF_TIME, 'DATETIME'
                 )
                 cursor.execute(
                     f"CREATE INDEX IF NOT EXISTS idx_file_index_album_time "
                     f"ON {DBConstants.FileIndex.TABLE_NAME} ({DBConstants.FileIndex.ALBUM_TIME_EXPRESSION})"
                 )
-                DBManager._backfill_file_exif_time(cursor)
                 LogUtils.info(t('db_migrate_v22_success'))
             except Exception as e:
                 LogUtils.error(t('db_migrate_v22_failed', error=str(e)))
                 raise e
 
         if old_version < 23:
-            # 升级到版本 23: 为 file_index 添加拍摄地点列，并尽力回填图片与视频的历史拍摄地点
+            # 升级到版本 23: 直接添加拍摄地点空列，历史数据等待下次索引扫描写入
             try:
-                cursor.execute(
-                    f"ALTER TABLE {DBConstants.FileIndex.TABLE_NAME} "
-                    f"ADD COLUMN {DBConstants.FileIndex.COL_FILE_LOCATION} TEXT"
+                DBManager._add_column_if_missing(
+                    cursor, DBConstants.FileIndex.TABLE_NAME,
+                    DBConstants.FileIndex.COL_FILE_LOCATION, 'TEXT'
                 )
-                DBManager._backfill_file_location(cursor)
                 LogUtils.info(t('db_migrate_v23_success'))
             except Exception as e:
                 LogUtils.error(t('db_migrate_v23_failed', error=str(e)))
                 raise e
 
-    @staticmethod
-    def _backfill_file_location(cursor: sqlite3.Cursor) -> None:
-        """
-        用途说明：迁移到版本 23 时按主键分批回填图片/视频的拍摄地点。
-            分批（每批 200 条）读取与更新，避免一次性加载全表导致内存占用过高；
-            无法读取拍摄地点的记录保持为空，详情面板显示为未记录。
-        入参说明：cursor (sqlite3.Cursor) - 迁移过程中使用的数据库游标。
-        返回值说明：无
-        """
-        from backend.db.db_constants import DBConstants
-        from backend.file_repository.media_location_service import MediaLocationService
+        if old_version < 24:
+            # 升级到版本 24: 新增图片处理状态与多人脸特征表，不自动执行全量识别
+            try:
+                DBManager._create_face_tables(cursor)
+                LogUtils.info(t('db_migrate_v24_success'))
+            except Exception as e:
+                LogUtils.error(t('db_migrate_v24_failed', error=str(e)))
+                raise e
 
-        read_cursor: sqlite3.Cursor = cursor.connection.cursor()
-        last_id: int = 0
-        batch_size: int = 200
-        updated_total: int = 0
-        while True:
-            read_cursor.execute(
-                f"SELECT {DBConstants.FileIndex.COL_ID}, {DBConstants.FileIndex.COL_FILE_PATH}, "
-                f"{DBConstants.FileIndex.COL_FILE_TYPE} "
-                f"FROM {DBConstants.FileIndex.TABLE_NAME} "
-                f"WHERE {DBConstants.FileIndex.COL_ID} > ? AND {DBConstants.FileIndex.COL_FILE_LOCATION} IS NULL "
-                f"AND {DBConstants.FileIndex.COL_FILE_TYPE} IN ('image', 'video') "
-                f"ORDER BY {DBConstants.FileIndex.COL_ID} LIMIT ?",
-                (last_id, batch_size)
+        if old_version < 25:
+            # 升级到版本 25: 新增按文件路径去重的持久化人脸识别队列
+            try:
+                DBManager._create_face_tables(cursor)
+                LogUtils.info(t('db_migrate_v25_success'))
+            except Exception as e:
+                LogUtils.error(t('db_migrate_v25_failed', error=str(e)))
+                raise e
+
+    @staticmethod
+    def _add_column_if_missing(cursor: sqlite3.Cursor, table_name: str,
+                               column_name: str, column_definition: str) -> None:
+        """
+        用途说明：检查表结构并在缺失时添加列，供版本迁移和启动结构校验共用。
+        入参说明：
+            cursor (sqlite3.Cursor): 数据库游标。
+            table_name (str): 表名，仅使用项目内常量。
+            column_name (str): 列名，仅使用项目内常量。
+            column_definition (str): SQLite 列类型或默认值定义。
+        返回值说明：无；列已存在时不执行任何修改。
+        """
+        cursor.execute(f"PRAGMA table_info({table_name})")
+        columns: set[str] = {row[1] for row in cursor.fetchall()}
+        if column_name not in columns:
+            cursor.execute(
+                f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_definition}"
             )
-            rows = read_cursor.fetchall()
-            if not rows:
-                break
-            last_id = int(rows[-1][0])
-            updates: list = []
-            for row in rows:
-                file_path: str = row[1] or ''
-                file_type: str = row[2] or ''
-                location: Optional[str] = MediaLocationService.get_location(file_path, file_type)
-                if location:
-                    updates.append((location, int(row[0])))
-            if updates:
-                cursor.executemany(
-                    f"UPDATE {DBConstants.FileIndex.TABLE_NAME} "
-                    f"SET {DBConstants.FileIndex.COL_FILE_LOCATION} = ? "
-                    f"WHERE {DBConstants.FileIndex.COL_ID} = ?",
-                    updates
-                )
-                updated_total += len(updates)
-        LogUtils.info(t('db_migrate_v23_backfill_done', count=updated_total))
 
     @staticmethod
-    def _backfill_file_exif_time(cursor: sqlite3.Cursor) -> None:
+    def _ensure_file_index_album_columns(cursor: sqlite3.Cursor) -> None:
         """
-        用途说明：迁移到版本 22 时按主键分批回填图片/视频的 EXIF/拍摄时间。
-            分批（每批 200 条）读取与更新，避免一次性加载全表导致内存占用过高；
-            无法读取拍摄时间的记录保持为空，由相册回退使用文件修改时间。
-        入参说明：cursor (sqlite3.Cursor) - 迁移过程中使用的数据库游标。
-        返回值说明：无
-        """
-        from backend.db.db_constants import DBConstants
-        from backend.file_repository.media_time_service import MediaTimeService
-
-        read_cursor: sqlite3.Cursor = cursor.connection.cursor()
-        last_id: int = 0
-        batch_size: int = 200
-        updated_total: int = 0
-        while True:
-            read_cursor.execute(
-                f"SELECT {DBConstants.FileIndex.COL_ID}, {DBConstants.FileIndex.COL_FILE_PATH}, "
-                f"{DBConstants.FileIndex.COL_FILE_TYPE} "
-                f"FROM {DBConstants.FileIndex.TABLE_NAME} "
-                f"WHERE {DBConstants.FileIndex.COL_ID} > ? AND {DBConstants.FileIndex.COL_FILE_EXIF_TIME} IS NULL "
-                f"AND {DBConstants.FileIndex.COL_FILE_TYPE} IN ('image', 'video') "
-                f"ORDER BY {DBConstants.FileIndex.COL_ID} LIMIT ?",
-                (last_id, batch_size)
-            )
-            rows = read_cursor.fetchall()
-            if not rows:
-                break
-            last_id = int(rows[-1][0])
-            updates: list = []
-            for row in rows:
-                file_path: str = row[1] or ''
-                file_type: str = row[2] or ''
-                exif_time: Optional[str] = MediaTimeService.get_exif_time(file_path, file_type)
-                if exif_time:
-                    updates.append((exif_time, int(row[0])))
-            if updates:
-                cursor.executemany(
-                    f"UPDATE {DBConstants.FileIndex.TABLE_NAME} "
-                    f"SET {DBConstants.FileIndex.COL_FILE_EXIF_TIME} = ? "
-                    f"WHERE {DBConstants.FileIndex.COL_ID} = ?",
-                    updates
-                )
-                updated_total += len(updates)
-        LogUtils.info(t('db_migrate_v22_backfill_done', count=updated_total))
-
-    @staticmethod
-    def _backfill_file_mtime(cursor: sqlite3.Cursor) -> None:
-        """
-        用途说明：迁移到版本 21 时按主键分批回填 file_index.file_mtime（仅处理物理文件仍存在的记录）。
-            分批（每批 500 条）读取与更新，避免一次性加载全表导致内存占用过高。
-        入参说明：cursor (sqlite3.Cursor) - 迁移过程中使用的数据库游标。
-        返回值说明：无
+        用途说明：补齐相册依赖的修改时间、拍摄时间和拍摄地点空列及索引，不读取或扫描任何文件。
+        入参说明：cursor (sqlite3.Cursor) - 初始化或迁移过程中的数据库游标。
+        返回值说明：无；可重复执行，已有列和索引保持不变。
         """
         from backend.db.db_constants import DBConstants
 
-        read_cursor: sqlite3.Cursor = cursor.connection.cursor()
-        last_id: int = 0
-        batch_size: int = 500
-        updated_total: int = 0
-        while True:
-            read_cursor.execute(
-                f"SELECT {DBConstants.FileIndex.COL_ID}, {DBConstants.FileIndex.COL_FILE_PATH} "
-                f"FROM {DBConstants.FileIndex.TABLE_NAME} "
-                f"WHERE {DBConstants.FileIndex.COL_ID} > ? AND {DBConstants.FileIndex.COL_FILE_MTIME} IS NULL "
-                f"ORDER BY {DBConstants.FileIndex.COL_ID} LIMIT ?",
-                (last_id, batch_size)
-            )
-            rows = read_cursor.fetchall()
-            if not rows:
-                break
-            last_id = int(rows[-1][0])
-            updates = []
-            for row in rows:
-                file_path: str = row[1] or ''
-                try:
-                    if file_path and os.path.isfile(file_path):
-                        mtime_str: str = datetime.fromtimestamp(os.path.getmtime(file_path)).strftime('%Y-%m-%d %H:%M:%S')
-                        updates.append((mtime_str, int(row[0])))
-                except OSError:
-                    # 无法读取修改时间时保持为空，后续扫描会重新写入
-                    continue
-            if updates:
-                cursor.executemany(
-                    f"UPDATE {DBConstants.FileIndex.TABLE_NAME} "
-                    f"SET {DBConstants.FileIndex.COL_FILE_MTIME} = ? "
-                    f"WHERE {DBConstants.FileIndex.COL_ID} = ?",
-                    updates
-                )
-                updated_total += len(updates)
-        LogUtils.info(t('db_migrate_v21_backfill_done', count=updated_total))
+        file_index = DBConstants.FileIndex
+        DBManager._add_column_if_missing(
+            cursor, file_index.TABLE_NAME, file_index.COL_FILE_MTIME, 'DATETIME'
+        )
+        DBManager._add_column_if_missing(
+            cursor, file_index.TABLE_NAME, file_index.COL_FILE_EXIF_TIME, 'DATETIME'
+        )
+        DBManager._add_column_if_missing(
+            cursor, file_index.TABLE_NAME, file_index.COL_FILE_LOCATION, 'TEXT'
+        )
+        cursor.execute(
+            f"CREATE INDEX IF NOT EXISTS idx_file_index_mtime "
+            f"ON {file_index.TABLE_NAME} ({file_index.COL_FILE_MTIME})"
+        )
+        cursor.execute(
+            f"CREATE INDEX IF NOT EXISTS idx_file_index_album_time "
+            f"ON {file_index.TABLE_NAME} ({file_index.ALBUM_TIME_EXPRESSION})"
+        )
 
 
 # 创建全局唯一的处理器管理器实例，供外部统一调用
