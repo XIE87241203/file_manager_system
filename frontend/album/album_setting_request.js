@@ -1,12 +1,12 @@
 /**
- * 用途说明：相册设置页面 API 请求封装，负责读取与更新缩略图存储路径配置。
+ * 用途说明：相册设置页面 API 请求封装，负责读取与更新缩略图存储路径和分辨率。
  * 每个方法均提供成功回调 (onSuccess) 与错误回调 (onError)。
  */
 const AlbumSettingRequest = {
     /**
      * 用途说明：获取相册设置。
      * 入参说明：
-     *   onSuccess (Function) - 成功回调，参数为 {thumbnail_dir, thumbnail_dir_effective}。
+     *   onSuccess (Function) - 成功回调，参数为 {thumbnail_dir, thumbnail_dir_effective, thumbnail_size}。
      *   onError (Function) - 失败回调，参数为错误信息。
      * 返回值说明：无
      */
@@ -20,15 +20,19 @@ const AlbumSettingRequest = {
     },
 
     /**
-     * 用途说明：更新相册缩略图存储路径。
+     * 用途说明：更新相册缩略图存储路径与当前仓库缩略图最大边长。
      * 入参说明：
      *   thumbnailDir (string) - 新的缩略图存储路径。
+     *   thumbnailSize (number) - 缩略图最大边长（像素），较长边不超过此尺寸。
      *   onSuccess (Function) - 成功回调，参数为更新后的设置对象。
      *   onError (Function) - 失败回调，参数为错误信息。
      * 返回值说明：无
      */
-    updateSettings(thumbnailDir, onSuccess, onError) {
-        Request.post('/api/album/settings', { thumbnail_dir: thumbnailDir }, {}, false)
+    updateSettings(thumbnailDir, thumbnailSize, onSuccess, onError) {
+        Request.post('/api/album/settings', {
+            thumbnail_dir: thumbnailDir,
+            thumbnail_size: thumbnailSize
+        }, {}, false)
             .then(res => {
                 if (res.status === 'success') onSuccess(res.data);
                 else onError(res.message);

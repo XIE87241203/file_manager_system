@@ -316,13 +316,13 @@ body {
 }
 
 .toast-item {
-    background-color: var(--alpha-black-70);
-    color: var(--color-text-inverse);
+    background-color: var(--color-toast-background);
+    color: var(--color-toast-foreground);
     padding: 10px 20px;
     border-radius: 4px;
     margin-bottom: 10px;
     font-size: 0.9rem;
-    box-shadow: 0 2px 10px var(--alpha-black-20);
+    box-shadow: 0 2px 10px var(--color-toast-shadow);
     animation: toast-in-out 3s ease-in-out forwards;
     pointer-events: auto;
 }

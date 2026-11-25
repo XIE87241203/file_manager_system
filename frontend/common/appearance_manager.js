@@ -34,7 +34,7 @@ const AppearanceManager = {
         languageButton.type = 'button';
         languageButton.className = 'appearance-btn appearance-language-btn';
         languageButton.dataset.appearanceLanguageOpen = '';
-        languageButton.innerHTML = '<span class="theme-icon icon-language" aria-hidden="true"></span>';
+        languageButton.innerHTML = '<span class="appearance-language-code" aria-hidden="true"></span>';
         container.append(themeButton, languageButton);
         this.init();
     },
@@ -114,6 +114,10 @@ const AppearanceManager = {
         document.querySelectorAll('[data-appearance-language-open]').forEach(button => {
             button.title = I18nManager.t('common.language_switch');
             button.setAttribute('aria-label', I18nManager.t('common.language_switch'));
+            const code = button.querySelector('.appearance-language-code');
+            if (code) {
+                code.textContent = I18nManager.t(I18nManager.currentLang === 'zh' ? 'common.language_code_zh' : 'common.language_code_en');
+            }
         });
         ThemeManager.updateControls();
         this.updateModalTexts();

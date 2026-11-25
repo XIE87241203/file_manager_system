@@ -300,6 +300,11 @@ class SettingService:
                                          key=param_key, value=user_section[param_key]))
                         return False
 
+                # 语言仅支持中英文，避免非法值清空后端翻译资源
+                if 'language' in user_section and user_section['language'] not in ('zh', 'en'):
+                    LogUtils.error(t('config_language_invalid', value=user_section['language']))
+                    return False
+
                 # 时区偏移校验：必须为 -720 到 840 之间的整数分钟
                 if 'timezone_offset_minutes' in user_section \
                         and not self._is_valid_timezone_offset(user_section['timezone_offset_minutes']):

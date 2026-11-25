@@ -24,7 +24,7 @@ const LoginRequest = {
 
     /**
      * @description 用途说明：提交登录凭证进行身份验证
-     * @param {Object} data - 入参说明：包含 username 和 password_hash 的登录对象
+     * @param {Object} data - 入参说明：包含 username、password_hash 和 language 的登录对象
      * @param {Function} onSuccess - 入参说明：成功回调，入参为包含 token 的响应对象
      * @param {Function} onError - 入参说明：失败回调，入参为错误信息字符串
      * @returns {void} - 返回值说明：无

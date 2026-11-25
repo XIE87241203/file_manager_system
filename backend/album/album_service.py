@@ -4,6 +4,7 @@ from typing import List, Optional
 from backend.common.file_type_enum import FileType
 from backend.common.i18n_utils import t
 from backend.common.log_utils import LogUtils
+from backend.common.repo_context import get_current_repo_id
 from backend.common.utils import Utils
 from backend.db.db_operations import DBOperations
 from backend.file_repository.thumbnail.thumbnail_path_utils import ThumbnailPathUtils
@@ -11,6 +12,7 @@ from backend.model.album_item_result import AlbumItemResult
 from backend.model.album_settings_result import AlbumSettingsResult
 from backend.model.db.file_index_db_model import FileIndexDBModel
 from backend.model.pagination_result import PaginationResult
+from backend.repository.repository_service import repositoryService
 from backend.setting.setting_service import settingService
 
 
@@ -20,7 +22,7 @@ class AlbumService:
     职责：
         1. 查询图片/视频媒体列表（瀑布流分页 + 搜索）；
         2. 校验媒体文件并供下载/预览接口使用（缩略图生成统一由缩略图服务提供）；
-        3. 读写相册设置（缩略图存储路径）。
+        3. 读写相册设置（缩略图存储路径与当前仓库缩略图最大边长）。
     """
 
     # 相册只展示图片与视频两类媒体
@@ -101,24 +103,35 @@ class AlbumService:
     @staticmethod
     def get_settings() -> AlbumSettingsResult:
         """
-        用途说明：获取相册设置（缩略图存储路径）及其解析后的绝对路径。
+        用途说明：获取相册设置（缩略图存储路径、实际路径与当前仓库缩略图最大边长）。
         入参说明：无
         返回值说明：AlbumSettingsResult - 相册设置数据。
         """
+        thumbnail_size: int = repositoryService.get_current_config().thumbnail_size
+        if isinstance(thumbnail_size, bool) or not isinstance(thumbnail_size, int) or thumbnail_size <= 0:
+            thumbnail_size = 256
         return AlbumSettingsResult(
             thumbnail_dir=ThumbnailPathUtils.get_configured_dir(),
-            thumbnail_dir_effective=ThumbnailPathUtils.get_thumbnail_dir()
+            thumbnail_dir_effective=ThumbnailPathUtils.get_thumbnail_dir(),
+            thumbnail_size=thumbnail_size
         )
 
     @staticmethod
-    def update_settings(thumbnail_dir: str, operator_name: str) -> Optional[AlbumSettingsResult]:
+    def update_settings(thumbnail_dir: str, operator_name: str,
+                        thumbnail_size: Optional[int] = None) -> Optional[AlbumSettingsResult]:
         """
-        用途说明：更新缩略图存储路径配置并确保目录可用。
+        用途说明：更新缩略图存储路径与当前仓库缩略图最大边长，并确保目录可用。
         入参说明：
             thumbnail_dir (str): 用户输入的路径（相对 data 目录或绝对路径），空值使用默认 thumb。
             operator_name (str): 操作人用户名，用于日志。
+            thumbnail_size (Optional[int]): 缩略图最大边长（像素），None 表示不修改；仅接受正整数。
         返回值说明：Optional[AlbumSettingsResult] - 更新后的设置，失败返回 None。
         """
+        if thumbnail_size is not None and (
+                isinstance(thumbnail_size, bool) or not isinstance(thumbnail_size, int) or thumbnail_size <= 0):
+            LogUtils.error(t('album_thumbnail_size_invalid', value=thumbnail_size))
+            return None
+
         raw_value: str = (thumbnail_dir or "").strip() or ThumbnailPathUtils.DEFAULT_DIR_NAME
         candidate_dir: str = (
             os.path.abspath(raw_value)
@@ -135,13 +148,22 @@ class AlbumService:
             LogUtils.error(t('album_thumbnail_dir_create_failed', path=raw_value, error=str(e)))
             return None
 
-        # 通过统一设置服务持久化，保证 setting.json 结构与其他配置一致
+        # 通过统一设置服务持久化存储路径，保证 setting.json 结构与其他配置一致
         updated: bool = settingService.update_settings(
             {"album": {"thumbnail_dir": raw_value}}, operator_name
         )
         if not updated:
             LogUtils.error(t('album_settings_update_failed_log', user=operator_name))
             return None
+
+        # 分辨率属于当前仓库配置，与缩略图生成器读取的 thumbnail_size 保持同一字段
+        if thumbnail_size is not None:
+            repo_updated: bool = repositoryService.update_config(
+                get_current_repo_id(), {"thumbnail_size": thumbnail_size}
+            )
+            if not repo_updated:
+                LogUtils.error(t('album_settings_update_failed_log', user=operator_name))
+                return None
 
         LogUtils.info(t('album_settings_updated_log', user=operator_name, path=candidate_dir))
         return AlbumService.get_settings()

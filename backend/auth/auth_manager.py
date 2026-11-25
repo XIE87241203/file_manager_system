@@ -4,7 +4,7 @@ import uuid
 from dataclasses import dataclass
 from typing import Dict, Optional, Tuple
 
-from backend.common.i18n_utils import t
+from backend.common.i18n_utils import I18nUtils, t
 from backend.common.log_utils import LogUtils
 from backend.common.password_utils import verify_password
 from backend.setting.setting_service import settingService
@@ -60,18 +60,20 @@ class AuthManager:
             del self._login_attempts[key]
         return False, 0
 
-    def verify_login(self, username: str, password_hash_received: str, ip: str) -> Tuple[bool, str, Optional[str]]:
+    def verify_login(self, username: str, password_hash_received: str, ip: str,
+                     language: str = None) -> Tuple[bool, str, Optional[str]]:
         """
         用途：验证用户登录信息，成功时生成带有有效期的 Token；失败时累计次数并按配置触发锁定
         入参说明：
-            - username: 用户输入的用户名
-            - password_hash_received: 前端传输的密码 SHA-256 哈希值
-            - ip: 请求来源 IP 地址，用于失败锁定记录
+            - username: 登录名；
+            - password_hash_received: 前端传输的密码 SHA-256 哈希值；
+            - ip: 请求来源 IP，用于登录失败锁定；
+            - language: 登录页当前语言，用于返回对应提示文案。
         返回值说明：
             - (bool, str, str): 第一个值为是否验证成功，第二个值为提示消息，第三个值为 Token (成功时返回)
         """
         if not username or not password_hash_received:
-            return False, t('auth_user_pass_required'), None
+            return False, I18nUtils.get_for_language(language, 'auth_user_pass_required'), None
 
         # 多用户支持：按登录名从全局 users 表查找用户，用加盐慢哈希校验前端传来的 SHA-256 哈希
         # 延迟导入避免与用户服务模块形成循环依赖
@@ -93,11 +95,11 @@ class AuthManager:
                 "token": new_token,
                 "expire_at": expire_at
             }
-            return True, t('auth_login_success'), new_token
+            return True, I18nUtils.get_for_language(language, 'auth_login_success'), new_token
 
         # 登录失败，累计失败次数并按配置判断是否触发锁定
         self._record_login_failure(ip, username)
-        return False, t('auth_login_failed'), None
+        return False, I18nUtils.get_for_language(language, 'auth_login_failed'), None
 
     def _record_login_failure(self, ip: str, username: str) -> None:
         """

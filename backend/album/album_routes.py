@@ -9,11 +9,13 @@ from backend.auth.auth_middleware import token_required
 from backend.common.file_type_enum import FileType
 from backend.common.i18n_utils import t
 from backend.common.log_utils import LogUtils
-from backend.common.repo_context import set_current_repo_id
+from backend.common.repo_context import get_current_repo_id, set_current_repo_id
 from backend.common.response import success_response, error_response
+from backend.db.db_constants import DBConstants
 from backend.model.album_settings_result import AlbumSettingsResult
 from backend.model.db.file_index_db_model import FileIndexDBModel
 from backend.model.pagination_result import PaginationResult
+from backend.user.user_service import userService
 
 
 # 创建相册模块蓝图
@@ -117,7 +119,7 @@ def download_album_media():
 @token_required
 def get_album_settings():
     """
-    用途说明：获取相册设置（缩略图存储路径）。
+    用途说明：获取相册设置（缩略图存储路径与当前仓库缩略图最大边长）。
     入参说明：无
     返回值说明：统一 JSON 响应，data 为相册设置对象。
     """
@@ -129,13 +131,26 @@ def get_album_settings():
 @token_required
 def update_album_settings():
     """
-    用途说明：更新相册设置中的缩略图存储路径。
-    入参说明（JSON）：thumbnail_dir (str) - 新的缩略图存储路径。
+    用途说明：更新相册设置中的缩略图存储路径与当前仓库缩略图最大边长。
+    入参说明（JSON）：
+        thumbnail_dir (str) - 新的缩略图存储路径。
+        thumbnail_size (int, 可选) - 缩略图最大边长（像素），仅当前仓库管理员可修改。
     返回值说明：统一 JSON 响应，data 为更新后的相册设置对象。
     """
     data: dict = request.get_json(silent=True) or {}
     thumbnail_dir: str = data.get('thumbnail_dir', '')
-    settings: Optional[AlbumSettingsResult] = AlbumService.update_settings(thumbnail_dir, _get_current_user())
+    thumbnail_size: Optional[int] = data.get('thumbnail_size')
+    if thumbnail_size is not None:
+        if isinstance(thumbnail_size, bool) or not isinstance(thumbnail_size, int) or thumbnail_size <= 0:
+            return error_response(t('album_thumbnail_size_invalid', value=thumbnail_size), 400)
+        repo_id: int = get_current_repo_id()
+        if userService.get_repo_permission(request.username, repo_id) \
+                != DBConstants.UserRepositoryPermission.PERMISSION_ADMIN:
+            return error_response(t('user_repo_admin_required'), 403)
+
+    settings: Optional[AlbumSettingsResult] = AlbumService.update_settings(
+        thumbnail_dir, _get_current_user(), thumbnail_size
+    )
     if settings is None:
         return error_response(t('album_settings_update_failed'), 500)
     return success_response(t('album_settings_update_success'), data=asdict(settings))

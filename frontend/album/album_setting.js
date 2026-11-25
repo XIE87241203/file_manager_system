@@ -1,5 +1,5 @@
 /**
- * 用途说明：相册设置页逻辑，负责加载与保存缩略图存储路径，并展示解析后的实际目录。
+ * 用途说明：相册设置页逻辑，负责加载与保存缩略图存储路径、分辨率，并展示解析后的实际目录。
  * 模块划分：State（状态）、UIController（DOM 操作）、API（接口封装）、App（入口）。
  */
 
@@ -7,6 +7,8 @@
 const State = {
     configuredDir: '',
     effectiveDir: '',
+    thumbnailSize: 256,
+    thumbnailSizeOptions: [128, 256, 512, 1024, 2048],
     saving: false,
     // 缩略图同步任务状态（由系统设置迁入）
     thumbnailSync: {
@@ -29,11 +31,12 @@ const API = {
 
     /**
      * 用途说明：保存相册设置。
-     * 入参说明：thumbnailDir (string) - 缩略图路径；onSuccess (Function) - 成功回调；onError (Function) - 失败回调。
+     * 入参说明：thumbnailDir (string) - 缩略图路径；thumbnailSize (number) - 缩略图最大边长；
+     *           onSuccess (Function) - 成功回调；onError (Function) - 失败回调。
      * 返回值说明：无
      */
-    saveSettings(thumbnailDir, onSuccess, onError) {
-        AlbumSettingRequest.updateSettings(thumbnailDir, onSuccess, onError);
+    saveSettings(thumbnailDir, thumbnailSize, onSuccess, onError) {
+        AlbumSettingRequest.updateSettings(thumbnailDir, thumbnailSize, onSuccess, onError);
     },
 
     /**
@@ -85,22 +88,50 @@ const UIController = {
 
         this.elements = {
             dirInput: document.getElementById('thumbnail-dir-input'),
+            sizeSelect: document.getElementById('thumbnail-size-select'),
             effectiveValue: document.getElementById('thumbnail-dir-effective'),
             saveBtn: document.getElementById('btn-save-album-setting')
         };
+        this.renderThumbnailSizeOptions();
     },
 
     /**
      * 用途说明：回填设置数据到界面。
-     * 入参说明：data (Object) - {thumbnail_dir, thumbnail_dir_effective}。
+     * 入参说明：data (Object) - {thumbnail_dir, thumbnail_dir_effective, thumbnail_size}。
      * 返回值说明：无
      */
     renderSettings(data) {
         if (!data) return;
         State.configuredDir = data.thumbnail_dir || '';
         State.effectiveDir = data.thumbnail_dir_effective || '';
+        State.thumbnailSize = Number(data.thumbnail_size);
+        if (!Number.isInteger(State.thumbnailSize) || State.thumbnailSize <= 0) {
+            State.thumbnailSize = 256;
+        }
         if (this.elements.dirInput) this.elements.dirInput.value = State.configuredDir;
         if (this.elements.effectiveValue) this.elements.effectiveValue.textContent = State.effectiveDir || '--';
+        this.renderThumbnailSizeOptions();
+    },
+
+    /**
+     * 用途说明：生成缩略图分辨率选项，并保留旧配置中不在预设列表内的有效尺寸。
+     * 入参说明：无
+     * 返回值说明：无
+     */
+    renderThumbnailSizeOptions() {
+        const select = this.elements.sizeSelect;
+        if (!select) return;
+        const sizes = State.thumbnailSizeOptions.slice();
+        if (!sizes.includes(State.thumbnailSize)) sizes.push(State.thumbnailSize);
+        sizes.sort((a, b) => a - b);
+        select.innerHTML = '';
+        sizes.forEach(size => {
+            const option = document.createElement('option');
+            option.value = String(size);
+            option.textContent = I18nManager.t('album.thumbnail_size_option', { size });
+            select.appendChild(option);
+        });
+        select.value = String(State.thumbnailSize);
     },
 
     /**
@@ -174,21 +205,27 @@ const App = {
     },
 
     /**
-     * 用途说明：校验并保存缩略图存储路径。
+     * 用途说明：校验并保存缩略图存储路径与最大边长。
      * 入参说明：无
      * 返回值说明：无
      */
     saveSettings() {
         if (State.saving) return;
         const input = UIController.elements.dirInput;
+        const sizeSelect = UIController.elements.sizeSelect;
         const value = (input ? input.value : '').trim();
+        const thumbnailSize = Number(sizeSelect ? sizeSelect.value : State.thumbnailSize);
         if (!value) {
             Toast.show(I18nManager.t('album.path_required'));
             return;
         }
+        if (!Number.isInteger(thumbnailSize) || thumbnailSize <= 0) {
+            Toast.show(I18nManager.t('album.thumbnail_size_invalid'));
+            return;
+        }
 
         UIController.setSaving(true);
-        API.saveSettings(value, (data) => {
+        API.saveSettings(value, thumbnailSize, (data) => {
             UIController.setSaving(false);
             UIController.renderSettings(data);
             Toast.show(I18nManager.t('album.save_success'));

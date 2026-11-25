@@ -64,6 +64,22 @@ const HomeRequest = {
     },
 
     /**
+     * @description 用途说明：同步首页选择的语言到后端全局配置，使接口提示与页面文案保持一致
+     * @param {string} language - 入参说明：语言标识 zh 或 en
+     * @param {Function} onSuccess - 入参说明：成功回调
+     * @param {Function} onError - 入参说明：失败回调，参数为错误信息
+     * @returns {void} - 返回值说明：无
+     */
+    updateLanguage(language, onSuccess, onError) {
+        Request.post('/api/setting/update', { user_data: { language } }, {}, false)
+            .then(res => {
+                if (res.status === 'success') onSuccess(res);
+                else onError(res.message);
+            })
+            .catch(err => onError(err.message || I18nManager.t('common.network_error')));
+    },
+
+    /**
      * @description 用途说明：执行注销登录，通知后端清理会话
      * @param {Function} onSuccess - 入参说明：成功回调
      * @param {Function} onError - 入参说明：失败回调

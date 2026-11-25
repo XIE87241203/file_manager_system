@@ -40,6 +40,24 @@ class I18nUtils:
         cls._is_initialized = True
 
     @classmethod
+    def get_for_language(cls, language: str, key: str, default: str = None, **kwargs) -> str:
+        """
+        用途：按指定语言读取翻译文案，不修改全局当前语言。
+        入参说明：
+            - language: 语言标识 ('zh' 或 'en')，非法值回退到当前语言；
+            - key: 翻译键；
+            - default: 键不存在时的默认文案；
+            - kwargs: 用于替换文案中占位符的参数。
+        返回值说明：指定语言下的翻译文案。
+        """
+        target_language: str = language if language in ('zh', 'en') else cls.LANGUAGE
+        module_name: str = f"backend.i18n.{target_language}"
+        module: Any = importlib.import_module(module_name)
+        translations: Dict[str, str] = getattr(module, "TRANSLATIONS", {})
+        text: str = translations.get(key, default if default is not None else key)
+        return text.format(**kwargs) if kwargs else text
+
+    @classmethod
     def reload(cls, language: str = None) -> None:
         """
         用途：刷新语言设置，强制重新加载翻译文案

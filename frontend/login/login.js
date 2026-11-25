@@ -102,7 +102,8 @@ const Login = {
 
         const loginData = {
             username: username,
-            password_hash: passwordHash
+            password_hash: passwordHash,
+            language: I18nManager.currentLang
         };
 
         // 调用封装的 API 请求

@@ -221,7 +221,15 @@ const App = {
     init() {
         UIController.init();
         this.bindEvents();
-        document.addEventListener('appearance:languagechange', () => UIController.refreshDynamicTexts());
+        // 首页语言切换同时刷新动态文案，并同步后端配置以统一全站接口提示语言
+        document.addEventListener('appearance:languagechange', () => {
+            UIController.refreshDynamicTexts();
+            HomeRequest.updateLanguage(
+                I18nManager.currentLang,
+                () => {},
+                () => Toast.show(I18nManager.t('common.language_sync_failed'))
+            );
+        });
         this.initRepoSelector();
         this.fetchAndDisplayAppVersion();
     },

@@ -402,9 +402,12 @@ const UIController = {
      */
     fillSettingsForm(data) {
         // 用户数据（登录名与密码已移至用户管理，此处仅语言与锁定参数）
-        State.userData = data.user_data || State.userData;
+        // 当前浏览器语言由首页或登录页统一维护，后端旧配置不得覆盖用户当前选择
+        State.userData = Object.assign({}, data.user_data || State.userData, {
+            language: I18nManager.currentLang
+        });
         const userData = State.userData;
-        document.getElementById('language-select').value = userData.language || 'en';
+        document.getElementById('language-select').value = userData.language;
         // 时区偏移（分钟），后端未返回时使用默认东八区 480
         document.getElementById('timezone-select').value = String(userData.timezone_offset_minutes ?? 480);
         // 登录失败锁定参数（后端未返回时使用默认值）
@@ -419,8 +422,8 @@ const UIController = {
         document.getElementById('log-retention-days').value = isForever ? 30 : (retentionDays ?? 30);
         this.syncLogRetentionInputState();
 
-        // 根据后端配置初始化多语言并渲染
-        I18nManager.init(userData.language);
+        // 保持当前浏览器语言，避免异步加载的旧后端配置再次覆盖首页或登录页的选择
+        I18nManager.init(I18nManager.currentLang, true);
         I18nManager.render();
         // 重新初始化 HeaderToolbar 以更新标题
         HeaderToolbar.init({
@@ -1128,7 +1131,7 @@ const App = {
 
                         if (isLanguageChanged) {
                             // 语言变更后，重新刷新页面以应用新语言
-                            I18nManager.init(updateData.user_data.language);
+                            I18nManager.init(updateData.user_data.language, true);
                             window.location.href = '../home/home.html';
                         } else {
                             this.loadSettings();

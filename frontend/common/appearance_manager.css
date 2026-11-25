@@ -62,6 +62,15 @@
     color: var(--color-primary);
 }
 
+.appearance-language-code {
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: 0.02em;
+    user-select: none;
+}
+
 .appearance-language-content {
     max-width: 360px;
 }

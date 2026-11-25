@@ -53,6 +53,9 @@
     --color-text-tertiary: #bdc1c6;
     --color-theme-toggle-background: #000;
     --color-theme-toggle-foreground: #fff;
+    --color-toast-background: #e8eaed;
+    --color-toast-foreground: #1a1b1e;
+    --color-toast-shadow: rgba(0,0,0,0.5);
     --color-transparent: transparent;
     --color-warning: #fdd663;
     --color-warning-dark: #f6c344;

@@ -15,9 +15,9 @@ const I18nManager = {
     currentLang: 'en',
 
     /**
-     * @description 用途说明：初始化多语言配置。优先级：URL 参数 > 传入参数 > localStorage > 默认 en。
+     * @description 用途说明：初始化多语言配置。优先级：显式传入语言 > 本地已保存语言 > URL 参数 > 默认 en。
      * @param {string} lang - 入参说明：语言标识 ('zh' 或 'en')。
-     * @param {boolean} [force=false] - 入参说明：是否强制应用传入语言并忽略 URL 参数，供用户主动切换语言时使用。
+     * @param {boolean} [force=false] - 入参说明：是否忽略 URL 参数，供用户主动切换语言时使用。
      * @returns {void} - 返回值说明：无。
      */
     init: function(lang, force = false) {
@@ -25,11 +25,22 @@ const I18nManager = {
         const urlParams = new URLSearchParams(window.location.search);
         const urlLang = urlParams.get('lang');
 
-        // 2. 确定最终语言标识；主动切换时跳过 URL 参数，确保用户弹窗选择优先生效
-        this.currentLang = (force ? null : urlLang) || lang || localStorage.getItem('sys_lang') || 'en';
+        // 2. 本地保存的语言代表用户当前选择，优先于可能过期的 URL 参数
+        let savedLang = null;
+        try {
+            savedLang = localStorage.getItem('sys_lang');
+        } catch (error) {
+            // 浏览器禁用本地存储时仍按当前页面参数初始化语言。
+        }
+        const requestedLang = lang || savedLang || (force ? null : urlLang) || 'en';
+        this.currentLang = requestedLang === 'zh' ? 'zh' : 'en';
 
         // 3. 持久化存储，方便后续页面读取
-        localStorage.setItem('sys_lang', this.currentLang);
+        try {
+            localStorage.setItem('sys_lang', this.currentLang);
+        } catch (error) {
+            // 浏览器禁用本地存储时仍允许当前页面使用切换后的语言。
+        }
 
         // 4. 根据语言标识选择资源包
         if (this.currentLang === 'zh') {
