@@ -177,6 +177,9 @@ class DBManager:
         """
         db_path: str = self.resolve_db_path(get_current_repo_id())
         conn: sqlite3.Connection = sqlite3.connect(db_path)
+        # 注册文件名首字母函数，供相册在 SQLite 内完成全局排序，避免把全表读入内存
+        from backend.common.filename_sort_utils import FilenameSortUtils
+        conn.create_function('filename_initial', 1, FilenameSortUtils.get_initial, deterministic=True)
         # 启用 WAL (Write-Ahead Logging) 模式
         try:
             conn.execute("PRAGMA journal_mode=WAL;")

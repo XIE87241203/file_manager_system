@@ -27,24 +27,37 @@
                 </div>
             </div>
 
-            <!-- 相册主体：左侧垂直时间轴 + 右侧按时间分组的瀑布流 -->
-            <div class="album-layout">
-                <!-- 垂直时间轴：顶部为媒体类型筛选，下方年份刻度最大、月份次之、日刻度仅圆点，点击可快速跳转 -->
+            <!-- 筛选工具栏：排序、媒体类型与侧边栏开关，整体位于列表上方左对齐 -->
+            <div class="album-toolbar">
+                <button id="album-sidebar-toggle" class="album-sidebar-toggle" type="button"
+                        data-i18n-title="album.sidebar_hide" title="" aria-controls="album-timeline" aria-expanded="true">
+                    <span class="theme-icon icon-chevron-left" aria-hidden="true"></span>
+                </button>
+                <select id="album-sort-filter" class="album-filter-select" data-i18n-title="album.sort_title" title="">
+                    <option value="album_time" data-i18n="album.sort_time"></option>
+                    <option value="file_name" data-i18n="album.sort_name"></option>
+                    <option value="file_size" data-i18n="album.sort_size"></option>
+                </select>
+                <!-- 媒体类型筛选下拉框：所有 / 仅图片 / 仅视频 -->
+                <select id="album-type-filter" class="album-filter-select" data-i18n-title="album.filter_type_title" title="">
+                    <option value="" data-i18n="album.filter_all"></option>
+                    <option value="image" data-i18n="album.filter_image"></option>
+                    <option value="video" data-i18n="album.filter_video"></option>
+                </select>
+            </div>
+
+            <!-- 相册主体：左侧动态标尺侧边栏 + 右侧按当前排序分组的瀑布流 -->
+            <div id="album-layout" class="album-layout">
+                <!-- 动态标尺：时间排序显示时间轴，文件名排序显示字母尺，文件大小排序隐藏 -->
                 <aside id="album-timeline" class="album-timeline" data-i18n-title="album.timeline_title" title="">
-                    <!-- 媒体类型筛选下拉框：所有 / 仅图片 / 仅视频 -->
-                    <div class="album-timeline-filter">
-                        <select id="album-type-filter" class="album-type-filter" data-i18n-title="album.filter_type_title" title="">
-                            <option value="" data-i18n="album.filter_all"></option>
-                            <option value="image" data-i18n="album.filter_image"></option>
-                            <option value="video" data-i18n="album.filter_video"></option>
-                        </select>
+                    <div id="album-axis" class="album-axis">
+                        <div id="album-axis-title" class="album-axis-title" data-i18n="album.time_axis_label"></div>
+                        <!-- 标尺刻度容器：由 JS 根据排序方式动态生成 -->
+                        <div id="album-timeline-ticks" class="album-timeline-ticks"></div>
                     </div>
-                    <!-- 时间轴刻度容器：由 JS 动态生成 -->
-                    <div id="album-timeline-ticks" class="album-timeline-ticks"></div>
                 </aside>
 
-                <!-- 瀑布流容器：
-                     说明：实际卡片由 JS 动态生成，按 EXIF 拍摄时间（缺失时回退文件修改时间）分组后渲染 -->
+                <!-- 瀑布流容器：卡片严格按接口返回的全局排序顺序追加 -->
                 <div id="album-waterfall" class="album-waterfall"></div>
             </div>
 

@@ -261,11 +261,12 @@ class FileIndexProcessor(BaseDBProcessor):
     def get_album_paged_list(page: int, limit: int, sort_by: str, order: bool,
                              search_query: str, file_types: List[str]) -> PaginationResult[FileIndexDBModel]:
         """
-        用途说明：分页查询相册媒体（图片/视频）列表，排除回收站内文件并按文件名搜索。
+        用途说明：分页查询相册媒体（图片/视频）列表，排除回收站内文件并按文件名搜索；
+                   支持相册时间、文件名首字母与文件大小三种全局排序。
         入参说明：
             page (int): 当前页码。
             limit (int): 每页条数。
-            sort_by (str): 排序字段。
+            sort_by (str): 排序字段，可选 album_time、file_name、file_size。
             order (bool): 是否为升序（True 为 ASC，False 为 DESC）。
             search_query (str): 搜索关键词（按文件名模糊匹配）。
             file_types (List[str]): 需要包含的文件类型列表（如 ['image', 'video']）。
@@ -290,9 +291,17 @@ class FileIndexProcessor(BaseDBProcessor):
         # 兜底：未识别的排序字段统一按相册时间（EXIF 优先、修改时间兜底）排序
         if sort_by not in allowed_cols:
             sort_by = DBConstants.FileIndex.ALBUM_TIME_FIELD
-        order_expression: str = (
-            DBConstants.FileIndex.ALBUM_TIME_EXPRESSION
-            if sort_by == DBConstants.FileIndex.ALBUM_TIME_FIELD else ""
+        order_expression: str = ""
+        if sort_by == DBConstants.FileIndex.ALBUM_TIME_FIELD:
+            order_expression = DBConstants.FileIndex.ALBUM_TIME_EXPRESSION
+        elif sort_by == DBConstants.FileIndex.COL_FILE_NAME:
+            # 先按首字母全局排序，再按完整文件名排序；中文首字母由 SQLite 自定义函数计算
+            order_expression = "filename_initial(file_name)"
+
+        # 使用唯一 ID 兜底，确保主排序值相同时不同页不会重叠或漏项
+        secondary_order: str = (
+            f"{DBConstants.FileIndex.COL_FILE_NAME}, "
+            f"{DBConstants.FileIndex.COL_ID}"
         )
 
         # 排除回收站文件，并仅保留图片/视频类型
@@ -319,7 +328,8 @@ class FileIndexProcessor(BaseDBProcessor):
             default_sort_column=DBConstants.FileIndex.ALBUM_TIME_FIELD,
             extra_where=extra_where,
             extra_params=extra_params,
-            order_expression=order_expression
+            order_expression=order_expression,
+            secondary_order=secondary_order
         )
 
     @staticmethod

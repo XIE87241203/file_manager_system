@@ -1,5 +1,5 @@
 /**
- * 用途说明：相册浏览页面逻辑，负责瀑布流渲染（按 EXIF 拍摄时间分组，缺失时回退文件修改时间）、垂直时间轴导航、搜索、
+ * 用途说明：相册浏览页面逻辑，负责按时间/文件名/文件大小全局排序与瀑布流渲染、动态时间轴/字母尺导航、搜索、
  * 无限滚动、按需生成缩略图、单项/批量下载与删除（移入回收站），以及媒体预览弹窗（图片/视频切换、下载、删除）。
  * 模块划分：State（状态）、UIController（DOM 与渲染）、API（接口封装）、App（入口与事件绑定）。
  */
@@ -10,7 +10,8 @@ const State = {
     limit: 30,
     search: '',
     fileType: '', // 媒体类型筛选：'' 全部 / 'image' 仅图片 / 'video' 仅视频
-    sortBy: 'album_time', // 按相册时间倒序（EXIF 优先、修改时间兜底），供瀑布流按时间分组
+    sidebarVisible: true, // 标尺侧边栏是否由用户手动展开；文件大小排序时自动隐藏
+    sortBy: 'album_time', // album_time 时间倒序 / file_name 文件名升序 / file_size 文件大小倒序
     orderAsc: false,
     items: [],
     total: 0,
@@ -18,9 +19,9 @@ const State = {
     hasMore: true,
     selected: new Set(), // 已选中的文件路径集合
     cardMap: new Map(), // file_path -> { card, item, img, placeholder, placeholderText, groupKey }
-    groupMap: new Map(), // 时间分组键(YYYY-MM-DD / unknown) -> { key, section, grid, count }
-    groupKeys: [], // 分组键列表，按时间倒序排列，unknown 固定排最后
-    timelineTicks: [], // 时间轴刻度缓存：[{ el, level, key, year, month }]
+    groupMap: new Map(), // 当前排序分组键 -> { key, section, grid, count }
+    groupKeys: [], // 分组键列表，严格保持数据库全局排序顺序
+    timelineTicks: [], // 动态标尺刻度缓存：[{ el, level, key, year, month }]
     activeGroupKey: '', // 当前滚动位置对应的分组键
     ensureRequested: new Set(), // 已发起缩略图生成请求的路径
     ensureQueue: [], // 缩略图生成待处理队列
@@ -133,6 +134,12 @@ const UIController = {
         this.elements = {
             pageContent: document.getElementById('album-page-content'),
             timelineTicks: document.getElementById('album-timeline-ticks'),
+            layout: document.getElementById('album-layout'),
+            timeline: document.getElementById('album-timeline'),
+            sidebarToggle: document.getElementById('album-sidebar-toggle'),
+            axis: document.getElementById('album-axis'),
+            axisTitle: document.getElementById('album-axis-title'),
+            sortFilter: document.getElementById('album-sort-filter'),
             typeFilter: document.getElementById('album-type-filter'),
             waterfall: document.getElementById('album-waterfall'),
             empty: document.getElementById('album-empty'),
@@ -169,6 +176,9 @@ const UIController = {
         this.bindPreviewEvents();
         this.bindDetailResize();
         this.bindTypeFilter();
+        this.bindSortFilter();
+        this.bindSidebarToggle();
+        this.updateAxisMode();
         this.applyPermissionUI();
     },
 
@@ -280,6 +290,79 @@ const UIController = {
     },
 
     /**
+     * 用途说明：绑定相册排序下拉框，时间默认倒序、文件名默认升序、文件大小默认倒序。
+     * 入参说明：无
+     * 返回值说明：无
+     */
+    bindSortFilter() {
+        const select = this.elements.sortFilter;
+        if (!select) return;
+        select.value = State.sortBy;
+        select.onchange = () => {
+            const sortBy = select.value;
+            if (!['album_time', 'file_name', 'file_size'].includes(sortBy)) return;
+            State.sortBy = sortBy;
+            State.orderAsc = sortBy === 'file_name';
+            this.updateAxisMode();
+            App.loadFirstPage();
+        };
+    },
+
+    /**
+     * 用途说明：绑定标尺侧边栏开关，点击后仅切换侧边栏显隐，不改变当前排序与筛选条件。
+     * 入参说明：无
+     * 返回值说明：无
+     */
+    bindSidebarToggle() {
+        const button = this.elements.sidebarToggle;
+        if (!button) return;
+        button.onclick = () => {
+            State.sidebarVisible = !State.sidebarVisible;
+            this.updateSidebarVisibility();
+        };
+    },
+
+    /**
+     * 用途说明：同步侧边栏、布局与开关状态；文件大小排序无标尺，自动隐藏侧边栏和开关。
+     * 入参说明：无
+     * 返回值说明：无
+     */
+    updateSidebarVisibility() {
+        const hasAxis = State.sortBy !== 'file_size';
+        const visible = hasAxis && State.sidebarVisible;
+        if (this.elements.timeline) this.elements.timeline.classList.toggle('hidden', !visible);
+        if (this.elements.layout) this.elements.layout.classList.toggle('sidebar-hidden', !visible);
+        const button = this.elements.sidebarToggle;
+        if (button) {
+            button.classList.toggle('hidden', !hasAxis);
+            button.classList.toggle('is-collapsed', !State.sidebarVisible);
+            button.setAttribute('aria-expanded', String(visible));
+            button.title = I18nManager.t(State.sidebarVisible ? 'album.sidebar_hide' : 'album.sidebar_show');
+        }
+        this.updateTimelineActive();
+    },
+
+    /**
+     * 用途说明：根据排序方式切换标尺：时间显示时间轴、文件名显示字母尺、文件大小完全隐藏标尺与标题。
+     * 入参说明：无
+     * 返回值说明：无
+     */
+    updateAxisMode() {
+        const isSize = State.sortBy === 'file_size';
+        if (this.elements.axis) this.elements.axis.classList.toggle('hidden', isSize);
+        if (this.elements.axisTitle) {
+            const labelKey = State.sortBy === 'file_name' ? 'album.letter_axis_label' : 'album.time_axis_label';
+            this.elements.axisTitle.textContent = I18nManager.t(labelKey);
+        }
+        if (this.elements.timeline) {
+            const hintKey = State.sortBy === 'file_name' ? 'album.letter_axis_title' : 'album.timeline_title';
+            this.elements.timeline.title = I18nManager.t(hintKey);
+        }
+        this.updateSidebarVisibility();
+        this.rebuildTimeline();
+    },
+
+    /**
      * 用途说明：初始化无限滚动哨兵监听与卡片缩略图懒加载监听。
      * 入参说明：无
      * 返回值说明：无
@@ -306,7 +389,7 @@ const UIController = {
             });
         }, { root: scrollRoot, rootMargin: '300px 0px' });
 
-        // 监听滚动容器的滚动，节流更新时间轴当前所在刻度
+        // 监听滚动容器的滚动，节流更新动态标尺当前所在刻度
         // 说明：使用 setTimeout 而非 requestAnimationFrame，避免页面处于后台时帧回调暂停导致刻度长期不更新
         if (scrollRoot) {
             let scrollThrottled = false;
@@ -622,23 +705,29 @@ const UIController = {
     },
 
     /**
-     * 用途说明：解析媒体项所属的时间分组键，优先使用 EXIF 拍摄时间，其次文件修改时间，
-     * 都缺失时按扫描时间兜底。
-     * 入参说明：item (Object) - 媒体项，包含 file_exif_time、file_mtime 与 scan_time 字段。
-     * 返回值说明：string - 分组键（YYYY-MM-DD）；无法解析时返回 'unknown'。
+     * 用途说明：解析媒体项所属分组；时间使用拍摄/修改日期，文件名使用后端返回的拼音首字母，大小使用统一分组。
+     * 入参说明：item (Object) - 媒体项，包含时间字段与 filename_initial。
+     * 返回值说明：string - 当前排序方式对应的分组键。
      */
     resolveGroupKey(item) {
+        if (State.sortBy === 'file_name') {
+            const initial = String(item.filename_initial || '').toUpperCase();
+            return /^[A-Z]$/.test(initial) ? initial : '#';
+        }
+        if (State.sortBy === 'file_size') return 'size';
         const rawTime = item.file_exif_time || item.file_mtime || item.scan_time || '';
         const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(rawTime);
         return match ? match[1] + '-' + match[2] + '-' + match[3] : 'unknown';
     },
 
     /**
-     * 用途说明：生成分组标题文案（中文如 2026年11月23日，英文如 November 23, 2026）。
-     * 入参说明：key (string) - 分组键（YYYY-MM-DD 或 unknown）。
-     * 返回值说明：string - 本地化后的日期文案。
+     * 用途说明：生成当前排序方式的分组标题，支持本地化日期、字母与文件大小标题。
+     * 入参说明：key (string) - 当前排序方式对应的分组键。
+     * 返回值说明：string - 本地化后的分组标题。
      */
     buildGroupTitle(key) {
+        if (State.sortBy === 'file_size') return I18nManager.t('album.size_group_title');
+        if (State.sortBy === 'file_name') return key;
         if (key === 'unknown') return I18nManager.t('album.unknown_date');
         const parts = key.split('-');
         const year = parseInt(parts[0], 10);
@@ -655,22 +744,8 @@ const UIController = {
     },
 
     /**
-     * 用途说明：计算新分组键在倒序分组列表中的插入位置（unknown 固定排最后）。
-     * 入参说明：key (string) - 待插入的分组键。
-     * 返回值说明：number - 插入下标。
-     */
-    getGroupInsertIndex(key) {
-        for (let i = 0; i < State.groupKeys.length; i++) {
-            const currentKey = State.groupKeys[i];
-            if (currentKey === 'unknown') return i;
-            if (key !== 'unknown' && key > currentKey) return i;
-        }
-        return State.groupKeys.length;
-    },
-
-    /**
-     * 用途说明：确保指定时间分组的容器（标题 + 多列瀑布流网格）已创建，返回分组信息。
-     * 入参说明：key (string) - 分组键（YYYY-MM-DD 或 unknown）。
+     * 用途说明：确保指定分组的容器（标题 + 多列瀑布流网格）已创建，并按接口顺序追加新分组。
+     * 入参说明：key (string) - 当前排序方式对应的分组键。
      * 返回值说明：Object - 分组信息 { key, section, grid, count }。
      */
     ensureGroup(key) {
@@ -690,37 +765,39 @@ const UIController = {
 
         section.appendChild(title);
         section.appendChild(grid);
-
-        const insertIndex = this.getGroupInsertIndex(key);
-        State.groupKeys.splice(insertIndex, 0, key);
-        const nextKey = State.groupKeys[insertIndex + 1];
-        const nextGroup = nextKey ? State.groupMap.get(nextKey) : null;
-        if (this.elements.waterfall) {
-            if (nextGroup) this.elements.waterfall.insertBefore(section, nextGroup.section);
-            else this.elements.waterfall.appendChild(section);
-        }
+        if (this.elements.waterfall) this.elements.waterfall.appendChild(section);
 
         const groupInfo = { key: key, section: section, grid: grid, count: 0 };
         State.groupMap.set(key, groupInfo);
+        State.groupKeys.push(key);
         return groupInfo;
     },
 
     /**
-     * 用途说明：重建垂直时间轴：年份刻度最大且显示年份、月份刻度次之显示月份、日刻度仅显示圆点（悬浮显示具体日期）。
+     * 用途说明：重建动态标尺：时间排序生成年份/月份/日期刻度，文件名排序生成首字母刻度。
      * 入参说明：无
      * 返回值说明：无
      */
     rebuildTimeline() {
         const ticksHost = this.elements.timelineTicks;
         if (!ticksHost) return;
-        // 仅清空刻度容器，保留顶部的媒体类型筛选下拉框
+        // 仅清空刻度容器，保留顶部的排序与媒体类型筛选下拉框
         ticksHost.textContent = '';
         State.timelineTicks = [];
         ticksHost.classList.toggle('hidden', State.groupKeys.length === 0);
-        if (State.groupKeys.length === 0) return;
+        if (State.groupKeys.length === 0 || State.sortBy === 'file_size') return;
 
         const track = document.createElement('div');
         track.className = 'album-timeline-track';
+
+        if (State.sortBy === 'file_name') {
+            State.groupKeys.forEach(key => {
+                track.appendChild(this.createTimelineTick('letter', key, key, key, '', ''));
+            });
+            ticksHost.appendChild(track);
+            this.updateTimelineActive();
+            return;
+        }
 
         let prevYear = '';
         let prevMonth = '';
@@ -760,9 +837,9 @@ const UIController = {
     },
 
     /**
-     * 用途说明：创建单个时间轴刻度元素并绑定跳转事件。
+     * 用途说明：创建单个动态标尺刻度元素并绑定跳转事件。
      * 入参说明：
-     *   level (string) - 刻度层级：year / month / day。
+     *   level (string) - 刻度层级：year / month / day / letter。
      *   anchorKey (string) - 点击后滚动到的分组键。
      *   label (string) - 刻度文案（日刻度为空字符串）。
      *   title (string) - 悬浮提示文案。
@@ -793,7 +870,7 @@ const UIController = {
     },
 
     /**
-     * 用途说明：根据当前滚动位置高亮时间轴刻度：当前日高亮，所在年份/月份作为上下文高亮。
+     * 用途说明：根据当前滚动位置高亮标尺刻度：时间轴同步年份/月份上下文，字母尺仅高亮当前首字母。
      * 入参说明：无
      * 返回值说明：无
      */
@@ -812,7 +889,7 @@ const UIController = {
 
         let activeYear = '';
         let activeMonth = '';
-        if (activeKey !== 'unknown') {
+        if (State.sortBy === 'album_time' && activeKey !== 'unknown') {
             const parts = activeKey.split('-');
             activeYear = parts[0];
             activeMonth = parts[1];
@@ -832,7 +909,7 @@ const UIController = {
     },
 
     /**
-     * 用途说明：点击时间轴刻度后平滑滚动到对应时间分组。
+     * 用途说明：点击动态标尺刻度后平滑滚动到对应分组。
      * 入参说明：key (string) - 目标分组键。
      * 返回值说明：无
      */
@@ -848,7 +925,7 @@ const UIController = {
     },
 
     /**
-     * 用途说明：移除已清空的时间分组容器并重建时间轴。
+     * 用途说明：移除已清空的分组容器并重建动态标尺。
      * 入参说明：key (string) - 待移除的分组键。
      * 返回值说明：无
      */
@@ -863,7 +940,7 @@ const UIController = {
     },
 
     /**
-     * 用途说明：渲染一页媒体卡片并按时间分组追加到瀑布流。
+     * 用途说明：渲染一页媒体卡片，按当前排序分组并严格沿用接口返回顺序追加到瀑布流。
      * 入参说明：list (Array<Object>) - 媒体项数组。
      * 返回值说明：无
      */
@@ -884,7 +961,7 @@ const UIController = {
     },
 
     /**
-     * 用途说明：重置列表 DOM、卡片缓存与时间分组（用于搜索或首次加载）。
+     * 用途说明：重置列表 DOM、卡片缓存与排序分组（用于搜索、切换排序或首次加载）。
      * 入参说明：无
      * 返回值说明：无
      */

@@ -7,3 +7,4 @@ opencv-python-headless
 waitress
 schedule
 quickjs
+pypinyin

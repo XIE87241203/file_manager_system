@@ -102,7 +102,8 @@ class BaseDBProcessor(ABC):
             default_sort_column: str,
             extra_where: str = "",
             extra_params: tuple = (),
-            order_expression: str = ""
+            order_expression: str = "",
+            secondary_order: str = ""
     ) -> PaginationResult[T]:
         """
         用途：通用的分页查询逻辑封装
@@ -110,6 +111,7 @@ class BaseDBProcessor(ABC):
             extra_where: 额外的过滤条件 (例如 "AND status = ?")
             extra_params: 额外过滤条件的参数
             order_expression: 可选的自定义排序表达式（如 COALESCE(a, b)）；为空时按 sort_by 列排序
+            secondary_order: 可选的次级排序 SQL，用于同值记录稳定排序；为空时不追加
         """
         # 1. 处理搜索关键词：调用搜索助手进行统一预处理
         sql_search_param: str = SearchQueryHelper.process_search_query(search_query)
@@ -120,6 +122,7 @@ class BaseDBProcessor(ABC):
         
         order_str: str = "ASC" if order else "DESC"
         order_by_sql: str = order_expression if order_expression else sort_by
+        secondary_order_sql: str = f", {secondary_order} {order_str}" if secondary_order else ""
 
         # 3. 分页计算
         offset: int = max(0, (page - 1) * limit)
@@ -133,7 +136,7 @@ class BaseDBProcessor(ABC):
         list_query: str = f"""
             SELECT * FROM {table_name}
             WHERE {search_column} LIKE ? {extra_where}
-            ORDER BY {order_by_sql} {order_str}
+            ORDER BY {order_by_sql} {order_str}{secondary_order_sql}
             LIMIT ? OFFSET ?
         """
         rows = BaseDBProcessor._execute(list_query, (sql_search_param,) + extra_params + (limit, offset), is_query=True)

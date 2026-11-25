@@ -2,6 +2,7 @@ import os
 from typing import List, Optional
 
 from backend.common.file_type_enum import FileType
+from backend.common.filename_sort_utils import FilenameSortUtils
 from backend.common.i18n_utils import t
 from backend.common.log_utils import LogUtils
 from backend.common.repo_context import get_current_repo_id
@@ -36,7 +37,7 @@ class AlbumService:
         入参说明：
             page (int): 当前页码（最小 1）。
             limit (int): 每页数量（限制在 1-200）。
-            sort_by (str): 排序字段。
+            sort_by (str): 排序字段，可选 album_time、file_name、file_size。
             order_asc (bool): 是否升序。
             search_query (str): 文件名搜索关键词。
             file_type (str): 媒体类型筛选，空串为全部，可选 image（仅图片）/ video（仅视频）。
@@ -61,6 +62,7 @@ class AlbumService:
             items.append(AlbumItemResult(
                 file_path=item.file_path,
                 file_name=item.file_name or os.path.basename(item.file_path),
+                filename_initial=FilenameSortUtils.get_initial(item.file_name or item.file_path),
                 file_type=file_type,
                 file_size=item.file_size or 0,
                 thumbnail_path=item.thumbnail_path or None,

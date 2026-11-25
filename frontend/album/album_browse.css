@@ -81,7 +81,55 @@
     background: var(--color-surface-muted);
 }
 
-/* 相册主体：左侧时间轴 + 右侧瀑布流 */
+/* 筛选工具栏：位于列表上方，所有控件左对齐 */
+.album-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+}
+
+/* 标尺侧边栏开关：箭头方向随侧边栏显隐切换 */
+.album-sidebar-toggle {
+    flex: 0 0 32px;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 1px solid var(--palette-d0d7de);
+    border-radius: 6px;
+    background: var(--color-surface);
+    color: var(--color-text-secondary);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+}
+
+.album-sidebar-toggle:hover {
+    border-color: var(--color-primary);
+    background: var(--color-primary-soft);
+    color: var(--color-primary);
+}
+
+.album-sidebar-toggle:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+}
+
+.album-sidebar-toggle .theme-icon {
+    width: 16px;
+    height: 16px;
+    transition: transform 0.2s;
+}
+
+.album-sidebar-toggle.is-collapsed .theme-icon {
+    transform: rotate(180deg);
+}
+
+/* 相册主体：左侧标尺侧边栏 + 右侧瀑布流 */
 .album-layout {
     display: flex;
     align-items: flex-start;
@@ -106,31 +154,36 @@
     display: none;
 }
 
-/* 时间轴顶部：媒体类型筛选下拉框（时间轴滚动时保持可见） */
-.album-timeline-filter {
-    position: sticky;
-    top: 0;
-    z-index: 2;
-    margin-bottom: 10px;
-    padding-bottom: 6px;
-    background: var(--color-page-background);
-}
-
-.album-type-filter {
-    width: 100%;
+/* 顶部排序与媒体类型下拉框：宽度随内容自适应，不铺满整行 */
+.album-filter-select {
+    width: auto;
+    min-width: 132px;
     box-sizing: border-box;
-    padding: 4px 2px;
+    padding: 6px 10px;
     border: 1px solid var(--palette-d0d7de);
     border-radius: 6px;
     background: var(--color-surface);
     color: var(--color-text-secondary);
-    font-size: 12px;
+    font-size: 13px;
     cursor: pointer;
 }
 
-.album-type-filter:focus {
+.album-filter-select:focus {
     outline: none;
     border-color: var(--color-primary);
+}
+
+/* 动态标尺标题：时间排序与文件名排序显示，文件大小排序隐藏 */
+.album-axis-title {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    padding: 4px;
+    background: var(--color-page-background);
+    color: var(--color-text-secondary);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.4;
 }
 
 /* 时间轴轨道：贯穿所有刻度的细线 */
@@ -765,18 +818,19 @@
 }
 
 @media (max-width: 520px) {
+    .album-toolbar .album-filter-select {
+        flex: 1 1 132px;
+        min-width: 0;
+    }
+
     .album-group-grid {
         column-count: 1;
     }
 
-    /* 窄屏下隐藏时间轴刻度，但保留顶部的媒体类型筛选下拉框 */
+    /* 窄屏缩窄标尺侧边栏，用户仍可通过顶部开关隐藏或显示 */
     .album-timeline {
         flex: 0 0 76px;
         width: 76px;
-    }
-
-    .album-timeline-ticks {
-        display: none;
     }
 
     .album-preview-body {

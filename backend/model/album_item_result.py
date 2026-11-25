@@ -9,6 +9,7 @@ class AlbumItemResult:
     """
     file_path: str = ""                          # 文件完整路径
     file_name: str = ""                          # 文件名（含后缀）
+    filename_initial: str = "#"                  # 文件名首字母（中文取拼音首字母），用于字母尺分组
     file_type: str = ""                          # 媒体类型：image / video
     file_size: int = 0                           # 文件大小（字节）
     thumbnail_path: Optional[str] = None         # 缩略图物理路径，空表示尚未生成
