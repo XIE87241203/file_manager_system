@@ -12,7 +12,7 @@ from backend.file_repository.thumbnail.thumbnail_generator import ThumbnailGener
 from backend.file_repository.thumbnail.thumbnail_path_utils import ThumbnailPathUtils
 from backend.model.db.file_index_db_model import FileIndexDBModel
 from backend.model.thumbnail_result import ThumbnailResult
-from backend.repository.repository_service import repositoryService
+from backend.setting.setting_service import settingService
 
 
 class ThumbnailService(BaseAsyncService):
@@ -52,9 +52,7 @@ class ThumbnailService(BaseAsyncService):
                 result.thumbnail_path = existing_path
                 return result
 
-            thumb_size: int = repositoryService.get_current_config().thumbnail_size
-            if not isinstance(thumb_size, int) or thumb_size <= 0:
-                thumb_size = 256
+            thumb_size: int = settingService.get_album_thumbnail_size()
 
             generated_path: Optional[str] = ThumbnailGenerator().generate_now(file_info, thumb_size)
             result.thumbnail_path = generated_path
@@ -76,14 +74,32 @@ class ThumbnailService(BaseAsyncService):
         return ThumbnailGenerator().get_remaining_count()
 
     @classmethod
-    def stop_thumbnail_generation(cls) -> None:
+    def pause_thumbnail_generation(cls, repo_id: int) -> bool:
         """
-        用途说明：停止缩略图生成任务，清空任务队列并停止物理同步任务。
-        入参说明：无
-        返回值说明：无
+        用途说明：暂停指定仓库的缩略图生成队列，当前图片完成后等待恢复。
+        入参说明：repo_id (int) - 目标仓库 ID。
+        返回值说明：bool - 已暂停时返回 True。
+        """
+        return ThumbnailGenerator().pause_repo(repo_id)
+
+    @classmethod
+    def resume_thumbnail_generation(cls, repo_id: int) -> bool:
+        """
+        用途说明：恢复指定仓库的缩略图生成队列。
+        入参说明：repo_id (int) - 目标仓库 ID。
+        返回值说明：bool - 已恢复时返回 True。
+        """
+        return ThumbnailGenerator().resume_repo(repo_id)
+
+    @classmethod
+    def stop_thumbnail_generation(cls, repo_id: Optional[int] = None) -> None:
+        """
+        用途说明：停止缩略图生成任务；指定仓库时只清空该仓库队列，不删除物理缩略图。
+        入参说明：repo_id (Optional[int]) - 目标仓库；为空时停止全部仓库。
+        返回值说明：无。
         """
         LogUtils.info(t('thumb_stop_all_request'))
-        ThumbnailGenerator().clear_queue()
+        ThumbnailGenerator().clear_queue(repo_id)
 
     @classmethod
     def start_thumbnail_sync_task(cls) -> bool:
@@ -94,7 +110,7 @@ class ThumbnailService(BaseAsyncService):
         """
         try:
             # --- 初始化逻辑开始 ---
-            if cls._progress_manager.get_raw_status() == ProgressStatus.PROCESSING:
+            if cls.is_task_active():
                 LogUtils.error(t('thumb_sync_running'))
                 return False
 
@@ -143,7 +159,7 @@ class ThumbnailService(BaseAsyncService):
             delete_count: int = 0
             for index, file_path in enumerate(all_files):
                 # 检查任务是否被手动停止
-                if cls._progress_manager.is_stopped():
+                if not cls.wait_if_paused():
                     LogUtils.info(t('thumb_sync_user_stop'))
                     return
 

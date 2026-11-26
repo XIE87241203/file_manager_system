@@ -10,6 +10,7 @@
     <link rel="stylesheet" href="../common/themes/dark/theme.css">
     <link rel="stylesheet" href="../common/appearance_manager.css">
     <link rel="stylesheet" href="../common/header_toolbar/default/default_header_toolbar.css">
+    <link rel="stylesheet" href="../common/current_tasks/current_tasks.css">
     <link rel="stylesheet" href="home.css">
 </head>
 <body>
@@ -18,38 +19,18 @@
 
     <main class="main-content">
         <div class="home-container">
-            <!-- 文件录入管理分组 -->
-            <div id="group-file-entry-title" class="menu-group-title" data-i18n="home.group_file_entry"></div>
-            <div id="group-file-entry-grid" class="menu-grid">
-                <!-- 待录入文件名库入口 -->
-                <div id="menu-pending-entry" class="menu-item">
-                    <span class="menu-icon theme-icon icon-pending-entry" aria-hidden="true"></span>
-                    <div class="menu-label" data-i18n="home.menu_pending"></div>
+            <!-- 相册分组 -->
+            <div id="group-album-title" class="menu-group-title" data-i18n="home.group_album"></div>
+            <div class="menu-grid">
+                <!-- 相册浏览入口 -->
+                <div id="menu-album-browse" class="menu-item">
+                    <span class="menu-icon theme-icon icon-image" aria-hidden="true"></span>
+                    <div class="menu-label" data-i18n="home.menu_album_browse"></div>
                 </div>
-                <!-- 曾录入文件名库入口 -->
-                <div id="menu-ignore-file" class="menu-item">
-                    <span class="menu-icon theme-icon icon-archive" aria-hidden="true"></span>
-                    <div class="menu-label" data-i18n="home.menu_history"></div>
-                </div>
-            </div>
-            
-            <!-- 整理文件分组 -->
-            <div id="group-organize-title" class="menu-group-title" data-i18n="home.group_organize"></div>
-            <div id="group-organize-grid" class="menu-grid">
-                <!-- 开始整理入口 -->
-                <div id="menu-organize-start" class="menu-item">
-                    <span class="menu-icon theme-icon icon-organize" aria-hidden="true"></span>
-                    <div class="menu-label" data-i18n="home.menu_organize_start"></div>
-                </div>
-                <!-- 整理记录入口 -->
-                <div id="menu-organize-records" class="menu-item">
-                    <span class="menu-icon theme-icon icon-records" aria-hidden="true"></span>
-                    <div class="menu-label" data-i18n="home.menu_organize_records"></div>
-                </div>
-                <!-- 整理设置入口 -->
-                <div id="menu-organize-setting" class="menu-item">
-                    <span class="menu-icon theme-icon icon-tune" aria-hidden="true"></span>
-                    <div class="menu-label" data-i18n="home.menu_organize_setting"></div>
+                <!-- 相册设置入口 -->
+                <div id="menu-album-setting" class="menu-item">
+                    <span class="menu-icon theme-icon icon-settings" aria-hidden="true"></span>
+                    <div class="menu-label" data-i18n="home.menu_album_setting"></div>
                 </div>
             </div>
 
@@ -82,18 +63,38 @@
                 </div>
             </div>
 
-            <!-- 相册分组 -->
-            <div id="group-album-title" class="menu-group-title" data-i18n="home.group_album"></div>
-            <div class="menu-grid">
-                <!-- 相册浏览入口 -->
-                <div id="menu-album-browse" class="menu-item">
-                    <span class="menu-icon theme-icon icon-image" aria-hidden="true"></span>
-                    <div class="menu-label" data-i18n="home.menu_album_browse"></div>
+            <!-- 文件录入管理分组 -->
+            <div id="group-file-entry-title" class="menu-group-title" data-i18n="home.group_file_entry"></div>
+            <div id="group-file-entry-grid" class="menu-grid">
+                <!-- 待录入文件名库入口 -->
+                <div id="menu-pending-entry" class="menu-item">
+                    <span class="menu-icon theme-icon icon-pending-entry" aria-hidden="true"></span>
+                    <div class="menu-label" data-i18n="home.menu_pending"></div>
                 </div>
-                <!-- 相册设置入口 -->
-                <div id="menu-album-setting" class="menu-item">
-                    <span class="menu-icon theme-icon icon-settings" aria-hidden="true"></span>
-                    <div class="menu-label" data-i18n="home.menu_album_setting"></div>
+                <!-- 曾录入文件名库入口 -->
+                <div id="menu-ignore-file" class="menu-item">
+                    <span class="menu-icon theme-icon icon-archive" aria-hidden="true"></span>
+                    <div class="menu-label" data-i18n="home.menu_history"></div>
+                </div>
+            </div>
+
+            <!-- 整理文件分组 -->
+            <div id="group-organize-title" class="menu-group-title" data-i18n="home.group_organize"></div>
+            <div id="group-organize-grid" class="menu-grid">
+                <!-- 开始整理入口 -->
+                <div id="menu-organize-start" class="menu-item">
+                    <span class="menu-icon theme-icon icon-organize" aria-hidden="true"></span>
+                    <div class="menu-label" data-i18n="home.menu_organize_start"></div>
+                </div>
+                <!-- 整理记录入口 -->
+                <div id="menu-organize-records" class="menu-item">
+                    <span class="menu-icon theme-icon icon-records" aria-hidden="true"></span>
+                    <div class="menu-label" data-i18n="home.menu_organize_records"></div>
+                </div>
+                <!-- 整理设置入口 -->
+                <div id="menu-organize-setting" class="menu-item">
+                    <span class="menu-icon theme-icon icon-tune" aria-hidden="true"></span>
+                    <div class="menu-label" data-i18n="home.menu_organize_setting"></div>
                 </div>
             </div>
 
@@ -166,6 +167,8 @@
     <script src="../common/repository_request.js"></script>
     <script src="../common/toast.js"></script>
     <script src="../common/header_toolbar/default/default_header_toolbar.js"></script>
+    <script src="../common/current_tasks/current_tasks_request.js"></script>
+    <script src="../common/current_tasks/current_tasks.js"></script>
     <script src="home_request.js"></script>
     <script src="home.js"></script>
 

@@ -56,9 +56,9 @@ const AlbumBrowseRequest = {
     },
 
     /**
-     * 用途说明：按媒体路径游标获取后续相册列表，首批数据传入空路径。
+     * 用途说明：按媒体路径游标获取相册列表，支持向下、包含式锚点定位与向上反向取数。
      * 入参说明：
-     *   params (Object) - { last_path, limit, search, file_type, sort_by, order_asc }，不使用页码参数
+     *   params (Object) - { last_path, anchor_path, before_path, limit, search, file_type, sort_by, order_asc }，不使用页码参数
      *   onSuccess (Function) - 成功回调，参数为不包含 page 字段的游标分页结果对象。
      *   onError (Function) - 失败回调，参数为错误信息。
      * 返回值说明：无
@@ -66,6 +66,8 @@ const AlbumBrowseRequest = {
     list(params, onSuccess, onError) {
         const query = new URLSearchParams({
             last_path: params.last_path || '',
+            anchor_path: params.anchor_path || '',
+            before_path: params.before_path || '',
             limit: String(params.limit || 50),
             search: params.search || '',
             file_type: params.file_type || '',
@@ -73,6 +75,32 @@ const AlbumBrowseRequest = {
             order_asc: params.order_asc ? 'true' : 'false'
         });
         Request.get(`/api/album/list?${query.toString()}`, {}, false)
+            .then(res => {
+                if (res.status === 'success') onSuccess(res.data);
+                else onError(res.message);
+            })
+            .catch(err => onError(err.message || I18nManager.t('common.network_error')));
+    },
+
+    /**
+     * 用途说明：获取相册年份、月份、日期或首字母轴及每组首条媒体路径。
+     * 入参说明：
+     *   params (Object) - { level, year, month, search, file_type, sort_by, order_asc }。
+     *   onSuccess (Function) - 成功回调，参数为 { level, items } 轴结果对象。
+     *   onError (Function) - 失败回调，参数为错误信息。
+     * 返回值说明：无
+     */
+    axis(params, onSuccess, onError) {
+        const query = new URLSearchParams({
+            level: params.level || 'year',
+            year: params.year || '',
+            month: params.month ? String(params.month) : '',
+            search: params.search || '',
+            file_type: params.file_type || '',
+            sort_by: params.sort_by || 'album_time',
+            order_asc: params.order_asc ? 'true' : 'false'
+        });
+        Request.get(`/api/album/axis?${query.toString()}`, {}, false)
             .then(res => {
                 if (res.status === 'success') onSuccess(res.data);
                 else onError(res.message);

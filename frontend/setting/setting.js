@@ -12,7 +12,6 @@ const State = {
         ignore_filenames_case_insensitive: true,
         ignore_paths: [],
         ignore_paths_case_insensitive: true,
-        thumbnail_size: 256,
         quick_view_thumbnail: false,
         auto_refresh_enabled: false,
         auto_refresh_time: "04:00",
@@ -168,9 +167,15 @@ const UIController = {
             tr.appendChild(tdLastLogin);
 
             const tdActions = document.createElement('td');
-            // 操作按钮垂直排列：修改密码、登录历史在上，删除按钮固定在最下
+            // 操作按钮垂直排列：重命名、权限配置、修改密码、登录历史在上，删除按钮固定在最下
             const actionGroup = document.createElement('div');
             actionGroup.className = 'user-action-group';
+            const renameBtn = document.createElement('button');
+            renameBtn.className = 'user-action-btn';
+            renameBtn.textContent = I18nManager.t('setting.user.rename_btn');
+            renameBtn.onclick = (e) => { e.stopPropagation(); App.handleRenameUser(user); };
+            actionGroup.appendChild(renameBtn);
+
             const permissionBtn = document.createElement('button');
             permissionBtn.className = 'user-action-btn';
             permissionBtn.textContent = I18nManager.t('setting.user.permission_config');
@@ -458,7 +463,6 @@ const UIController = {
         State.fileRepository = fr || State.fileRepository;
         const repo = State.fileRepository;
         document.getElementById('scan-suffixes').value = (repo.scan_suffixes || ["*"]).join(', ');
-        document.getElementById('thumbnail-size').value = repo.thumbnail_size || 256;
         document.getElementById('quick-view-thumbnail').checked = repo.quick_view_thumbnail || false;
         document.getElementById('ignore-filenames').value = (repo.ignore_filenames || []).join(', ');
         document.getElementById('ignore-filenames-case-insensitive').checked = repo.ignore_filenames_case_insensitive;
@@ -753,6 +757,40 @@ const App = {
     },
 
     /**
+     * @description 用途说明：打开用户重命名输入弹窗，成功后刷新列表；重命名自己时同步当前登录名并保留会话。
+     * @param {Object} user - 入参说明：目标用户对象 {id, username}
+     * @returns {void} - 返回值说明：无
+     */
+    handleRenameUser(user) {
+        UIComponents.showInputModal({
+            title: I18nManager.t('setting.user.rename_title'),
+            placeholder: I18nManager.t('setting.user.username_placeholder'),
+            initialValue: user.username,
+            onConfirm: (value) => {
+                const username = value.trim();
+                if (!username) {
+                    Toast.show(I18nManager.t('setting.user.username_required'));
+                    return;
+                }
+                SettingRequest.renameUser(
+                    user.id,
+                    username,
+                    () => {
+                        if (user.username === State.currentUsername) {
+                            State.currentUsername = username;
+                            sessionStorage.setItem('username', username);
+                            this.loadCurrentUser();
+                        }
+                        Toast.show(I18nManager.t('setting.user.rename_success'));
+                        this.loadUsers();
+                    },
+                    (msg) => Toast.show(msg)
+                );
+            }
+        });
+    },
+
+    /**
      * @description 用途说明：删除用户（二次确认）
      * @param {Object} user - 入参说明：目标用户对象 {id, username}
      * @returns {void} - 返回值说明：无
@@ -865,6 +903,40 @@ const App = {
     },
 
     /**
+     * @description 用途说明：重命名当前选中的仓库，成功后更新选择器与本地仓库列表。
+     * @returns {void} - 返回值说明：无
+     */
+    handleRenameRepo() {
+        const repo = State.repos.find(r => r.id === State.currentRepoId);
+        if (!repo) {
+            Toast.show(I18nManager.t('repo.load_failed'));
+            return;
+        }
+        UIComponents.showInputModal({
+            title: I18nManager.t('repo.rename_title'),
+            placeholder: I18nManager.t('repo.rename_placeholder'),
+            initialValue: repo.name,
+            onConfirm: (value) => {
+                const name = value.trim();
+                if (!name) {
+                    Toast.show(I18nManager.t('repo.name_required'));
+                    return;
+                }
+                RepositoryRequest.rename(
+                    State.currentRepoId,
+                    name,
+                    (updatedRepo) => {
+                        State.repos = State.repos.map(item => item.id === updatedRepo.id ? { ...item, ...updatedRepo } : item);
+                        UIController.buildRepoSelector(State.repos, State.currentRepoId);
+                        Toast.show(I18nManager.t('repo.rename_success'));
+                    },
+                    (msg) => Toast.show(msg)
+                );
+            }
+        });
+    },
+
+    /**
      * @description 用途说明：删除当前选中仓库，需二次确认；仅删除配置与索引，保留磁盘文件。
      * @returns {void} - 返回值说明：无
      */
@@ -905,6 +977,7 @@ const App = {
      */
     bindEvents() {
         document.getElementById('add-repo-btn').onclick = () => this.handleAddRepository();
+        document.getElementById('rename-repo-btn').onclick = () => this.handleRenameRepo();
         document.getElementById('delete-repo-btn').onclick = () => this.handleDeleteRepo();
         const repoSelector = document.getElementById('repo-config-selector');
         if (repoSelector) {
@@ -1006,7 +1079,6 @@ const App = {
         // 1. 采集文件仓库数据
         const fr = State.fileRepository;
         fr.scan_suffixes = document.getElementById('scan-suffixes').value.split(',').map(s => s.trim()).filter(s => s);
-        fr.thumbnail_size = parseInt(document.getElementById('thumbnail-size').value);
         fr.quick_view_thumbnail = document.getElementById('quick-view-thumbnail').checked;
         fr.ignore_filenames = document.getElementById('ignore-filenames').value.split(',').map(s => s.trim()).filter(s => s);
         fr.ignore_filenames_case_insensitive = document.getElementById('ignore-filenames-case-insensitive').checked;

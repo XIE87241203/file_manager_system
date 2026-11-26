@@ -31,10 +31,11 @@
 
     <!-- 仓库配置分页 -->
     <div id="content-repo" class="tab-content active">
-        <!-- 仓库选择与删除工具栏 -->
+        <!-- 仓库选择、重命名与删除工具栏 -->
         <div class="repo-config-toolbar">
             <label class="label-text" for="repo-config-selector" data-i18n="repo.select_repo"></label>
             <select id="repo-config-selector" class="input-field select-field repo-config-select"></select>
+            <button id="rename-repo-btn" class="btn-secondary" data-i18n="repo.rename_btn"></button>
             <button id="delete-repo-btn" class="btn-danger" data-i18n="repo.delete_btn"></button>
         </div>
         <div class="settings-grid">
@@ -52,12 +53,6 @@
                 <label class="label-text" for="scan-suffixes" data-i18n="setting.repo.scan_suffixes"></label>
                 <input type="text" id="scan-suffixes" class="input-field" placeholder="" data-i18n-placeholder="setting.repo.scan_suffixes_placeholder" autocomplete="off">
                 <small class="form-hint" data-i18n="setting.repo.scan_suffixes_hint"></small>
-            </div>
-
-            <div class="form-group">
-                <label class="label-text" for="thumbnail-size" data-i18n="setting.repo.thumbnail_size"></label>
-                <input type="number" id="thumbnail-size" class="input-field" placeholder="" data-i18n-placeholder="setting.repo.thumbnail_size_placeholder">
-                <small class="form-hint" data-i18n="setting.repo.thumbnail_size_hint"></small>
             </div>
 
             <!-- 功能开关组 -->

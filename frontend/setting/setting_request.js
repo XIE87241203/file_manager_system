@@ -163,6 +163,23 @@ const SettingRequest = {
     },
 
     /**
+     * @description 用途说明：重命名指定用户（仅系统管理员），后端会保留原 Token 与仓库权限
+     * @param {number} id - 入参说明：目标用户 ID
+     * @param {string} username - 入参说明：新登录名
+     * @param {Function} onSuccess - 入参说明：成功回调
+     * @param {Function} onError - 入参说明：失败回调，参数为错误信息字符串
+     * @returns {void} - 返回值说明：无
+     */
+    renameUser(id, username, onSuccess, onError) {
+        Request.post('/api/user/rename', { id: id, username: username })
+            .then(res => {
+                if (res.status === 'success') onSuccess(res);
+                else onError(res.message);
+            })
+            .catch(err => onError(err.message || I18nManager.t('common.network_error')));
+    },
+
+    /**
      * @description 用途说明：获取指定用户的完整仓库权限配置（仅系统管理员）
      * @param {number} id - 入参说明：目标用户 ID
      * @param {Function} onSuccess - 入参说明：成功回调，参数为仓库权限列表

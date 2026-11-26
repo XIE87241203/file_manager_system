@@ -47,7 +47,9 @@
     color: var(--color-primary);
 }
 
+/* 保存按钮：使用块级弹性布局，让水平自动边距生效并保持左右居中 */
 .album-save-btn {
+    display: flex;
     max-width: 200px;
     margin: 0 auto;
 }

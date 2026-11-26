@@ -2,7 +2,7 @@ import json
 import os
 import sqlite3
 from dataclasses import asdict, fields
-from typing import List, Optional, Dict, Any, Callable
+from typing import List, Optional, Dict, Any, Callable, Tuple
 
 from backend.common.i18n_utils import t
 from backend.common.log_utils import LogUtils
@@ -91,12 +91,69 @@ class RepositoryService:
             create_time=row[DBConstants.Repository.COL_CREATE_TIME]
         )
 
+    @staticmethod
+    def _migrate_legacy_thumbnail_size(conn: sqlite3.Connection) -> None:
+        """
+        用途说明：把旧仓库配置中的 thumbnail_size 一次性迁移到全系统相册配置，并清理旧字段。
+        说明：仅读取仓库元数据配置，不扫描业务库或文件；以 ID 最小仓库中的有效尺寸作为统一值。
+        入参说明：conn (sqlite3.Connection) - 主数据库连接，由默认仓库初始化流程传入。
+        返回值说明：无；旧字段不存在时不进行任何写入。
+        """
+        cursor: sqlite3.Cursor = conn.cursor()
+        rows: sqlite3.Cursor = cursor.execute(
+            f"SELECT {DBConstants.Repository.COL_ID}, {DBConstants.Repository.COL_CONFIG} "
+            f"FROM {DBConstants.Repository.TABLE_NAME} ORDER BY {DBConstants.Repository.COL_ID} ASC"
+        )
+        migrated_size: Optional[int] = None
+        migrated_count: int = 0
+        updates: List[Tuple[str, int]] = []
+        for row in rows:
+            repo_id: int = int(row[0])
+            config_json: str = row[1] or ''
+            try:
+                data: Any = json.loads(config_json) if config_json else {}
+            except Exception as e:
+                LogUtils.error(t('repo_config_parse_failed', error=str(e)))
+                continue
+            if not isinstance(data, dict) or 'thumbnail_size' not in data:
+                continue
+            legacy_size: Any = data.pop('thumbnail_size')
+            if migrated_size is None and not isinstance(legacy_size, bool) \
+                    and isinstance(legacy_size, int) and legacy_size > 0:
+                migrated_size = legacy_size
+            updates.append((json.dumps(data, ensure_ascii=False), repo_id))
+            migrated_count += 1
+
+            # 每 500 个仓库落一批，避免仓库数量增多时在内存中累积全部更新数据。
+            if len(updates) >= 500:
+                cursor.executemany(
+                    f"UPDATE {DBConstants.Repository.TABLE_NAME} SET {DBConstants.Repository.COL_CONFIG} = ? "
+                    f"WHERE {DBConstants.Repository.COL_ID} = ?",
+                    updates
+                )
+                updates.clear()
+
+        if migrated_count == 0:
+            return
+        if migrated_size is not None:
+            settingService.get_config().album.thumbnail_size = migrated_size
+            # 先持久化统一配置，再清理旧字段；即使后续中断，下次启动仍可从旧配置恢复。
+            settingService.save_config()
+        if updates:
+            cursor.executemany(
+                f"UPDATE {DBConstants.Repository.TABLE_NAME} SET {DBConstants.Repository.COL_CONFIG} = ? "
+                f"WHERE {DBConstants.Repository.COL_ID} = ?",
+                updates
+            )
+        conn.commit()
+        LogUtils.info(t('repo_thumbnail_size_migrated', size=migrated_size or 256, count=migrated_count))
+
     # --- 默认仓库初始化 ---
 
     def init_default_repo(self) -> None:
         """
         用途：项目初始化时创建默认仓库。若主表为空，则将现有 file_manager.db 注册为默认仓库，
-        并把现有全局 file_repository 配置迁移为其独立配置。
+        并把现有全局 file_repository 配置迁移为其独立配置；随后将旧仓库缩略图尺寸迁移到相册配置。
         入参说明：无
         返回值说明：无
         """
@@ -117,6 +174,7 @@ class RepositoryService:
                 )
                 conn.commit()
                 LogUtils.info(t('repo_init_default_log', name=name))
+            self._migrate_legacy_thumbnail_size(conn)
             conn.close()
         except Exception as e:
             LogUtils.error(t('repo_init_default_error', error=str(e)))
@@ -262,6 +320,55 @@ class RepositoryService:
         except Exception as e:
             LogUtils.error(t('repo_create_error', error=str(e)))
             return None
+
+    # --- 重命名 ---
+
+    def rename_repo(self, repo_id: int, name: str) -> Tuple[bool, str]:
+        """
+        用途说明：重命名指定仓库，仅修改主库中的展示名称，不改变仓库 ID、数据库文件、配置与用户授权。
+        入参说明：
+            repo_id (int): 待重命名的仓库 ID。
+            name (str): 新仓库名称，会自动去除首尾空格。
+        返回值说明：Tuple[bool, str] - 是否成功及提示消息。
+        """
+        if not isinstance(name, str):
+            return False, t('repo_name_required')
+        new_name: str = name.strip()
+        if not new_name:
+            return False, t('repo_name_required')
+        repo: Optional[RepositoryDBModel] = self.get_repo(repo_id)
+        if not repo:
+            return False, t('repo_not_found', id=repo_id)
+        if repo.name == new_name:
+            return True, t('repo_rename_success')
+
+        conn: Optional[sqlite3.Connection] = None
+        try:
+            conn = db_manager.get_master_connection()
+            cursor: sqlite3.Cursor = conn.cursor()
+            cursor.execute(
+                f"SELECT {DBConstants.Repository.COL_ID} FROM {DBConstants.Repository.TABLE_NAME} "
+                f"WHERE {DBConstants.Repository.COL_NAME} = ? AND {DBConstants.Repository.COL_ID} != ?",
+                (new_name, repo_id)
+            )
+            if cursor.fetchone():
+                return False, t('repo_name_duplicate', name=new_name)
+            cursor.execute(
+                f"UPDATE {DBConstants.Repository.TABLE_NAME} SET {DBConstants.Repository.COL_NAME} = ? "
+                f"WHERE {DBConstants.Repository.COL_ID} = ?",
+                (new_name, repo_id)
+            )
+            conn.commit()
+            LogUtils.info(t('repo_rename_log', id=repo_id, old_name=repo.name, new_name=new_name))
+            return True, t('repo_rename_success')
+        except Exception as e:
+            if conn is not None:
+                conn.rollback()
+            LogUtils.error(t('repo_rename_error', error=str(e)))
+            return False, t('repo_rename_failed')
+        finally:
+            if conn is not None:
+                conn.close()
 
     # --- 删除 ---
 

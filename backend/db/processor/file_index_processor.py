@@ -7,6 +7,7 @@ from backend.db.processor.base_db_processor import BaseDBProcessor
 from backend.db.search_query_helper import SearchQueryHelper
 from backend.model.db.file_index_db_model import FileIndexDBModel
 from backend.model.cursor_pagination_result import CursorPaginationResult
+from backend.model.db.album_axis_item_db_model import AlbumAxisItemDBModel
 from backend.model.pagination_result import PaginationResult
 
 
@@ -360,9 +361,10 @@ class FileIndexProcessor(BaseDBProcessor):
     @staticmethod
     def get_album_paged_list(limit: int, sort_by: str, order: bool,
                              search_query: str, file_types: List[str],
-                             last_path: str = '') -> CursorPaginationResult[FileIndexDBModel]:
+                             last_path: str = '', anchor_path: str = '',
+                             before_path: str = '') -> CursorPaginationResult[FileIndexDBModel]:
         """
-        用途说明：按媒体路径游标查询相册后续数据，排除回收站文件并按文件名搜索；
+        用途说明：按媒体路径游标或锚点查询相册数据，排除回收站文件并按文件名搜索；
                    支持相册时间、文件名首字母与文件大小三种全局排序，不使用页码。
         入参说明：
             limit (int): 本次获取条数。
@@ -370,7 +372,9 @@ class FileIndexProcessor(BaseDBProcessor):
             order (bool): 是否为升序（True 为 ASC，False 为 DESC）。
             search_query (str): 搜索关键词（按文件名模糊匹配）。
             file_types (List[str]): 需要包含的文件类型列表（如 ['image', 'video']）。
-            last_path (str): 上一条已加载媒体的完整路径，空字符串表示首批数据。
+            last_path (str): 向下游标路径，空字符串表示首批数据。
+            anchor_path (str): 定位锚点路径，从该媒体开始包含式取数。
+            before_path (str): 向上锚点路径，取该媒体之前最近一批数据。
         返回值说明：CursorPaginationResult[FileIndexDBModel] - 不包含页码的游标分页结果对象。
         """
         table_name: str = DBConstants.FileIndex.TABLE_NAME
@@ -426,26 +430,50 @@ class FileIndexProcessor(BaseDBProcessor):
         )
         total: int = int(total_res['total']) if total_res else 0
 
-        # 根据游标路径读取主排序值、次级排序值和唯一 ID，再严格取其后记录
+        # 按路径读取主排序值、次级排序值和唯一 ID，支持向下、定位和向上三种取数方式
         cursor_sql: str = ''
-        if last_path:
+        cursor_path: str = last_path or anchor_path or before_path
+        is_anchor_load: bool = bool(anchor_path and not last_path)
+        is_previous_load: bool = bool(before_path and not last_path and not anchor_path)
+        query_order_sql: str = order_by_sql
+        if cursor_path:
             cursor_query: str = (
                 f"SELECT {primary_expression} AS cursor_primary, "
                 f"{col_name} AS cursor_name, {col_id} AS cursor_id "
                 f"FROM {table_name} WHERE {col_path} = ?"
             )
             cursor_row: Optional[dict] = BaseDBProcessor._execute(
-                cursor_query, (last_path,), is_query=True, fetch_one=True
+                cursor_query, (cursor_path,), is_query=True, fetch_one=True
             )
             if not cursor_row:
                 return CursorPaginationResult(
                     total=total, list=[], limit=limit,
                     sort_by=sort_by, order=order_str
                 )
+
+            if is_anchor_load:
+                # 包含锚点本身时，仅最后一个唯一 ID 使用包含比较，前两级仍保持严格顺序
+                primary_comparison: str = '>' if order else '<'
+                name_comparison: str = primary_comparison
+                id_comparison: str = '>=' if order else '<='
+            elif is_previous_load:
+                primary_comparison = '<' if order else '>'
+                name_comparison = primary_comparison
+                id_comparison = primary_comparison
+                reverse_order_str: str = 'DESC' if order else 'ASC'
+                query_order_sql = (
+                    f"{primary_expression} {reverse_order_str}, "
+                    f"{col_name} {reverse_order_str}, {col_id} {reverse_order_str}"
+                )
+            else:
+                primary_comparison = comparison
+                name_comparison = comparison
+                id_comparison = comparison
+
             cursor_sql = (
-                f" AND (({primary_expression}) {comparison} ? "
-                f"OR (({primary_expression}) = ? AND {col_name} {comparison} ?) "
-                f"OR (({primary_expression}) = ? AND {col_name} = ? AND {col_id} {comparison} ?))"
+                f" AND (({primary_expression}) {primary_comparison} ? "
+                f"OR (({primary_expression}) = ? AND {col_name} {name_comparison} ?) "
+                f"OR (({primary_expression}) = ? AND {col_name} = ? AND {col_id} {id_comparison} ?))"
             )
             query_params.extend((
                 cursor_row['cursor_primary'],
@@ -455,10 +483,12 @@ class FileIndexProcessor(BaseDBProcessor):
 
         list_query: str = (
             f"SELECT * FROM {table_name} WHERE {where_sql}{cursor_sql} "
-            f"ORDER BY {order_by_sql} LIMIT ?"
+            f"ORDER BY {query_order_sql} LIMIT ?"
         )
         query_params.append(limit)
         rows: List[dict] = BaseDBProcessor._execute(list_query, tuple(query_params), is_query=True)
+        if is_previous_load:
+            rows.reverse()
         data_list: List[FileIndexDBModel] = [FileIndexDBModel(**row) for row in rows]
 
         return CursorPaginationResult(
@@ -468,6 +498,114 @@ class FileIndexProcessor(BaseDBProcessor):
             sort_by=sort_by,
             order=order_str
         )
+
+    @staticmethod
+    def get_album_axis(level: str, sort_by: str, order: bool,
+                       search_query: str, file_types: List[str],
+                       year: str = '', month: int = 0) -> List[AlbumAxisItemDBModel]:
+        """
+        用途说明：聚合相册年份、月份、日期或文件名首字母轴，并返回每组首条媒体路径。
+        入参说明：
+            level (str): 轴层级，可选 year、month、day、initial。
+            sort_by (str): 组内首条媒体的排序字段。
+            order (bool): 组内首条媒体是否按升序排列。
+            search_query (str): 文件名搜索关键词。
+            file_types (List[str]): 需要包含的媒体类型。
+            year (str): 月份轴或日期轴所属年份。
+            month (int): 日期轴所属月份。
+        返回值说明：List[AlbumAxisItemDBModel] - 轴分组、首条路径和媒体数量。
+        """
+        table_name: str = DBConstants.FileIndex.TABLE_NAME
+        col_id: str = DBConstants.FileIndex.COL_ID
+        col_path: str = DBConstants.FileIndex.COL_FILE_PATH
+        col_name: str = DBConstants.FileIndex.COL_FILE_NAME
+        col_recycle: str = DBConstants.FileIndex.COL_RECYCLE_BIN_TIME
+        time_expression: str = DBConstants.FileIndex.ALBUM_TIME_EXPRESSION
+        order_str: str = 'ASC' if order else 'DESC'
+
+        where_sql: str = f"{col_name} LIKE ? AND ({col_recycle} IS NULL OR {col_recycle} = '')"
+        query_params: List[object] = [SearchQueryHelper.process_search_query(search_query)]
+        valid_types: List[str] = [item for item in file_types if item]
+        if valid_types:
+            placeholders: str = ','.join(['?'] * len(valid_types))
+            where_sql += f" AND {DBConstants.FileIndex.COL_FILE_TYPE} IN ({placeholders})"
+            query_params.extend(valid_types)
+
+        valid_time_sql: str = (
+            f"(length(COALESCE({time_expression}, '')) >= 10 "
+            f"AND substr({time_expression}, 1, 4) GLOB '[0-9][0-9][0-9][0-9]' "
+            f"AND substr({time_expression}, 5, 1) = '-' "
+            f"AND substr({time_expression}, 8, 1) = '-')"
+        )
+
+        if level == 'initial':
+            group_expression: str = "COALESCE(filename_initial(file_name), '#')"
+            row_order_sql: str = f"{col_name} {order_str}, {col_id} {order_str}"
+            axis_condition: str = ''
+        else:
+            if level == 'year':
+                group_expression = f"substr(COALESCE({time_expression}, ''), 1, 4)"
+            elif level == 'month':
+                group_expression = f"substr(COALESCE({time_expression}, ''), 1, 7)"
+                where_sql += f" AND substr({time_expression}, 1, 4) = ?"
+                query_params.append(year)
+            else:
+                group_expression = f"substr(COALESCE({time_expression}, ''), 1, 10)"
+                where_sql += f" AND substr({time_expression}, 1, 4) = ?"
+                where_sql += f" AND substr({time_expression}, 6, 2) = ?"
+                query_params.extend((year, f"{month:02d}"))
+            row_order_sql = (
+                f"{time_expression} {order_str}, {col_name} {order_str}, {col_id} {order_str}"
+            )
+            axis_condition = f" AND {valid_time_sql}"
+
+        axis_query: str = (
+            "SELECT key, first_path, media_count FROM ("
+            f"SELECT {group_expression} AS key, {col_path} AS first_path, "
+            f"COUNT(*) OVER (PARTITION BY {group_expression}) AS media_count, "
+            f"ROW_NUMBER() OVER (PARTITION BY {group_expression} ORDER BY {row_order_sql}) AS row_num "
+            f"FROM {table_name} WHERE {where_sql}{axis_condition}"
+            ") WHERE row_num = 1"
+        )
+        if level == 'initial':
+            axis_query += " ORDER BY CASE WHEN key = '#' THEN 1 ELSE 0 END, key ASC"
+        else:
+            axis_query += f" ORDER BY key {order_str}"
+
+        rows: List[dict] = BaseDBProcessor._execute(
+            axis_query, tuple(query_params), is_query=True
+        )
+        items: List[AlbumAxisItemDBModel] = [
+            AlbumAxisItemDBModel(
+                key=str(row['key']),
+                first_path=str(row['first_path'] or ''),
+                count=int(row['media_count'] or 0)
+            )
+            for row in rows
+        ]
+
+        # 年份轴额外返回无有效时间的媒体，保证未知日期内容仍可通过轴定位
+        if level == 'year':
+            unknown_params: List[object] = list(query_params)
+            unknown_query: str = (
+                f"SELECT {col_path} AS first_path, COUNT(*) OVER () AS media_count "
+                f"FROM {table_name} WHERE {where_sql} "
+                f"AND NOT COALESCE(({valid_time_sql}), 0) "
+                f"ORDER BY {time_expression} {order_str}, {col_name} {order_str}, {col_id} {order_str} "
+                "LIMIT 1"
+            )
+            unknown_rows: List[dict] = BaseDBProcessor._execute(
+                unknown_query, tuple(unknown_params), is_query=True
+            )
+            if unknown_rows:
+                unknown_row: dict = unknown_rows[0]
+                items.append(AlbumAxisItemDBModel(
+                    key='unknown',
+                    first_path=str(unknown_row['first_path'] or ''),
+                    count=int(unknown_row['media_count'] or 0)
+                ))
+
+        return items
 
     @staticmethod
     def get_list_by_condition(offset: int, limit: int, only_no_thumbnail: bool = False) -> List[FileIndexDBModel]:

@@ -1,7 +1,8 @@
 import os
 import threading
 from collections import deque
-from typing import List, Optional, Tuple, Set, Deque
+from dataclasses import dataclass
+from typing import Dict, List, Optional, Tuple, Set, Deque
 
 import cv2
 from PIL import Image
@@ -14,7 +15,20 @@ from backend.common.utils import Utils
 from backend.db.db_operations import DBOperations
 from backend.file_repository.thumbnail.thumbnail_path_utils import ThumbnailPathUtils
 from backend.model.db.file_index_db_model import FileIndexDBModel
-from backend.repository.repository_service import repositoryService
+from backend.setting.setting_service import settingService
+
+
+@dataclass
+class ThumbnailTaskProgress:
+    """
+    用途说明：单个仓库的缩略图队列进度快照。
+    字段说明：repo_id 为仓库 ID，total/completed/remaining 为总任务数、已完成数和剩余数，paused 为是否暂停。
+    """
+    repo_id: int
+    total: int = 0
+    completed: int = 0
+    remaining: int = 0
+    paused: bool = False
 
 
 class ThumbnailGenerator:
@@ -30,6 +44,12 @@ class ThumbnailGenerator:
     _queue: Deque[Tuple[int, FileIndexDBModel]] = deque()  # 任务队列，存储 (仓库ID, 模型对象)
     _queue_set: Set[Tuple[int, str]] = set()    # 去重集合，存储 (仓库ID, 文件路径)
     _is_processing: bool = False
+    _active_repo_id: Optional[int] = None
+    _paused_repos: Set[int] = set()
+    _resume_events: Dict[int, threading.Event] = {}
+    _total_by_repo: Dict[int, int] = {}
+    _completed_by_repo: Dict[int, int] = {}
+    _generation_by_repo: Dict[int, int] = {}  # 停止时递增，用于取消暂停等待中的已取出任务
     # 同步生成锁：相册按需生成缩略图时避免同一时刻重复写文件
     _generate_now_lock = threading.Lock()
 
@@ -61,6 +81,7 @@ class ThumbnailGenerator:
                 if key not in self._queue_set:
                     self._queue.append((repo_id, task))
                     self._queue_set.add(key)
+                    self._total_by_repo[repo_id] = self._total_by_repo.get(repo_id, 0) + 1
                     added_count += 1
             
             if added_count > 0:
@@ -79,15 +100,86 @@ class ThumbnailGenerator:
         with self._lock:
             return len(self._queue)
 
-    def clear_queue(self) -> None:
+    def get_repo_statuses(self) -> List[ThumbnailTaskProgress]:
         """
-        用途：原子性地清空待处理队列和去重集合，停止后续任务。
+        用途说明：获取各仓库缩略图队列进度，供统一任务入口聚合。
         入参说明：无。
+        返回值说明：List[ThumbnailTaskProgress] - 仍有任务或正在处理的任务快照。
+        """
+        with self._lock:
+            remaining_by_repo: Dict[int, int] = {}
+            for repo_id, _ in self._queue:
+                remaining_by_repo[repo_id] = remaining_by_repo.get(repo_id, 0) + 1
+            repo_ids: Set[int] = set(self._total_by_repo) | set(remaining_by_repo) | set(self._paused_repos)
+            if self._active_repo_id is not None:
+                repo_ids.add(self._active_repo_id)
+            results: List[ThumbnailTaskProgress] = []
+            for repo_id in sorted(repo_ids):
+                total: int = self._total_by_repo.get(repo_id, 0)
+                completed: int = self._completed_by_repo.get(repo_id, 0)
+                remaining: int = remaining_by_repo.get(repo_id, 0)
+                if total > completed or remaining > 0 or repo_id == self._active_repo_id:
+                    results.append(ThumbnailTaskProgress(repo_id=repo_id, total=total, completed=completed,
+                                                         remaining=remaining, paused=repo_id in self._paused_repos))
+            return results
+
+    def pause_repo(self, repo_id: int) -> bool:
+        """
+        用途说明：暂停指定仓库的缩略图队列，当前图片处理完成或下一张图片取出后等待恢复。
+        入参说明：repo_id (int) - 目标仓库 ID。
+        返回值说明：bool - 仓库存在待处理任务时返回 True。
+        """
+        with self._lock:
+            has_task: bool = repo_id == self._active_repo_id or any(item[0] == repo_id for item in self._queue)
+            if not has_task:
+                return False
+            self._paused_repos.add(repo_id)
+            self._resume_events.setdefault(repo_id, threading.Event()).clear()
+        LogUtils.info(t('thumb_gen_repo_paused', repo_id=repo_id))
+        return True
+
+    def resume_repo(self, repo_id: int) -> bool:
+        """
+        用途说明：恢复指定仓库的缩略图队列。
+        入参说明：repo_id (int) - 目标仓库 ID。
+        返回值说明：bool - 已暂停并成功恢复时返回 True。
+        """
+        with self._lock:
+            if repo_id not in self._paused_repos:
+                return False
+            self._paused_repos.discard(repo_id)
+            self._resume_events.setdefault(repo_id, threading.Event()).set()
+        LogUtils.info(t('thumb_gen_repo_resumed', repo_id=repo_id))
+        return True
+
+    def clear_queue(self, repo_id: Optional[int] = None) -> None:
+        """
+        用途说明：清空待处理缩略图任务；指定仓库时只清理该仓库，并解除其暂停状态。
+        入参说明：repo_id (Optional[int]) - 目标仓库；为空时清空全部仓库。
         返回值说明：无。
         """
         with self._lock:
-            self._queue.clear()
-            self._queue_set.clear()
+            target_ids: Set[int] = (set(self._total_by_repo) | set(self._generation_by_repo)
+                                    | ({self._active_repo_id} if self._active_repo_id is not None else set()))
+            if repo_id is None:
+                self._queue.clear()
+                self._queue_set.clear()
+                self._total_by_repo.clear()
+                self._completed_by_repo.clear()
+                self._paused_repos.clear()
+                for target_id in target_ids:
+                    self._generation_by_repo[target_id] = self._generation_by_repo.get(target_id, 0) + 1
+                    self._resume_events.setdefault(target_id, threading.Event()).set()
+            else:
+                kept: Deque[Tuple[int, FileIndexDBModel]] = deque(
+                    item for item in self._queue if item[0] != repo_id)
+                self._queue = kept
+                self._queue_set = {(item[0], item[1].file_path) for item in kept}
+                self._total_by_repo.pop(repo_id, None)
+                self._completed_by_repo.pop(repo_id, None)
+                self._paused_repos.discard(repo_id)
+                self._generation_by_repo[repo_id] = self._generation_by_repo.get(repo_id, 0) + 1
+                self._resume_events.setdefault(repo_id, threading.Event()).set()
             LogUtils.info(t('thumb_gen_queue_cleared'))
 
     @staticmethod
@@ -132,11 +224,16 @@ class ThumbnailGenerator:
         with self._lock:
             if not self._queue:
                 self._is_processing = False
-                self._queue_set.clear() # 任务清空时同步重置集合
+                self._queue_set.clear()
+                self._total_by_repo.clear()
+                self._completed_by_repo.clear()
+                self._paused_repos.clear()
                 LogUtils.info(t('thumb_gen_completed_log'))
                 return
 
             repo_id, file_info = self._queue.popleft()
+            self._active_repo_id = repo_id
+            generation: int = self._generation_by_repo.get(repo_id, 0)
             key: Tuple[int, str] = (repo_id, file_info.file_path)
             if key in self._queue_set:
                 self._queue_set.remove(key)
@@ -145,16 +242,27 @@ class ThumbnailGenerator:
         set_current_repo_id(repo_id)
 
         # 2. 锁外执行耗时任务（磁盘IO与图像处理，预防死锁）
-        if file_info:
+        resume_event: threading.Event = self._resume_events.setdefault(repo_id, threading.Event())
+        while repo_id in self._paused_repos and not resume_event.wait(timeout=0.1):
+            pass
+        with self._lock:
+            cancelled: bool = self._generation_by_repo.get(repo_id, 0) != generation
+        if file_info and not cancelled:
             try:
-                thumb_size: int = repositoryService.get_current_config().thumbnail_size
+                thumb_size: int = settingService.get_album_thumbnail_size()
                 actual_path, thumb_path = self._generate_single_thumbnail(file_info, thumb_size)
                 if thumb_path:
                     # 按 MD5 回填所有同内容文件（含副本）的缩略图路径，确保副本也能预览
                     DBOperations.update_thumbnail_path_by_md5(file_info.file_md5, thumb_path)
             except Exception as e:
                 LogUtils.error(t('thumb_gen_failed_log', path=file_info.file_path, error=str(e)))
-        
+
+        with self._lock:
+            if not cancelled:
+                self._completed_by_repo[repo_id] = self._completed_by_repo.get(repo_id, 0) + 1
+            if self._active_repo_id == repo_id:
+                self._active_repo_id = None
+
         # 3. 异步提交下一次循环，实现非阻塞的串行处理
         ThreadPoolManager.submit(self._worker)
 

@@ -134,6 +134,34 @@ class AuthManager:
         """
         self._tokens.pop(username, None)
 
+    def rename_user(self, old_username: str, new_username: str) -> None:
+        """
+        用途说明：把用户重命名前的登录会话与失败锁定记录迁移到新用户名，保留 Token 值和过期时间。
+        入参说明：
+            old_username (str): 重命名前的登录名。
+            new_username (str): 重命名后的登录名。
+        返回值说明：无；名称相同时不处理。
+        """
+        if old_username == new_username:
+            return
+        token_info: Optional[Dict] = self._tokens.pop(old_username, None)
+        if token_info is not None:
+            # 新名称正常情况下没有旧会话；若存在残留映射，以当前重命名用户的会话为准。
+            self._tokens.pop(new_username, None)
+            self._tokens[new_username] = token_info
+
+        for key, attempt in list(self._login_attempts.items()):
+            if key[1] != old_username:
+                continue
+            new_key: Tuple[str, str] = (key[0], new_username)
+            existing: Optional[LoginAttemptInfo] = self._login_attempts.get(new_key)
+            if existing is not None:
+                existing.fails = max(existing.fails, attempt.fails)
+                existing.locked_until = max(existing.locked_until, attempt.locked_until)
+            else:
+                self._login_attempts[new_key] = attempt
+            self._login_attempts.pop(key, None)
+
     def logout(self, token: str) -> Tuple[bool, str]:
         """
         用途：注销登录，使 Token 立即过期并从内存中移除

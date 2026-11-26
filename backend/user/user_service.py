@@ -22,7 +22,7 @@ from config import GlobalConfig
 
 class UserService:
     """
-    用途：全局用户账户服务类，负责用户的初始化种子、查询、新增、删除与改密码。
+    用途：全局用户账户服务类，负责用户的初始化种子、查询、新增、重命名、删除与改密码。
     说明：用户是全局数据（登录不分仓库），故存于主数据库 repositories.db，
     沿用仓库元数据的 get_master_connection 直连模式；密码统一以 PBKDF2 加盐慢哈希存储。
     """
@@ -517,6 +517,52 @@ class UserService:
                 conn.close()
             LogUtils.error(t('user_add_error', error=str(e)))
             return False, t('user_add_error', error=str(e))
+
+    def rename_user(self, user_id: int, new_username: str) -> Tuple[bool, str]:
+        """
+        用途说明：重命名用户账号，并迁移现有 Token 与登录锁定记录；仓库权限、更新日志已读记录和登录历史保持不变。
+        入参说明：
+            user_id (int): 待重命名的用户 ID。
+            new_username (str): 新登录名，会自动去除首尾空格。
+        返回值说明：Tuple[bool, str] - 是否成功及提示消息。
+        """
+        if not isinstance(new_username, str):
+            return False, t('user_name_required')
+        username: str = new_username.strip()
+        if not username:
+            return False, t('user_name_required')
+        user: Optional[UserDBModel] = self.get_user_by_id(user_id)
+        if not user:
+            return False, t('user_not_found')
+        if user.username == username:
+            return True, t('user_rename_success')
+        if self.get_user_by_username(username):
+            return False, t('user_rename_duplicate', username=username)
+
+        conn: Optional[sqlite3.Connection] = None
+        try:
+            conn = db_manager.get_master_connection()
+            cursor: sqlite3.Cursor = conn.cursor()
+            cursor.execute(
+                f"UPDATE {DBConstants.User.TABLE_NAME} "
+                f"SET {DBConstants.User.COL_USERNAME} = ?, {DBConstants.User.COL_UPDATE_TIME} = CURRENT_TIMESTAMP "
+                f"WHERE {DBConstants.User.COL_ID} = ?",
+                (username, user_id)
+            )
+            conn.commit()
+            # 数据库提交成功后再迁移内存会话，确保改名后当前 Token 仍能识别新身份。
+            from backend.auth.auth_manager import auth_manager
+            auth_manager.rename_user(user.username, username)
+            LogUtils.info(t('user_rename_log', id=user_id, old_username=user.username, new_username=username))
+            return True, t('user_rename_success')
+        except Exception as e:
+            if conn is not None:
+                conn.rollback()
+            LogUtils.error(t('user_rename_error', error=str(e)))
+            return False, t('user_rename_failed')
+        finally:
+            if conn is not None:
+                conn.close()
 
     def delete_user(self, user_id: int, operator_username: str) -> Tuple[bool, str]:
         """

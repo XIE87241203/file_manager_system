@@ -13,6 +13,7 @@ from backend.common.log_utils import LogUtils
 from backend.common.repo_context import get_current_repo_id, set_current_repo_id
 from backend.common.response import success_response, error_response
 from backend.db.db_constants import DBConstants
+from backend.model.album_axis_result import AlbumAxisResult
 from backend.model.album_settings_result import AlbumSettingsResult
 from backend.model.db.file_index_db_model import FileIndexDBModel
 from backend.model.face_index_result import FaceTaskStatusResult
@@ -52,20 +53,24 @@ def _apply_repo_id_from_query() -> None:
 
 @album_bp.route('/list', methods=['GET'])
 @token_required
-def list_album_media():
+def list_album_media() -> Tuple[Any, int]:
     """
-    用途说明：按媒体路径游标获取相册媒体列表（图片/视频），支持文件名搜索与排序。
+    用途说明：按媒体路径游标或锚点获取相册媒体列表（图片/视频），支持文件名搜索与排序。
     入参说明（Query）：
         limit (int): 每批数量，默认 50，最大 500。
-        last_path (str): 游标路径，传入上一条已加载媒体的完整路径；空字符串表示首批数据。
+        last_path (str): 向下游标路径，传入上一条已加载媒体的完整路径；空字符串表示首批数据。
+        anchor_path (str): 定位锚点路径，从该媒体开始包含式取数。
+        before_path (str): 向上锚点路径，获取该媒体之前最近一批数据。
         sort_by (str): 排序字段，默认 album_time（EXIF 优先、文件修改时间兜底，供时间轴分组）。
         order_asc (bool): 是否升序，默认 false。
         search (str): 文件名搜索关键词。
         file_type (str): 媒体类型筛选，空串为全部，可选 image（仅图片）/ video（仅视频）；非法值按全部处理。
-    返回值说明：统一 JSON 响应，data 为分页结果。
+    返回值说明：统一 JSON 响应，data 为游标分页结果。
     """
     limit: int = request.args.get('limit', default=50, type=int)
-    last_path: str = request.args.get('last_path', default='')
+    last_path: str = request.args.get('last_path', default='').strip()
+    anchor_path: str = request.args.get('anchor_path', default='').strip()
+    before_path: str = request.args.get('before_path', default='').strip()
     sort_by: str = request.args.get('sort_by', default='album_time')
     order_asc: bool = request.args.get('order_asc', default='false').lower() == 'true'
     search_query: str = request.args.get('search', default='').strip()
@@ -74,9 +79,49 @@ def list_album_media():
         file_type = ''
 
     result: CursorPaginationResult = AlbumService.get_album_list(
-        limit, sort_by, order_asc, search_query, file_type, last_path
+        limit, sort_by, order_asc, search_query, file_type,
+        last_path, anchor_path, before_path
     )
     return success_response(t('album_list_success'), data=asdict(result))
+
+
+@album_bp.route('/axis', methods=['GET'])
+@token_required
+def get_album_axis() -> Tuple[Any, int]:
+    """
+    用途说明：获取相册年份、月份、日期或文件名首字母轴及每组首条媒体路径。
+    入参说明（Query）：
+        level (str): 轴层级，可选 year、month、day、initial。
+        year (str): 查询月份轴或日期轴时的年份，格式 YYYY。
+        month (int): 查询日期轴时的月份，范围 1-12。
+        sort_by (str): 媒体排序字段，默认 album_time。
+        order_asc (bool): 是否升序，默认 false。
+        search (str): 文件名搜索关键词。
+        file_type (str): 媒体类型筛选，空串为全部，可选 image/video。
+    返回值说明：统一 JSON 响应，data 为 AlbumAxisResult。
+    """
+    level: str = request.args.get('level', default='').strip()
+    if level not in ('year', 'month', 'day', 'initial'):
+        return error_response(t('album_axis_invalid_params'), 400)
+
+    year: str = request.args.get('year', default='').strip()
+    month: int = request.args.get('month', default=0, type=int)
+    if level in ('month', 'day') and (len(year) != 4 or not year.isdigit()):
+        return error_response(t('album_axis_invalid_params'), 400)
+    if level == 'day' and not 1 <= month <= 12:
+        return error_response(t('album_axis_invalid_params'), 400)
+
+    sort_by: str = request.args.get('sort_by', default='album_time')
+    order_asc: bool = request.args.get('order_asc', default='false').lower() == 'true'
+    search_query: str = request.args.get('search', default='').strip()
+    file_type: str = request.args.get('file_type', default='').strip()
+    if file_type not in ('', FileType.IMAGE.value, FileType.VIDEO.value):
+        file_type = ''
+
+    result: AlbumAxisResult = AlbumService.get_axis(
+        level, sort_by, order_asc, search_query, file_type, year, month
+    )
+    return success_response(t('album_axis_success'), data=asdict(result))
 
 
 @album_bp.route('/media', methods=['GET'])
@@ -136,7 +181,7 @@ def get_thumbnail_usage() -> Tuple[Any, int]:
 @token_required
 def get_album_settings():
     """
-    用途说明：获取相册设置（缩略图存储路径与当前仓库缩略图最大边长）。
+    用途说明：获取相册设置（缩略图存储路径与全系统统一的缩略图最大边长）。
     入参说明：无
     返回值说明：统一 JSON 响应，data 为相册设置对象。
     """
@@ -148,10 +193,10 @@ def get_album_settings():
 @token_required
 def update_album_settings():
     """
-    用途说明：更新相册设置中的缩略图存储路径、当前仓库缩略图最大边长与自动人脸识别开关。
+    用途说明：更新相册设置中的缩略图存储路径、全系统统一缩略图最大边长与自动人脸识别开关。
     入参说明（JSON）：
         thumbnail_dir (str) - 新的缩略图存储路径。
-        thumbnail_size (int, 可选) - 缩略图最大边长（像素），仅当前仓库管理员可修改。
+        thumbnail_size (int, 可选) - 全系统缩略图最大边长（像素），仅当前仓库管理员可修改。
         auto_face_recognition (bool, 可选) - 自动识别新增图片开关，仅系统管理员可修改。
     返回值说明：统一 JSON 响应，data 为更新后的相册设置对象。
     """

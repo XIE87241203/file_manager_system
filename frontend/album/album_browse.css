@@ -3,25 +3,39 @@
  * 规范：仅使用 class 绑定样式，禁止内联样式。
  */
 
-/* 页面主体：覆盖公用高度，宽度铺满并允许滚动 */
+/* 相册浏览页：页面整体不滚动，仅右侧瀑布流容器纵向滚动 */
+.album-browse-body {
+    min-height: 0;
+    overflow: hidden;
+}
+
 .album-main {
     display: block;
     width: 100%;
+    height: calc(100vh - 60px);
+    min-height: 0;
+    padding: 0;
+    overflow: hidden;
 }
 
 .album-page {
+    display: flex;
+    flex-direction: column;
     width: 100%;
     max-width: 1440px;
+    height: 100%;
+    min-height: 0;
     margin: 0 auto;
-    padding: 12px 16px 48px;
+    padding: 12px 16px;
+    overflow: hidden;
     box-sizing: border-box;
 }
 
-/* 多选操作栏：跟随滚动吸顶 */
+/* 多选操作栏：固定在页面内容顶部，不参与瀑布流滚动 */
 .album-selection-bar {
-    position: sticky;
-    top: 0;
+    position: static;
     z-index: 30;
+    flex: 0 0 auto;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -81,37 +95,48 @@
     background: var(--color-surface-muted);
 }
 
-/* 筛选工具栏：位于列表上方，所有控件左对齐 */
+/* 侧边栏底部下拉框组：筛选控件自然换行，整体固定在侧边栏底部 */
 .album-toolbar {
     display: flex;
     align-items: center;
     justify-content: flex-start;
     gap: 8px;
     flex-wrap: wrap;
-    margin-bottom: 12px;
+    width: 100%;
 }
 
-/* 标尺侧边栏开关：箭头方向随侧边栏显隐切换 */
-.album-sidebar-toggle {
-    flex: 0 0 32px;
-    width: 32px;
-    height: 32px;
-    padding: 0;
-    border: 1px solid var(--palette-d0d7de);
-    border-radius: 6px;
-    background: var(--color-surface);
+/* 总数：跟随当前搜索与媒体类型筛选，在侧边栏顶部左右居中 */
+.album-total-count {
+    padding: 6px 10px;
     color: var(--color-text-secondary);
-    display: inline-flex;
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+/* 标尺侧边栏开关：参考整理文件页面的竖向胶囊按钮，位置由JS按侧边栏实际边界计算 */
+.album-sidebar-toggle {
+    position: fixed;
+    top: 50%;
+    left: 0;
+    z-index: 120;
+    width: 26px;
+    height: 56px;
+    padding: 0;
+    border: 1px solid var(--color-border);
+    border-radius: 13px;
+    background: var(--color-surface);
+    display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+    transform: translate(-50%, -50%);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .album-sidebar-toggle:hover {
     border-color: var(--color-primary);
-    background: var(--color-primary-soft);
-    color: var(--color-primary);
+    box-shadow: 0 2px 8px var(--alpha-primary-25);
 }
 
 .album-sidebar-toggle:focus-visible {
@@ -119,39 +144,154 @@
     outline-offset: 2px;
 }
 
-.album-sidebar-toggle .theme-icon {
-    width: 16px;
-    height: 16px;
-    transition: transform 0.2s;
+/* 纯CSS箭头：侧边栏显示时朝左，隐藏时朝右 */
+.album-toggle-chevron {
+    width: 8px;
+    height: 8px;
+    border-top: 2px solid var(--color-text-tertiary);
+    border-right: 2px solid var(--color-text-tertiary);
+    transform: rotate(225deg);
+    margin-left: 3px;
+    transition: transform 0.2s ease;
 }
 
-.album-sidebar-toggle.is-collapsed .theme-icon {
-    transform: rotate(180deg);
+.album-sidebar-toggle:hover .album-toggle-chevron {
+    border-color: var(--color-primary);
 }
 
-/* 相册主体：左侧标尺侧边栏 + 右侧瀑布流 */
+.album-sidebar-toggle.is-collapsed .album-toggle-chevron {
+    transform: rotate(45deg);
+    margin-left: -3px;
+}
+
+/* 相册主体：瀑布流始终铺满布局，侧边栏作为浮动层覆盖在列表左侧 */
 .album-layout {
-    display: flex;
-    align-items: flex-start;
-    gap: 14px;
+    --album-sidebar-width: 40%;
+    position: relative;
+    display: block;
+    flex: 1 1 auto;
     width: 100%;
+    height: auto;
+    min-height: 0;
 }
 
-/* 垂直时间轴：跟随滚动吸顶，超长时自身滚动（隐藏滚动条） */
+/* 标尺侧边栏：浮动覆盖在列表左侧，宽度占布局40%，拖动范围30%～80% */
 .album-timeline {
-    position: sticky;
+    position: absolute;
     top: 0;
-    flex: 0 0 88px;
-    width: 88px;
-    max-height: calc(100vh - 84px);
-    padding: 4px 0 16px;
-    overflow-y: auto;
-    scrollbar-width: none;
+    bottom: 0;
+    left: 0;
+    z-index: 20;
+    width: var(--album-sidebar-width);
+    height: 100%;
+    max-height: 100%;
+    min-height: 0;
+    overflow: visible;
+    box-sizing: border-box;
+    background: var(--color-page-background);
+    border-right: 1px solid var(--color-border-muted);
+    box-shadow: 4px 0 12px var(--alpha-black-12);
+}
+
+/* 侧边栏内容：顶部总数、中部标尺、底部下拉框组三段式布局 */
+.album-sidebar-content {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    max-height: 100%;
+    min-height: 0;
+    padding: 4px 0 12px;
+    overflow: hidden;
     box-sizing: border-box;
 }
 
-.album-timeline::-webkit-scrollbar {
-    display: none;
+/* 顶部总数：独占一行并左右居中，高度不足时在自身区域内滚动 */
+.album-sidebar-summary {
+    flex: 0 1 auto;
+    min-height: 0;
+    max-height: 40%;
+    display: flex;
+    justify-content: center;
+    padding: 4px 8px 8px;
+    overflow-y: auto;
+    box-sizing: border-box;
+}
+
+/* 中部标尺：占满总数与下拉框组之间的剩余高度，内容过多时独立滚动 */
+.album-sidebar-axis {
+    flex: 1 1 0;
+    min-height: 0;
+    padding: 0 8px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: var(--palette-c1c7d0) var(--color-surface-muted);
+}
+
+.album-sidebar-axis::-webkit-scrollbar {
+    width: 6px;
+}
+
+.album-sidebar-axis::-webkit-scrollbar-thumb {
+    background: var(--palette-c1c7d0);
+    border-radius: 3px;
+}
+
+.album-axis {
+    min-height: 100%;
+}
+
+/* 底部设置区：始终位于侧边栏最底部，高度不足时仅在组内滚动 */
+.album-sidebar-settings {
+    flex: 0 1 auto;
+    min-height: 0;
+    max-height: 50%;
+    padding: 8px 8px 0;
+    overflow-y: auto;
+    box-sizing: border-box;
+}
+
+.album-sidebar-settings .album-filter-select {
+    flex: 1 1 132px;
+    min-width: 0;
+}
+
+/* 侧边栏右边缘拖动手柄：位于侧栏与列表之间的间隔中央 */
+.album-sidebar-resize {
+    position: absolute;
+    top: 0;
+    right: -14px;
+    z-index: 6;
+    width: 14px;
+    height: 100%;
+    cursor: col-resize;
+    touch-action: none;
+}
+
+.album-sidebar-resize::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 6px;
+    width: 2px;
+    height: 100%;
+    background: var(--color-transparent);
+    transition: background-color 0.2s;
+}
+
+.album-sidebar-resize:hover::after,
+.album-sidebar-resize:focus-visible::after,
+.album-sidebar-resize.is-active::after {
+    background: var(--color-primary);
+}
+
+.album-sidebar-resize:focus-visible {
+    outline: none;
+}
+
+body.album-sidebar-resizing {
+    cursor: col-resize;
+    user-select: none;
 }
 
 /* 顶部排序、媒体类型与显示列数下拉框：宽度随内容自适应，不铺满整行 */
@@ -211,6 +351,36 @@
     width: 2px;
     background: var(--palette-e1e5ea);
     transform: translateX(-50%);
+}
+
+/* 年、月、日分支：只展开当前年份和当前月份，其他分支不占空间 */
+.album-axis-branch {
+    margin-left: 14px;
+    padding-left: 10px;
+    border-left: 1px solid var(--palette-e1e5ea);
+}
+
+.album-axis-day-branch {
+    margin-left: 8px;
+    padding-left: 6px;
+}
+
+/* 轴加载状态：小号圆形进度条，避免分支展开时遮挡主刻度 */
+.album-axis-loading {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 24px;
+    padding: 4px 4px 4px 32px;
+    color: var(--color-text-tertiary);
+    font-size: 11px;
+    white-space: nowrap;
+}
+
+.album-axis-loading .album-loading-spinner {
+    width: 14px;
+    height: 14px;
+    border-width: 2px;
 }
 
 /* 时间轴刻度：圆点位于轨道线上，文案在右侧 */
@@ -297,15 +467,15 @@
     color: var(--color-text-secondary);
 }
 
-/* 日刻度：最小，仅显示圆点，不显示具体日期 */
+/* 日刻度：最小，显示当月日数 */
 .album-timeline-tick-day {
-    min-height: 10px;
+    min-height: 16px;
     padding-top: 2px;
     padding-bottom: 2px;
 }
 
 .album-timeline-tick-day .album-timeline-label {
-    display: none;
+    font-size: 11px;
 }
 
 /* 当前刻度与上下文刻度高亮 */
@@ -322,10 +492,35 @@
     color: var(--color-primary);
 }
 
-/* 列表容器：占据标尺侧边栏右侧剩余宽度 */
+/* 无数据字母：置灰且不响应点击或键盘操作 */
+.album-timeline-tick.is-disabled {
+    cursor: default;
+    opacity: 0.38;
+}
+
+.album-timeline-tick.is-disabled::before {
+    background: var(--color-text-disabled);
+}
+
+.album-timeline-tick.is-disabled:hover {
+    background: transparent;
+}
+
+.album-timeline-tick.is-disabled:hover::before {
+    background: var(--color-text-disabled);
+    box-shadow: none;
+}
+
+/* 列表容器：始终占满布局宽度，瀑布流仅在此区域内纵向滚动 */
 .album-list {
-    flex: 1 1 auto;
-    min-width: 0;
+    position: relative;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: var(--palette-c1c7d0) var(--color-surface-muted);
 }
 
 /* 统一瀑布流：全部卡片按接口顺序横向铺满一行后自动换行 */
@@ -601,6 +796,30 @@
     padding: 20px 0 8px;
 }
 
+/* 向上加载提示：悬浮在列表顶部，不占布局高度，避免加载时视口跳动 */
+.album-load-previous {
+    position: absolute;
+    top: 6px;
+    left: 50%;
+    z-index: 8;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    border: 1px solid var(--color-border-light);
+    border-radius: 18px;
+    background: var(--color-surface);
+    box-shadow: 0 2px 10px var(--alpha-black-12);
+    transform: translateX(-50%);
+    pointer-events: none;
+}
+
+.album-load-previous .album-loading-spinner {
+    width: 18px;
+    height: 18px;
+    border-width: 2px;
+}
+
 .album-loading-spinner {
     width: 36px;
     height: 36px;
@@ -642,6 +861,10 @@
 }
 
 .album-sentinel {
+    height: 1px;
+}
+
+.album-top-sentinel {
     height: 1px;
 }
 
@@ -922,19 +1145,13 @@
 }
 
 @media (max-width: 520px) {
-    .album-toolbar .album-filter-select {
+    .album-sidebar-settings .album-filter-select {
         flex: 1 1 132px;
         min-width: 0;
     }
 
     .album-waterfall[data-column-count="auto"] {
         grid-template-columns: minmax(0, 1fr);
-    }
-
-    /* 窄屏缩窄标尺侧边栏，用户仍可通过顶部开关隐藏或显示 */
-    .album-timeline {
-        flex: 0 0 76px;
-        width: 76px;
     }
 
     .album-preview-body {

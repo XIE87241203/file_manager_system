@@ -4,7 +4,6 @@
 
 // --- 状态管理 ---
 const HomeState = {
-    titleClickCount: 0, // 用于记录标题点击次数，开启隐藏入口
     repos: [], // 当前用户可见的仓库列表缓存
     currentRepoId: 1, // 当前选中的仓库 ID
     currentRepoPermission: '', // 当前仓库权限：admin/member
@@ -28,37 +27,36 @@ const UIController = {
 
         // 使用通用的 HeaderToolbar 初始化顶部栏
         HeaderToolbar.init({
-            title: I18nManager.t('home.title'),
+            title: '', // 首页标题位置改为仓库切换下拉框
             backCallback: null, // 首页不需要返回按钮
             menuCallback: null,  // 首页暂时不需要右侧菜单
             showBack: false
         });
 
-        // 在工具栏生成后挂载外观按钮，确保仓库下拉框与按钮都位于右上区域
-        const headerRight = document.querySelector('.header-right');
-        if (headerRight && !document.getElementById('home-appearance-actions')) {
+        // 首页左右操作区等宽，确保中间标题始终居中
+        const headerBar = document.querySelector('.header-bar');
+        if (headerBar) headerBar.classList.add('home-header');
+
+        // 顶部栏生成后把主题与语言按钮挂载到最左侧
+        const headerLeft = document.querySelector('.header-left');
+        if (headerLeft && !document.getElementById('home-appearance-actions')) {
             const appearanceActions = document.createElement('div');
             appearanceActions.id = 'home-appearance-actions';
             appearanceActions.className = 'appearance-actions home-appearance-actions';
-            headerRight.appendChild(appearanceActions);
+            headerLeft.appendChild(appearanceActions);
             AppearanceManager.mount('home-appearance-actions');
         }
+
+        // 顶部栏生成后挂载统一当前任务入口
+        CurrentTasksApp.start();
 
         // 缓存统计展示相关的 DOM 元素
         this.elements = {
             totalCount: document.getElementById('repo-total-count'),
             totalSize: document.getElementById('repo-total-size'),
             updateTime: document.getElementById('repo-update-time'),
-            btnCalc: document.getElementById('btn-calc-repo-stats'),
-            headerTitle: document.querySelector('.header-title'), // 适配 default_header_toolbar 的类名
-            testPageMenu: document.getElementById('menu-test-page')
+            btnCalc: document.getElementById('btn-calc-repo-stats')
         };
-
-        // 让标题支持点击事件，用于触发隐藏入口
-        if (this.elements.headerTitle) {
-            this.elements.headerTitle.style.pointerEvents = 'auto';
-            this.elements.headerTitle.style.cursor = 'default';
-        }
     },
 
     /**
@@ -105,37 +103,26 @@ const UIController = {
     },
 
     /**
-     * @description 用途说明：显示隐藏的测试入口。
-     * @returns {void} - 返回值说明：无
-     */
-    showTestMenu() {
-        if (this.elements.testPageMenu) {
-            this.elements.testPageMenu.classList.remove('hidden');
-            Toast.show('Debug mode enabled~');
-        }
-    },
-
-    /**
-     * @description 用途说明：在顶部工具栏右侧构建仓库切换下拉框，系统管理员额外显示“新增仓库”。
+     * @description 用途说明：在首页标题位置构建无边框仓库切换下拉框，系统管理员额外显示“新增仓库”。
      * @param {Array} repos - 入参说明：当前用户可见的仓库列表 [{id, name, permission}]。
      * @param {number} currentId - 入参说明：当前选中的仓库 ID。
      * @param {boolean} canCreate - 入参说明：当前用户是否系统管理员。
      * @returns {void} - 返回值说明：无
      */
     buildRepoSelector(repos, currentId, canCreate) {
-        const headerRight = document.querySelector('.header-right');
-        if (!headerRight) return;
+        const titleContainer = document.querySelector('.home-header .header-title');
+        if (!titleContainer) return;
 
         const old = document.getElementById('repo-selector-container');
         if (old) old.remove();
 
         const container = document.createElement('div');
         container.id = 'repo-selector-container';
-        container.className = 'repo-selector-container';
+        container.className = 'repo-selector-container home-repo-selector';
 
         const select = document.createElement('select');
         select.id = 'repo-selector';
-        select.className = 'repo-selector';
+        select.className = 'repo-selector home-repo-selector-control';
         select.title = I18nManager.t('repo.selector_title');
 
         repos.forEach(repo => {
@@ -161,16 +148,16 @@ const UIController = {
         selectorIcon.setAttribute('aria-hidden', 'true');
         container.appendChild(selectorIcon);
 
-        headerRight.insertBefore(container, headerRight.firstChild);
+        // 用仓库切换控件替代首页标题，右侧只保留当前任务按钮
+        titleContainer.replaceChildren(container);
         this.elements.repoSelector = select;
     },
 
     /**
-     * @description 用途说明：刷新首页动态生成的标题、仓库下拉框提示与版本文案。
+     * @description 用途说明：刷新首页动态生成的仓库下拉框提示与版本文案。
      * @returns {void} - 返回值说明：无。
      */
     refreshDynamicTexts() {
-        if (this.elements.headerTitle) this.elements.headerTitle.textContent = I18nManager.t('home.title');
         const select = document.getElementById('repo-selector');
         if (select) {
             select.title = I18nManager.t('repo.selector_title');
@@ -506,7 +493,7 @@ const App = {
     },
 
     /**
-     * @description 用途说明：加载仓库列表并初始化右上角仓库切换下拉框。
+     * @description 用途说明：加载仓库列表并初始化首页中央仓库切换下拉框。
      * @returns {void} - 返回值说明：无
      */
     initRepoSelector() {
@@ -741,16 +728,6 @@ const App = {
             UIController.elements.btnCalc.onclick = (e) => {
                 e.stopPropagation(); // 阻止事件冒泡
                 this.handleCalculateStats();
-            };
-        }
-
-        // 绑定标题点击计数事件
-        if (UIController.elements.headerTitle) {
-            UIController.elements.headerTitle.onclick = () => {
-                HomeState.titleClickCount++;
-                if (HomeState.titleClickCount >= 3) {
-                    UIController.showTestMenu();
-                }
             };
         }
     }

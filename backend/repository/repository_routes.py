@@ -9,6 +9,7 @@ from backend.common.log_utils import LogUtils
 from backend.common.repo_context import get_current_repo_id
 from backend.common.response import success_response, error_response
 from backend.db.db_constants import DBConstants
+from backend.repository.repository_result import RepositoryResult
 from backend.repository.repository_service import repositoryService
 from backend.user.user_service import userService
 
@@ -44,6 +45,35 @@ def create_repo() -> Tuple[Any, int]:
     if result:
         return success_response(t('repo_create_success'), data=asdict(result))
     return error_response(t('repo_create_failed'))
+
+
+@repository_bp.route('/rename', methods=['POST'])
+@token_required
+def rename_repo() -> Tuple[Any, int]:
+    """
+    用途说明：重命名指定仓库（仅系统管理员或该仓库管理员），保留仓库 ID、配置、数据库文件与授权。
+    入参说明：JSON 对象，包含 id (int) 仓库 ID 与 name (str) 新仓库名称。
+    返回值说明：统一 JSON 响应，data 为更新后的 RepositoryResult。
+    """
+    data: Optional[Dict[str, Any]] = request.get_json(silent=True)
+    if not data:
+        return error_response(t('request_data_empty'))
+    repo_id: Any = data.get('id')
+    name: Any = data.get('name')
+    if isinstance(repo_id, bool) or not isinstance(repo_id, int) or repo_id <= 0 or not isinstance(name, str):
+        return error_response(t('request_params_error'), 400)
+    if userService.get_repo_permission(request.username, repo_id) \
+            != DBConstants.UserRepositoryPermission.PERMISSION_ADMIN:
+        return error_response(t('user_repo_admin_required'), 403)
+
+    success, message = repositoryService.rename_repo(repo_id, name)
+    if not success:
+        return error_response(message, 400)
+    repo = repositoryService.get_repo(repo_id)
+    if repo is None:
+        return error_response(t('repo_rename_failed'), 500)
+    result: RepositoryResult = RepositoryResult(id=repo.id, name=repo.name, create_time=repo.create_time)
+    return success_response(t('repo_rename_success'), data=asdict(result))
 
 
 @repository_bp.route('/delete', methods=['POST'])

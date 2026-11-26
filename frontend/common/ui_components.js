@@ -273,7 +273,7 @@ const UIComponents = {
 
     /**
      * @description 用途说明：弹出通用输入框弹窗
-     * @param {Object} options - 入参说明：配置项，包含 title, placeholder, isTextArea, onConfirm, isSmall
+     * @param {Object} options - 入参说明：配置项，包含 title, placeholder, initialValue, isTextArea, onConfirm, isSmall
      * @returns {void} - 返回值说明：无
      */
     showInputModal(options) {
@@ -282,6 +282,7 @@ const UIComponents = {
         const {
             title = t('common.hint'),
             placeholder = '',
+            initialValue = '',
             isTextArea = false,
             onConfirm,
             isSmall = false
@@ -316,7 +317,9 @@ const UIComponents = {
 
         modal.classList.remove('hidden');
         const inputEl = document.getElementById('common-modal-input');
+        inputEl.value = initialValue;
         inputEl.focus();
+        inputEl.select();
 
         document.getElementById('common-modal-input-confirm-btn').onclick = () => {
             const value = inputEl.value.trim();

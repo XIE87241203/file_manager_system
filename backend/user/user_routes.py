@@ -148,6 +148,29 @@ def update_user_permissions() -> Tuple[Any, int]:
     return error_response(message, 400)
 
 
+@user_bp.route('/rename', methods=['POST'])
+@admin_required
+def rename_user() -> Tuple[Any, int]:
+    """
+    用途说明：重命名用户账号（仅系统管理员），保留原 Token、仓库权限与历史记录。
+    入参说明：JSON Body，字段：id (int): 目标用户 ID；username (str): 新登录名。
+    返回值说明：Tuple[Any, int] - 统一 JSON 响应，成功或失败均带提示消息。
+    """
+    data = request.get_json(silent=True)
+    if not data:
+        return error_response(t('request_data_empty'))
+    user_id: Any = data.get('id')
+    username: Any = data.get('username')
+    if isinstance(user_id, bool) or not isinstance(user_id, int) or user_id <= 0 or not isinstance(username, str):
+        return error_response(t('request_params_error'), 400)
+
+    LogUtils.info(t('user_rename_request_log', user=request.username, target_id=user_id))
+    success, message = userService.rename_user(user_id, username)
+    if success:
+        return success_response(message)
+    return error_response(message, 400)
+
+
 @user_bp.route('/delete', methods=['POST'])
 @admin_required
 def delete_user() -> Tuple[Any, int]:

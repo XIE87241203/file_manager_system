@@ -34,17 +34,21 @@ class OrganizeTaskSession:
     """
     用途：单个仓库的整理任务内存会话，保存剩余待整理文件队列。
     字段说明：
+        repo_id (int): 会话所属仓库 ID。
         queue (List[str]): 剩余待整理文件完整路径列表（按路径排序，顺序即整理顺序）。
         queue_set (Set[str]): 队列路径集合，用于 O(1) 校验预览/保存权限。
         total (int): 本次任务扫描到的文件总数。
         organized_dir (str): 已整理目录绝对路径。
         script_path (str): 生效的整理脚本路径（默认脚本已解析为实际路径）。
+        status (str): processing 可操作 / paused 已暂停；停止时直接移除会话。
     """
+    repo_id: int = 0
     queue: List[str] = field(default_factory=list)
     queue_set: Set[str] = field(default_factory=set)
     total: int = 0
     organized_dir: str = ''
     script_path: str = ''
+    status: str = 'processing'
 
 
 class OrganizeTaskService:
@@ -118,9 +122,11 @@ class OrganizeTaskService:
         repo_id: int = get_current_repo_id()
         with self._lock:
             self._sessions[repo_id] = OrganizeTaskSession(
+                repo_id=repo_id,
                 queue=paths,
                 queue_set=set(paths),
                 total=len(paths),
+                status='processing',
                 organized_dir=os.path.abspath(settings.organized_dir),
                 script_path=settings.rename_script_path
             )
@@ -191,6 +197,7 @@ class OrganizeTaskService:
         异常说明：ValueError - 文件名非法/不在队列/目标重名/移动失败时抛出。
         """
         session: OrganizeTaskSession = self._get_session()
+        self._ensure_processing(session)
         name: str = (new_name or '').strip()
         # 原文件后缀：保存时强制保留，用户输入仅作为文件名主体
         original_ext: str = os.path.splitext(path)[1]
@@ -204,6 +211,8 @@ class OrganizeTaskService:
         final_name: str = name + original_ext
 
         with self._lock:
+            if session.status != 'processing':
+                raise ValueError(t('organize_task_paused'))
             if path not in session.queue_set:
                 raise ValueError(t('organize_task_not_in_queue'))
             dest: str = os.path.join(session.organized_dir, final_name)
@@ -246,7 +255,10 @@ class OrganizeTaskService:
         异常说明：ValueError - 文件不在当前任务队列中时抛出。
         """
         session: OrganizeTaskSession = self._get_session()
+        self._ensure_processing(session)
         with self._lock:
+            if session.status != 'processing':
+                raise ValueError(t('organize_task_paused'))
             if path not in session.queue_set:
                 raise ValueError(t('organize_task_not_in_queue'))
             session.queue.remove(path)
@@ -268,34 +280,101 @@ class OrganizeTaskService:
         异常说明：ValueError - 文件不在队列中/文件不存在且无法补建索引/写入回收站失败时抛出。
         """
         session: OrganizeTaskSession = self._get_session()
+        self._ensure_processing(session)
+        # 数据库操作与队列移除共用会话锁，确保暂停返回后不会再发生回收站写入。
         with self._lock:
-            if path not in session.queue_set:
-                raise ValueError(t('organize_task_not_in_queue'))
+            if session.status != 'processing' or path not in session.queue_set:
+                raise ValueError(t('organize_task_paused') if session.status != 'processing'
+                                 else t('organize_task_not_in_queue'))
 
-        # 1. 已在文件索引中：直接打回收站标记（同步清理查重分组关联）
-        existing: Optional[FileIndexDBModel] = DBOperations.get_file_by_path(path)
-        if existing is not None:
-            ok: bool = DBOperations.batch_move_to_recycle_bin([path])
-        else:
-            # 2. 未索引的文件：补建索引记录（复用扫描同一套信息提取），插入时直接带回收站时间
-            info: Optional[FileIndexDBModel] = FileInfoService.get_file_info(path)
-            if info is None:
-                raise ValueError(t('organize_task_file_missing'))
-            info.recycle_bin_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            ok = DBOperations.batch_insert_files_index([info])
-        if not ok:
-            raise ValueError(t('organize_task_recycle_failed'))
+            # 1. 已在文件索引中：直接打回收站标记（同步清理查重分组关联）
+            existing: Optional[FileIndexDBModel] = DBOperations.get_file_by_path(path)
+            if existing is not None:
+                ok: bool = DBOperations.batch_move_to_recycle_bin([path])
+            else:
+                # 2. 未索引的文件：补建索引记录（复用扫描同一套信息提取），插入时直接带回收站时间
+                info: Optional[FileIndexDBModel] = FileInfoService.get_file_info(path)
+                if info is None:
+                    raise ValueError(t('organize_task_file_missing'))
+                info.recycle_bin_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                ok = DBOperations.batch_insert_files_index([info])
+            if not ok:
+                raise ValueError(t('organize_task_recycle_failed'))
 
-        with self._lock:
-            # 补索引期间会话可能被重扫替换，二次确认文件仍在队列
-            if path not in session.queue_set:
-                raise ValueError(t('organize_task_not_in_queue'))
             session.queue.remove(path)
             session.queue_set.discard(path)
             remaining: int = len(session.queue)
             total: int = session.total
         LogUtils.info(t('organize_task_recycle_log', user=user, path=path))
         return OrganizeTaskRemoveResult(remaining=remaining, total=total)
+
+    def pause_task(self, repo_id: Optional[int] = None) -> bool:
+        """
+        用途说明：暂停指定仓库的手动整理会话；暂停时仍可查看列表，但保存、跳过和移入回收站会被拒绝。
+        入参说明：repo_id (Optional[int]) - 目标仓库；为空时使用当前请求仓库。
+        返回值说明：bool - 存在可暂停的整理会话时返回 True。
+        """
+        target_repo_id: int = get_current_repo_id() if repo_id is None else repo_id
+        with self._lock:
+            session: Optional[OrganizeTaskSession] = self._sessions.get(target_repo_id)
+            if session is None or session.status != 'processing' or not session.queue:
+                return False
+            session.status = 'paused'
+        LogUtils.info(t('organize_task_paused_log', repo_id=target_repo_id))
+        return True
+
+    def resume_task(self, repo_id: Optional[int] = None) -> bool:
+        """
+        用途说明：恢复指定仓库的手动整理会话。
+        入参说明：repo_id (Optional[int]) - 目标仓库；为空时使用当前请求仓库。
+        返回值说明：bool - 已恢复时返回 True。
+        """
+        target_repo_id: int = get_current_repo_id() if repo_id is None else repo_id
+        with self._lock:
+            session: Optional[OrganizeTaskSession] = self._sessions.get(target_repo_id)
+            if session is None or session.status != 'paused':
+                return False
+            session.status = 'processing'
+        LogUtils.info(t('organize_task_resumed_log', repo_id=target_repo_id))
+        return True
+
+    def stop_task(self, repo_id: Optional[int] = None) -> bool:
+        """
+        用途说明：结束指定仓库的整理会话并丢弃内存队列，不移动或删除任何物理文件。
+        入参说明：repo_id (Optional[int]) - 目标仓库；为空时使用当前请求仓库。
+        返回值说明：bool - 已结束整理会话时返回 True。
+        """
+        target_repo_id: int = get_current_repo_id() if repo_id is None else repo_id
+        with self._lock:
+            if target_repo_id not in self._sessions:
+                return False
+            del self._sessions[target_repo_id]
+        LogUtils.info(t('organize_task_stopped_log', repo_id=target_repo_id))
+        return True
+
+    def _ensure_processing(self, session: OrganizeTaskSession) -> None:
+        """
+        用途说明：确保整理会话未暂停，防止暂停期间继续移动或移除文件。
+        入参说明：session (OrganizeTaskSession) - 当前仓库整理会话。
+        返回值说明：无。
+        异常说明：ValueError - 会话已暂停时抛出。
+        """
+        with self._lock:
+            if session.status != 'processing':
+                raise ValueError(t('organize_task_paused'))
+
+    def list_active_sessions(self) -> List[OrganizeTaskSession]:
+        """
+        用途说明：返回所有仍有剩余文件的整理会话快照，供统一任务入口聚合。
+        入参说明：无。
+        返回值说明：List[OrganizeTaskSession] - 会话副本列表。
+        """
+        with self._lock:
+            return [OrganizeTaskSession(repo_id=session.repo_id, queue=list(session.queue),
+                                        queue_set=set(session.queue_set),
+                                        total=session.total, organized_dir=session.organized_dir,
+                                        script_path=session.script_path, status=session.status)
+                    for session in self._sessions.values() if session.queue]
 
     def _get_session(self) -> OrganizeTaskSession:
         """

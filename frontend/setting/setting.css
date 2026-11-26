@@ -104,7 +104,8 @@ body {
     background-color: var(--color-surface);
 }
 
-.repo-config-toolbar .btn-danger {
+.repo-config-toolbar .btn-danger,
+.repo-config-toolbar .btn-secondary {
     margin: 0;
     white-space: nowrap;
     width: auto;

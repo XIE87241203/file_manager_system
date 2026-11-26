@@ -58,6 +58,17 @@ class SettingService:
         """
         return self._config
 
+    def get_album_thumbnail_size(self) -> int:
+        """
+        用途说明：获取全系统统一的相册缩略图最大边长，并兜底校正旧配置中的非法值。
+        入参说明：无。
+        返回值说明：int - 有效的缩略图最大边长（像素），非法值回退为 256。
+        """
+        value: Any = self._config.album.thumbnail_size
+        if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+            return 256
+        return value
+
     def _load_config(self) -> None:
         """
         用途：从本地 JSON 文件中加载配置信息。
@@ -86,6 +97,9 @@ class SettingService:
             # 校正日志保留天数，非法时回退默认 30 天
             self._normalize_log_retention()
 
+            # 校正相册缩略图尺寸，非法时回退默认 256 像素
+            self._normalize_album_thumbnail_size()
+
             # 加载后立即缓存哈希值
             self._cache_password_hash()
             
@@ -109,6 +123,17 @@ class SettingService:
                 for key, value in section_data.items():
                     if hasattr(target_obj, key):
                         setattr(target_obj, key, value)
+
+        # 旧版缩略图尺寸存放在 FILE_REPOSITORY 中；相册段尚未显式配置时迁移到 ALBUM，并重写文件清除旧字段。
+        legacy_repository: Any = loaded_json.get('FILE_REPOSITORY')
+        legacy_album: Any = loaded_json.get('ALBUM')
+        if isinstance(legacy_repository, dict) and isinstance(legacy_album, dict) \
+                and 'thumbnail_size' not in legacy_album and 'thumbnail_size' in legacy_repository:
+            legacy_size: Any = legacy_repository.get('thumbnail_size')
+            if not isinstance(legacy_size, bool) and isinstance(legacy_size, int) and legacy_size > 0:
+                self._config.album.thumbnail_size = legacy_size
+                self.save_config()
+                LogUtils.info(t('config_thumbnail_size_migrated', size=legacy_size))
 
     def _normalize_security_params(self) -> None:
         """
@@ -159,6 +184,18 @@ class SettingService:
             log_management.retention_days = 30
             self.save_config()
             LogUtils.info(t('config_log_retention_normalized', days=30))
+
+    def _normalize_album_thumbnail_size(self) -> None:
+        """
+        用途说明：加载配置后校正相册缩略图最大边长，非法时回退为 256 像素并持久化。
+        入参说明：无。
+        返回值说明：无。
+        """
+        value: Any = self._config.album.thumbnail_size
+        if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+            self._config.album.thumbnail_size = 256
+            self.save_config()
+            LogUtils.info(t('config_thumbnail_size_normalized', size=256))
 
     @staticmethod
     def _is_valid_timezone_offset(value: Any) -> bool:
@@ -285,7 +322,7 @@ class SettingService:
         用途：批量更新配置项并持久化。
         说明：登录锁定参数（login_max_attempts / login_lockout_minutes）必须为不小于 1 的整数，
         日志保留天数（log_management.retention_days）必须为不小于 1 的整数或 None（永久保留），
-        任一非法则拒绝本次更新并返回 False。
+        相册缩略图尺寸（album.thumbnail_size）必须为正整数，任一非法则拒绝本次更新并返回 False。
         入参：data: 包含更新项的字典，其一级键名应与 AppConfig 字段名一致（如 'user_data', 'file_repository'）。
         入参：operator_name: 执行更新操作的用户。
         返回值：是否更新成功。
@@ -319,6 +356,14 @@ class SettingService:
                 LogUtils.error(t('config_log_retention_invalid',
                                  value=log_section['retention_days']))
                 return False
+
+            # 相册缩略图尺寸必须为正整数，避免生成器接收到非法尺寸
+            album_section = data.get('album')
+            if isinstance(album_section, dict) and 'thumbnail_size' in album_section:
+                thumbnail_size: Any = album_section.get('thumbnail_size')
+                if isinstance(thumbnail_size, bool) or not isinstance(thumbnail_size, int) or thumbnail_size <= 0:
+                    LogUtils.error(t('album_thumbnail_size_invalid', value=thumbnail_size))
+                    return False
 
             old_language: str = self._config.user_data.language
             

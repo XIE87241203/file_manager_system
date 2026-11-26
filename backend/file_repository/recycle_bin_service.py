@@ -25,7 +25,7 @@ class RecycleBinService(BaseAsyncService):
         """
         try:
             # --- 初始化逻辑开始 ---
-            if cls._progress_manager.get_raw_status() == ProgressStatus.PROCESSING:
+            if cls.is_task_active():
                 LogUtils.error(t('repo_delete_running'))
                 raise RuntimeError(t('repo_delete_running'))
 
@@ -88,7 +88,7 @@ class RecycleBinService(BaseAsyncService):
                 cls._progress_manager.update_progress(total=total_to_delete, current=0, message=t('repo_delete_ready', count=total_to_delete))
                 
                 for path in file_paths_to_delete:
-                    if cls._progress_manager.is_stopped():
+                    if not cls.wait_if_paused():
                         LogUtils.info(t('repo_task_stopped_log', count=total_deleted))
                         break
                         
@@ -116,6 +116,8 @@ class RecycleBinService(BaseAsyncService):
                 cls._progress_manager.update_progress(total=total_to_delete, current=0, message=t('repo_recycle_clear_ready', count=total_to_delete))
 
                 while not cls._progress_manager.is_stopped():
+                    if not cls.wait_if_paused():
+                        break
                     res = DBOperations.search_file_index_list(1, limit, "file_path", True, "", is_in_recycle_bin=True)
                     batch_paths: List[str] = [f.file_path for f in res.list]
                     
@@ -123,7 +125,7 @@ class RecycleBinService(BaseAsyncService):
                         break
 
                     for path in batch_paths:
-                        if cls._progress_manager.is_stopped():
+                        if not cls.wait_if_paused():
                             break
                         success, _ = BaseFileService.delete_file(path)
                         if success:

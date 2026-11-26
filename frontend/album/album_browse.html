@@ -9,9 +9,10 @@
     <link rel="stylesheet" href="../common/themes/light/theme.css">
     <link rel="stylesheet" href="../common/themes/dark/theme.css">
     <link rel="stylesheet" href="../common/header_toolbar/search/search_header_toolbar.css">
+    <link rel="stylesheet" href="../common/current_tasks/current_tasks.css">
     <link rel="stylesheet" href="album_browse.css">
 </head>
-<body>
+<body class="album-browse-body">
     <!-- 顶部工具栏：由 SearchHeaderToolbar 动态初始化 -->
     <header class="header-bar"></header>
 
@@ -27,73 +28,97 @@
                 </div>
             </div>
 
-            <!-- 筛选工具栏：排序、媒体类型、每页数量、显示列数与侧边栏开关，整体位于列表上方左对齐 -->
-            <div class="album-toolbar">
-                <button id="album-sidebar-toggle" class="album-sidebar-toggle" type="button"
-                        data-i18n-title="album.sidebar_hide" title="" aria-controls="album-timeline" aria-expanded="true">
-                    <span class="theme-icon icon-chevron-left" aria-hidden="true"></span>
-                </button>
-                <select id="album-sort-filter" class="album-filter-select" data-i18n-title="album.sort_title" title="">
-                    <option value="album_time" data-i18n="album.sort_time"></option>
-                    <option value="file_name" data-i18n="album.sort_name"></option>
-                    <option value="file_size" data-i18n="album.sort_size"></option>
-                </select>
-                <!-- 媒体类型筛选下拉框：所有 / 仅图片 / 仅视频 -->
-                <select id="album-type-filter" class="album-filter-select" data-i18n-title="album.filter_type_title" title="">
-                    <option value="" data-i18n="album.filter_all"></option>
-                    <option value="image" data-i18n="album.filter_image"></option>
-                    <option value="video" data-i18n="album.filter_video"></option>
-                </select>
-                <!-- 每页加载数量：由 JS 按 50～500、步长 10 生成选项 -->
-                <select id="album-page-size-filter" class="album-filter-select album-page-size-select" data-i18n-title="album.page_size_title" title=""></select>
-                <!-- 显示列数：默认自适应，用户可固定为 1～10 列 -->
-                <select id="album-column-filter" class="album-filter-select album-column-select" data-i18n-title="album.columns_title" title="">
-                    <option value="auto" data-i18n="album.columns_auto"></option>
-                    <option value="1">1</option>
-                    <option value="2">2</option>
-                    <option value="3">3</option>
-                    <option value="4">4</option>
-                    <option value="5">5</option>
-                    <option value="6">6</option>
-                    <option value="7">7</option>
-                    <option value="8">8</option>
-                    <option value="9">9</option>
-                    <option value="10">10</option>
-                </select>
-            </div>
-
-            <!-- 相册主体：左侧动态标尺侧边栏 + 右侧按当前排序分组的瀑布流 -->
+            <!-- 相册主体：左侧设置与动态标尺侧边栏 + 右侧按当前排序分组的瀑布流 -->
             <div id="album-layout" class="album-layout">
-                <!-- 动态标尺：时间排序显示时间轴，文件名排序显示字母尺，文件大小排序隐藏 -->
+                <!-- 动态标尺：时间排序显示时间轴，文件名排序显示字母尺，文件大小排序仅保留设置区 -->
                 <aside id="album-timeline" class="album-timeline" data-i18n-title="album.timeline_title" title="">
-                    <div id="album-axis" class="album-axis">
-                        <div id="album-axis-title" class="album-axis-title" data-i18n="album.time_axis_label"></div>
-                        <!-- 标尺刻度容器：由 JS 根据排序方式动态生成 -->
-                        <div id="album-timeline-ticks" class="album-timeline-ticks"></div>
+                    <div class="album-sidebar-content">
+                        <!-- 顶部总数：按当前搜索关键词与媒体类型筛选实时更新，始终左右居中 -->
+                        <div class="album-sidebar-summary">
+                            <span id="album-total-count" class="album-total-count" role="status" aria-live="polite"></span>
+                        </div>
+
+                        <!-- 中部标尺：占据总数与底部下拉框组之间的全部剩余空间 -->
+                        <div class="album-sidebar-axis">
+                            <div id="album-axis" class="album-axis">
+                                <div id="album-axis-title" class="album-axis-title" data-i18n="album.time_axis_label"></div>
+                                <!-- 标尺刻度容器：由 JS 根据排序方式动态生成 -->
+                                <div id="album-timeline-ticks" class="album-timeline-ticks"></div>
+                            </div>
+                        </div>
+
+                        <!-- 底部设置区：排序、媒体类型、每页数量与显示列数 -->
+                        <div class="album-sidebar-settings">
+                            <div class="album-toolbar">
+                                <select id="album-sort-filter" class="album-filter-select" data-i18n-title="album.sort_title" title="">
+                                    <option value="album_time" data-i18n="album.sort_time"></option>
+                                    <option value="file_name" data-i18n="album.sort_name"></option>
+                                    <option value="file_size" data-i18n="album.sort_size"></option>
+                                </select>
+                                <!-- 媒体类型筛选下拉框：所有 / 仅图片 / 仅视频 -->
+                                <select id="album-type-filter" class="album-filter-select" data-i18n-title="album.filter_type_title" title="">
+                                    <option value="" data-i18n="album.filter_all"></option>
+                                    <option value="image" data-i18n="album.filter_image"></option>
+                                    <option value="video" data-i18n="album.filter_video"></option>
+                                </select>
+                                <!-- 每页加载数量：由 JS 按 50～500、步长 10 生成选项 -->
+                                <select id="album-page-size-filter" class="album-filter-select album-page-size-select" data-i18n-title="album.page_size_title" title=""></select>
+                                <!-- 显示列数：默认自适应，用户可固定为 1～10 列 -->
+                                <select id="album-column-filter" class="album-filter-select album-column-select" data-i18n-title="album.columns_title" title="">
+                                    <option value="auto" data-i18n="album.columns_auto"></option>
+                                    <option value="1">1</option>
+                                    <option value="2">2</option>
+                                    <option value="3">3</option>
+                                    <option value="4">4</option>
+                                    <option value="5">5</option>
+                                    <option value="6">6</option>
+                                    <option value="7">7</option>
+                                    <option value="8">8</option>
+                                    <option value="9">9</option>
+                                    <option value="10">10</option>
+                                </select>
+                            </div>
+                        </div>
                     </div>
+                    <!-- 右边缘拖动手柄：默认宽度40%，允许在30%～80%之间调整 -->
+                    <div id="album-sidebar-resize" class="album-sidebar-resize" role="separator"
+                         aria-orientation="vertical" aria-valuemin="30" aria-valuemax="80" aria-valuenow="40"
+                         tabindex="0" data-i18n-title="album.sidebar_resize" title=""></div>
                 </aside>
 
-                <!-- 列表容器：横向分组网格 + 首屏加载占位 -->
-                <div class="album-list">
+                <!-- 标尺显隐开关：位于侧边栏中部，隐藏后停在列表左边缘 -->
+                <button id="album-sidebar-toggle" class="album-sidebar-toggle" type="button"
+                        data-i18n-title="album.sidebar_hide" title="" aria-controls="album-timeline" aria-expanded="true">
+                    <span class="album-toggle-chevron" aria-hidden="true"></span>
+                </button>
+
+                <!-- 列表容器：独立纵向滚动，承载瀑布流、空状态与加载提示 -->
+                <div id="album-list" class="album-list">
+                    <!-- 顶部哨兵与加载提示：滚动到已加载列表顶部时反向获取上一批 -->
+                    <div id="album-top-sentinel" class="album-top-sentinel"></div>
+                    <div id="album-load-previous" class="album-load-previous hidden" role="status" aria-live="polite">
+                        <div class="album-loading-spinner" aria-hidden="true"></div>
+                        <div class="album-loading-text" data-i18n="common.loading"></div>
+                    </div>
                     <!-- 瀑布流容器：卡片严格按接口返回的全局排序顺序按行追加 -->
                     <div id="album-waterfall" class="album-waterfall" data-column-count="auto"></div>
                     <div id="album-loading-placeholder" class="album-loading-placeholder hidden" role="status" aria-live="polite">
                         <div class="album-loading-spinner" aria-hidden="true"></div>
                         <div class="album-loading-text" data-i18n="common.loading"></div>
                     </div>
+
+                    <!-- 空数据提示 -->
+                    <div id="album-empty" class="album-empty hidden" data-i18n="album.empty"></div>
+
+                    <!-- 无限滚动哨兵与底部加载提示 -->
+                    <div id="album-sentinel" class="album-sentinel"></div>
+                    <div id="album-load-more" class="album-load-more hidden" role="status" aria-live="polite">
+                        <div class="album-loading-spinner" aria-hidden="true"></div>
+                        <div class="album-loading-text" data-i18n="common.loading"></div>
+                    </div>
+                    <div id="album-end-tip" class="album-end-tip hidden" data-i18n="album.no_more"></div>
                 </div>
             </div>
-
-            <!-- 空数据提示 -->
-            <div id="album-empty" class="album-empty hidden" data-i18n="album.empty"></div>
-
-            <!-- 无限滚动哨兵与底部加载提示 -->
-            <div id="album-sentinel" class="album-sentinel"></div>
-            <div id="album-load-more" class="album-load-more hidden" role="status" aria-live="polite">
-                <div class="album-loading-spinner" aria-hidden="true"></div>
-                <div class="album-loading-text" data-i18n="common.loading"></div>
-            </div>
-            <div id="album-end-tip" class="album-end-tip hidden" data-i18n="album.no_more"></div>
         </div>
     </main>
 
@@ -162,6 +187,8 @@
     <script src="../common/request.js"></script>
     <script src="../common/toast.js"></script>
     <script src="../common/header_toolbar/search/search_header_toolbar.js"></script>
+    <script src="../common/current_tasks/current_tasks_request.js"></script>
+    <script src="../common/current_tasks/current_tasks.js"></script>
 
     <!-- 页面逻辑 -->
     <script src="album_browse_request.js"></script>

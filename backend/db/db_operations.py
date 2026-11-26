@@ -18,6 +18,7 @@ from backend.model.db.video_feature_db_model import VideoFeatureDBModel
 from backend.model.duplicate_group_result import DuplicateGroupResult
 from backend.model.face_index_result import FaceIndexSummaryResult
 from backend.model.cursor_pagination_result import CursorPaginationResult
+from backend.model.db.album_axis_item_db_model import AlbumAxisItemDBModel
 from backend.model.pagination_result import PaginationResult
 from backend.model.video_file_info_result import VideoFileInfoResult
 
@@ -173,20 +174,43 @@ class DBOperations:
     @staticmethod
     def search_album_file_list(limit: int, sort_by: str, order: bool,
                                search_query: str, file_types: List[str],
-                               last_path: str = '') -> CursorPaginationResult[FileIndexDBModel]:
+                               last_path: str = '', anchor_path: str = '',
+                               before_path: str = '') -> CursorPaginationResult[FileIndexDBModel]:
         """
-        用途说明：按媒体路径游标查询相册媒体文件（图片/视频）列表，排除回收站文件。
+        用途说明：按路径游标或锚点查询相册媒体文件（图片/视频）列表，排除回收站文件。
         入参说明：
             limit (int): 每批条数。
             sort_by (str): 排序字段。
             order (bool): 是否为升序。
             search_query (str): 文件名搜索关键词。
             file_types (List[str]): 文件类型列表（如 ['image', 'video']）。
-            last_path (str): 媒体路径游标，空字符串表示首批数据。
-        返回值说明：CursorPaginationResult[FileIndexDBModel] - 不包含页码的游标分页结果。
+            last_path (str): 向下游标路径，空字符串表示首批数据。
+            anchor_path (str): 定位锚点路径，从该媒体开始包含式取数。
+            before_path (str): 向上锚点路径，取该媒体之前最近一批数据。
+        返回值说明：CursorPaginationResult[FileIndexDBModel] - 不包含页码的相册游标分页结果。
         """
         return processor_manager.file_index_processor.get_album_paged_list(
-            limit, sort_by, order, search_query, file_types, last_path
+            limit, sort_by, order, search_query, file_types, last_path, anchor_path, before_path
+        )
+
+    @staticmethod
+    def get_album_axis(level: str, sort_by: str, order: bool,
+                       search_query: str, file_types: List[str],
+                       year: str = '', month: int = 0) -> List[AlbumAxisItemDBModel]:
+        """
+        用途说明：按年、月、日或文件名首字母聚合相册轴数据。
+        入参说明：
+            level (str): 轴层级，可选 year、month、day、initial。
+            sort_by (str): 首条媒体的排序字段。
+            order (bool): 首条媒体是否按升序排列。
+            search_query (str): 文件名搜索关键词。
+            file_types (List[str]): 文件类型列表。
+            year (str): 月份轴或日期轴所属年份。
+            month (int): 日期轴所属月份，范围为 1-12。
+        返回值说明：List[AlbumAxisItemDBModel] - 各轴分组及首条媒体路径。
+        """
+        return processor_manager.file_index_processor.get_album_axis(
+            level, sort_by, order, search_query, file_types, year, month
         )
 
     @staticmethod

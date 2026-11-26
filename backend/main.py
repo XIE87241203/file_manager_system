@@ -41,6 +41,7 @@ from backend.organize.organize_routes import organize_bp
 from backend.album.album_routes import album_bp
 from backend.user.user_routes import user_bp
 from backend.user.user_service import userService
+from backend.task_center.task_routes import task_bp
 from backend.common.repo_context import set_current_repo_id, get_current_repo_id, DEFAULT_REPO_ID
 from backend.common.response import error_response
 from backend.common.heartbeat_service import HeartbeatService
@@ -87,6 +88,7 @@ _REPO_SCOPED_PREFIXES: tuple[str, ...] = (
 )
 _MEMBER_ALLOWED_PATHS: set[str] = {
     '/api/album/list',
+    '/api/album/axis',
     '/api/album/media',
     '/api/album/download',
     '/api/file_repository/thumbnail/view',
@@ -230,6 +232,7 @@ app.register_blueprint(repository_bp, url_prefix='/api/repository')
 app.register_blueprint(organize_bp, url_prefix='/api/organize')
 app.register_blueprint(album_bp, url_prefix='/api/album')
 app.register_blueprint(user_bp, url_prefix='/api/user')
+app.register_blueprint(task_bp, url_prefix='/api/tasks')
 
 def start_server() -> None:
     # 初始化主数据库（仓库元数据）与默认仓库

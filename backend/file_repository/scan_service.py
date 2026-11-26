@@ -33,6 +33,8 @@ class ScanService(BaseAsyncService):
     用途：文件仓库扫描服务类，支持全量与增量索引逻辑，利用全局线程池进行异步扫描。
     """
 
+    _task_kind: str = 'scan'
+
     @classmethod
     def start_scan_task(cls, scan_mode: ScanMode = ScanMode.INDEX_SCAN,
                         on_complete: Optional[Callable[[], None]] = None) -> bool:
@@ -45,11 +47,12 @@ class ScanService(BaseAsyncService):
         """
         try:
             # --- 初始化逻辑开始 ---
-            if cls._progress_manager.get_raw_status() == ProgressStatus.PROCESSING:
+            if cls.is_task_active():
                 LogUtils.error(t('repo_scan_running'))
                 raise RuntimeError(t('repo_scan_running'))
 
             mode: ScanMode = scan_mode if isinstance(scan_mode, ScanMode) else ScanMode.INDEX_SCAN
+            cls._task_kind = 'scan'
             
             # 获取当前仓库配置快照
             repo_config: FileRepositorySettings = repositoryService.get_current_config()
@@ -74,9 +77,10 @@ class ScanService(BaseAsyncService):
         返回值说明：bool - 是否成功提交任务；已有索引任务运行时返回 False。
         """
         try:
-            if cls._progress_manager.get_raw_status() == ProgressStatus.PROCESSING:
+            if cls.is_task_active():
                 LogUtils.error(t('repo_scan_running'))
                 return False
+            cls._task_kind = 'metadata'
             cls._progress_manager.set_status(ProgressStatus.PROCESSING)
             cls._progress_manager.set_stop_flag(False)
             cls._progress_manager.reset_progress(message=t('repo_metadata_refresh_preparing'))
@@ -114,6 +118,8 @@ class ScanService(BaseAsyncService):
             batch_size: int = 200
 
             while not cls._progress_manager.is_stopped():
+                if not cls.wait_if_paused():
+                    break
                 candidates: List[FileIndexDBModel] = DBOperations.get_missing_album_metadata(
                     after_id, batch_size
                 )
@@ -121,7 +127,7 @@ class ScanService(BaseAsyncService):
                     break
                 metadata_list: List[FileIndexDBModel] = []
                 for candidate in candidates:
-                    if cls._progress_manager.is_stopped():
+                    if not cls.wait_if_paused():
                         break
                     after_id = candidate.id or after_id
                     processed_count += 1
@@ -179,12 +185,14 @@ class ScanService(BaseAsyncService):
             # 执行合并后的扫描与特征提取阶段
             new_count, updated_count = cls._combined_scan_logic(scan_mode, current_scan_time, repo_config)
             
-            if cls._progress_manager.is_stopped():
+            if not cls.wait_if_paused():
                 cls._handle_stopped()
                 return
 
             # 第三阶段：清理失效索引与备份
-            deleted_count: int = cls._phase_cleanup(current_scan_time)
+            deleted_count: Optional[int] = cls._phase_cleanup(current_scan_time)
+            if deleted_count is None:
+                return
 
             # 扫描完成后自动重新计算文件仓库统计详情
             FileService.calculate_repo_detail()
@@ -239,15 +247,15 @@ class ScanService(BaseAsyncService):
         max_concurrent_tasks: int = 20
 
         for repo_path in directories:
-            if cls._progress_manager.is_stopped(): break
+            if not cls.wait_if_paused(): break
             if not os.path.exists(repo_path):
                 LogUtils.error(t('repo_scan_path_not_found', path=repo_path))
                 continue
 
             for root, _, files in os.walk(repo_path):
-                if cls._progress_manager.is_stopped(): break
+                if not cls.wait_if_paused(): break
                 for file in files:
-                    if cls._progress_manager.is_stopped(): break
+                    if not cls.wait_if_paused(): break
                     
                     full_path: str = os.path.join(root, file)
                     if Utils.should_ignore(full_path, 
@@ -302,7 +310,7 @@ class ScanService(BaseAsyncService):
         """
         success_count: int = 0
         for future in as_completed(futures):
-            if cls._progress_manager.is_stopped(): break
+            if not cls.wait_if_paused(): break
             try:
                 file_info: Optional[FileIndexDBModel] = future.result()
                 if file_info:
@@ -342,10 +350,15 @@ class ScanService(BaseAsyncService):
             FaceService.start_task(enqueue_pending=False, resume_paused=False)
 
     @classmethod
-    def _phase_cleanup(cls, current_scan_time: str) -> int:
+    def _phase_cleanup(cls, current_scan_time: str) -> Optional[int]:
         """
-        用途说明：清理失效索引。
+        用途说明：清理失效索引；暂停时等待恢复，停止时终止后续清理。
+        入参说明：current_scan_time (str) - 本次扫描的统一时间戳。
+        返回值说明：Optional[int] - 清理数量；已停止时返回 None。
         """
+        if not cls.wait_if_paused():
+            cls._handle_stopped()
+            return None
         LogUtils.info(t('repo_scan_phase_cleanup'))
         cls._progress_manager.update_progress(message=t('repo_scan_cleaning'))
         deleted_count: int = DBOperations.delete_files_by_not_scan_time(current_scan_time)

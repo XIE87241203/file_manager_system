@@ -50,7 +50,7 @@ class DuplicateService(BaseAsyncService):
         """
         try:
             # --- 初始化逻辑开始 ---
-            if cls._progress_manager.get_raw_status() == ProgressStatus.PROCESSING:
+            if cls.is_task_active():
                 LogUtils.error(t('dup_task_running'))
                 raise RuntimeError(t('dup_task_running'))
 
@@ -114,7 +114,7 @@ class DuplicateService(BaseAsyncService):
             current_processed: int = 0
 
             while processed_count < total_files:
-                if cls._progress_manager.is_stopped():
+                if not cls.wait_if_paused():
                     cls._handle_stopped()
                     return
 
@@ -131,7 +131,7 @@ class DuplicateService(BaseAsyncService):
                 helper.preload_features(files)
 
                 for file_info in files:
-                    if cls._progress_manager.is_stopped():
+                    if not cls.wait_if_paused():
                         cls._handle_stopped()
                         return
                     
@@ -150,8 +150,14 @@ class DuplicateService(BaseAsyncService):
                 cls._handle_stopped()
                 return
 
+            if not cls.wait_if_paused():
+                cls._handle_stopped()
+                return
             cls._progress_manager.update_progress(message=t('dup_generating_report'))
             results: List[Any] = helper.get_all_results()
+            if not cls.wait_if_paused():
+                cls._handle_stopped()
+                return
             cls._complete_check(results, t('dup_found_count', count=len(results)))
 
         except Exception as e:
@@ -203,7 +209,7 @@ class DuplicateService(BaseAsyncService):
             # 2. 分批载入并分析新文件（计算特征）
             processed_new: int = 0
             while processed_new < total_new:
-                if cls._progress_manager.is_stopped():
+                if not cls.wait_if_paused():
                     cls._handle_stopped()
                     return
 
@@ -216,7 +222,7 @@ class DuplicateService(BaseAsyncService):
                 helper.preload_features(new_batch)
 
                 for file_info in new_batch:
-                    if cls._progress_manager.is_stopped():
+                    if not cls.wait_if_paused():
                         cls._handle_stopped()
                         return
                     file_name: str = Utils.get_filename(file_info.file_path)
@@ -239,7 +245,7 @@ class DuplicateService(BaseAsyncService):
             cls._progress_manager.update_progress(message=t('dup_comparing_existing'))
             processed_old: int = 0
             while True:
-                if cls._progress_manager.is_stopped():
+                if not cls.wait_if_paused():
                     cls._handle_stopped()
                     return
 
@@ -252,7 +258,7 @@ class DuplicateService(BaseAsyncService):
                 helper.preload_features(old_batch)
 
                 for file_info in old_batch:
-                    if cls._progress_manager.is_stopped():
+                    if not cls.wait_if_paused():
                         cls._handle_stopped()
                         return
                     if file_info.file_type in ('image', 'video'):
@@ -262,8 +268,14 @@ class DuplicateService(BaseAsyncService):
                 processed_old += len(old_batch)
 
             # 4. 汇总结果并合并入库（仅统计涉及新文件的分组）
+            if not cls.wait_if_paused():
+                cls._handle_stopped()
+                return
             cls._progress_manager.update_progress(message=t('dup_generating_report'))
             results: List[Any] = helper.get_all_results()
+            if not cls.wait_if_paused():
+                cls._handle_stopped()
+                return
             new_path_set: Set[str] = set(new_file_paths)
             found_count: int = sum(1 for g in results if any(f.file_path in new_path_set for f in g.files))
             cls._complete_incremental(results, new_file_paths, t('dup_found_count', count=found_count))

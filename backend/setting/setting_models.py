@@ -25,7 +25,6 @@ class FileRepositorySettings:
     ignore_filenames_case_insensitive: bool = True
     ignore_paths: List[str] = field(default_factory=list)
     ignore_paths_case_insensitive: bool = True
-    thumbnail_size: int = 256
     quick_view_thumbnail: bool = False
     auto_refresh_enabled: bool = False  # 是否启用自动刷新
     auto_refresh_time: str = "04:00"  # 自动刷新时间 (HH:mm)
@@ -58,6 +57,8 @@ class AlbumSettings:
     """
     # 缩略图存储路径：相对路径以 data 目录为基准（默认 data/thumb），也支持绝对路径
     thumbnail_dir: str = "thumb"
+    # 缩略图最大边长（像素）：全系统统一配置，所有仓库共享同一尺寸与内容缓存
+    thumbnail_size: int = 256
     # 开启后，新建索引发现的新增图片会自动去重加入人脸识别队列
     auto_face_recognition: bool = False
 

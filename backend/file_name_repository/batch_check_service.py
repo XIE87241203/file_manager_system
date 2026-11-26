@@ -43,7 +43,7 @@ class BatchCheckService(BaseAsyncService):
         """
         try:
             # --- 初始化逻辑开始 ---
-            if cls._progress_manager.get_raw_status() == ProgressStatus.PROCESSING:
+            if cls.is_task_active():
                 LogUtils.error(t('fn_batch_check_running_error'))
                 raise RuntimeError(t('fn_batch_check_running_error'))
 
@@ -74,7 +74,7 @@ class BatchCheckService(BaseAsyncService):
             
             for i in range(0, total, batch_size):
                 # 检测是否被叫停
-                if cls._progress_manager.is_stopped():
+                if not cls.wait_if_paused():
                     LogUtils.info(t('fn_batch_check_stopped_log'))
                     break
 

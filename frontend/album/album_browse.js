@@ -8,10 +8,17 @@
 const State = {
     pageSize: 50, // 每页加载数量：50～500，步长 10，仅在后续分页请求时生效
     cursorPath: '', // 下一页游标：已加载列表中最后一条媒体路径，空字符串表示首批数据
+    hasPrevious: false, // 是否还可以按当前已加载第一条路径继续向上加载
+    loadDirection: '', // 当前请求方向：'' 空闲 / next 下一页 / previous 上一页 / anchor 锚点定位
     search: '',
     fileType: '', // 媒体类型筛选：'' 全部 / 'image' 仅图片 / 'video' 仅视频
     columnCount: 'auto', // 显示列数：auto 按屏幕宽度自适应 / '1'～'10' 固定列数
-    sidebarVisible: true, // 标尺侧边栏是否由用户手动展开；文件大小排序时自动隐藏
+    sidebarVisible: true, // 标尺侧边栏是否由用户手动展开；文件大小排序时保留设置区
+    sidebarWidthPercent: 40, // 标尺侧边栏宽度占布局宽度的百分比，范围30～80
+    sidebarResizing: false, // 是否正在拖动标尺侧边栏边缘
+    sidebarDragStartX: 0, // 拖动开始时的鼠标横坐标
+    sidebarDragStartPercent: 40, // 拖动开始时的侧边栏宽度百分比
+    sidebarDragLayoutWidth: 0, // 拖动开始时布局的像素宽度，用于计算拖动比例
     sortBy: 'album_time', // album_time 时间倒序 / file_name 文件名升序 / file_size 文件大小倒序
     orderAsc: false,
     items: [],
@@ -22,7 +29,18 @@ const State = {
     cardMap: new Map(), // file_path -> { card, item, img, placeholder, placeholderText, groupKey }
     groupMap: new Map(), // 当前排序分组键 -> { key, title, count }
     groupKeys: [], // 分组键列表，严格保持数据库全局排序顺序
-    timelineTicks: [], // 动态标尺刻度缓存：[{ el, level, key, year, month }]
+    timelineTicks: [], // 动态标尺刻度缓存：[{ el, level, key, year, month, path, disabled }]
+    axis: {
+        letters: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ#'.split(''), // 固定完整字母尺，无数据字母由后端结果置灰
+        initialItems: [], // 文件名排序时的实际首字母分组
+        yearItems: [], // 时间排序时的年份与未知日期分组
+        expandedYear: '', // 当前展开的年份键，空字符串表示全部收起
+        monthItems: [], // 当前展开年份下的月份分组
+        expandedMonth: '', // 当前展开的月份键，空字符串表示全部收起
+        dayItems: [], // 当前展开月份下的日期分组
+        loadingLevel: '', // 正在请求的轴层级：year/month/day/initial
+        requestToken: 0 // 轴请求代次，快速切换年份时丢弃过期结果
+    },
     activeGroupKey: '', // 当前滚动位置对应的分组键
     ensureRequested: new Set(), // 已发起缩略图生成请求的路径
     ensureQueue: [], // 缩略图生成待处理队列
@@ -38,7 +56,9 @@ const State = {
     scanTaskType: '', // 当前任务类型：scan 表示建立索引，metadata 表示补全缺少信息
     repoPermission: '', // 当前仓库权限：admin/member，成员仅可浏览
     sentinelObserver: null,
-    cardObserver: null
+    topSentinelObserver: null,
+    cardObserver: null,
+    sidebarSizeObserver: null
 };
 
 // --- API 封装 ---
@@ -58,9 +78,37 @@ const API = {
      * 返回值说明：无
      */
     fetchList(cursorPath, onSuccess, onError) {
+        this.fetchListByCursor({ last_path: cursorPath || '' }, onSuccess, onError);
+    },
+
+    /**
+     * 用途说明：按指定游标方向拉取相册数据，供下一页、上一页与锚点定位共用。
+     * 入参说明：params (Object) - last_path/anchor_path/before_path 游标参数；onSuccess (Function) - 成功回调；onError (Function) - 失败回调。
+     * 返回值说明：无
+     */
+    fetchListByCursor(params, onSuccess, onError) {
         AlbumBrowseRequest.list({
-            last_path: cursorPath || '',
+            last_path: params.last_path || '',
+            anchor_path: params.anchor_path || '',
+            before_path: params.before_path || '',
             limit: State.pageSize,
+            search: State.search,
+            file_type: State.fileType,
+            sort_by: State.sortBy,
+            order_asc: State.orderAsc
+        }, onSuccess, onError);
+    },
+
+    /**
+     * 用途说明：获取当前排序与筛选条件下的相册轴数据。
+     * 入参说明：params (Object) - level/year/month 轴参数；onSuccess (Function) - 成功回调；onError (Function) - 失败回调。
+     * 返回值说明：无
+     */
+    fetchAxis(params, onSuccess, onError) {
+        AlbumBrowseRequest.axis({
+            level: params.level,
+            year: params.year || '',
+            month: params.month || 0,
             search: State.search,
             file_type: State.fileType,
             sort_by: State.sortBy,
@@ -142,19 +190,27 @@ const UIController = {
             menuCallback: (e) => this.showMenu(e)
         });
 
+        // 顶部栏生成后挂载统一当前任务入口
+        CurrentTasksApp.start();
+
         this.elements = {
             pageContent: document.getElementById('album-page-content'),
             timelineTicks: document.getElementById('album-timeline-ticks'),
             layout: document.getElementById('album-layout'),
             timeline: document.getElementById('album-timeline'),
+            list: document.getElementById('album-list'),
             sidebarToggle: document.getElementById('album-sidebar-toggle'),
+            sidebarResize: document.getElementById('album-sidebar-resize'),
             axis: document.getElementById('album-axis'),
             axisTitle: document.getElementById('album-axis-title'),
             sortFilter: document.getElementById('album-sort-filter'),
             typeFilter: document.getElementById('album-type-filter'),
             pageSizeFilter: document.getElementById('album-page-size-filter'),
             columnFilter: document.getElementById('album-column-filter'),
+            totalCount: document.getElementById('album-total-count'),
             waterfall: document.getElementById('album-waterfall'),
+            topSentinel: document.getElementById('album-top-sentinel'),
+            loadPrevious: document.getElementById('album-load-previous'),
             loadingPlaceholder: document.getElementById('album-loading-placeholder'),
             loadMore: document.getElementById('album-load-more'),
             empty: document.getElementById('album-empty'),
@@ -194,7 +250,13 @@ const UIController = {
         this.bindSortFilter();
         this.bindPageSizeFilter();
         this.bindColumnFilter();
+        this.bindSidebarResize();
         this.bindSidebarToggle();
+        document.addEventListener('appearance:languagechange', () => {
+            this.updateAxisMode();
+            this.updateEmptyState();
+            this.loadAxis();
+        });
         this.updateAxisMode();
         this.applyPermissionUI();
     },
@@ -461,6 +523,141 @@ const UIController = {
     },
 
     /**
+     * 用途说明：读取本地保存的标尺侧边栏宽度，非法值或存储不可用时回退为40%。
+     * 入参说明：无
+     * 返回值说明：number - 30～80之间的宽度百分比。
+     */
+    getSavedSidebarWidth() {
+        try {
+            const saved = Number(localStorage.getItem('album_sidebar_width'));
+            return Number.isFinite(saved) && saved >= 30 && saved <= 80 ? saved : 40;
+        } catch (error) {
+            // 浏览器禁用本地存储时仍允许当前页面调整侧边栏宽度。
+            return 40;
+        }
+    },
+
+    /**
+     * 用途说明：保存当前标尺侧边栏宽度百分比，存储不可用时仅保留当前页面设置。
+     * 入参说明：无
+     * 返回值说明：无
+     */
+    saveSidebarWidth() {
+        try {
+            localStorage.setItem('album_sidebar_width', String(State.sidebarWidthPercent));
+        } catch (error) {
+            // 浏览器禁用本地存储时不影响拖动与本次页面显示。
+        }
+    },
+
+    /**
+     * 用途说明：将侧边栏宽度同步到布局CSS变量、拖动手柄无障碍属性和开关位置。
+     * 入参说明：无
+     * 返回值说明：无
+     */
+    applySidebarWidth() {
+        State.sidebarWidthPercent = Math.min(80, Math.max(30, State.sidebarWidthPercent));
+        if (this.elements.layout) {
+            this.elements.layout.style.setProperty('--album-sidebar-width', `${State.sidebarWidthPercent}%`);
+        }
+        if (this.elements.sidebarResize) {
+            this.elements.sidebarResize.setAttribute('aria-valuenow', String(State.sidebarWidthPercent));
+            this.elements.sidebarResize.setAttribute('aria-valuetext', `${State.sidebarWidthPercent}%`);
+        }
+        this.updateSidebarTogglePosition();
+    },
+
+    /**
+     * 用途说明：把显隐开关放在侧边栏右边缘中部；侧边栏隐藏时放在列表可见区域左边缘中部。
+     * 入参说明：无
+     * 返回值说明：无
+     */
+    updateSidebarTogglePosition() {
+        const button = this.elements.sidebarToggle;
+        const layout = this.elements.layout;
+        if (!button || !layout) return;
+        const layoutRect = layout.getBoundingClientRect();
+        if (layoutRect.width <= 0) return;
+
+        let centerX = layoutRect.left;
+        let centerY = layoutRect.top + layoutRect.height / 2;
+        if (State.sidebarVisible && this.elements.timeline) {
+            const sidebarRect = this.elements.timeline.getBoundingClientRect();
+            if (sidebarRect.height > 0) {
+                centerX = sidebarRect.right + 7;
+                centerY = sidebarRect.top + sidebarRect.height / 2;
+            }
+        }
+        button.style.left = `${Math.round(centerX)}px`;
+        button.style.top = `${Math.round(centerY)}px`;
+    },
+
+    /**
+     * 用途说明：绑定侧边栏右边缘拖动与键盘调整，宽度限制在布局宽度的30%～80%。
+     * 入参说明：无
+     * 返回值说明：无
+     */
+    bindSidebarResize() {
+        const handle = this.elements.sidebarResize;
+        if (!handle) return;
+        State.sidebarWidthPercent = this.getSavedSidebarWidth();
+        this.applySidebarWidth();
+
+        handle.addEventListener('pointerdown', (e) => {
+            if (State.sidebarResizing || !this.elements.layout) return;
+            const layoutWidth = this.elements.layout.getBoundingClientRect().width;
+            if (layoutWidth <= 0) return;
+            State.sidebarResizing = true;
+            State.sidebarDragStartX = e.clientX;
+            State.sidebarDragStartPercent = State.sidebarWidthPercent;
+            State.sidebarDragLayoutWidth = layoutWidth;
+            handle.classList.add('is-active');
+            document.body.classList.add('album-sidebar-resizing');
+            handle.setPointerCapture(e.pointerId);
+            e.preventDefault();
+        });
+
+        handle.addEventListener('pointermove', (e) => {
+            if (!State.sidebarResizing || State.sidebarDragLayoutWidth <= 0) return;
+            const deltaPercent = (e.clientX - State.sidebarDragStartX) / State.sidebarDragLayoutWidth * 100;
+            State.sidebarWidthPercent = Math.round(State.sidebarDragStartPercent + deltaPercent);
+            this.applySidebarWidth();
+        });
+
+        const stopResize = (e) => {
+            if (!State.sidebarResizing) return;
+            State.sidebarResizing = false;
+            handle.classList.remove('is-active');
+            document.body.classList.remove('album-sidebar-resizing');
+            if (handle.hasPointerCapture(e.pointerId)) {
+                handle.releasePointerCapture(e.pointerId);
+            }
+            this.saveSidebarWidth();
+        };
+        handle.addEventListener('pointerup', stopResize);
+        handle.addEventListener('pointercancel', stopResize);
+
+        handle.addEventListener('keydown', (e) => {
+            let nextWidth = State.sidebarWidthPercent;
+            if (e.key === 'ArrowLeft') nextWidth -= 1;
+            else if (e.key === 'ArrowRight') nextWidth += 1;
+            else if (e.key === 'Home') nextWidth = 30;
+            else if (e.key === 'End') nextWidth = 80;
+            else return;
+            e.preventDefault();
+            State.sidebarWidthPercent = nextWidth;
+            this.applySidebarWidth();
+            this.saveSidebarWidth();
+        });
+
+        window.addEventListener('resize', () => this.updateSidebarTogglePosition());
+        if ('ResizeObserver' in window && this.elements.timeline) {
+            State.sidebarSizeObserver = new ResizeObserver(() => this.updateSidebarTogglePosition());
+            State.sidebarSizeObserver.observe(this.elements.timeline);
+        }
+    },
+
+    /**
      * 用途说明：绑定标尺侧边栏开关，点击后仅切换侧边栏显隐，不改变当前排序与筛选条件。
      * 入参说明：无
      * 返回值说明：无
@@ -475,13 +672,15 @@ const UIController = {
     },
 
     /**
-     * 用途说明：同步侧边栏、布局与开关状态；文件大小排序无标尺，自动隐藏侧边栏和开关。
+     * 用途说明：同步侧边栏、布局与开关状态；文件大小排序无标尺，保留设置区并隐藏标尺开关。
      * 入参说明：无
      * 返回值说明：无
      */
     updateSidebarVisibility() {
         const hasAxis = State.sortBy !== 'file_size';
-        const visible = hasAxis && State.sidebarVisible;
+        // 文件大小排序没有标尺，但设置区仍必须保留，避免用户无法切回其他排序。
+        if (!hasAxis) State.sidebarVisible = true;
+        const visible = State.sidebarVisible;
         if (this.elements.timeline) this.elements.timeline.classList.toggle('hidden', !visible);
         if (this.elements.layout) this.elements.layout.classList.toggle('sidebar-hidden', !visible);
         const button = this.elements.sidebarToggle;
@@ -491,6 +690,7 @@ const UIController = {
             button.setAttribute('aria-expanded', String(visible));
             button.title = I18nManager.t(State.sidebarVisible ? 'album.sidebar_hide' : 'album.sidebar_show');
         }
+        this.updateSidebarTogglePosition();
         this.updateTimelineActive();
     },
 
@@ -520,7 +720,7 @@ const UIController = {
      * 返回值说明：无
      */
     initObservers() {
-        const scrollRoot = document.querySelector('.main-content');
+        const scrollRoot = this.elements.list;
 
         State.sentinelObserver = new IntersectionObserver((entries) => {
             entries.forEach(entry => {
@@ -528,6 +728,14 @@ const UIController = {
             });
         }, { root: scrollRoot, rootMargin: '400px 0px' });
         if (this.elements.sentinel) State.sentinelObserver.observe(this.elements.sentinel);
+
+        // 顶部哨兵进入视口时向上加载，锚点定位后滚动回列表顶部即可继续补全
+        State.topSentinelObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) App.loadPreviousPage();
+            });
+        }, { root: scrollRoot, rootMargin: '0px 0px 120px' });
+        if (this.elements.topSentinel) State.topSentinelObserver.observe(this.elements.topSentinel);
 
         State.cardObserver = new IntersectionObserver((entries) => {
             entries.forEach(entry => {
@@ -541,7 +749,7 @@ const UIController = {
             });
         }, { root: scrollRoot, rootMargin: '300px 0px' });
 
-        // 监听滚动容器的滚动，节流更新动态标尺当前所在刻度
+        // 监听滚动容器的滚动，节流更新动态标尺当前刻度与侧边栏开关位置
         // 说明：使用 setTimeout 而非 requestAnimationFrame，避免页面处于后台时帧回调暂停导致刻度长期不更新
         if (scrollRoot) {
             let scrollThrottled = false;
@@ -551,6 +759,7 @@ const UIController = {
                 window.setTimeout(() => {
                     scrollThrottled = false;
                     UIController.updateTimelineActive();
+                    UIController.updateSidebarTogglePosition();
                 }, 80);
             }, { passive: true });
         }
@@ -896,6 +1105,19 @@ const UIController = {
     },
 
     /**
+     * 用途说明：创建分组标题元素，供追加与向上插入时复用。
+     * 入参说明：key (string) - 当前排序方式对应的分组键。
+     * 返回值说明：HTMLElement - 分组标题元素。
+     */
+    createGroupTitle(key) {
+        const title = document.createElement('h2');
+        title.className = 'album-group-title';
+        title.setAttribute('data-key', key);
+        title.textContent = this.buildGroupTitle(key);
+        return title;
+    },
+
+    /**
      * 用途说明：确保指定分组的标题已创建，并按接口顺序追加到统一瀑布流网格。
      * 入参说明：key (string) - 当前排序方式对应的分组键。
      * 返回值说明：Object - 分组信息 { key, title, count }，标题同时作为时间轴跳转锚点。
@@ -904,10 +1126,7 @@ const UIController = {
         const existing = State.groupMap.get(key);
         if (existing) return existing;
 
-        const title = document.createElement('h2');
-        title.className = 'album-group-title';
-        title.setAttribute('data-key', key);
-        title.textContent = this.buildGroupTitle(key);
+        const title = this.createGroupTitle(key);
         if (this.elements.waterfall) this.elements.waterfall.appendChild(title);
 
         const groupInfo = { key: key, title: title, count: 0 };
@@ -917,108 +1136,324 @@ const UIController = {
     },
 
     /**
-     * 用途说明：重建动态标尺：时间排序生成年份/月份/日期刻度，文件名排序生成首字母刻度。
+     * 用途说明：重新加载当前排序与筛选条件下的根轴；文件名排序查询首字母，时间排序查询年份。
+     * 入参说明：无
+     * 返回值说明：无
+     */
+    loadAxis() {
+        const token = ++State.axis.requestToken;
+        State.axis.expandedYear = '';
+        State.axis.expandedMonth = '';
+        State.axis.monthItems = [];
+        State.axis.dayItems = [];
+        if (State.sortBy === 'file_size') {
+            State.axis.loadingLevel = '';
+            this.rebuildTimeline();
+            return;
+        }
+
+        const level = State.sortBy === 'file_name' ? 'initial' : 'year';
+        if (level === 'initial') State.axis.initialItems = [];
+        else State.axis.yearItems = [];
+        State.axis.loadingLevel = level;
+        this.rebuildTimeline();
+        API.fetchAxis({ level }, (data) => {
+            if (token !== State.axis.requestToken) return;
+            if (level === 'initial') State.axis.initialItems = (data && data.items) || [];
+            else State.axis.yearItems = (data && data.items) || [];
+            State.axis.loadingLevel = '';
+            this.rebuildTimeline();
+        }, (msg) => {
+            if (token !== State.axis.requestToken) return;
+            State.axis.loadingLevel = '';
+            this.rebuildTimeline();
+            Toast.show(msg || I18nManager.t('album.axis_load_failed'));
+        });
+    },
+
+    /**
+     * 用途说明：加载指定年份下的月份轴，仅当前展开年份的最新请求可以更新界面。
+     * 入参说明：year (string) - 四位年份键，例如 2024。
+     * 返回值说明：无
+     */
+    loadMonthAxis(year) {
+        const token = ++State.axis.requestToken;
+        State.axis.loadingLevel = 'month';
+        this.rebuildTimeline();
+        API.fetchAxis({ level: 'month', year }, (data) => {
+            if (token !== State.axis.requestToken || State.axis.expandedYear !== year) return;
+            State.axis.monthItems = (data && data.items) || [];
+            State.axis.loadingLevel = '';
+            this.rebuildTimeline();
+        }, (msg) => {
+            if (token !== State.axis.requestToken || State.axis.expandedYear !== year) return;
+            State.axis.loadingLevel = '';
+            this.rebuildTimeline();
+            Toast.show(msg || I18nManager.t('album.axis_load_failed'));
+        });
+    },
+
+    /**
+     * 用途说明：加载指定年份、月份下的日期轴，仅当前展开月份的最新请求可以更新界面。
+     * 入参说明：year (string) - 四位年份键；month (number) - 月份，范围 1～12。
+     * 返回值说明：无
+     */
+    loadDayAxis(year, month) {
+        const token = ++State.axis.requestToken;
+        const monthKey = year + '-' + String(month).padStart(2, '0');
+        State.axis.loadingLevel = 'day';
+        this.rebuildTimeline();
+        API.fetchAxis({ level: 'day', year, month }, (data) => {
+            if (token !== State.axis.requestToken || State.axis.expandedMonth !== monthKey) return;
+            State.axis.dayItems = (data && data.items) || [];
+            State.axis.loadingLevel = '';
+            this.rebuildTimeline();
+        }, (msg) => {
+            if (token !== State.axis.requestToken || State.axis.expandedMonth !== monthKey) return;
+            State.axis.loadingLevel = '';
+            this.rebuildTimeline();
+            Toast.show(msg || I18nManager.t('album.axis_load_failed'));
+        });
+    },
+
+    /**
+     * 用途说明：重建动态标尺：文件名排序显示完整字母尺，时间排序按年份并懒加载月份、日期分支。
      * 入参说明：无
      * 返回值说明：无
      */
     rebuildTimeline() {
         const ticksHost = this.elements.timelineTicks;
         if (!ticksHost) return;
-        // 仅清空刻度容器，保留顶部的排序与媒体类型筛选下拉框
         ticksHost.textContent = '';
         State.timelineTicks = [];
-        ticksHost.classList.toggle('hidden', State.groupKeys.length === 0);
-        if (State.groupKeys.length === 0 || State.sortBy === 'file_size') return;
+        ticksHost.classList.toggle('hidden', State.sortBy === 'file_size');
+        if (State.sortBy === 'file_size') {
+            this.updateSidebarTogglePosition();
+            return;
+        }
 
         const track = document.createElement('div');
         track.className = 'album-timeline-track';
 
         if (State.sortBy === 'file_name') {
-            State.groupKeys.forEach(key => {
-                track.appendChild(this.createTimelineTick('letter', key, key, key, '', ''));
+            const itemMap = new Map(State.axis.initialItems.map(item => [item.key, item]));
+            State.axis.letters.forEach(key => {
+                const item = itemMap.get(key) || { key, first_path: '', count: 0, disabled: true };
+                track.appendChild(this.createAxisTick('letter', item, key, key));
             });
             ticksHost.appendChild(track);
             this.updateTimelineActive();
+            this.updateSidebarTogglePosition();
             return;
         }
 
-        let prevYear = '';
-        let prevMonth = '';
-        State.groupKeys.forEach(key => {
-            let year = '';
-            let month = '';
-            if (key !== 'unknown') {
-                const parts = key.split('-');
-                year = parts[0];
-                month = parts[1];
-            }
+        if (State.axis.loadingLevel === 'year') {
+            track.appendChild(this.createAxisLoading());
+        }
+        State.axis.yearItems.forEach(item => {
+            const isUnknown = item.key === 'unknown';
+            const label = isUnknown
+                ? I18nManager.t('album.unknown_date')
+                : this.buildYearLabel(item.key);
+            track.appendChild(this.createAxisTick('year', item, label, isUnknown ? 'unknown' : ''));
 
-            // 年份刻度：每年只出现一次，字号最大并显示具体年份
-            if (key !== 'unknown' && year !== prevYear) {
-                const yearLabel = I18nManager.currentLang === 'zh' ? year + '年' : year;
-                track.appendChild(this.createTimelineTick('year', key, yearLabel, this.buildGroupTitle(key), year, month));
-                prevYear = year;
-                prevMonth = '';
-            }
+            if (State.axis.expandedYear !== item.key || isUnknown) return;
+            const monthBranch = document.createElement('div');
+            monthBranch.className = 'album-axis-branch';
+            if (State.axis.loadingLevel === 'month') {
+                monthBranch.appendChild(this.createAxisLoading());
+            } else {
+                State.axis.monthItems.forEach(monthItem => {
+                    const parts = monthItem.key.split('-');
+                    const year = parts[0];
+                    const month = parseInt(parts[1], 10);
+                    const monthLabel = I18nManager.currentLang === 'zh'
+                        ? month + I18nManager.t('album.month_suffix')
+                        : new Intl.DateTimeFormat('en-US', { month: 'short' })
+                            .format(new Date(parseInt(year, 10), month - 1, 1));
+                    monthBranch.appendChild(this.createAxisTick('month', monthItem, monthLabel));
 
-            // 月份刻度：每年内每月只出现一次，字号次之并显示月份
-            if (key !== 'unknown' && month !== prevMonth) {
-                const monthLabel = I18nManager.currentLang === 'zh'
-                    ? parseInt(month, 10) + '月'
-                    : new Intl.DateTimeFormat('en-US', { month: 'short' })
-                        .format(new Date(parseInt(year, 10), parseInt(month, 10) - 1, 1));
-                track.appendChild(this.createTimelineTick('month', key, monthLabel, this.buildGroupTitle(key), year, month));
-                prevMonth = month;
+                    if (State.axis.expandedMonth !== monthItem.key) return;
+                    const dayBranch = document.createElement('div');
+                    dayBranch.className = 'album-axis-branch album-axis-day-branch';
+                    if (State.axis.loadingLevel === 'day') {
+                        dayBranch.appendChild(this.createAxisLoading());
+                    } else {
+                        State.axis.dayItems.forEach(dayItem => {
+                            const day = parseInt(dayItem.key.split('-')[2], 10);
+                            const dayLabel = String(day);
+                            dayBranch.appendChild(this.createAxisTick('day', dayItem, dayLabel, dayItem.key));
+                        });
+                    }
+                    monthBranch.appendChild(dayBranch);
+                });
             }
-
-            // 日刻度：仅显示圆点，不显示日期文字，悬浮提示完整日期
-            track.appendChild(this.createTimelineTick('day', key, '', this.buildGroupTitle(key), year, month));
+            track.appendChild(monthBranch);
         });
 
         ticksHost.appendChild(track);
         this.updateTimelineActive();
+        this.updateSidebarTogglePosition();
     },
 
     /**
-     * 用途说明：创建单个动态标尺刻度元素并绑定跳转事件。
+     * 用途说明：生成年份轴的本地化标签。
+     * 入参说明：year (string) - 四位年份键。
+     * 返回值说明：string - 中文年份或英文年份文本。
+     */
+    buildYearLabel(year) {
+        return I18nManager.currentLang === 'zh' ? year + I18nManager.t('album.year_suffix') : year;
+    },
+
+    /**
+     * 用途说明：创建轴分支中的加载状态元素。
+     * 入参说明：无
+     * 返回值说明：HTMLElement - 包含圆形进度条与加载文案的元素。
+     */
+    createAxisLoading() {
+        const loading = document.createElement('div');
+        loading.className = 'album-axis-loading';
+        loading.setAttribute('role', 'status');
+        const spinner = document.createElement('div');
+        spinner.className = 'album-loading-spinner';
+        spinner.setAttribute('aria-hidden', 'true');
+        const text = document.createElement('span');
+        text.textContent = I18nManager.t('common.loading');
+        loading.appendChild(spinner);
+        loading.appendChild(text);
+        return loading;
+    },
+
+    /**
+     * 用途说明：创建单个轴刻度并绑定点击、键盘操作；无数据字母禁用且不可聚焦。
      * 入参说明：
      *   level (string) - 刻度层级：year / month / day / letter。
-     *   anchorKey (string) - 点击后滚动到的分组键。
-     *   label (string) - 刻度文案（日刻度为空字符串）。
-     *   title (string) - 悬浮提示文案。
-     *   year (string) - 所属年份（unknown 分组为空）。
-     *   month (string) - 所属月份（unknown 分组为空）。
+     *   item (Object) - 轴项，包含 key、first_path、count，禁用字母可带 disabled。
+     *   label (string) - 刻度文案，日刻度显示当月日数。
+     *   fallbackKey (string) - 列表分组键，日期轴使用完整日期，未知日期使用 unknown。
      * 返回值说明：HTMLElement - 刻度元素。
      */
-    createTimelineTick(level, anchorKey, label, title, year, month) {
+    createAxisTick(level, item, label, fallbackKey) {
         const tick = document.createElement('div');
+        const disabled = Boolean(item.disabled);
+        const key = fallbackKey || item.key;
+        let year = '';
+        let month = '';
+        if (level === 'year' && item.key !== 'unknown') year = item.key;
+        if (level === 'month') {
+            const parts = item.key.split('-');
+            year = parts[0];
+            month = parts[1];
+        }
+        if (level === 'day') {
+            const parts = item.key.split('-');
+            year = parts[0];
+            month = parts[1];
+        }
+
         tick.className = 'album-timeline-tick album-timeline-tick-' + level;
-        tick.setAttribute('data-key', anchorKey);
-        if (title) tick.title = title;
+        tick.classList.toggle('is-disabled', disabled);
+        tick.setAttribute('data-key', key);
+        tick.setAttribute('data-path', item.first_path || '');
+        tick.setAttribute('role', 'button');
+        tick.setAttribute('tabindex', disabled ? '-1' : '0');
+        tick.setAttribute('aria-disabled', String(disabled));
+        tick.title = this.buildAxisTitle(level, item);
         if (label) {
             const labelEl = document.createElement('span');
             labelEl.className = 'album-timeline-label';
             labelEl.textContent = label;
             tick.appendChild(labelEl);
         }
-        tick.onclick = () => this.scrollToGroup(anchorKey);
+        if (!disabled) {
+            tick.onclick = () => this.handleAxisClick(level, item, key);
+            tick.onkeydown = (event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    this.handleAxisClick(level, item, key);
+                }
+            };
+        }
         State.timelineTicks.push({
             el: tick,
             level: level,
-            key: anchorKey,
-            year: year || '',
-            month: month || ''
+            key: key,
+            year: year,
+            month: month,
+            path: item.first_path || '',
+            disabled: disabled
         });
         return tick;
     },
 
     /**
-     * 用途说明：根据当前滚动位置高亮标尺刻度：时间轴同步年份/月份上下文，字母尺仅高亮当前首字母。
+     * 用途说明：生成轴刻度的悬浮提示，包含分组名称与当前筛选下的媒体数量。
+     * 入参说明：level (string) - 轴层级；item (Object) - 轴项。
+     * 返回值说明：string - 本地化提示文案。
+     */
+    buildAxisTitle(level, item) {
+        let label = item.key;
+        if (level === 'year') {
+            label = item.key === 'unknown' ? I18nManager.t('album.unknown_date') : this.buildYearLabel(item.key);
+        } else if (level === 'month') {
+            const parts = item.key.split('-');
+            label = this.buildYearLabel(parts[0]) + ' ' + parts[1];
+        } else if (level === 'day') {
+            label = this.buildGroupTitle(item.key);
+        }
+        return label + ' · ' + I18nManager.t('album.axis_item_count', { count: item.count || 0 });
+    },
+
+    /**
+     * 用途说明：处理轴点击：年份展开月份、月份展开日期，所有层级均定位到分组首条媒体。
+     * 入参说明：level (string) - 轴层级；item (Object) - 被点击轴项；fallbackKey (string) - 列表分组键。
+     * 返回值说明：无
+     */
+    handleAxisClick(level, item, fallbackKey) {
+        if (level === 'year') {
+            State.axis.expandedYear = item.key;
+            State.axis.expandedMonth = '';
+            State.axis.monthItems = [];
+            State.axis.dayItems = [];
+            this.rebuildTimeline();
+            if (item.key !== 'unknown') this.loadMonthAxis(item.key);
+            this.jumpToMedia(item.first_path, fallbackKey);
+            return;
+        }
+        if (level === 'month') {
+            const parts = item.key.split('-');
+            State.axis.expandedYear = parts[0];
+            State.axis.expandedMonth = item.key;
+            State.axis.dayItems = [];
+            this.rebuildTimeline();
+            this.loadDayAxis(parts[0], parseInt(parts[1], 10));
+            this.jumpToMedia(item.first_path, fallbackKey);
+            return;
+        }
+        this.jumpToMedia(item.first_path, fallbackKey);
+    },
+
+    /**
+     * 用途说明：定位到指定媒体；已加载时平滑滚动，未加载时清空列表并从该媒体锚点加载。
+     * 入参说明：filePath (string) - 目标媒体完整路径；fallbackKey (string) - 目标缺失时的分组键。
+     * 返回值说明：无
+     */
+    jumpToMedia(filePath, fallbackKey) {
+        if (!filePath) return;
+        if (State.cardMap.has(filePath)) {
+            this.scrollToPath(filePath, fallbackKey);
+            return;
+        }
+        App.loadAnchorPage(filePath, () => this.scrollToPath(filePath, fallbackKey));
+    },
+
+    /**
+     * 用途说明：根据当前滚动位置高亮轴刻度；时间轴同步年、月、日上下文，字母尺高亮当前首字母。
      * 入参说明：无
      * 返回值说明：无
      */
     updateTimelineActive() {
-        const scrollRoot = document.querySelector('.main-content');
+        const scrollRoot = this.elements.list;
         if (!scrollRoot || State.groupKeys.length === 0) return;
 
         const rootTop = scrollRoot.getBoundingClientRect().top;
@@ -1039,12 +1474,15 @@ const UIController = {
         }
 
         State.timelineTicks.forEach(tick => {
+            if (tick.disabled) return;
             let isActive = tick.key === activeKey;
             let isContext = false;
             if (tick.level === 'year') {
-                isContext = tick.year === activeYear;
+                isActive = tick.key === 'unknown' ? activeKey === 'unknown' : tick.year === activeYear;
+                isContext = isActive;
             } else if (tick.level === 'month') {
-                isContext = tick.year === activeYear && tick.month === activeMonth;
+                isActive = tick.year === activeYear && tick.month === activeMonth;
+                isContext = isActive;
             }
             tick.el.classList.toggle('is-active', isActive);
             tick.el.classList.toggle('is-context', isContext);
@@ -1052,14 +1490,39 @@ const UIController = {
     },
 
     /**
-     * 用途说明：点击动态标尺刻度后平滑滚动到对应分组。
+     * 用途说明：平滑滚动到已加载媒体；媒体缺失时回退到对应分组标题。
+     * 入参说明：filePath (string) - 媒体完整路径；fallbackKey (string) - 回退分组键。
+     * 返回值说明：无
+     */
+    scrollToPath(filePath, fallbackKey) {
+        const scrollRoot = this.elements.list;
+        if (!scrollRoot) return;
+        const info = State.cardMap.get(filePath);
+        const group = State.groupMap.get(fallbackKey);
+        const target = info ? info.card : (group ? group.title : null);
+        if (!target) return;
+        const offset = target.getBoundingClientRect().top
+            - scrollRoot.getBoundingClientRect().top
+            + scrollRoot.scrollTop
+            - 12;
+        scrollRoot.scrollTo({ top: Math.max(0, offset), behavior: 'smooth' });
+    },
+
+    /**
+     * 用途说明：平滑滚动到指定分组标题，供列表内部定位与兼容调用使用。
      * 入参说明：key (string) - 目标分组键。
      * 返回值说明：无
      */
     scrollToGroup(key) {
         const group = State.groupMap.get(key);
-        const scrollRoot = document.querySelector('.main-content');
-        if (!group || !scrollRoot) return;
+        if (!group) return;
+        const firstItem = State.items.find(item => this.resolveGroupKey(item) === key);
+        if (firstItem) {
+            this.scrollToPath(firstItem.file_path, key);
+            return;
+        }
+        const scrollRoot = this.elements.list;
+        if (!scrollRoot) return;
         const offset = group.title.getBoundingClientRect().top
             - scrollRoot.getBoundingClientRect().top
             + scrollRoot.scrollTop
@@ -1101,6 +1564,51 @@ const UIController = {
         });
         if (State.groupKeys.length !== previousGroupCount) this.rebuildTimeline();
         this.updateTimelineActive();
+    },
+
+    /**
+     * 用途说明：将上一页媒体插入列表顶部，复用已有卡片与标题并按全局顺序重排 DOM。
+     * 入参说明：list (Array<Object>) - 后端按全局顺序返回的上一批媒体。
+     * 返回值说明：boolean - 是否实际插入了新媒体。
+     */
+    prependItems(list) {
+        if (!this.elements.waterfall) return false;
+        const existingPaths = new Set(State.items.map(item => item.file_path));
+        const freshList = list.filter(item => !existingPaths.has(item.file_path));
+        if (freshList.length === 0) return false;
+
+        const oldGroups = State.groupMap;
+        State.items = freshList.concat(State.items);
+        State.groupMap = new Map();
+        State.groupKeys = [];
+        const fragment = document.createDocumentFragment();
+        State.items.forEach(item => {
+            const groupKey = this.resolveGroupKey(item);
+            let group = State.groupMap.get(groupKey);
+            if (!group) {
+                const oldGroup = oldGroups.get(groupKey);
+                const title = oldGroup ? oldGroup.title : this.createGroupTitle(groupKey);
+                group = { key: groupKey, title: title, count: 0 };
+                State.groupMap.set(groupKey, group);
+                State.groupKeys.push(groupKey);
+                fragment.appendChild(title);
+            }
+            let info = State.cardMap.get(item.file_path);
+            if (info) {
+                info.groupKey = groupKey;
+                fragment.appendChild(info.card);
+            } else {
+                const card = this.createCard(item);
+                info = State.cardMap.get(item.file_path);
+                if (info) info.groupKey = groupKey;
+                fragment.appendChild(card);
+            }
+            group.count += 1;
+        });
+        this.elements.waterfall.replaceChildren(fragment);
+        this.rebuildTimeline();
+        this.updateTimelineActive();
+        return true;
     },
 
     /**
@@ -1148,10 +1656,18 @@ const UIController = {
     updateEmptyState() {
         const isEmpty = State.items.length === 0;
         const showInitialLoading = State.loading && isEmpty;
-        const showLoadMore = State.loading && !isEmpty;
+        const showLoadMore = State.loading && !isEmpty && State.loadDirection !== 'previous';
+        const showPreviousLoading = State.loading && !isEmpty && State.loadDirection === 'previous';
+        if (this.elements.totalCount) {
+            this.elements.totalCount.textContent = I18nManager.t('album.total_count', { count: State.total });
+        }
         if (this.elements.loadingPlaceholder) {
             this.elements.loadingPlaceholder.classList.toggle('hidden', !showInitialLoading);
             this.elements.loadingPlaceholder.setAttribute('aria-busy', String(showInitialLoading));
+        }
+        if (this.elements.loadPrevious) {
+            this.elements.loadPrevious.classList.toggle('hidden', !showPreviousLoading);
+            this.elements.loadPrevious.setAttribute('aria-busy', String(showPreviousLoading));
         }
         if (this.elements.loadMore) {
             this.elements.loadMore.classList.toggle('hidden', !showLoadMore);
@@ -1567,6 +2083,8 @@ const App = {
      */
     loadFirstPage() {
         State.cursorPath = '';
+        State.hasPrevious = false;
+        State.loadDirection = '';
         State.items = [];
         State.total = 0;
         State.hasMore = true;
@@ -1577,6 +2095,7 @@ const App = {
         State.selected.clear();
         this.clearSelection();
         UIController.clearList();
+        UIController.loadAxis();
         this.loadPage('');
     },
 
@@ -1597,6 +2116,7 @@ const App = {
      */
     loadPage(cursorPath) {
         State.loading = true;
+        State.loadDirection = 'next';
         UIController.updateEmptyState();
         const token = State.queryToken;
 
@@ -1620,6 +2140,96 @@ const App = {
             State.hasMore = false;
             Toast.show(msg || I18nManager.t('album.load_failed'));
             UIController.updateEmptyState();
+        });
+    },
+
+    /**
+     * 用途说明：以当前已加载第一条媒体为锚点反向加载上一批，并保持原视口位置不跳动。
+     * 入参说明：无
+     * 返回值说明：无
+     */
+    loadPreviousPage() {
+        if (State.loading || !State.hasPrevious || State.items.length === 0) return;
+        const firstPath = State.items[0].file_path;
+        const token = State.queryToken;
+        State.loading = true;
+        State.loadDirection = 'previous';
+        UIController.updateEmptyState();
+
+        API.fetchListByCursor({ before_path: firstPath }, (data) => {
+            if (token !== State.queryToken) return;
+            const list = (data && data.list) || [];
+            State.total = (data && data.total) || 0;
+            const anchorCard = State.cardMap.get(firstPath);
+            const oldTop = anchorCard ? anchorCard.card.getBoundingClientRect().top : null;
+            const inserted = UIController.prependItems(list);
+            State.hasPrevious = list.length > 0 && State.items.length < State.total;
+            State.loading = false;
+            UIController.updateEmptyState();
+            State.loadDirection = '';
+
+            // 用原首张卡片的新旧视口坐标差修正滚动值，抵消顶部插入造成的高度变化
+            if (inserted && anchorCard && oldTop !== null) {
+                const scrollRoot = this.elements.list;
+                if (scrollRoot) {
+                    scrollRoot.scrollTop += anchorCard.card.getBoundingClientRect().top - oldTop;
+                }
+            }
+        }, (msg) => {
+            if (token !== State.queryToken) return;
+            State.loading = false;
+            UIController.updateEmptyState();
+            State.loadDirection = '';
+            Toast.show(msg || I18nManager.t('album.load_failed'));
+        });
+    },
+
+    /**
+     * 用途说明：清空当前列表并从指定媒体包含式锚点加载，用于尚未加载的年、月、日或字母跳转。
+     * 入参说明：anchorPath (string) - 目标媒体完整路径；onLoaded (Function) - 数据渲染完成回调。
+     * 返回值说明：无
+     */
+    loadAnchorPage(anchorPath, onLoaded) {
+        if (!anchorPath) return;
+        State.queryToken++;
+        const token = State.queryToken;
+        State.cursorPath = '';
+        State.hasPrevious = true;
+        State.items = [];
+        State.total = 0;
+        State.hasMore = true;
+        State.loading = false;
+        State.ensureRequested.clear();
+        State.ensureQueue = [];
+        State.selected.clear();
+        this.clearSelection();
+        UIController.clearList();
+        const scrollRoot = this.elements.list;
+        if (scrollRoot) scrollRoot.scrollTop = 0;
+
+        State.loading = true;
+        State.loadDirection = 'anchor';
+        UIController.updateEmptyState();
+        API.fetchListByCursor({ anchor_path: anchorPath }, (data) => {
+            if (token !== State.queryToken) return;
+            const list = (data && data.list) || [];
+            State.total = (data && data.total) || 0;
+            State.items = list;
+            if (list.length > 0) State.cursorPath = list[list.length - 1].file_path;
+            State.hasMore = list.length > 0 && State.items.length < State.total;
+            State.loading = false;
+            UIController.appendItems(list);
+            UIController.updateEmptyState();
+            State.loadDirection = '';
+            if (typeof onLoaded === 'function') onLoaded();
+            this.maybeLoadMore();
+        }, (msg) => {
+            if (token !== State.queryToken) return;
+            State.loading = false;
+            State.hasPrevious = false;
+            UIController.updateEmptyState();
+            State.loadDirection = '';
+            Toast.show(msg || I18nManager.t('album.load_failed'));
         });
     },
 
@@ -1771,6 +2381,7 @@ const App = {
                         UIController.closePreview();
                     }
                     Toast.show(I18nManager.t('album.delete_success'));
+                    UIController.loadAxis();
                     // 删除后重新拉取当前页，补齐因位置前移产生的空缺，避免翻页漏图
                     if (State.hasMore) this.refillCurrentPage();
                 }, (msg) => {

@@ -37,6 +37,24 @@ const RepositoryRequest = {
     },
 
     /**
+     * 用途说明：重命名指定仓库，仅修改展示名称，不改变仓库 ID、配置与权限。
+     * 入参说明：
+     *   id (number) - 仓库 ID。
+     *   name (string) - 新仓库名称。
+     *   onSuccess (Function) - 成功回调，参数为更新后的仓库信息 {id, name, create_time}。
+     *   onError (Function) - 失败回调，参数为错误信息。
+     * 返回值说明：无
+     */
+    rename(id, name, onSuccess, onError) {
+        Request.post('/api/repository/rename', { id, name })
+            .then(res => {
+                if (res.status === 'success') onSuccess(res.data);
+                else onError(res.message);
+            })
+            .catch(err => onError(err.message || I18nManager.t('common.network_error')));
+    },
+
+    /**
      * 用途说明：删除指定仓库（保留磁盘物理文件）。
      * 入参说明：
      *   id (number) - 仓库 ID。

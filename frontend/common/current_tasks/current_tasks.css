@@ -1,0 +1,319 @@
+/* 用途：顶部当前任务按钮与下方弹出面板样式。 */
+.current-tasks-trigger {
+    position: relative;
+    border: 0;
+    padding: 0;
+    background: transparent;
+    color: var(--color-text-tertiary);
+}
+
+.current-tasks-trigger.has-tasks::after {
+    content: '';
+    position: absolute;
+    top: 6px;
+    right: 5px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--color-primary);
+    box-shadow: 0 0 0 2px var(--color-surface);
+}
+
+.current-tasks-icon {
+    width: 25px;
+    height: 25px;
+    display: block;
+    object-fit: contain;
+}
+
+.current-tasks-panel {
+    position: fixed;
+    z-index: 2100;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    color: var(--color-text-primary);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border-control);
+    border-radius: 12px;
+    box-shadow: 0 10px 30px var(--alpha-black-20);
+    animation: current-tasks-in 0.18s ease;
+}
+
+.current-tasks-panel.hidden {
+    display: none;
+}
+
+@keyframes current-tasks-in {
+    from { opacity: 0; transform: translateY(-6px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.current-tasks-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--color-border-light);
+    flex-shrink: 0;
+}
+
+.current-tasks-heading {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.current-tasks-title {
+    margin: 0;
+    color: var(--color-text-primary);
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.current-tasks-count {
+    min-width: 22px;
+    padding: 2px 7px;
+    border-radius: 10px;
+    color: var(--color-primary);
+    background: var(--color-primary-soft);
+    font-size: 12px;
+    text-align: center;
+}
+
+.current-tasks-close,
+.current-tasks-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    border: 1px solid var(--color-border-control);
+    border-radius: 6px;
+    color: var(--color-text-secondary);
+    background: var(--color-surface);
+    cursor: pointer;
+    transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+}
+
+.current-tasks-close {
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    flex-shrink: 0;
+}
+
+.current-tasks-close .theme-icon,
+.current-tasks-action .theme-icon {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+}
+
+.current-tasks-close:hover,
+.current-tasks-action:hover {
+    color: var(--color-primary);
+    background: var(--color-surface-hover);
+    border-color: var(--color-primary);
+}
+
+.current-tasks-action:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.current-tasks-action.stop {
+    color: var(--color-danger);
+}
+
+.current-tasks-action.stop:hover {
+    background: var(--color-danger-soft);
+    border-color: var(--color-danger);
+}
+
+.current-tasks-content {
+    min-height: 150px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 12px;
+}
+
+.current-tasks-loading,
+.current-tasks-empty,
+.current-tasks-error {
+    min-height: 150px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    color: var(--color-text-muted);
+    text-align: center;
+}
+
+.current-tasks-loading > span:last-child,
+.current-tasks-empty p,
+.current-tasks-error p {
+    margin: 0;
+    font-size: 14px;
+}
+
+.current-tasks-spinner {
+    width: 25px;
+    height: 25px;
+    border: 2px solid var(--color-border-control);
+    border-top-color: var(--color-primary);
+    border-radius: 50%;
+    animation: current-tasks-spin 0.8s linear infinite;
+}
+
+@keyframes current-tasks-spin {
+    to { transform: rotate(360deg); }
+}
+
+.current-tasks-empty-icon {
+    width: 48px;
+    height: 48px;
+    object-fit: contain;
+    opacity: 0.85;
+}
+
+.current-tasks-error {
+    color: var(--color-danger);
+}
+
+.current-tasks-error .current-tasks-action {
+    padding: 7px 14px;
+}
+
+.current-tasks-item {
+    padding: 13px;
+    background: var(--color-surface-subtle);
+    border: 1px solid var(--color-border-light);
+    border-radius: 9px;
+}
+
+.current-tasks-item + .current-tasks-item {
+    margin-top: 10px;
+}
+
+.current-tasks-item.is-paused {
+    background: var(--color-surface-muted);
+}
+
+.current-tasks-item-top {
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+}
+
+.current-tasks-type-icon {
+    width: 22px;
+    height: 22px;
+    margin-top: 1px;
+    flex-shrink: 0;
+    color: var(--color-primary);
+    background-color: currentColor;
+}
+
+.current-tasks-item-heading {
+    min-width: 0;
+    flex: 1;
+}
+
+.current-tasks-item-title {
+    margin: 0;
+    color: var(--color-text-primary);
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.current-tasks-repo {
+    margin-top: 3px;
+    overflow: hidden;
+    color: var(--color-text-muted);
+    font-size: 12px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.current-tasks-status {
+    padding: 3px 7px;
+    border-radius: 10px;
+    color: var(--color-primary);
+    background: var(--color-primary-soft);
+    font-size: 11px;
+    white-space: nowrap;
+}
+
+.current-tasks-status.paused {
+    color: var(--color-text-tertiary);
+    background: var(--color-border-light);
+}
+
+.current-tasks-progress-track {
+    height: 5px;
+    margin-top: 12px;
+    overflow: hidden;
+    border-radius: 3px;
+    background: var(--color-border-light);
+}
+
+.current-tasks-progress-bar {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--color-primary);
+    transition: width 0.3s ease;
+}
+
+.current-tasks-progress-bar.indeterminate {
+    animation: current-tasks-indeterminate 1.3s ease-in-out infinite;
+}
+
+@keyframes current-tasks-indeterminate {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(300%); }
+}
+
+.current-tasks-message {
+    margin: 8px 0 0;
+    color: var(--color-text-secondary);
+    font-size: 12px;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+}
+
+.current-tasks-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 11px;
+}
+
+.current-tasks-action {
+    min-height: 30px;
+    padding: 5px 10px;
+    font-size: 12px;
+}
+
+.icon-pause {
+    -webkit-mask-image: var(--icon-pause);
+    mask-image: var(--icon-pause);
+}
+
+@media (max-width: 480px) {
+    .current-tasks-header {
+        padding: 12px;
+    }
+
+    .current-tasks-content {
+        padding: 8px;
+    }
+
+    .current-tasks-item {
+        padding: 10px;
+    }
+}

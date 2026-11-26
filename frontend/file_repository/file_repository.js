@@ -39,6 +39,9 @@ const UIController = {
             menuCallback: (e) => this.showMenu(e)
         });
 
+        // 顶部栏生成后挂载统一当前任务入口
+        CurrentTasksApp.start();
+
         this.elements = {
             tableBody: document.getElementById('file-list-body'),
             selectAllCheckbox: document.getElementById('select-all-checkbox'),

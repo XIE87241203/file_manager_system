@@ -46,6 +46,18 @@ class FaceService:
         return cls._progress_by_repo[repo_id]
 
     @classmethod
+    def get_active_repo_id(cls) -> Optional[int]:
+        """
+        用途说明：获取当前全局人脸任务所属仓库。
+        入参说明：无。
+        返回值说明：Optional[int] - 正在运行或暂停的仓库 ID；无任务时返回 None。
+        """
+        with cls._task_guard:
+            if cls._active_thread is not None and cls._active_thread.is_alive():
+                return cls._active_repo_id
+            return None
+
+    @classmethod
     def start_task(cls, enqueue_pending: bool = True, resume_paused: bool = True) -> bool:
         """
         用途说明：启动当前仓库的单线程人脸队列任务；手动开始时先批量去重入队。
@@ -122,23 +134,24 @@ class FaceService:
             return False
 
     @classmethod
-    def pause_task(cls) -> bool:
+    def pause_task(cls, repo_id: Optional[int] = None) -> bool:
         """
-        用途说明：暂停当前仓库的识别任务，当前图片处理完成后等待恢复，队列和已处理数据保持不变。
-        入参说明：无（仓库 ID 从当前请求上下文读取）。
+        用途说明：暂停指定仓库的识别任务，当前图片处理完成后等待恢复，队列和已处理数据保持不变。
+        入参说明：repo_id (Optional[int]) - 目标仓库；为空时使用当前请求仓库。
         返回值说明：bool - 当前仓库存在可暂停任务时返回 True。
         """
-        repo_id: int = get_current_repo_id()
+        target_repo_id: int = get_current_repo_id() if repo_id is None else repo_id
         with cls._task_guard:
-            if cls._active_repo_id != repo_id or cls._active_thread is None \
+            if cls._active_repo_id != target_repo_id or cls._active_thread is None \
                     or not cls._active_thread.is_alive() or cls._resume_event is None \
                     or not cls._resume_event.is_set():
                 return False
             cls._resume_event.clear()
-            progress: ProgressManager = cls._get_progress_manager(repo_id)
+            progress: ProgressManager = cls._get_progress_manager(target_repo_id)
             remaining: int = DBOperations.get_face_queue_count()
-            progress.update_progress(message=t('face_task_pause_requested', remaining=remaining))
-        LogUtils.info(t('face_task_paused_log', repo_id=repo_id))
+            progress.set_status(ProgressStatus.PAUSED)
+            progress.update_progress(message=t('face_task_paused', remaining=remaining))
+        LogUtils.info(t('face_task_paused_log', repo_id=target_repo_id))
         return True
 
     @classmethod
