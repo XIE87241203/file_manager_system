@@ -1,5 +1,5 @@
 /**
- * 用途说明：查重页面 logic 处理，负责触发查重任务、进度监控以及查重结果的分页展示与交互。
+ * 用途说明：查重页面 logic 处理，负责触发查重任务、状态监控以及查重结果的分页展示与交互。
  */
 
 // --- 状态管理 ---
@@ -54,7 +54,6 @@ const UIController = {
     init() {
         this.elements = {
             wrapper: document.getElementById('results-wrapper'),
-            scanningContainer: document.getElementById('scanning-container'),
             resultsGroup: document.getElementById('results-group'),
             emptyHint: document.getElementById('empty-hint'),
             summaryBar: document.getElementById('results-summary-bar'),
@@ -98,44 +97,26 @@ const UIController = {
     },
 
     /**
-     * 用途说明：切换页面视图状态（查重中、显示结果、显示初始引导）
+     * 用途说明：切换结果视图，查重进行时仍展示已有结果和筛选控件。
      * 入参说明：status (String) - 任务状态（ProgressStatus 枚举值）
      * 返回值说明：无
      */
     toggleView(status) {
-        const { scanningContainer, resultsGroup, emptyHint } = this.elements;
-        if (status === ProgressStatus.PROCESSING) {
-            this.renderHeader(ProgressStatus.PROCESSING);
-            scanningContainer.classList.remove('hidden');
-            resultsGroup.classList.add('hidden');
-            emptyHint.classList.add('hidden');
-            UIComponents.showProgressBar('#scanning-container', I18nManager.t('duplicate_check.preparing'));
-        } else {
-            this.renderHeader(ProgressStatus.IDLE);
-            scanningContainer.classList.add('hidden');
-            UIComponents.hideProgressBar('#scanning-container');
+        const { resultsGroup, emptyHint } = this.elements;
+        const isProcessing = State.pollingInterval !== null || status === ProgressStatus.PROCESSING;
+        this.renderHeader(isProcessing ? ProgressStatus.PROCESSING : ProgressStatus.IDLE);
 
-            if (status === ProgressStatus.COMPLETED || (State.results && State.results.length > 0) || State.similarityType !== '' || State.fileType !== '') {
-                resultsGroup.classList.remove('hidden');
-                emptyHint.classList.add('hidden');
+        if (status === ProgressStatus.COMPLETED || (State.results && State.results.length > 0) || State.similarityType !== '' || State.fileType !== '') {
+            resultsGroup.classList.remove('hidden');
+            emptyHint.classList.add('hidden');
+        } else {
+            resultsGroup.classList.add('hidden');
+            if (status === ProgressStatus.IDLE && !isProcessing) {
+                emptyHint.classList.remove('hidden');
             } else {
-                resultsGroup.classList.add('hidden');
-                if (status === ProgressStatus.IDLE) {
-                    emptyHint.classList.remove('hidden');
-                } else {
-                    emptyHint.classList.add('hidden');
-                }
+                emptyHint.classList.add('hidden');
             }
         }
-    },
-
-    /**
-     * 用途说明：更新扫描进度条及状态文字
-     * 入参说明：progress (Object) - 进度数据
-     * 返回值说明：无
-     */
-    updateProgress(progress) {
-        UIComponents.renderProgress('#scanning-container', progress);
     },
 
     /**
@@ -444,6 +425,7 @@ const App = {
                     if (data.status === ProgressStatus.PROCESSING) {
                         UIController.toggleView(ProgressStatus.PROCESSING);
                         this.startPolling();
+                        this.loadResults(1);
                     } else if (data.status === ProgressStatus.COMPLETED) {
                         this.loadResults(1);
                     } else {
@@ -550,10 +532,10 @@ const App = {
         DuplicateCheckAPI.startCheck(mode,
             () => {
                 Toast.show(I18nManager.t('duplicate_check.check_started'));
-                State.results = [];
                 State.selectedPaths.clear();
                 UIController.toggleView(ProgressStatus.PROCESSING);
                 this.startPolling();
+                this.loadResults(1);
             },
             (err) => Toast.show(err || I18nManager.t('duplicate_check.start_failed'))
         );
@@ -680,9 +662,7 @@ const App = {
             DuplicateCheckAPI.getProgress(
                 (data) => {
                     if (!data) return;
-                    if (data.status === ProgressStatus.PROCESSING) {
-                        UIController.updateProgress(data.progress);
-                    } else {
+                    if (data.status !== ProgressStatus.PROCESSING) {
                         this.stopPolling();
                         if (data.status === ProgressStatus.COMPLETED) {
                             Toast.show(I18nManager.t('common.success'));
@@ -695,6 +675,7 @@ const App = {
                 (err) => {
                     console.error(err);
                     this.stopPolling();
+                    UIController.toggleView(ProgressStatus.IDLE);
                 }
             );
         }, 1500);

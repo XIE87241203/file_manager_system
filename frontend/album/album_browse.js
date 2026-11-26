@@ -345,31 +345,6 @@ const UIController = {
     },
 
     /**
-     * 用途说明：扫描期间隐藏相册内容，仅保留进度遮罩，与文件管理页面的展示逻辑一致。
-     * 入参说明：isScanning (boolean) - 是否正在扫描。
-     * 返回值说明：无
-     */
-    toggleScanUI(isScanning) {
-        const pageContent = this.elements.pageContent;
-        if (!pageContent) return;
-        pageContent.style.visibility = isScanning ? 'hidden' : 'visible';
-    },
-
-    /**
-     * 用途说明：显示扫描进度遮罩；若遮罩此前被隐藏，则重新设为显示，保证多次扫描都能看到进度。
-     * 入参说明：无
-     * 返回值说明：无
-     */
-    showScanProgress() {
-        const progressText = State.scanTaskType === 'metadata'
-            ? I18nManager.t('file_repo.metadata_refreshing')
-            : I18nManager.t('file_repo.scanning');
-        UIComponents.showProgressBar('#album-main-content', progressText);
-        const overlay = document.querySelector('#album-main-content .common-progress-overlay');
-        if (overlay) overlay.style.display = 'flex';
-    },
-
-    /**
      * 用途说明：绑定时间轴上方的媒体类型筛选下拉框，切换后重置分页并按类型重新加载。
      * 入参说明：无
      * 返回值说明：无
@@ -1912,7 +1887,7 @@ const App = {
     },
 
     /**
-     * 用途说明：启动缺失信息补全任务，并复用索引任务的进度展示与轮询。
+     * 用途说明：启动缺失信息补全任务，并恢复索引任务状态轮询。
      * 入参说明：无
      * 返回值说明：无
      */
@@ -1921,8 +1896,6 @@ const App = {
         API.refreshMetadata(
             () => {
                 Toast.show(I18nManager.t('file_repo.metadata_refresh_started'));
-                UIController.toggleScanUI(true);
-                UIController.showScanProgress();
                 this.startScanPolling();
             },
             (msg) => {
@@ -1949,7 +1922,7 @@ const App = {
     },
 
     /**
-     * 用途说明：调用接口启动索引扫描任务，并进入与文件管理页面一致的进度展示状态。
+     * 用途说明：调用接口启动索引扫描任务，并恢复任务状态轮询。
      * 入参说明：fullScan (boolean) - 是否进行全量扫描。
      * 返回值说明：无
      */
@@ -1958,8 +1931,6 @@ const App = {
         API.startScan(fullScan,
             () => {
                 Toast.show(I18nManager.t('file_repo.scan_started'));
-                UIController.toggleScanUI(true);
-                UIController.showScanProgress();
                 this.startScanPolling();
             },
             (msg) => {
@@ -1982,7 +1953,7 @@ const App = {
     },
 
     /**
-     * 用途说明：启动扫描进度的实时轮询，完成后刷新相册列表。
+     * 用途说明：实时轮询扫描任务状态，完成后刷新相册列表，不显示进度遮罩。
      * 入参说明：无
      * 返回值说明：无
      */
@@ -1991,13 +1962,10 @@ const App = {
         State.scanInterval = setInterval(() => {
             API.getScanProgress(
                 (data) => {
-                    if (data.status === ProgressStatus.PROCESSING) {
-                        UIComponents.renderProgress('#album-main-content', data.progress);
-                    } else {
+                    if (data.status !== ProgressStatus.PROCESSING) {
                         /** @type {string} */
                         const taskType = State.scanTaskType;
                         this.stopScanPolling();
-                        UIController.toggleScanUI(false);
                         if (data.status === ProgressStatus.COMPLETED) {
                             Toast.show(I18nManager.t(
                                 taskType === 'metadata' ? 'file_repo.metadata_refresh_finished' : 'file_repo.scan_finished'
@@ -2008,7 +1976,6 @@ const App = {
                 },
                 (msg) => {
                     this.stopScanPolling();
-                    UIController.toggleScanUI(false);
                     Toast.show(msg);
                 }
             );
@@ -2016,7 +1983,7 @@ const App = {
     },
 
     /**
-     * 用途说明：停止扫描进度轮询并隐藏进度遮罩。
+     * 用途说明：停止扫描任务状态轮询。
      * 入参说明：无
      * 返回值说明：无
      */
@@ -2026,11 +1993,10 @@ const App = {
             State.scanInterval = null;
         }
         State.scanTaskType = '';
-        UIComponents.hideProgressBar('#album-main-content');
     },
 
     /**
-     * 用途说明：页面初始化时检查是否已有正在运行的扫描任务，若有则恢复进度展示。
+     * 用途说明：页面初始化时检查是否已有正在运行的扫描任务，若有则恢复状态轮询。
      * 入参说明：无
      * 返回值说明：无
      */
@@ -2039,8 +2005,6 @@ const App = {
             (data) => {
                 if (data.status === ProgressStatus.PROCESSING) {
                     State.scanTaskType = 'scan';
-                    UIController.toggleScanUI(true);
-                    UIController.showScanProgress();
                     this.startScanPolling();
                 }
             },

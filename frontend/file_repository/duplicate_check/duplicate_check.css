@@ -11,20 +11,6 @@
     position: relative;
 }
 
-/* 居中状态容器：用于显示进度条并上下左右居中 */
-.centered-status-container {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    background-color: var(--color-surface-muted);
-    z-index: 50;
-}
-
 /* 引导提示样式 */
 .empty-hint {
     text-align: center; 

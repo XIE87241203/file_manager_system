@@ -266,20 +266,6 @@ const UIController = {
     },
 
     /**
-     * 用途说明：切换扫描时的 UI 遮罩
-     * 入参说明：isScanning (boolean) - 是否正在扫描
-     * 返回值说明：无
-     */
-    toggleScanUI(isScanning) {
-        const { mainContent } = this.elements;
-        if (isScanning) {
-            mainContent.style.visibility = 'hidden';
-        } else {
-            mainContent.style.visibility = 'visible';
-        }
-    },
-
-    /**
      * 用途说明：根据选中情况更新批量删除按钮的可见性及文字
      * 入参说明：无
      * 返回值说明：无
@@ -519,7 +505,7 @@ const App = {
     },
 
     /**
-     * 用途说明：启动缺失信息补全任务，并复用索引任务的进度展示与轮询。
+     * 用途说明：启动缺失信息补全任务，并恢复索引任务状态轮询。
      * 入参说明：无
      * 返回值说明：无
      */
@@ -528,8 +514,6 @@ const App = {
         FileRepositoryAPI.refreshMetadata(
             () => {
                 Toast.show(I18nManager.t('file_repo.metadata_refresh_started'));
-                UIController.toggleScanUI(true);
-                UIComponents.showProgressBar('.main-content', I18nManager.t('file_repo.metadata_refreshing'));
                 this.startScanPolling();
             },
             (msg) => {
@@ -564,8 +548,6 @@ const App = {
         FileRepositoryAPI.startScan(fullScan,
             () => {
                 Toast.show(I18nManager.t('file_repo.scan_started'));
-                UIController.toggleScanUI(true);
-                UIComponents.showProgressBar('.main-content', I18nManager.t('file_repo.scanning'));
                 this.startScanPolling();
             },
             (msg) => {
@@ -588,7 +570,7 @@ const App = {
     },
 
     /**
-     * 用途说明：启动扫描进度的实时轮询
+     * 用途说明：实时轮询扫描任务状态，完成后刷新文件列表，不显示进度遮罩。
      * 入参说明：无
      * 返回值说明：无
      */
@@ -597,13 +579,10 @@ const App = {
         State.scanInterval = setInterval(() => {
             FileRepositoryAPI.getProgress(
                 (data) => {
-                    if (data.status === ProgressStatus.PROCESSING) {
-                        UIComponents.renderProgress('.main-content', data.progress);
-                    } else {
+                    if (data.status !== ProgressStatus.PROCESSING) {
                         /** @type {string} */
                         const taskType = State.scanTaskType;
                         this.stopScanPolling();
-                        UIController.toggleScanUI(false);
                         if (data.status === ProgressStatus.COMPLETED) {
                             Toast.show(I18nManager.t(
                                 taskType === 'metadata' ? 'file_repo.metadata_refresh_finished' : 'file_repo.scan_finished'
@@ -615,7 +594,6 @@ const App = {
                 },
                 (msg) => {
                     this.stopScanPolling();
-                    UIController.toggleScanUI(false);
                     Toast.show(msg);
                 }
             );
@@ -623,7 +601,7 @@ const App = {
     },
 
     /**
-     * 用途说明：停止扫描进度的轮询任务
+     * 用途说明：停止扫描任务状态轮询。
      * 入参说明：无
      * 返回值说明：无
      */
@@ -633,7 +611,6 @@ const App = {
             State.scanInterval = null;
         }
         State.scanTaskType = '';
-        UIComponents.hideProgressBar('.main-content');
     },
 
     /**
@@ -646,8 +623,6 @@ const App = {
             (data) => {
                 if (data.status === ProgressStatus.PROCESSING) {
                     State.scanTaskType = 'scan';
-                    UIController.toggleScanUI(true);
-                    UIComponents.showProgressBar('.main-content', I18nManager.t('file_repo.scanning'));
                     this.startScanPolling();
                 }
             },
