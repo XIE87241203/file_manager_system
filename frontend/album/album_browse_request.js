@@ -56,17 +56,17 @@ const AlbumBrowseRequest = {
     },
 
     /**
-     * 用途说明：分页获取相册媒体列表。
+     * 用途说明：按媒体路径游标获取后续相册列表，首批数据传入空路径。
      * 入参说明：
-     *   params (Object) - { page, limit, search, file_type, sort_by, order_asc }
-     *   onSuccess (Function) - 成功回调，参数为分页结果对象。
+     *   params (Object) - { last_path, limit, search, file_type, sort_by, order_asc }，不使用页码参数
+     *   onSuccess (Function) - 成功回调，参数为不包含 page 字段的游标分页结果对象。
      *   onError (Function) - 失败回调，参数为错误信息。
      * 返回值说明：无
      */
     list(params, onSuccess, onError) {
         const query = new URLSearchParams({
-            page: String(params.page || 1),
-            limit: String(params.limit || 30),
+            last_path: params.last_path || '',
+            limit: String(params.limit || 50),
             search: params.search || '',
             file_type: params.file_type || '',
             sort_by: params.sort_by || 'album_time',

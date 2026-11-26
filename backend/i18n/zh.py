@@ -525,6 +525,8 @@ TRANSLATIONS = {
     "album_thumbnail_dir_create_failed": "创建缩略图存储目录失败: {path}, 错误: {error}",
     "album_thumbnail_size_invalid": "缩略图最大边长无效: {value}，必须为正整数",
     "album_settings_get_success": "获取相册设置成功",
+    "album_thumbnail_usage_success": "获取缩略图占用大小成功",
+    "album_thumbnail_usage_error": "统计缩略图占用大小失败: {error}",
     "album_settings_update_success": "相册设置更新成功",
     "album_settings_update_failed": "相册设置更新失败",
     "album_settings_update_failed_log": "相册设置更新失败，操作人: {user}",

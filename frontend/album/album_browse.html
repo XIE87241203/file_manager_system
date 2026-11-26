@@ -27,7 +27,7 @@
                 </div>
             </div>
 
-            <!-- 筛选工具栏：排序、媒体类型与侧边栏开关，整体位于列表上方左对齐 -->
+            <!-- 筛选工具栏：排序、媒体类型、每页数量、显示列数与侧边栏开关，整体位于列表上方左对齐 -->
             <div class="album-toolbar">
                 <button id="album-sidebar-toggle" class="album-sidebar-toggle" type="button"
                         data-i18n-title="album.sidebar_hide" title="" aria-controls="album-timeline" aria-expanded="true">
@@ -44,6 +44,22 @@
                     <option value="image" data-i18n="album.filter_image"></option>
                     <option value="video" data-i18n="album.filter_video"></option>
                 </select>
+                <!-- 每页加载数量：由 JS 按 50～500、步长 10 生成选项 -->
+                <select id="album-page-size-filter" class="album-filter-select album-page-size-select" data-i18n-title="album.page_size_title" title=""></select>
+                <!-- 显示列数：默认自适应，用户可固定为 1～10 列 -->
+                <select id="album-column-filter" class="album-filter-select album-column-select" data-i18n-title="album.columns_title" title="">
+                    <option value="auto" data-i18n="album.columns_auto"></option>
+                    <option value="1">1</option>
+                    <option value="2">2</option>
+                    <option value="3">3</option>
+                    <option value="4">4</option>
+                    <option value="5">5</option>
+                    <option value="6">6</option>
+                    <option value="7">7</option>
+                    <option value="8">8</option>
+                    <option value="9">9</option>
+                    <option value="10">10</option>
+                </select>
             </div>
 
             <!-- 相册主体：左侧动态标尺侧边栏 + 右侧按当前排序分组的瀑布流 -->
@@ -57,15 +73,26 @@
                     </div>
                 </aside>
 
-                <!-- 瀑布流容器：卡片严格按接口返回的全局排序顺序追加 -->
-                <div id="album-waterfall" class="album-waterfall"></div>
+                <!-- 列表容器：横向分组网格 + 首屏加载占位 -->
+                <div class="album-list">
+                    <!-- 瀑布流容器：卡片严格按接口返回的全局排序顺序按行追加 -->
+                    <div id="album-waterfall" class="album-waterfall" data-column-count="auto"></div>
+                    <div id="album-loading-placeholder" class="album-loading-placeholder hidden" role="status" aria-live="polite">
+                        <div class="album-loading-spinner" aria-hidden="true"></div>
+                        <div class="album-loading-text" data-i18n="common.loading"></div>
+                    </div>
+                </div>
             </div>
 
             <!-- 空数据提示 -->
             <div id="album-empty" class="album-empty hidden" data-i18n="album.empty"></div>
 
-            <!-- 无限滚动哨兵与加载提示 -->
+            <!-- 无限滚动哨兵与底部加载提示 -->
             <div id="album-sentinel" class="album-sentinel"></div>
+            <div id="album-load-more" class="album-load-more hidden" role="status" aria-live="polite">
+                <div class="album-loading-spinner" aria-hidden="true"></div>
+                <div class="album-loading-text" data-i18n="common.loading"></div>
+            </div>
             <div id="album-end-tip" class="album-end-tip hidden" data-i18n="album.no_more"></div>
         </div>
     </main>

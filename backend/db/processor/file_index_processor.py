@@ -4,7 +4,9 @@ from typing import Optional, List, Tuple, Dict, Set
 
 from backend.db.db_constants import DBConstants
 from backend.db.processor.base_db_processor import BaseDBProcessor
+from backend.db.search_query_helper import SearchQueryHelper
 from backend.model.db.file_index_db_model import FileIndexDBModel
+from backend.model.cursor_pagination_result import CursorPaginationResult
 from backend.model.pagination_result import PaginationResult
 
 
@@ -356,26 +358,32 @@ class FileIndexProcessor(BaseDBProcessor):
         )
 
     @staticmethod
-    def get_album_paged_list(page: int, limit: int, sort_by: str, order: bool,
-                             search_query: str, file_types: List[str]) -> PaginationResult[FileIndexDBModel]:
+    def get_album_paged_list(limit: int, sort_by: str, order: bool,
+                             search_query: str, file_types: List[str],
+                             last_path: str = '') -> CursorPaginationResult[FileIndexDBModel]:
         """
-        用途说明：分页查询相册媒体（图片/视频）列表，排除回收站内文件并按文件名搜索；
-                   支持相册时间、文件名首字母与文件大小三种全局排序。
+        用途说明：按媒体路径游标查询相册后续数据，排除回收站文件并按文件名搜索；
+                   支持相册时间、文件名首字母与文件大小三种全局排序，不使用页码。
         入参说明：
-            page (int): 当前页码。
-            limit (int): 每页条数。
+            limit (int): 本次获取条数。
             sort_by (str): 排序字段，可选 album_time、file_name、file_size。
             order (bool): 是否为升序（True 为 ASC，False 为 DESC）。
             search_query (str): 搜索关键词（按文件名模糊匹配）。
             file_types (List[str]): 需要包含的文件类型列表（如 ['image', 'video']）。
-        返回值说明：PaginationResult[FileIndexDBModel] - 分页结果对象。
+            last_path (str): 上一条已加载媒体的完整路径，空字符串表示首批数据。
+        返回值说明：CursorPaginationResult[FileIndexDBModel] - 不包含页码的游标分页结果对象。
         """
+        table_name: str = DBConstants.FileIndex.TABLE_NAME
+        col_id: str = DBConstants.FileIndex.COL_ID
+        col_path: str = DBConstants.FileIndex.COL_FILE_PATH
+        col_name: str = DBConstants.FileIndex.COL_FILE_NAME
+        col_size: str = DBConstants.FileIndex.COL_FILE_SIZE
         allowed_cols: List[str] = [
-            DBConstants.FileIndex.COL_ID,
-            DBConstants.FileIndex.COL_FILE_PATH,
-            DBConstants.FileIndex.COL_FILE_NAME,
+            col_id,
+            col_path,
+            col_name,
             DBConstants.FileIndex.COL_FILE_MD5,
-            DBConstants.FileIndex.COL_FILE_SIZE,
+            col_size,
             DBConstants.FileIndex.COL_FILE_TYPE,
             DBConstants.FileIndex.COL_VIDEO_DURATION,
             DBConstants.FileIndex.COL_VIDEO_CODEC,
@@ -386,48 +394,79 @@ class FileIndexProcessor(BaseDBProcessor):
             DBConstants.FileIndex.ALBUM_TIME_FIELD
         ]
 
-        # 兜底：未识别的排序字段统一按相册时间（EXIF 优先、修改时间兜底）排序
+        # 兜底：未识别的排序字段统一按相册时间排序
         if sort_by not in allowed_cols:
             sort_by = DBConstants.FileIndex.ALBUM_TIME_FIELD
-        order_expression: str = ""
         if sort_by == DBConstants.FileIndex.ALBUM_TIME_FIELD:
-            order_expression = DBConstants.FileIndex.ALBUM_TIME_EXPRESSION
-        elif sort_by == DBConstants.FileIndex.COL_FILE_NAME:
-            # 先按首字母全局排序，再按完整文件名排序；中文首字母由 SQLite 自定义函数计算
-            order_expression = "filename_initial(file_name)"
+            primary_expression: str = f"COALESCE({DBConstants.FileIndex.ALBUM_TIME_EXPRESSION}, '')"
+        elif sort_by == col_name:
+            primary_expression = "COALESCE(filename_initial(file_name), '#')"
+        elif sort_by == col_size:
+            primary_expression = f"COALESCE({col_size}, 0)"
+        else:
+            primary_expression = f"COALESCE({sort_by}, '')"
 
-        # 使用唯一 ID 兜底，确保主排序值相同时不同页不会重叠或漏项
-        secondary_order: str = (
-            f"{DBConstants.FileIndex.COL_FILE_NAME}, "
-            f"{DBConstants.FileIndex.COL_ID}"
-        )
+        order_str: str = 'ASC' if order else 'DESC'
+        comparison: str = '>' if order else '<'
+        order_by_sql: str = f"{primary_expression} {order_str}, {col_name} {order_str}, {col_id} {order_str}"
 
         # 排除回收站文件，并仅保留图片/视频类型
         col_recycle: str = DBConstants.FileIndex.COL_RECYCLE_BIN_TIME
-        extra_where: str = f"AND ({col_recycle} IS NULL OR {col_recycle} = '')"
-        extra_params: tuple = ()
+        where_sql: str = f"{col_name} LIKE ? AND ({col_recycle} IS NULL OR {col_recycle} = '')"
+        query_params: List[object] = [SearchQueryHelper.process_search_query(search_query)]
         valid_types: List[str] = [item for item in file_types if item]
         if valid_types:
             placeholders: str = ','.join(['?'] * len(valid_types))
-            extra_where += f" AND {DBConstants.FileIndex.COL_FILE_TYPE} IN ({placeholders})"
-            extra_params = tuple(valid_types)
+            where_sql += f" AND {DBConstants.FileIndex.COL_FILE_TYPE} IN ({placeholders})"
+            query_params.extend(valid_types)
 
-        return BaseDBProcessor._search_paged_list(
-            table_name=DBConstants.FileIndex.TABLE_NAME,
-            model_class=FileIndexDBModel,
-            page=page,
+        count_query: str = f"SELECT COUNT(*) as total FROM {table_name} WHERE {where_sql}"
+        total_res: Optional[dict] = BaseDBProcessor._execute(
+            count_query, tuple(query_params), is_query=True, fetch_one=True
+        )
+        total: int = int(total_res['total']) if total_res else 0
+
+        # 根据游标路径读取主排序值、次级排序值和唯一 ID，再严格取其后记录
+        cursor_sql: str = ''
+        if last_path:
+            cursor_query: str = (
+                f"SELECT {primary_expression} AS cursor_primary, "
+                f"{col_name} AS cursor_name, {col_id} AS cursor_id "
+                f"FROM {table_name} WHERE {col_path} = ?"
+            )
+            cursor_row: Optional[dict] = BaseDBProcessor._execute(
+                cursor_query, (last_path,), is_query=True, fetch_one=True
+            )
+            if not cursor_row:
+                return CursorPaginationResult(
+                    total=total, list=[], limit=limit,
+                    sort_by=sort_by, order=order_str
+                )
+            cursor_sql = (
+                f" AND (({primary_expression}) {comparison} ? "
+                f"OR (({primary_expression}) = ? AND {col_name} {comparison} ?) "
+                f"OR (({primary_expression}) = ? AND {col_name} = ? AND {col_id} {comparison} ?))"
+            )
+            query_params.extend((
+                cursor_row['cursor_primary'],
+                cursor_row['cursor_primary'], cursor_row['cursor_name'],
+                cursor_row['cursor_primary'], cursor_row['cursor_name'], cursor_row['cursor_id']
+            ))
+
+        list_query: str = (
+            f"SELECT * FROM {table_name} WHERE {where_sql}{cursor_sql} "
+            f"ORDER BY {order_by_sql} LIMIT ?"
+        )
+        query_params.append(limit)
+        rows: List[dict] = BaseDBProcessor._execute(list_query, tuple(query_params), is_query=True)
+        data_list: List[FileIndexDBModel] = [FileIndexDBModel(**row) for row in rows]
+
+        return CursorPaginationResult(
+            total=total,
+            list=data_list,
             limit=limit,
             sort_by=sort_by,
-            order=order,
-            search_query=search_query,
-            search_column=DBConstants.FileIndex.COL_FILE_NAME,
-            allowed_sort_columns=allowed_cols,
-            # 相册默认按“EXIF 优先、文件修改时间兜底”的合成时间排序，供前端时间轴分组展示
-            default_sort_column=DBConstants.FileIndex.ALBUM_TIME_FIELD,
-            extra_where=extra_where,
-            extra_params=extra_params,
-            order_expression=order_expression,
-            secondary_order=secondary_order
+            order=order_str
         )
 
     @staticmethod

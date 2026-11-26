@@ -16,7 +16,8 @@ from backend.db.db_constants import DBConstants
 from backend.model.album_settings_result import AlbumSettingsResult
 from backend.model.db.file_index_db_model import FileIndexDBModel
 from backend.model.face_index_result import FaceTaskStatusResult
-from backend.model.pagination_result import PaginationResult
+from backend.model.thumbnail_usage_result import ThumbnailUsageResult
+from backend.model.cursor_pagination_result import CursorPaginationResult
 from backend.user.user_service import userService
 
 
@@ -53,18 +54,18 @@ def _apply_repo_id_from_query() -> None:
 @token_required
 def list_album_media():
     """
-    用途说明：分页获取相册媒体列表（图片/视频），支持文件名搜索与排序。
+    用途说明：按媒体路径游标获取相册媒体列表（图片/视频），支持文件名搜索与排序。
     入参说明（Query）：
-        page (int): 页码，默认 1。
-        limit (int): 每页数量，默认 30。
+        limit (int): 每批数量，默认 50，最大 500。
+        last_path (str): 游标路径，传入上一条已加载媒体的完整路径；空字符串表示首批数据。
         sort_by (str): 排序字段，默认 album_time（EXIF 优先、文件修改时间兜底，供时间轴分组）。
         order_asc (bool): 是否升序，默认 false。
         search (str): 文件名搜索关键词。
         file_type (str): 媒体类型筛选，空串为全部，可选 image（仅图片）/ video（仅视频）；非法值按全部处理。
     返回值说明：统一 JSON 响应，data 为分页结果。
     """
-    page: int = request.args.get('page', default=1, type=int)
-    limit: int = request.args.get('limit', default=30, type=int)
+    limit: int = request.args.get('limit', default=50, type=int)
+    last_path: str = request.args.get('last_path', default='')
     sort_by: str = request.args.get('sort_by', default='album_time')
     order_asc: bool = request.args.get('order_asc', default='false').lower() == 'true'
     search_query: str = request.args.get('search', default='').strip()
@@ -72,7 +73,9 @@ def list_album_media():
     if file_type not in ('', FileType.IMAGE.value, FileType.VIDEO.value):
         file_type = ''
 
-    result: PaginationResult = AlbumService.get_album_list(page, limit, sort_by, order_asc, search_query, file_type)
+    result: CursorPaginationResult = AlbumService.get_album_list(
+        limit, sort_by, order_asc, search_query, file_type, last_path
+    )
     return success_response(t('album_list_success'), data=asdict(result))
 
 
@@ -115,6 +118,18 @@ def download_album_media():
         download_name=file_name or None,
         conditional=False
     )
+
+
+@album_bp.route('/thumbnail/usage', methods=['GET'])
+@token_required
+def get_thumbnail_usage() -> Tuple[Any, int]:
+    """
+    用途说明：获取当前配置的缩略图目录占用大小。
+    入参说明：无
+    返回值说明：统一 JSON 响应，data 为包含 size_bytes 的结果对象。
+    """
+    result: ThumbnailUsageResult = AlbumService.get_thumbnail_usage()
+    return success_response(t('album_thumbnail_usage_success'), data=asdict(result))
 
 
 @album_bp.route('/settings', methods=['GET'])

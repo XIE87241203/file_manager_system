@@ -154,7 +154,7 @@
     display: none;
 }
 
-/* 顶部排序与媒体类型下拉框：宽度随内容自适应，不铺满整行 */
+/* 顶部排序、媒体类型与显示列数下拉框：宽度随内容自适应，不铺满整行 */
 .album-filter-select {
     width: auto;
     min-width: 132px;
@@ -171,6 +171,16 @@
 .album-filter-select:focus {
     outline: none;
     border-color: var(--color-primary);
+}
+
+/* 显示列数菜单：选项含义明确，使用较窄宽度避免挤占筛选栏 */
+.album-column-select {
+    min-width: 112px;
+}
+
+/* 每页数量菜单：为“500 条”等文案预留宽度 */
+.album-page-size-select {
+    min-width: 120px;
 }
 
 /* 动态标尺标题：时间排序与文件名排序显示，文件大小排序隐藏 */
@@ -312,26 +322,69 @@
     color: var(--color-primary);
 }
 
-/* 瀑布流：容器内按时间分组，每组内部使用 CSS 多列布局 */
-.album-waterfall {
+/* 列表容器：占据标尺侧边栏右侧剩余宽度 */
+.album-list {
     flex: 1 1 auto;
     min-width: 0;
 }
 
-.album-group {
-    margin-bottom: 10px;
+/* 统一瀑布流：全部卡片按接口顺序横向铺满一行后自动换行 */
+.album-waterfall {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    align-items: start;
+    gap: 14px;
+    width: 100%;
 }
 
+/* 用户固定列数：优先于屏幕宽度，选择“自适应”时不命中这些规则 */
+.album-waterfall[data-column-count="1"] {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.album-waterfall[data-column-count="2"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.album-waterfall[data-column-count="3"] {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.album-waterfall[data-column-count="4"] {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.album-waterfall[data-column-count="5"] {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.album-waterfall[data-column-count="6"] {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.album-waterfall[data-column-count="7"] {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.album-waterfall[data-column-count="8"] {
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+}
+
+.album-waterfall[data-column-count="9"] {
+    grid-template-columns: repeat(9, minmax(0, 1fr));
+}
+
+.album-waterfall[data-column-count="10"] {
+    grid-template-columns: repeat(10, minmax(0, 1fr));
+}
+
+/* 分组标题：占满整行，作为连续卡片网格中的分隔标题 */
 .album-group-title {
-    margin: 0 0 10px;
+    grid-column: 1 / -1;
+    margin: 4px 0 0;
     font-size: 15px;
     font-weight: 600;
     color: var(--color-text-secondary);
-}
-
-.album-group-grid {
-    column-count: 4;
-    column-gap: 14px;
 }
 
 /* 预览打开时阻止页面背景滚动 */
@@ -343,8 +396,7 @@
 .album-card {
     position: relative;
     display: block;
-    break-inside: avoid;
-    margin-bottom: 14px;
+    min-width: 0;
     background: var(--color-surface);
     border-radius: 10px;
     overflow: hidden;
@@ -414,7 +466,7 @@
     padding: 2px 8px;
     border-radius: 10px;
     background: var(--alpha-black-62);
-    color: var(--color-text-inverse);
+    color: var(--color-white);
     font-size: 11px;
     line-height: 18px;
     pointer-events: none;
@@ -459,7 +511,7 @@
     border: none;
     border-radius: 50%;
     background: var(--alpha-white-92);
-    color: var(--color-text-strong);
+    color: var(--color-black);
     font-size: 15px;
     line-height: 1;
     display: inline-flex;
@@ -473,7 +525,7 @@
 }
 
 .album-action-btn:hover {
-    background: var(--color-surface);
+    background: var(--color-white);
     opacity: 1;
     transform: scale(1.06);
 }
@@ -529,6 +581,58 @@
     color: var(--color-primary);
 }
 
+/* 首屏与翻页加载占位：不确定进度时使用圆形滚动动画 */
+.album-loading-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    min-height: 280px;
+    width: 100%;
+}
+
+.album-load-more {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 20px 0 8px;
+}
+
+.album-loading-spinner {
+    width: 36px;
+    height: 36px;
+    box-sizing: border-box;
+    border: 3px solid var(--color-surface-muted);
+    border-top-color: var(--color-primary);
+    border-radius: 50%;
+    animation: album-loading-spin 0.8s linear infinite;
+}
+
+.album-loading-text {
+    color: var(--color-text-secondary);
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+@keyframes album-loading-spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .album-loading-spinner {
+        animation: none;
+        opacity: 0.65;
+    }
+}
+
 /* 空状态与滚动提示 */
 .album-empty {
     padding: 80px 20px;
@@ -574,7 +678,7 @@
 }
 
 .album-preview-name {
-    color: var(--color-text-inverse);
+    color: var(--color-white);
     font-size: 14px;
     white-space: nowrap;
     overflow: hidden;
@@ -594,7 +698,7 @@
     border: none;
     border-radius: 50%;
     background: var(--alpha-white-16);
-    color: var(--color-text-inverse);
+    color: var(--color-white);
     font-size: 17px;
     line-height: 1;
     display: inline-flex;
@@ -619,7 +723,7 @@
 
 /* 预览页选中数量：紧挨选中按钮展示 */
 .album-preview-selected-count {
-    color: var(--color-text-inverse);
+    color: var(--color-white);
     font-size: 13px;
     line-height: 1;
     padding: 0 2px;
@@ -654,7 +758,7 @@
     border: none;
     border-radius: 50%;
     background: var(--alpha-white-14);
-    color: var(--color-text-inverse);
+    color: var(--color-white);
     font-size: 34px;
     line-height: 1;
     display: inline-flex;
@@ -804,16 +908,16 @@
     }
 }
 
-/* 响应式列数 */
+/* 响应式列数：按行从左到右排列 */
 @media (max-width: 1200px) {
-    .album-group-grid {
-        column-count: 3;
+    .album-waterfall[data-column-count="auto"] {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 }
 
 @media (max-width: 860px) {
-    .album-group-grid {
-        column-count: 2;
+    .album-waterfall[data-column-count="auto"] {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
 
@@ -823,8 +927,8 @@
         min-width: 0;
     }
 
-    .album-group-grid {
-        column-count: 1;
+    .album-waterfall[data-column-count="auto"] {
+        grid-template-columns: minmax(0, 1fr);
     }
 
     /* 窄屏缩窄标尺侧边栏，用户仍可通过顶部开关隐藏或显示 */

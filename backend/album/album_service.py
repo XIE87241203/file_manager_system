@@ -13,7 +13,8 @@ from backend.file_repository.thumbnail.thumbnail_path_utils import ThumbnailPath
 from backend.model.album_item_result import AlbumItemResult
 from backend.model.album_settings_result import AlbumSettingsResult
 from backend.model.db.file_index_db_model import FileIndexDBModel
-from backend.model.pagination_result import PaginationResult
+from backend.model.cursor_pagination_result import CursorPaginationResult
+from backend.model.thumbnail_usage_result import ThumbnailUsageResult
 from backend.repository.repository_service import repositoryService
 from backend.setting.setting_service import settingService
 
@@ -31,21 +32,20 @@ class AlbumService:
     MEDIA_TYPES: List[str] = [FileType.IMAGE.value, FileType.VIDEO.value]
 
     @staticmethod
-    def get_album_list(page: int, limit: int, sort_by: str, order_asc: bool,
-                       search_query: str, file_type: str = '') -> PaginationResult[AlbumItemResult]:
+    def get_album_list(limit: int, sort_by: str, order_asc: bool,
+                       search_query: str, file_type: str = '', last_path: str = '') -> CursorPaginationResult[AlbumItemResult]:
         """
-        用途说明：分页查询相册媒体列表，并将数据库模型转换为 API 返回数据。
+        用途说明：按媒体路径游标查询相册媒体列表，并将数据库模型转换为 API 返回数据。
         入参说明：
-            page (int): 当前页码（最小 1）。
-            limit (int): 每页数量（限制在 1-200）。
+            limit (int): 每批数量（限制在 1-500）。
             sort_by (str): 排序字段，可选 album_time、file_name、file_size。
             order_asc (bool): 是否升序。
             search_query (str): 文件名搜索关键词。
             file_type (str): 媒体类型筛选，空串为全部，可选 image（仅图片）/ video（仅视频）。
-        返回值说明：PaginationResult[AlbumItemResult] - 相册媒体分页结果。
+            last_path (str): 媒体路径游标，空字符串表示首批数据。
+        返回值说明：CursorPaginationResult[AlbumItemResult] - 不包含页码的相册游标分页结果。
         """
-        safe_page: int = max(1, page)
-        safe_limit: int = min(200, max(1, limit))
+        safe_limit: int = min(500, max(1, limit))
         # 按类型筛选：非法或空值回退为图片 + 视频全部类型
         target_types: List[str] = AlbumService.MEDIA_TYPES
         if file_type == FileType.IMAGE.value:
@@ -53,8 +53,8 @@ class AlbumService:
         elif file_type == FileType.VIDEO.value:
             target_types = [FileType.VIDEO.value]
 
-        raw_result: PaginationResult[FileIndexDBModel] = DBOperations.search_album_file_list(
-            safe_page, safe_limit, sort_by, order_asc, search_query, target_types
+        raw_result: CursorPaginationResult[FileIndexDBModel] = DBOperations.search_album_file_list(
+            safe_limit, sort_by, order_asc, search_query, target_types, last_path
         )
 
         items: List[AlbumItemResult] = []
@@ -78,10 +78,9 @@ class AlbumService:
                 )
             ))
 
-        return PaginationResult(
+        return CursorPaginationResult(
             total=raw_result.total,
             list=items,
-            page=raw_result.page,
             limit=raw_result.limit,
             sort_by=raw_result.sort_by,
             order=raw_result.order
@@ -126,6 +125,36 @@ class AlbumService:
             thumbnail_size=thumbnail_size,
             auto_face_recognition=auto_face_recognition
         )
+
+    @staticmethod
+    def get_thumbnail_usage() -> ThumbnailUsageResult:
+        """
+        用途说明：统计当前配置的缩略图目录占用大小，仅遍历文件元数据，不读取文件内容。
+        入参说明：无
+        返回值说明：ThumbnailUsageResult - 缩略图目录中普通文件的总字节数；目录不存在时返回 0。
+        """
+        result: ThumbnailUsageResult = ThumbnailUsageResult()
+        thumbnail_dir: str = ThumbnailPathUtils.get_thumbnail_dir()
+        if not os.path.isdir(thumbnail_dir):
+            return result
+
+        pending_dirs: List[str] = [thumbnail_dir]
+        while pending_dirs:
+            current_dir: str = pending_dirs.pop()
+            try:
+                with os.scandir(current_dir) as entries:
+                    for entry in entries:
+                        try:
+                            if entry.is_dir(follow_symlinks=False):
+                                pending_dirs.append(entry.path)
+                            elif entry.is_file(follow_symlinks=False):
+                                result.size_bytes += entry.stat().st_size
+                        except OSError as e:
+                            LogUtils.error(t('album_thumbnail_usage_error', error=str(e)))
+            except OSError as e:
+                LogUtils.error(t('album_thumbnail_usage_error', error=str(e)))
+
+        return result
 
     @staticmethod
     def update_settings(thumbnail_dir: str, operator_name: str,

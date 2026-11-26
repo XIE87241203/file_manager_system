@@ -20,6 +20,22 @@ const AlbumSettingRequest = {
     },
 
     /**
+     * 用途说明：获取当前缩略图目录占用大小。
+     * 入参说明：
+     *   onSuccess (Function) - 成功回调，参数为 {size_bytes}。
+     *   onError (Function) - 失败回调，参数为错误信息。
+     * 返回值说明：无
+     */
+    getThumbnailUsage(onSuccess, onError) {
+        Request.get('/api/album/thumbnail/usage', {}, false)
+            .then(res => {
+                if (res.status === 'success') onSuccess(res.data);
+                else onError(res.message);
+            })
+            .catch(err => onError(err.message || I18nManager.t('common.network_error')));
+    },
+
+    /**
      * 用途说明：更新相册缩略图设置与自动人脸识别开关。
      * 入参说明：
      *   thumbnailDir (string) - 新的缩略图存储路径。

@@ -525,6 +525,8 @@ TRANSLATIONS = {
     "album_thumbnail_dir_create_failed": "Failed to create thumbnail storage directory: {path}, error: {error}",
     "album_thumbnail_size_invalid": "Invalid thumbnail maximum edge length: {value}; a positive integer is required",
     "album_settings_get_success": "Album settings retrieved successfully",
+    "album_thumbnail_usage_success": "Thumbnail storage usage retrieved successfully",
+    "album_thumbnail_usage_error": "Failed to calculate thumbnail storage usage: {error}",
     "album_settings_update_success": "Album settings updated successfully",
     "album_settings_update_failed": "Failed to update album settings",
     "album_settings_update_failed_log": "Album settings update failed, operator: {user}",

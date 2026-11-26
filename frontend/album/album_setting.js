@@ -10,6 +10,11 @@ const State = {
     thumbnailSize: 256,
     autoFaceRecognition: false,
     thumbnailSizeOptions: [128, 256, 512, 1024, 2048],
+    thumbnailUsage: {
+        status: 'idle', // idle 初始 / loading 统计中 / success 统计完成 / failed 统计失败
+        sizeBytes: 0,
+        requestToken: 0 // 请求代次，避免路径切换后的旧统计结果覆盖新结果
+    },
     saving: false,
     // 缩略图同步任务状态（由系统设置迁入）
     thumbnailSync: {
@@ -39,6 +44,15 @@ const API = {
      */
     getSettings(onSuccess, onError) {
         AlbumSettingRequest.getSettings(onSuccess, onError);
+    },
+
+    /**
+     * 用途说明：获取当前缩略图目录占用大小。
+     * 入参说明：onSuccess (Function) - 成功回调，参数为 {size_bytes}；onError (Function) - 失败回调。
+     * 返回值说明：无
+     */
+    getThumbnailUsage(onSuccess, onError) {
+        AlbumSettingRequest.getThumbnailUsage(onSuccess, onError);
     },
 
     /**
@@ -157,6 +171,7 @@ const UIController = {
             dirInput: document.getElementById('thumbnail-dir-input'),
             sizeSelect: document.getElementById('thumbnail-size-select'),
             effectiveValue: document.getElementById('thumbnail-dir-effective'),
+            thumbnailUsageValue: document.getElementById('thumbnail-usage-value'),
             saveBtn: document.getElementById('btn-save-album-setting'),
             faceCard: document.getElementById('face-recognition-card'),
             autoFaceCheckbox: document.getElementById('auto-face-recognition'),
@@ -169,6 +184,7 @@ const UIController = {
             faceClearBtn: document.getElementById('btn-face-clear')
         };
         this.renderThumbnailSizeOptions();
+        document.addEventListener('appearance:languagechange', () => this.renderThumbnailUsage());
     },
 
     /**
@@ -192,6 +208,35 @@ const UIController = {
             this.elements.autoFaceCheckbox.disabled = !State.faceRecognition.canManage || State.saving;
         }
         this.renderThumbnailSizeOptions();
+    },
+
+    /**
+     * 用途说明：记录缩略图占用统计状态，并在状态变化后刷新页面显示。
+     * 入参说明：status (string) - idle/loading/success/failed；sizeBytes (number) - 统计成功时的总字节数。
+     * 返回值说明：无
+     */
+    setThumbnailUsageStatus(status, sizeBytes = 0) {
+        State.thumbnailUsage.status = status;
+        State.thumbnailUsage.sizeBytes = Number(sizeBytes) || 0;
+        this.renderThumbnailUsage();
+    },
+
+    /**
+     * 用途说明：按当前统计状态与语言渲染缩略图占用大小。
+     * 入参说明：无
+     * 返回值说明：无
+     */
+    renderThumbnailUsage() {
+        if (!this.elements.thumbnailUsageValue) return;
+        let text = '--';
+        if (State.thumbnailUsage.status === 'loading') {
+            text = I18nManager.t('album.thumbnail_usage_loading');
+        } else if (State.thumbnailUsage.status === 'success') {
+            text = CommonUtils.formatFileSize(State.thumbnailUsage.sizeBytes);
+        } else if (State.thumbnailUsage.status === 'failed') {
+            text = I18nManager.t('album.thumbnail_usage_failed');
+        }
+        this.elements.thumbnailUsageValue.textContent = text;
     },
 
     /**
@@ -338,6 +383,7 @@ const App = {
         UIController.initThumbnailSyncButton();
         this.bindEvents();
         this.loadSettings();
+        this.loadThumbnailUsage();
         // 初始化时检查一次同步任务状态，并按权限加载人脸任务状态
         this.syncThumbnailProgress();
         this.loadCurrentUser();
@@ -379,6 +425,24 @@ const App = {
     },
 
     /**
+     * 用途说明：异步获取并显示缩略图目录占用大小，并以请求代次丢弃过期的统计结果。
+     * 入参说明：无
+     * 返回值说明：无
+     */
+    loadThumbnailUsage() {
+        const requestToken = ++State.thumbnailUsage.requestToken;
+        UIController.setThumbnailUsageStatus('loading');
+        API.getThumbnailUsage((data) => {
+            if (requestToken !== State.thumbnailUsage.requestToken) return;
+            UIController.setThumbnailUsageStatus('success', Number(data && data.size_bytes) || 0);
+        }, (msg) => {
+            if (requestToken !== State.thumbnailUsage.requestToken) return;
+            UIController.setThumbnailUsageStatus('failed');
+            console.error(I18nManager.t('album.thumbnail_usage_load_failed'), msg);
+        });
+    },
+
+    /**
      * 用途说明：校验并保存缩略图存储路径、最大边长与自动人脸识别开关。
      * 入参说明：无
      * 返回值说明：无
@@ -405,6 +469,7 @@ const App = {
         API.saveSettings(value, thumbnailSize, autoFaceRecognition, (data) => {
             UIController.setSaving(false);
             UIController.renderSettings(data);
+            this.loadThumbnailUsage();
             Toast.show(I18nManager.t('album.save_success'));
         }, (msg) => {
             UIController.setSaving(false);
@@ -653,6 +718,7 @@ const App = {
                             Toast.show(I18nManager.t('common.error') + ': ' + progress.message);
                         }
                         State.thumbnailSync.status = ProgressStatus.IDLE;
+                        this.loadThumbnailUsage();
                     }
                     widget.setState('idle');
                 }

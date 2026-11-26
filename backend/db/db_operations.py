@@ -17,6 +17,7 @@ from backend.model.db.pending_entry_file_db_model import PendingEntryFileDBModel
 from backend.model.db.video_feature_db_model import VideoFeatureDBModel
 from backend.model.duplicate_group_result import DuplicateGroupResult
 from backend.model.face_index_result import FaceIndexSummaryResult
+from backend.model.cursor_pagination_result import CursorPaginationResult
 from backend.model.pagination_result import PaginationResult
 from backend.model.video_file_info_result import VideoFileInfoResult
 
@@ -170,21 +171,22 @@ class DBOperations:
         return processor_manager.file_index_processor.get_paged_list(page, limit, sort_by, order, search_query, is_in_recycle_bin, file_type)
 
     @staticmethod
-    def search_album_file_list(page: int, limit: int, sort_by: str, order: bool,
-                               search_query: str, file_types: List[str]) -> PaginationResult[FileIndexDBModel]:
+    def search_album_file_list(limit: int, sort_by: str, order: bool,
+                               search_query: str, file_types: List[str],
+                               last_path: str = '') -> CursorPaginationResult[FileIndexDBModel]:
         """
-        用途说明：分页查询相册媒体文件（图片/视频）列表，排除回收站文件。
+        用途说明：按媒体路径游标查询相册媒体文件（图片/视频）列表，排除回收站文件。
         入参说明：
-            page (int): 当前页码。
-            limit (int): 每页条数。
+            limit (int): 每批条数。
             sort_by (str): 排序字段。
             order (bool): 是否为升序。
             search_query (str): 文件名搜索关键词。
             file_types (List[str]): 文件类型列表（如 ['image', 'video']）。
-        返回值说明：PaginationResult[FileIndexDBModel] - 分页结果对象。
+            last_path (str): 媒体路径游标，空字符串表示首批数据。
+        返回值说明：CursorPaginationResult[FileIndexDBModel] - 不包含页码的游标分页结果。
         """
         return processor_manager.file_index_processor.get_album_paged_list(
-            page, limit, sort_by, order, search_query, file_types
+            limit, sort_by, order, search_query, file_types, last_path
         )
 
     @staticmethod

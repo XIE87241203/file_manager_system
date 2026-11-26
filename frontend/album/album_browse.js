@@ -6,10 +6,11 @@
 
 // --- 状态管理 ---
 const State = {
-    page: 1,
-    limit: 30,
+    pageSize: 50, // 每页加载数量：50～500，步长 10，仅在后续分页请求时生效
+    cursorPath: '', // 下一页游标：已加载列表中最后一条媒体路径，空字符串表示首批数据
     search: '',
     fileType: '', // 媒体类型筛选：'' 全部 / 'image' 仅图片 / 'video' 仅视频
+    columnCount: 'auto', // 显示列数：auto 按屏幕宽度自适应 / '1'～'10' 固定列数
     sidebarVisible: true, // 标尺侧边栏是否由用户手动展开；文件大小排序时自动隐藏
     sortBy: 'album_time', // album_time 时间倒序 / file_name 文件名升序 / file_size 文件大小倒序
     orderAsc: false,
@@ -19,7 +20,7 @@ const State = {
     hasMore: true,
     selected: new Set(), // 已选中的文件路径集合
     cardMap: new Map(), // file_path -> { card, item, img, placeholder, placeholderText, groupKey }
-    groupMap: new Map(), // 当前排序分组键 -> { key, section, grid, count }
+    groupMap: new Map(), // 当前排序分组键 -> { key, title, count }
     groupKeys: [], // 分组键列表，严格保持数据库全局排序顺序
     timelineTicks: [], // 动态标尺刻度缓存：[{ el, level, key, year, month }]
     activeGroupKey: '', // 当前滚动位置对应的分组键
@@ -52,14 +53,14 @@ const API = {
     },
 
     /**
-     * 用途说明：拉取一页相册数据。
-     * 入参说明：page (number) - 页码；onSuccess (Function) - 成功回调；onError (Function) - 失败回调。
+     * 用途说明：按最后一条媒体路径拉取后续一页相册数据。
+     * 入参说明：cursorPath (string) - 游标路径，空字符串表示第一页；onSuccess (Function) - 成功回调；onError (Function) - 失败回调。
      * 返回值说明：无
      */
-    fetchList(page, onSuccess, onError) {
+    fetchList(cursorPath, onSuccess, onError) {
         AlbumBrowseRequest.list({
-            page: page,
-            limit: State.limit,
+            last_path: cursorPath || '',
+            limit: State.pageSize,
             search: State.search,
             file_type: State.fileType,
             sort_by: State.sortBy,
@@ -151,7 +152,11 @@ const UIController = {
             axisTitle: document.getElementById('album-axis-title'),
             sortFilter: document.getElementById('album-sort-filter'),
             typeFilter: document.getElementById('album-type-filter'),
+            pageSizeFilter: document.getElementById('album-page-size-filter'),
+            columnFilter: document.getElementById('album-column-filter'),
             waterfall: document.getElementById('album-waterfall'),
+            loadingPlaceholder: document.getElementById('album-loading-placeholder'),
+            loadMore: document.getElementById('album-load-more'),
             empty: document.getElementById('album-empty'),
             sentinel: document.getElementById('album-sentinel'),
             endTip: document.getElementById('album-end-tip'),
@@ -187,6 +192,8 @@ const UIController = {
         this.bindDetailResize();
         this.bindTypeFilter();
         this.bindSortFilter();
+        this.bindPageSizeFilter();
+        this.bindColumnFilter();
         this.bindSidebarToggle();
         this.updateAxisMode();
         this.applyPermissionUI();
@@ -332,6 +339,125 @@ const UIController = {
             this.updateAxisMode();
             App.loadFirstPage();
         };
+    },
+
+    /**
+     * 用途说明：读取本地保存的每页数量偏好，非法值或存储不可用时回退为 50 条。
+     * 入参说明：无
+     * 返回值说明：number - 50～500 之间且步长为 10 的整数。
+     */
+    getSavedPageSize() {
+        try {
+            /** @type {number} */
+            const saved = Number(localStorage.getItem('album_page_size'));
+            return Number.isInteger(saved) && saved >= 50 && saved <= 500 && saved % 10 === 0 ? saved : 50;
+        } catch (error) {
+            // 浏览器禁用本地存储时仍允许当前页面调整每页数量。
+            return 50;
+        }
+    },
+
+    /**
+     * 用途说明：按 50～500、步长 10 生成每页数量选项，并保留当前选中值。
+     * 入参说明：无
+     * 返回值说明：无
+     */
+    buildPageSizeOptions() {
+        const select = this.elements.pageSizeFilter;
+        if (!select) return;
+        /** @type {string} */
+        const selected = select.value;
+        select.textContent = '';
+        for (let pageSize = 50; pageSize <= 500; pageSize += 10) {
+            /** @type {HTMLOptionElement} */
+            const option = document.createElement('option');
+            option.value = String(pageSize);
+            option.textContent = I18nManager.t('album.page_size_option', { count: pageSize });
+            select.appendChild(option);
+        }
+        if (selected) select.value = selected;
+    },
+
+    /**
+     * 用途说明：绑定每页数量下拉框，恢复本地偏好；切换仅保存配置，不刷新当前列表，下一次分页请求自动使用新数量。
+     * 入参说明：无
+     * 返回值说明：无
+     */
+    bindPageSizeFilter() {
+        const select = this.elements.pageSizeFilter;
+        if (!select) return;
+        State.pageSize = this.getSavedPageSize();
+        this.buildPageSizeOptions();
+        select.value = String(State.pageSize);
+        document.addEventListener('appearance:languagechange', () => this.buildPageSizeOptions());
+        select.onchange = () => {
+            /** @type {number} */
+            const pageSize = Number(select.value);
+            if (!Number.isInteger(pageSize) || pageSize < 50 || pageSize > 500 || pageSize % 10 !== 0) {
+                select.value = String(State.pageSize);
+                return;
+            }
+            State.pageSize = pageSize;
+            try {
+                localStorage.setItem('album_page_size', String(pageSize));
+            } catch (error) {
+                // 浏览器禁用本地存储时仅保留当前页面的每页数量设置。
+            }
+        };
+    },
+
+    /**
+     * 用途说明：读取本地保存的相册列数偏好，非法值或存储不可用时回退为自适应。
+     * 入参说明：无
+     * 返回值说明：string - auto 或 '1'～'10'。
+     */
+    getSavedColumnCount() {
+        try {
+            const saved = localStorage.getItem('album_column_count') || 'auto';
+            return /^(auto|[1-9]|10)$/.test(saved) ? saved : 'auto';
+        } catch (error) {
+            // 浏览器禁用本地存储时仍允许当前页面调整列数。
+            return 'auto';
+        }
+    },
+
+    /**
+     * 用途说明：绑定显示列数下拉框，恢复本地偏好并在切换时立即更新网格，不重新请求数据。
+     * 入参说明：无
+     * 返回值说明：无
+     */
+    bindColumnFilter() {
+        const select = this.elements.columnFilter;
+        if (!select) return;
+        State.columnCount = this.getSavedColumnCount();
+        select.value = State.columnCount;
+        this.applyColumnCount();
+        select.onchange = () => {
+            const columnCount = select.value;
+            if (!/^(auto|[1-9]|10)$/.test(columnCount)) {
+                select.value = State.columnCount;
+                return;
+            }
+            State.columnCount = columnCount;
+            try {
+                localStorage.setItem('album_column_count', columnCount);
+            } catch (error) {
+                // 浏览器禁用本地存储时仅保留当前页面的列数设置。
+            }
+            this.applyColumnCount();
+            this.updateTimelineActive();
+        };
+    },
+
+    /**
+     * 用途说明：将当前列数配置同步到瀑布流数据属性，由 CSS 规则选择自适应或固定列数。
+     * 入参说明：无
+     * 返回值说明：无
+     */
+    applyColumnCount() {
+        if (this.elements.waterfall) {
+            this.elements.waterfall.dataset.columnCount = State.columnCount;
+        }
     },
 
     /**
@@ -770,30 +896,21 @@ const UIController = {
     },
 
     /**
-     * 用途说明：确保指定分组的容器（标题 + 多列瀑布流网格）已创建，并按接口顺序追加新分组。
+     * 用途说明：确保指定分组的标题已创建，并按接口顺序追加到统一瀑布流网格。
      * 入参说明：key (string) - 当前排序方式对应的分组键。
-     * 返回值说明：Object - 分组信息 { key, section, grid, count }。
+     * 返回值说明：Object - 分组信息 { key, title, count }，标题同时作为时间轴跳转锚点。
      */
     ensureGroup(key) {
         const existing = State.groupMap.get(key);
         if (existing) return existing;
 
-        const section = document.createElement('section');
-        section.className = 'album-group';
-        section.setAttribute('data-key', key);
-
         const title = document.createElement('h2');
         title.className = 'album-group-title';
+        title.setAttribute('data-key', key);
         title.textContent = this.buildGroupTitle(key);
+        if (this.elements.waterfall) this.elements.waterfall.appendChild(title);
 
-        const grid = document.createElement('div');
-        grid.className = 'album-group-grid';
-
-        section.appendChild(title);
-        section.appendChild(grid);
-        if (this.elements.waterfall) this.elements.waterfall.appendChild(section);
-
-        const groupInfo = { key: key, section: section, grid: grid, count: 0 };
+        const groupInfo = { key: key, title: title, count: 0 };
         State.groupMap.set(key, groupInfo);
         State.groupKeys.push(key);
         return groupInfo;
@@ -909,7 +1026,7 @@ const UIController = {
         State.groupKeys.forEach(key => {
             const group = State.groupMap.get(key);
             if (!group) return;
-            if (group.section.getBoundingClientRect().top - rootTop <= 96) activeKey = key;
+            if (group.title.getBoundingClientRect().top - rootTop <= 96) activeKey = key;
         });
         State.activeGroupKey = activeKey;
 
@@ -943,7 +1060,7 @@ const UIController = {
         const group = State.groupMap.get(key);
         const scrollRoot = document.querySelector('.main-content');
         if (!group || !scrollRoot) return;
-        const offset = group.section.getBoundingClientRect().top
+        const offset = group.title.getBoundingClientRect().top
             - scrollRoot.getBoundingClientRect().top
             + scrollRoot.scrollTop
             - 12;
@@ -951,14 +1068,14 @@ const UIController = {
     },
 
     /**
-     * 用途说明：移除已清空的分组容器并重建动态标尺。
+     * 用途说明：移除已清空的分组标题并重建动态标尺。
      * 入参说明：key (string) - 待移除的分组键。
      * 返回值说明：无
      */
     removeGroup(key) {
         const group = State.groupMap.get(key);
         if (!group) return;
-        if (group.section.parentNode) group.section.parentNode.removeChild(group.section);
+        if (group.title.parentNode) group.title.parentNode.removeChild(group.title);
         State.groupMap.delete(key);
         const index = State.groupKeys.indexOf(key);
         if (index >= 0) State.groupKeys.splice(index, 1);
@@ -979,7 +1096,7 @@ const UIController = {
             const card = this.createCard(item);
             const info = State.cardMap.get(item.file_path);
             if (info) info.groupKey = groupKey;
-            group.grid.appendChild(card);
+            if (this.elements.waterfall) this.elements.waterfall.appendChild(card);
             group.count += 1;
         });
         if (State.groupKeys.length !== previousGroupCount) this.rebuildTimeline();
@@ -1024,13 +1141,24 @@ const UIController = {
     },
 
     /**
-     * 用途说明：刷新空数据与“没有更多”提示。
+     * 用途说明：刷新首屏加载占位、底部翻页加载、空数据与“没有更多”提示。
      * 入参说明：无
      * 返回值说明：无
      */
     updateEmptyState() {
         const isEmpty = State.items.length === 0;
-        if (this.elements.empty) this.elements.empty.classList.toggle('hidden', !isEmpty);
+        const showInitialLoading = State.loading && isEmpty;
+        const showLoadMore = State.loading && !isEmpty;
+        if (this.elements.loadingPlaceholder) {
+            this.elements.loadingPlaceholder.classList.toggle('hidden', !showInitialLoading);
+            this.elements.loadingPlaceholder.setAttribute('aria-busy', String(showInitialLoading));
+        }
+        if (this.elements.loadMore) {
+            this.elements.loadMore.classList.toggle('hidden', !showLoadMore);
+            this.elements.loadMore.setAttribute('aria-busy', String(showLoadMore));
+        }
+        if (this.elements.waterfall) this.elements.waterfall.setAttribute('aria-busy', String(State.loading));
+        if (this.elements.empty) this.elements.empty.classList.toggle('hidden', State.loading || !isEmpty);
         if (this.elements.endTip) {
             const showEnd = !isEmpty && !State.hasMore && !State.loading;
             this.elements.endTip.classList.toggle('hidden', !showEnd);
@@ -1438,7 +1566,7 @@ const App = {
      * 返回值说明：无
      */
     loadFirstPage() {
-        State.page = 1;
+        State.cursorPath = '';
         State.items = [];
         State.total = 0;
         State.hasMore = true;
@@ -1449,42 +1577,41 @@ const App = {
         State.selected.clear();
         this.clearSelection();
         UIController.clearList();
-        UIController.updateEmptyState();
-        this.loadPage(1, true);
+        this.loadPage('');
     },
 
     /**
-     * 用途说明：加载下一页数据（无限滚动触发）。
+     * 用途说明：以当前最后一条媒体路径为游标加载下一页数据（无限滚动触发）。
      * 入参说明：无
      * 返回值说明：无
      */
     loadNextPage() {
         if (State.loading || !State.hasMore) return;
-        this.loadPage(State.page + 1, false);
+        this.loadPage(State.cursorPath);
     },
 
     /**
-     * 用途说明：执行分页请求并渲染结果。
-     * 入参说明：
-     *   page (number) - 页码。
-     *   isFirst (boolean) - 是否为首屏（首屏失败时不显示"没有更多"）。
+     * 用途说明：按媒体路径游标执行分页请求并渲染结果，空路径表示第一页。
+     * 入参说明：cursorPath (string) - 上一条已加载媒体的完整路径，空字符串表示第一页。
      * 返回值说明：无
      */
-    loadPage(page, isFirst) {
+    loadPage(cursorPath) {
         State.loading = true;
-        if (UIController.elements.endTip) UIController.elements.endTip.classList.add('hidden');
+        UIController.updateEmptyState();
         const token = State.queryToken;
 
-        API.fetchList(page, (data) => {
+        API.fetchList(cursorPath, (data) => {
             if (token !== State.queryToken) return;
             const list = (data && data.list) || [];
-            State.page = (data && data.page) || page;
+            const existing = new Set(State.items.map(item => item.file_path));
+            const freshList = list.filter(item => !existing.has(item.file_path));
             State.total = (data && data.total) || 0;
-            State.items = State.items.concat(list);
-            State.hasMore = State.items.length < State.total;
+            State.items = State.items.concat(freshList);
+            if (list.length > 0) State.cursorPath = list[list.length - 1].file_path;
+            State.hasMore = list.length > 0 && State.items.length < State.total;
             State.loading = false;
 
-            UIController.appendItems(list);
+            UIController.appendItems(freshList);
             UIController.updateEmptyState();
             this.maybeLoadMore();
         }, (msg) => {
@@ -1492,7 +1619,7 @@ const App = {
             State.loading = false;
             State.hasMore = false;
             Toast.show(msg || I18nManager.t('album.load_failed'));
-            if (isFirst) UIController.updateEmptyState();
+            UIController.updateEmptyState();
         });
     },
 
@@ -1512,19 +1639,22 @@ const App = {
     },
 
     /**
-     * 用途说明：删除后重新拉取当前页，仅追加未见过的数据，补齐分页偏移产生的空缺。
+     * 用途说明：删除后以剩余最后一条媒体路径为游标拉取后续数据，补齐分页空缺且不重复已有项。
      * 入参说明：无
      * 返回值说明：无
      */
     refillCurrentPage() {
         const token = State.queryToken;
-        API.fetchList(State.page, (data) => {
+        const cursorPath = State.items.length > 0 ? State.items[State.items.length - 1].file_path : '';
+        API.fetchList(cursorPath, (data) => {
             if (token !== State.queryToken) return;
             const existing = new Set(State.items.map(item => item.file_path));
             const list = ((data && data.list) || []).filter(item => !existing.has(item.file_path));
             State.total = (data && data.total) || State.total;
             State.items = State.items.concat(list);
-            State.hasMore = State.items.length < State.total;
+            if (list.length > 0) State.cursorPath = list[list.length - 1].file_path;
+            if (State.items.length === 0) State.cursorPath = '';
+            State.hasMore = list.length > 0 && State.items.length < State.total;
             UIController.appendItems(list);
             UIController.updateEmptyState();
             this.maybeLoadMore();
