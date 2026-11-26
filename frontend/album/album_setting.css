@@ -1,5 +1,5 @@
 /**
- * 用途说明：相册设置页样式，定义设置卡片、路径输入、分辨率选择、生效路径与人脸队列操作区。
+ * 用途说明：相册设置页样式，定义设置卡片、路径输入、分辨率选择、自动生成缩略图、生效路径与人脸队列操作区。
  * 规范：仅使用 class 绑定样式，禁止内联样式。
  */
 
@@ -47,11 +47,16 @@
     color: var(--color-primary);
 }
 
-/* 保存按钮：使用块级弹性布局，让水平自动边距生效并保持左右居中 */
-.album-save-btn {
+/* 设置操作按钮：保存、生成与清理统一宽度、尺寸并居中显示 */
+.album-setting-action-btn {
     display: flex;
-    max-width: 200px;
+    width: 200px;
+    max-width: 100%;
+    min-height: 48px;
     margin: 0 auto;
+    padding: 0.75rem;
+    font-size: 1rem;
+    box-sizing: border-box;
 }
 
 /* 缩略图维护卡片（由系统设置迁入） */
@@ -101,9 +106,67 @@
     line-height: 1.4;
 }
 
-/* 同步按钮容器撑满宽度，与设置页保持一致 */
-.album-sync-btn-container {
+/* 操作按钮容器撑满维护项，内部按钮按设置页统一宽度居中 */
+.album-sync-btn-container,
+.album-generate-btn-container {
+    display: flex;
+    justify-content: center;
     width: 100%;
+}
+
+.album-sync-btn-container .progress-btn-container {
+    width: 200px;
+    max-width: 100%;
+    min-height: 48px;
+    padding: 0.75rem;
+    box-sizing: border-box;
+}
+
+.album-sync-btn-container .progress-btn-container:not(.processing):hover {
+    background-color: var(--color-primary-bootstrap-hover) !important;
+}
+
+.album-setting-action-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.album-sync-spaced {
+    margin-top: 12px;
+}
+
+/* 索引新增文件自动生成缩略图开关 */
+.album-auto-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 14px;
+    padding: 12px 14px;
+    background: var(--palette-f5f7fa);
+    border: 1px solid var(--palette-e6e9ee);
+    border-radius: 8px;
+}
+
+.album-auto-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--color-text-strong);
+    font-size: 0.95rem;
+    cursor: pointer;
+}
+
+.album-auto-checkbox {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    accent-color: var(--color-primary);
+}
+
+.album-auto-hint {
+    color: var(--color-text-tertiary);
+    font-size: 0.82rem;
+    line-height: 1.45;
 }
 
 /* 人脸自动识别开关 */

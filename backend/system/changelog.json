@@ -1,6 +1,48 @@
 {
   "entries": [
     {
+      "version": "1.1.2",
+      "date": "2026-11-26",
+      "highlights": [
+        {
+          "zh": "相册改为横向填满再换行的瀑布流，支持 1 到 10 列和每批 50 到 500 条，未加载时显示圆形占位，翻页自动衔接。",
+          "en": "The album now uses a row-filled waterfall layout with 1–10 columns and 50–500 items per batch, circular loading placeholders, and seamless cursor-based paging."
+        },
+        {
+          "zh": "相册新增总数、完整字母尺和分级年月日时间轴，可按年份、月份、日期定位，并在向上滚动时加载上一批内容。",
+          "en": "Added album totals, a complete alphabet ruler, and hierarchical year/month/day timelines with date navigation and previous-batch loading when scrolling upward."
+        },
+        {
+          "zh": "相册时间轴和字母尺放在可折叠、可拖宽的侧边栏中，默认关闭；媒体卡片隐藏文件名，详情按钮移到操作行左侧。",
+          "en": "Timeline and alphabet rulers now sit in a collapsible, resizable sidebar that is closed by default; media cards hide filenames and place the details button on the left."
+        },
+        {
+          "zh": "首页、相册和文件管理新增当前任务按钮，可查看索引、查重、整理和缩略图等任务；任务期间页面不再被进度遮罩挡住。",
+          "en": "Added a Current Tasks button to Home, Album, and File Management for indexing, duplicate checks, organization, thumbnails, and more, without progress masks blocking page content."
+        },
+        {
+          "zh": "任务列表显示具体进度和剩余数量，支持暂停、恢复、停止；只有系统管理员或对应仓库管理员可以操作。",
+          "en": "Task lists show detailed progress and remaining counts with pause, resume, and stop controls restricted to system administrators and the relevant repository administrators."
+        },
+        {
+          "zh": "相册设置可开启新文件自动生成缩略图，也可手动扫描缺少缩略图的图片和视频；清理按钮统一改为清理无效缩略图。",
+          "en": "Album Settings can automatically generate thumbnails for new files or manually scan images and videos missing thumbnails; cache maintenance is now labeled Clean Invalid Thumbnails."
+        },
+        {
+          "zh": "缩略图队列增加处理中去重和准确剩余数量，同内容文件继续复用缩略图，保存、生成和清理按钮样式统一。",
+          "en": "Thumbnail queues now deduplicate active items and report accurate remaining counts, reuse thumbnails for identical content, and use consistent save, generate, and clean buttons."
+        },
+        {
+          "zh": "支持仓库和用户重命名，缩略图尺寸统一到相册设置，并新增后端启动、停止和重启脚本。",
+          "en": "Added repository and user renaming, unified thumbnail sizing in Album Settings, and added scripts to start, stop, and restart the backend."
+        }
+      ],
+      "rebuild_index_notice": {
+        "zh": "本次升级无需重建索引。已有图片或视频缺少缩略图时，可在相册设置点击“生成缩略图”；历史记录缺少拍摄时间或地点时，可使用“补全缺少信息”。",
+        "en": "No index rebuild is required for this upgrade. Use “Generate Thumbnails” in Album Settings for existing media without thumbnails, or “Fill Missing Information” for historical records missing capture time or location."
+      }
+    },
+    {
       "version": "1.1.1",
       "date": "2026-11-25",
       "highlights": [

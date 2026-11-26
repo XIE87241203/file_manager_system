@@ -31,7 +31,7 @@
             <!-- 相册主体：左侧设置与动态标尺侧边栏 + 右侧按当前排序分组的瀑布流 -->
             <div id="album-layout" class="album-layout">
                 <!-- 动态标尺：时间排序显示时间轴，文件名排序显示字母尺，文件大小排序仅保留设置区 -->
-                <aside id="album-timeline" class="album-timeline" data-i18n-title="album.timeline_title" title="">
+                <aside id="album-timeline" class="album-timeline hidden" data-i18n-title="album.timeline_title" title="">
                     <div class="album-sidebar-content">
                         <!-- 顶部总数：按当前搜索关键词与媒体类型筛选实时更新，始终左右居中 -->
                         <div class="album-sidebar-summary">
@@ -87,8 +87,8 @@
                 </aside>
 
                 <!-- 标尺显隐开关：位于侧边栏中部，隐藏后停在列表左边缘 -->
-                <button id="album-sidebar-toggle" class="album-sidebar-toggle" type="button"
-                        data-i18n-title="album.sidebar_hide" title="" aria-controls="album-timeline" aria-expanded="true">
+                <button id="album-sidebar-toggle" class="album-sidebar-toggle is-collapsed" type="button"
+                        data-i18n-title="album.sidebar_show" title="" aria-controls="album-timeline" aria-expanded="false">
                     <span class="album-toggle-chevron" aria-hidden="true"></span>
                 </button>
 

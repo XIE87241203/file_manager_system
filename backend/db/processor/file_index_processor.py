@@ -632,6 +632,29 @@ class FileIndexProcessor(BaseDBProcessor):
         return [FileIndexDBModel(**row) for row in rows]
 
     @staticmethod
+    def get_missing_media_thumbnails(after_id: int, limit: int = 500) -> List[FileIndexDBModel]:
+        """
+        用途说明：按主键游标分批获取当前仓库中缺少缩略图的有效图片或视频索引。
+        入参说明：
+            after_id (int): 上一批最后一个文件索引主键，首批传 0。
+            limit (int): 单批最大记录数，默认 500，调用方应控制在 100-1000 条以内。
+        返回值说明：List[FileIndexDBModel] - 按主键升序排列的待生成缩略图媒体记录。
+        """
+        file_index: type = DBConstants.FileIndex
+        query: str = (
+            f"SELECT * FROM {file_index.TABLE_NAME} "
+            f"WHERE {file_index.COL_ID} > ? "
+            f"AND {file_index.COL_FILE_TYPE} IN (?, ?) "
+            f"AND ({file_index.COL_RECYCLE_BIN_TIME} IS NULL OR {file_index.COL_RECYCLE_BIN_TIME} = '') "
+            f"AND ({file_index.COL_THUMBNAIL_PATH} IS NULL OR {file_index.COL_THUMBNAIL_PATH} = '') "
+            f"ORDER BY {file_index.COL_ID} ASC LIMIT ?"
+        )
+        rows: List[dict] = BaseDBProcessor._execute(
+            query, (after_id, 'image', 'video', limit), is_query=True
+        )
+        return [FileIndexDBModel(**row) for row in rows]
+
+    @staticmethod
     def get_count(only_no_thumbnail: bool = False) -> int:
         """
         用途说明：获取符合条件的文件总数。

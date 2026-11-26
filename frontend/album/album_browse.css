@@ -729,51 +729,9 @@ body.album-sidebar-resizing {
     color: var(--color-danger-bootstrap);
 }
 
-/* 文件名与详情按钮所在行 */
-.album-name-row {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    padding-right: 6px;
-}
-
-/* 文件名 */
-.album-name {
-    flex: 1;
-    min-width: 0;
-    padding: 8px 4px 8px 10px;
-    font-size: 13px;
-    color: var(--color-text-secondary);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-/* 卡片详情按钮：位于文件名右侧 */
-.album-detail-trigger {
-    flex-shrink: 0;
-    width: 26px;
-    height: 26px;
-    border: none;
-    border-radius: 50%;
-    background: var(--palette-eef1f5);
-    color: var(--color-text-tertiary);
-    line-height: 1;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    transition: background-color 0.2s, color 0.2s;
-}
-
-.album-detail-trigger .theme-icon {
-    width: 15px;
-    height: 15px;
-}
-
-.album-detail-trigger:hover {
-    background: var(--palette-e0e5ec);
-    color: var(--color-primary);
+/* 详情按钮固定在操作行最左侧，下载与删除按钮保持靠右 */
+.album-actions .album-action-detail {
+    margin-right: auto;
 }
 
 /* 首屏与翻页加载占位：不确定进度时使用圆形滚动动画 */
@@ -969,6 +927,11 @@ body.album-sidebar-resizing {
     object-fit: contain;
     border-radius: 4px;
     background: var(--color-black);
+}
+
+/* 预览图片点击关闭；视频不应用该光标 */
+.album-preview-image {
+    cursor: zoom-out;
 }
 
 .album-preview-nav {

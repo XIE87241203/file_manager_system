@@ -187,6 +187,14 @@ TRANSLATIONS = {
     # --- 缩略图 (Thumbnail) ---
     "thumb_task_started": "缩略图生成任务已启动",
     "thumb_task_running": "缩略图生成任务已在运行中",
+    "thumb_missing_scan_start": "开始扫描缺少缩略图的图片和视频",
+    "thumb_missing_scan_done": "缺失缩略图扫描完毕：扫描 {scanned_count} 个文件，新增 {enqueued_count} 个任务",
+    "thumb_missing_generate_log": "用户 {user} 请求为仓库 {repo_id} 生成缺失缩略图",
+    "thumb_missing_generate_error": "用户 {user} 为仓库 {repo_id} 生成缺失缩略图失败: {error}",
+    "thumb_missing_generate_failed": "扫描缺失缩略图失败: {error}",
+    "thumb_missing_generate_success": "已扫描并将 {count} 个图片或视频加入缩略图生成队列",
+    "thumb_missing_generate_already_queued": "扫描到 {count} 个缺少缩略图的文件，它们已在队列中或正在处理",
+    "thumb_missing_generate_nothing": "当前仓库没有缺少缩略图的图片或视频",
     "thumb_cleanup_success": "缩略图已成功清空",
     "thumb_sync_started": "缩略图同步任务已启动",
     "thumb_get_queue_success": "获取队列数量成功",
@@ -537,7 +545,7 @@ TRANSLATIONS = {
 
     # --- 当前任务中心 (Current Tasks) ---
     "task_center_face_status_error": "读取人脸识别任务状态失败: {error}",
-    "task_thumbnail_progress": "缩略图处理 {current}/{total}，剩余 {remaining} 张",
+    "task_thumbnail_progress": "缩略图处理 {current}/{total}，队列剩余 {remaining} 个文件（含正在处理）",
     "task_organize_progress": "照片已归类 {done}/{total}",
     "task_center_not_found": "任务不存在或已经结束，请刷新后重试",
     "task_center_action_denied": "当前账号无权执行此操作，或任务状态已变化",
@@ -558,6 +566,7 @@ TRANSLATIONS = {
     "album_thumbnail_dir_invalid": "缩略图存储路径无效: {path}",
     "album_thumbnail_dir_create_failed": "创建缩略图存储目录失败: {path}, 错误: {error}",
     "album_thumbnail_size_invalid": "缩略图最大边长无效: {value}，必须为正整数",
+    "album_auto_thumbnail_generation_invalid": "新文件自动生成缩略图设置无效: {value}",
     "album_settings_get_success": "获取相册设置成功",
     "album_thumbnail_usage_success": "获取缩略图占用大小成功",
     "album_thumbnail_usage_error": "统计缩略图占用大小失败: {error}",

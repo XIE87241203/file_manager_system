@@ -11,6 +11,7 @@ from backend.db.db_operations import DBOperations
 from backend.file_repository.thumbnail.thumbnail_generator import ThumbnailGenerator
 from backend.file_repository.thumbnail.thumbnail_path_utils import ThumbnailPathUtils
 from backend.model.db.file_index_db_model import FileIndexDBModel
+from backend.model.thumbnail_dispatch_result import ThumbnailDispatchResult
 from backend.model.thumbnail_result import ThumbnailResult
 from backend.setting.setting_service import settingService
 
@@ -19,9 +20,9 @@ class ThumbnailService(BaseAsyncService):
     """
     用途说明：缩略图服务类。
     管理职责：
-    1. 派发缩略图生成任务（非耗时操作，直接填充队列）。
+    1. 派发缩略图生成任务（手动批量派发与索引新增文件入队）。
     2. 同步物理文件（耗时操作，利用线程池异步清理无效文件）。
-    3. 提供生成队列余量监控。
+    3. 提供按需生成与生成队列余量监控。
     """
 
     @classmethod
@@ -187,6 +188,52 @@ class ThumbnailService(BaseAsyncService):
             LogUtils.error(t('thumb_sync_logic_error', error=str(e)))
             cls._progress_manager.set_status(ProgressStatus.ERROR)
             cls._progress_manager.update_progress(message=t('thumb_sync_failed', error=str(e)))
+
+    @classmethod
+    def enqueue_new_file_thumbnails(cls, files: List[FileIndexDBModel]) -> None:
+        """
+        用途说明：自动生成开启时，将本批真正新增且缺少缩略图的图片/视频加入生成队列。
+        入参说明：files (List[FileIndexDBModel]) - 本批已成功写入文件索引的记录，数量由索引扫描控制在 100 条以内。
+        返回值说明：无；开关关闭、没有待处理媒体或已复用同 MD5 缩略图时不入队。
+        """
+        auto_thumbnail_generation: bool = settingService.get_config().album.auto_thumbnail_generation
+        if auto_thumbnail_generation is not True:
+            return
+        media_files: List[FileIndexDBModel] = [
+            file_info for file_info in files
+            if file_info.file_type in (FileType.IMAGE.value, FileType.VIDEO.value)
+            and not file_info.thumbnail_path
+        ]
+        if media_files:
+            ThumbnailGenerator().add_tasks(media_files)
+
+    @classmethod
+    def dispatch_missing_media_thumbnails(cls) -> ThumbnailDispatchResult:
+        """
+        用途说明：按主键游标分批扫描当前仓库缺少缩略图的有效图片和视频，并去重加入后台生成队列。
+        入参说明：无；仓库 ID 来自当前请求上下文。
+        返回值说明：ThumbnailDispatchResult - 扫描数量与实际入队数量；数据库异常时抛出供路由统一处理。
+        """
+        batch_size: int = 500
+        after_id: int = 0
+        scanned_count: int = 0
+        enqueued_count: int = 0
+        generator: ThumbnailGenerator = ThumbnailGenerator()
+        LogUtils.info(t('thumb_missing_scan_start'))
+        while True:
+            batch: List[FileIndexDBModel] = DBOperations.get_missing_media_thumbnails(after_id, batch_size)
+            if not batch:
+                break
+            scanned_count += len(batch)
+            enqueued_count += generator.add_tasks(batch)
+            last_id: Optional[int] = batch[-1].id
+            if last_id is None:
+                break
+            after_id = last_id
+            if len(batch) < batch_size:
+                break
+        LogUtils.info(t('thumb_missing_scan_done', scanned_count=scanned_count, enqueued_count=enqueued_count))
+        return ThumbnailDispatchResult(scanned_count=scanned_count, enqueued_count=enqueued_count)
 
     @classmethod
     def dispatch_thumbnail_tasks(cls, rebuild_all: bool) -> bool:

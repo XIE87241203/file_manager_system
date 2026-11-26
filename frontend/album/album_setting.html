@@ -10,6 +10,7 @@
     <link rel="stylesheet" href="../common/themes/dark/theme.css">
     <link rel="stylesheet" href="../common/header_toolbar/default/default_header_toolbar.css">
     <link rel="stylesheet" href="../common/widget/progress_button.css">
+    <link rel="stylesheet" href="../common/current_tasks/current_tasks.css">
     <link rel="stylesheet" href="album_setting.css">
 </head>
 <body>
@@ -32,6 +33,14 @@
                     <span class="form-hint" data-i18n="album.thumbnail_size_hint"></span>
                 </div>
 
+                <div class="album-auto-row">
+                    <label class="album-auto-label" for="auto-thumbnail-generation">
+                        <input type="checkbox" id="auto-thumbnail-generation" class="album-auto-checkbox" disabled>
+                        <span data-i18n="album.auto_thumbnail_generation_label"></span>
+                    </label>
+                    <span class="album-auto-hint" data-i18n="album.auto_thumbnail_generation_hint"></span>
+                </div>
+
                 <div class="album-effective-row">
                     <span class="album-effective-label" data-i18n="album.thumbnail_dir_effective"></span>
                     <span id="thumbnail-dir-effective" class="album-effective-value">--</span>
@@ -42,14 +51,25 @@
                     <span id="thumbnail-usage-value" class="album-effective-value">--</span>
                 </div>
 
-                <button id="btn-save-album-setting" class="btn-primary album-save-btn" data-i18n="common.save"></button>
+                <button id="btn-save-album-setting" class="btn-primary album-setting-action-btn" data-i18n="common.save"></button>
             </div>
 
-            <!-- 缩略图维护：物理缩略图同步任务（由系统设置迁入） -->
+            <!-- 缩略图维护：生成缺失缩略图与清理无效缩略图任务（由系统设置迁入） -->
             <div class="album-setting-card album-sync-card">
                 <h3 class="album-sync-title" data-i18n="album.sync_title"></h3>
                 <p class="album-sync-hint" data-i18n="album.sync_hint"></p>
                 <div class="album-sync-item">
+                    <div class="album-sync-info">
+                        <span class="album-sync-name" data-i18n="album.generate_thumbnails_name"></span>
+                        <span class="album-sync-desc" data-i18n="album.generate_thumbnails_desc"></span>
+                    </div>
+                    <div class="album-generate-btn-container">
+                        <button id="btn-generate-thumbnails" type="button" class="btn-primary album-setting-action-btn" disabled>
+                            <span id="generate-thumbnails-label" data-i18n="album.generate_thumbnails_button"></span>
+                        </button>
+                    </div>
+                </div>
+                <div class="album-sync-item album-sync-spaced">
                     <div class="album-sync-info">
                         <span class="album-sync-name" data-i18n="album.sync_thumb"></span>
                         <span class="album-sync-desc" data-i18n="album.sync_thumb_desc"></span>
@@ -109,6 +129,8 @@
     <script src="../common/ui_components.js"></script>
     <script src="../common/widget/progress_button.js"></script>
     <script src="../common/header_toolbar/default/default_header_toolbar.js"></script>
+    <script src="../common/current_tasks/current_tasks_request.js"></script>
+    <script src="../common/current_tasks/current_tasks.js"></script>
 
     <!-- 页面逻辑 -->
     <script src="album_setting_request.js"></script>

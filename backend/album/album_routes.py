@@ -13,10 +13,12 @@ from backend.common.log_utils import LogUtils
 from backend.common.repo_context import get_current_repo_id, set_current_repo_id
 from backend.common.response import success_response, error_response
 from backend.db.db_constants import DBConstants
+from backend.file_repository.thumbnail.thumbnail_service import ThumbnailService
 from backend.model.album_axis_result import AlbumAxisResult
 from backend.model.album_settings_result import AlbumSettingsResult
 from backend.model.db.file_index_db_model import FileIndexDBModel
 from backend.model.face_index_result import FaceTaskStatusResult
+from backend.model.thumbnail_dispatch_result import ThumbnailDispatchResult
 from backend.model.thumbnail_usage_result import ThumbnailUsageResult
 from backend.model.cursor_pagination_result import CursorPaginationResult
 from backend.user.user_service import userService
@@ -177,11 +179,42 @@ def get_thumbnail_usage() -> Tuple[Any, int]:
     return success_response(t('album_thumbnail_usage_success'), data=asdict(result))
 
 
+@album_bp.route('/thumbnail/generate', methods=['POST'])
+@token_required
+def generate_missing_thumbnails() -> Tuple[Any, int]:
+    """
+    用途说明：扫描当前仓库缺少缩略图的有效图片和视频，并分批去重加入缩略图生成队列。
+    入参说明：无；仓库 ID 来自请求上下文，仅系统管理员或当前仓库管理员可操作。
+    返回值说明：统一 JSON 响应，data 为 {scanned_count, enqueued_count}。
+    """
+    username: str = _get_current_user()
+    repo_id: int = get_current_repo_id()
+    if userService.get_repo_permission(username, repo_id) \
+            != DBConstants.UserRepositoryPermission.PERMISSION_ADMIN:
+        LogUtils.error(t('user_repo_admin_required_log', username=username, repo_id=repo_id, path=request.path))
+        return error_response(t('user_repo_admin_required'), 403)
+
+    LogUtils.info(t('thumb_missing_generate_log', user=username, repo_id=repo_id))
+    try:
+        result: ThumbnailDispatchResult = ThumbnailService.dispatch_missing_media_thumbnails()
+    except Exception as e:
+        LogUtils.error(t('thumb_missing_generate_error', user=username, repo_id=repo_id, error=str(e)))
+        return error_response(t('thumb_missing_generate_failed', error=str(e)), 500)
+
+    if result.enqueued_count > 0:
+        message: str = t('thumb_missing_generate_success', count=result.enqueued_count)
+    elif result.scanned_count > 0:
+        message = t('thumb_missing_generate_already_queued', count=result.scanned_count)
+    else:
+        message = t('thumb_missing_generate_nothing')
+    return success_response(message, data=asdict(result))
+
+
 @album_bp.route('/settings', methods=['GET'])
 @token_required
 def get_album_settings():
     """
-    用途说明：获取相册设置（缩略图存储路径与全系统统一的缩略图最大边长）。
+    用途说明：获取相册设置（缩略图存储路径、全系统统一缩略图最大边长、新增文件自动生成缩略图与自动人脸识别开关）。
     入参说明：无
     返回值说明：统一 JSON 响应，data 为相册设置对象。
     """
@@ -193,20 +226,26 @@ def get_album_settings():
 @token_required
 def update_album_settings():
     """
-    用途说明：更新相册设置中的缩略图存储路径、全系统统一缩略图最大边长与自动人脸识别开关。
+    用途说明：更新相册设置中的缩略图存储路径、全系统统一缩略图最大边长、新增文件自动生成缩略图与自动人脸识别开关。
     入参说明（JSON）：
         thumbnail_dir (str) - 新的缩略图存储路径。
         thumbnail_size (int, 可选) - 全系统缩略图最大边长（像素），仅当前仓库管理员可修改。
+        auto_thumbnail_generation (bool, 可选) - 新增文件自动生成缩略图开关，仅当前仓库管理员可修改。
         auto_face_recognition (bool, 可选) - 自动识别新增图片开关，仅系统管理员可修改。
     返回值说明：统一 JSON 响应，data 为更新后的相册设置对象。
     """
     data: dict = request.get_json(silent=True) or {}
     thumbnail_dir: str = data.get('thumbnail_dir', '')
     thumbnail_size: Optional[int] = data.get('thumbnail_size')
+    auto_thumbnail_generation: Optional[bool] = data.get('auto_thumbnail_generation')
     auto_face_recognition: Optional[bool] = data.get('auto_face_recognition')
     if thumbnail_size is not None:
         if isinstance(thumbnail_size, bool) or not isinstance(thumbnail_size, int) or thumbnail_size <= 0:
             return error_response(t('album_thumbnail_size_invalid', value=thumbnail_size), 400)
+    if auto_thumbnail_generation is not None:
+        if not isinstance(auto_thumbnail_generation, bool):
+            return error_response(t('album_auto_thumbnail_generation_invalid', value=auto_thumbnail_generation), 400)
+    if thumbnail_size is not None or auto_thumbnail_generation is not None:
         repo_id: int = get_current_repo_id()
         if userService.get_repo_permission(request.username, repo_id) \
                 != DBConstants.UserRepositoryPermission.PERMISSION_ADMIN:
@@ -218,7 +257,8 @@ def update_album_settings():
             return error_response(t('user_admin_required'), 403)
 
     settings: Optional[AlbumSettingsResult] = AlbumService.update_settings(
-        thumbnail_dir, _get_current_user(), thumbnail_size, auto_face_recognition
+        thumbnail_dir, _get_current_user(), thumbnail_size,
+        auto_thumbnail_generation, auto_face_recognition
     )
     if settings is None:
         return error_response(t('album_settings_update_failed'), 500)

@@ -1,5 +1,5 @@
 /**
- * 用途说明：相册设置页逻辑，负责缩略图设置、缩略图同步与人脸识别任务的状态和操作。
+ * 用途说明：相册设置页逻辑，负责缩略图设置、新增文件自动生成缩略图、缩略图同步与人脸识别任务的状态和操作。
  * 模块划分：State（状态）、UIController（DOM 操作）、API（接口封装）、App（入口）。
  */
 
@@ -8,6 +8,8 @@ const State = {
     configuredDir: '',
     effectiveDir: '',
     thumbnailSize: 256,
+    autoThumbnailGeneration: false,
+    canManageThumbnails: false,
     autoFaceRecognition: false,
     thumbnailSizeOptions: [128, 256, 512, 1024, 2048],
     thumbnailUsage: {
@@ -16,6 +18,10 @@ const State = {
         requestToken: 0 // 请求代次，避免路径切换后的旧统计结果覆盖新结果
     },
     saving: false,
+    // 手动扫描缺失缩略图的请求状态，仅扫描期间禁用按钮，生成进度由当前任务面板展示
+    thumbnailGeneration: {
+        busy: false
+    },
     // 缩略图同步任务状态（由系统设置迁入）
     thumbnailSync: {
         timer: null,
@@ -58,12 +64,24 @@ const API = {
     /**
      * 用途说明：保存相册设置。
      * 入参说明：thumbnailDir (string) - 缩略图路径；thumbnailSize (number) - 缩略图最大边长；
-     *           autoFaceRecognition (boolean) - 自动识别新增图片开关；
+     *           autoThumbnailGeneration (boolean|null) - 新增文件自动生成缩略图开关；
+     *           autoFaceRecognition (boolean|null) - 自动识别新增图片开关；
      *           onSuccess (Function) - 成功回调；onError (Function) - 失败回调。
      * 返回值说明：无
      */
-    saveSettings(thumbnailDir, thumbnailSize, autoFaceRecognition, onSuccess, onError) {
-        AlbumSettingRequest.updateSettings(thumbnailDir, thumbnailSize, autoFaceRecognition, onSuccess, onError);
+    saveSettings(thumbnailDir, thumbnailSize, autoThumbnailGeneration, autoFaceRecognition, onSuccess, onError) {
+        AlbumSettingRequest.updateSettings(
+            thumbnailDir, thumbnailSize, autoThumbnailGeneration, autoFaceRecognition, onSuccess, onError
+        );
+    },
+
+    /**
+     * 用途说明：扫描当前仓库缺少缩略图的图片和视频并加入生成队列。
+     * 入参说明：onSuccess (Function) - 成功回调，参数为后端响应；onError (Function) - 失败回调。
+     * 返回值说明：无
+     */
+    generateMissingThumbnails(onSuccess, onError) {
+        AlbumSettingRequest.generateMissingThumbnails(onSuccess, onError);
     },
 
     /**
@@ -166,13 +184,18 @@ const UIController = {
             backCallback: () => window.history.back(),
             showBack: true
         });
+        // 顶部栏生成后挂载统一当前任务入口，便于在本页查看缩略图队列剩余数量
+        CurrentTasksApp.start();
 
         this.elements = {
             dirInput: document.getElementById('thumbnail-dir-input'),
             sizeSelect: document.getElementById('thumbnail-size-select'),
+            autoThumbnailCheckbox: document.getElementById('auto-thumbnail-generation'),
             effectiveValue: document.getElementById('thumbnail-dir-effective'),
             thumbnailUsageValue: document.getElementById('thumbnail-usage-value'),
             saveBtn: document.getElementById('btn-save-album-setting'),
+            generateThumbnailsBtn: document.getElementById('btn-generate-thumbnails'),
+            generateThumbnailsLabel: document.getElementById('generate-thumbnails-label'),
             faceCard: document.getElementById('face-recognition-card'),
             autoFaceCheckbox: document.getElementById('auto-face-recognition'),
             faceStatusText: document.getElementById('face-status-text'),
@@ -184,12 +207,15 @@ const UIController = {
             faceClearBtn: document.getElementById('btn-face-clear')
         };
         this.renderThumbnailSizeOptions();
-        document.addEventListener('appearance:languagechange', () => this.renderThumbnailUsage());
+        document.addEventListener('appearance:languagechange', () => {
+            this.renderThumbnailUsage();
+            this.renderThumbnailGenerationButton();
+        });
     },
 
     /**
      * 用途说明：回填设置数据到界面。
-     * 入参说明：data (Object) - {thumbnail_dir, thumbnail_dir_effective, thumbnail_size, auto_face_recognition}。
+     * 入参说明：data (Object) - {thumbnail_dir, thumbnail_dir_effective, thumbnail_size, auto_thumbnail_generation, auto_face_recognition}。
      * 返回值说明：无
      */
     renderSettings(data) {
@@ -197,12 +223,17 @@ const UIController = {
         State.configuredDir = data.thumbnail_dir || '';
         State.effectiveDir = data.thumbnail_dir_effective || '';
         State.thumbnailSize = Number(data.thumbnail_size);
+        State.autoThumbnailGeneration = data.auto_thumbnail_generation === true;
         State.autoFaceRecognition = data.auto_face_recognition === true;
         if (!Number.isInteger(State.thumbnailSize) || State.thumbnailSize <= 0) {
             State.thumbnailSize = 256;
         }
         if (this.elements.dirInput) this.elements.dirInput.value = State.configuredDir;
         if (this.elements.effectiveValue) this.elements.effectiveValue.textContent = State.effectiveDir || '--';
+        if (this.elements.autoThumbnailCheckbox) {
+            this.elements.autoThumbnailCheckbox.checked = State.autoThumbnailGeneration;
+            this.elements.autoThumbnailCheckbox.disabled = !State.canManageThumbnails || State.saving;
+        }
         if (this.elements.autoFaceCheckbox) {
             this.elements.autoFaceCheckbox.checked = State.autoFaceRecognition;
             this.elements.autoFaceCheckbox.disabled = !State.faceRecognition.canManage || State.saving;
@@ -268,9 +299,41 @@ const UIController = {
     setSaving(saving) {
         State.saving = saving;
         if (this.elements.saveBtn) this.elements.saveBtn.disabled = saving;
+        if (this.elements.autoThumbnailCheckbox) {
+            this.elements.autoThumbnailCheckbox.disabled = saving || !State.canManageThumbnails;
+        }
         if (this.elements.autoFaceCheckbox) {
             this.elements.autoFaceCheckbox.disabled = saving || !State.faceRecognition.canManage;
         }
+        this.renderThumbnailGenerationButton();
+    },
+
+    /**
+     * 用途说明：根据权限与扫描请求状态刷新生成按钮的文案和可用状态。
+     * 入参说明：无。
+     * 返回值说明：无。
+     */
+    renderThumbnailGenerationButton() {
+        const button = this.elements.generateThumbnailsBtn;
+        if (!button) return;
+        button.disabled = !State.canManageThumbnails || State.saving || State.thumbnailGeneration.busy;
+        if (this.elements.generateThumbnailsLabel) {
+            this.elements.generateThumbnailsLabel.textContent = I18nManager.t(
+                State.thumbnailGeneration.busy
+                    ? 'album.generate_thumbnails_scanning'
+                    : 'album.generate_thumbnails_button'
+            );
+        }
+    },
+
+    /**
+     * 用途说明：记录缺失缩略图扫描请求状态，防止重复提交。
+     * 入参说明：busy (boolean) - 是否正在扫描并入队。
+     * 返回值说明：无。
+     */
+    setThumbnailGenerationBusy(busy) {
+        State.thumbnailGeneration.busy = busy;
+        this.renderThumbnailGenerationButton();
     },
 
     /**
@@ -307,6 +370,19 @@ const UIController = {
             this.elements.autoFaceCheckbox.disabled = !canManage || State.saving;
         }
         if (State.faceRecognition.lastStatus) this.renderFaceStatus(State.faceRecognition.lastStatus);
+    },
+
+    /**
+     * 用途说明：根据当前仓库管理员权限启用或禁用新增文件自动生成缩略图开关。
+     * 入参说明：canManage (boolean) - 当前用户是否为系统管理员或当前仓库管理员。
+     * 返回值说明：无
+     */
+    applyThumbnailPermission(canManage) {
+        State.canManageThumbnails = canManage;
+        if (this.elements.autoThumbnailCheckbox) {
+            this.elements.autoThumbnailCheckbox.disabled = !canManage || State.saving;
+        }
+        this.renderThumbnailGenerationButton();
     },
 
     /**
@@ -397,6 +473,9 @@ const App = {
     bindEvents() {
         const saveBtn = UIController.elements.saveBtn;
         if (saveBtn) saveBtn.onclick = () => this.saveSettings();
+        if (UIController.elements.generateThumbnailsBtn) {
+            UIController.elements.generateThumbnailsBtn.onclick = () => this.handleGenerateThumbnails();
+        }
         if (UIController.elements.faceStartBtn) {
             UIController.elements.faceStartBtn.onclick = () => this.handleStartFaceRecognition();
         }
@@ -443,7 +522,7 @@ const App = {
     },
 
     /**
-     * 用途说明：校验并保存缩略图存储路径、最大边长与自动人脸识别开关。
+     * 用途说明：校验并保存缩略图存储路径、最大边长、新增文件自动生成缩略图与自动人脸识别开关。
      * 入参说明：无
      * 返回值说明：无
      */
@@ -463,10 +542,13 @@ const App = {
         }
 
         UIController.setSaving(true);
+        const autoThumbnailGeneration = State.canManageThumbnails
+            ? Boolean(UIController.elements.autoThumbnailCheckbox && UIController.elements.autoThumbnailCheckbox.checked)
+            : null;
         const autoFaceRecognition = State.faceRecognition.canManage
             ? Boolean(UIController.elements.autoFaceCheckbox && UIController.elements.autoFaceCheckbox.checked)
             : null;
-        API.saveSettings(value, thumbnailSize, autoFaceRecognition, (data) => {
+        API.saveSettings(value, thumbnailSize, autoThumbnailGeneration, autoFaceRecognition, (data) => {
             UIController.setSaving(false);
             UIController.renderSettings(data);
             this.loadThumbnailUsage();
@@ -474,6 +556,24 @@ const App = {
         }, (msg) => {
             UIController.setSaving(false);
             Toast.show(msg || I18nManager.t('album.save_failed'));
+        });
+    },
+
+    /**
+     * 用途说明：请求后端扫描当前仓库缺失缩略图的图片和视频，并立即刷新当前任务面板。
+     * 入参说明：无。
+     * 返回值说明：无。
+     */
+    handleGenerateThumbnails() {
+        if (!State.canManageThumbnails || State.saving || State.thumbnailGeneration.busy) return;
+        UIController.setThumbnailGenerationBusy(true);
+        API.generateMissingThumbnails((response) => {
+            UIController.setThumbnailGenerationBusy(false);
+            Toast.show(response.message || I18nManager.t('common.success'));
+            CurrentTasksApp.refresh();
+        }, (msg) => {
+            UIController.setThumbnailGenerationBusy(false);
+            Toast.show(msg || I18nManager.t('album.generate_thumbnails_failed'));
         });
     },
 
@@ -511,15 +611,18 @@ const App = {
     },
 
     /**
-     * 用途说明：读取当前用户身份，仅系统管理员加载并显示人脸识别操作。
+     * 用途说明：读取当前用户身份，按仓库权限控制缩略图自动生成开关，并仅为系统管理员加载人脸任务。
      * 入参说明：无
      * 返回值说明：无
      */
     loadCurrentUser() {
         API.getCurrentUser((data) => {
+            const canManageThumbnails = data.is_admin === true || data.repo_permission === 'admin';
+            UIController.applyThumbnailPermission(canManageThumbnails);
             UIController.applyFacePermission(data.is_admin === true);
             if (State.faceRecognition.canManage) this.refreshFaceStatus();
         }, (msg) => {
+            UIController.applyThumbnailPermission(false);
             UIController.applyFacePermission(false);
             Toast.show(msg || I18nManager.t('common.error'));
         });

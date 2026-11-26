@@ -187,6 +187,14 @@ TRANSLATIONS = {
     # --- Thumbnail ---
     "thumb_task_started": "Thumbnail generation task started",
     "thumb_task_running": "Thumbnail generation task already running",
+    "thumb_missing_scan_start": "Scanning images and videos without thumbnails",
+    "thumb_missing_scan_done": "Missing thumbnail scan finished: scanned {scanned_count} files, queued {enqueued_count} new tasks",
+    "thumb_missing_generate_log": "User {user} requested missing thumbnails for repository {repo_id}",
+    "thumb_missing_generate_error": "Failed to generate missing thumbnails for repository {repo_id} for user {user}: {error}",
+    "thumb_missing_generate_failed": "Failed to scan for missing thumbnails: {error}",
+    "thumb_missing_generate_success": "Scanned and queued {count} images or videos for thumbnail generation",
+    "thumb_missing_generate_already_queued": "Found {count} files without thumbnails; they are already queued or being processed",
+    "thumb_missing_generate_nothing": "There are no images or videos without thumbnails in this repository",
     "thumb_cleanup_success": "Thumbnails cleared successfully",
     "thumb_sync_started": "Thumbnail sync task started",
     "thumb_get_queue_success": "Successfully retrieved queue count",
@@ -537,7 +545,7 @@ TRANSLATIONS = {
 
     # --- Current Tasks ---
     "task_center_face_status_error": "Failed to read face recognition task status: {error}",
-    "task_thumbnail_progress": "Thumbnails processed {current}/{total}, {remaining} remaining",
+    "task_thumbnail_progress": "Thumbnails processed {current}/{total}, {remaining} files remaining in queue (including the active file)",
     "task_organize_progress": "{done}/{total} photos organized",
     "task_center_not_found": "The task does not exist or has finished; refresh and try again",
     "task_center_action_denied": "This account cannot perform the action, or the task status has changed",
@@ -558,6 +566,7 @@ TRANSLATIONS = {
     "album_thumbnail_dir_invalid": "Invalid thumbnail storage path: {path}",
     "album_thumbnail_dir_create_failed": "Failed to create thumbnail storage directory: {path}, error: {error}",
     "album_thumbnail_size_invalid": "Invalid thumbnail maximum edge length: {value}; a positive integer is required",
+    "album_auto_thumbnail_generation_invalid": "Invalid automatic thumbnail generation setting for new files: {value}",
     "album_settings_get_success": "Album settings retrieved successfully",
     "album_thumbnail_usage_success": "Thumbnail storage usage retrieved successfully",
     "album_thumbnail_usage_error": "Failed to calculate thumbnail storage usage: {error}",

@@ -59,6 +59,8 @@ class AlbumSettings:
     thumbnail_dir: str = "thumb"
     # 缩略图最大边长（像素）：全系统统一配置，所有仓库共享同一尺寸与内容缓存
     thumbnail_size: int = 256
+    # 开启后，建立索引发现新增图片/视频时会加入缩略图生成队列，不补处理已有文件
+    auto_thumbnail_generation: bool = False
     # 开启后，新建索引发现的新增图片会自动去重加入人脸识别队列
     auto_face_recognition: bool = False
 

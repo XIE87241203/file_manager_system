@@ -14,6 +14,7 @@ from backend.common.utils import Utils
 from backend.db.db_operations import DBOperations
 from backend.file_repository.file_info_service import FileInfoService
 from backend.file_repository.file_service import FileService
+from backend.file_repository.thumbnail.thumbnail_service import ThumbnailService
 from backend.model.db.file_index_db_model import FileIndexDBModel
 from backend.repository.repository_service import repositoryService
 from backend.setting.setting_service import settingService
@@ -222,6 +223,7 @@ class ScanService(BaseAsyncService):
     def _combined_scan_logic(cls, scan_mode: ScanMode, current_scan_time: str, repo_config: FileRepositorySettings) -> Tuple[int, int]:
         """
         用途说明：在一次目录遍历中完成文件发现、存在校验与新增文件特征提取；全量索引重建全部记录，增量索引只处理新增文件。
+            每批文件信息成功写入索引后，按配置加入人脸或缩略图队列，不补处理已有文件。
         入参说明：
             scan_mode (ScanMode): 全量或增量索引模式。
             current_scan_time (str): 本次扫描的统一时间戳。
@@ -298,6 +300,7 @@ class ScanService(BaseAsyncService):
         if all_files_info and not cls._progress_manager.is_stopped():
             if DBOperations.batch_insert_files_index(all_files_info):
                 cls._enqueue_new_face_images(all_files_info)
+                ThumbnailService.enqueue_new_file_thumbnails(all_files_info)
             all_files_info.clear()
 
         return new_count, updated_count
@@ -306,7 +309,13 @@ class ScanService(BaseAsyncService):
     def _process_info_futures(cls, futures: List[Future], info_list: List[FileIndexDBModel], 
                              current_scan_time: str, batch_size: int) -> int:
         """
-        用途说明：处理已完成的文件信息获取任务。
+        用途说明：处理已完成的文件信息获取任务，分批写入索引并按开关为新媒体入队。
+        入参说明：
+            futures (List[Future]): 待获取文件信息的异步任务列表。
+            info_list (List[FileIndexDBModel]): 尚未写入索引的文件信息累积列表。
+            current_scan_time (str): 本次扫描的统一时间戳。
+            batch_size (int): 单批写入索引的最大记录数。
+        返回值说明：int - 成功获取文件信息的数量。
         """
         success_count: int = 0
         for future in as_completed(futures):
@@ -323,6 +332,7 @@ class ScanService(BaseAsyncService):
             if len(info_list) >= batch_size:
                 if DBOperations.batch_insert_files_index(info_list):
                     cls._enqueue_new_face_images(info_list)
+                    ThumbnailService.enqueue_new_file_thumbnails(info_list)
                 info_list.clear()
         
         return success_count

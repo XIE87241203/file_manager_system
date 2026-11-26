@@ -42,7 +42,8 @@ class ThumbnailGenerator:
     _instance = None
     _lock = threading.Lock()
     _queue: Deque[Tuple[int, FileIndexDBModel]] = deque()  # 任务队列，存储 (仓库ID, 模型对象)
-    _queue_set: Set[Tuple[int, str]] = set()    # 去重集合，存储 (仓库ID, 文件路径)
+    _queue_set: Set[Tuple[int, str]] = set()    # 待处理任务去重集合，存储 (仓库ID, 文件路径)
+    _processing_keys: Set[Tuple[int, str]] = set()  # 正在处理的任务去重集合，防止扫描时重复入队
     _is_processing: bool = False
     _active_repo_id: Optional[int] = None
     _paused_repos: Set[int] = set()
@@ -66,39 +67,40 @@ class ThumbnailGenerator:
                 ThumbnailPathUtils.ensure_thumbnail_dir()
             return cls._instance
 
-    def add_tasks(self, tasks: List[FileIndexDBModel]) -> None:
+    def add_tasks(self, tasks: List[FileIndexDBModel]) -> int:
         """
-        用途：向待处理队列中原子性地添加任务并启动生成工作。
+        用途：向待处理队列中原子性地添加任务并启动生成工作，待处理和处理中的同一路径均去重。
         入参说明：
             tasks (List[FileIndexDBModel]): 待处理的文件索引模型列表。
-        返回值说明：无。
+        返回值说明：int - 实际新加入队列的任务数量。
         """
         with self._lock:
             added_count: int = 0
             repo_id: int = get_current_repo_id()
             for task in tasks:
                 key: Tuple[int, str] = (repo_id, task.file_path)
-                if key not in self._queue_set:
+                if key not in self._queue_set and key not in self._processing_keys:
                     self._queue.append((repo_id, task))
                     self._queue_set.add(key)
                     self._total_by_repo[repo_id] = self._total_by_repo.get(repo_id, 0) + 1
                     added_count += 1
-            
+
             if added_count > 0:
                 LogUtils.info(t('thumb_gen_queue_added', added_count=added_count, remaining=len(self._queue)))
-            
+
             if not self._is_processing and self._queue:
                 self._is_processing = True
                 ThreadPoolManager.submit(self._worker)
+            return added_count
 
     def get_remaining_count(self) -> int:
         """
-        用途：原子性地获取队列中剩余未处理的任务数量。
+        用途：原子性地获取全部仓库中尚未完成的缩略图任务数量，包含正在处理的一项。
         入参说明：无。
         返回值说明：int - 剩余任务数。
         """
         with self._lock:
-            return len(self._queue)
+            return len(self._queue) + len(self._processing_keys)
 
     def get_repo_statuses(self) -> List[ThumbnailTaskProgress]:
         """
@@ -110,6 +112,8 @@ class ThumbnailGenerator:
             remaining_by_repo: Dict[int, int] = {}
             for repo_id, _ in self._queue:
                 remaining_by_repo[repo_id] = remaining_by_repo.get(repo_id, 0) + 1
+            for repo_id, _ in self._processing_keys:
+                remaining_by_repo[repo_id] = remaining_by_repo.get(repo_id, 0) + 1
             repo_ids: Set[int] = set(self._total_by_repo) | set(remaining_by_repo) | set(self._paused_repos)
             if self._active_repo_id is not None:
                 repo_ids.add(self._active_repo_id)
@@ -118,7 +122,7 @@ class ThumbnailGenerator:
                 total: int = self._total_by_repo.get(repo_id, 0)
                 completed: int = self._completed_by_repo.get(repo_id, 0)
                 remaining: int = remaining_by_repo.get(repo_id, 0)
-                if total > completed or remaining > 0 or repo_id == self._active_repo_id:
+                if total > completed or remaining > 0:
                     results.append(ThumbnailTaskProgress(repo_id=repo_id, total=total, completed=completed,
                                                          remaining=remaining, paused=repo_id in self._paused_repos))
             return results
@@ -164,6 +168,7 @@ class ThumbnailGenerator:
             if repo_id is None:
                 self._queue.clear()
                 self._queue_set.clear()
+                self._processing_keys.clear()
                 self._total_by_repo.clear()
                 self._completed_by_repo.clear()
                 self._paused_repos.clear()
@@ -175,6 +180,7 @@ class ThumbnailGenerator:
                     item for item in self._queue if item[0] != repo_id)
                 self._queue = kept
                 self._queue_set = {(item[0], item[1].file_path) for item in kept}
+                self._processing_keys = {key for key in self._processing_keys if key[0] != repo_id}
                 self._total_by_repo.pop(repo_id, None)
                 self._completed_by_repo.pop(repo_id, None)
                 self._paused_repos.discard(repo_id)
@@ -237,6 +243,7 @@ class ThumbnailGenerator:
             key: Tuple[int, str] = (repo_id, file_info.file_path)
             if key in self._queue_set:
                 self._queue_set.remove(key)
+            self._processing_keys.add(key)
 
         # 切换到任务所属仓库上下文，确保配置读取与索引更新落到正确的业务库
         set_current_repo_id(repo_id)
@@ -258,6 +265,7 @@ class ThumbnailGenerator:
                 LogUtils.error(t('thumb_gen_failed_log', path=file_info.file_path, error=str(e)))
 
         with self._lock:
+            self._processing_keys.discard(key)
             if not cancelled:
                 self._completed_by_repo[repo_id] = self._completed_by_repo.get(repo_id, 0) + 1
             if self._active_repo_id == repo_id:

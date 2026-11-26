@@ -13,7 +13,7 @@ const State = {
     search: '',
     fileType: '', // 媒体类型筛选：'' 全部 / 'image' 仅图片 / 'video' 仅视频
     columnCount: 'auto', // 显示列数：auto 按屏幕宽度自适应 / '1'～'10' 固定列数
-    sidebarVisible: true, // 标尺侧边栏是否由用户手动展开；文件大小排序时保留设置区
+    sidebarVisible: false, // 标尺侧边栏默认关闭；文件大小排序时保留设置区并自动展开
     sidebarWidthPercent: 40, // 标尺侧边栏宽度占布局宽度的百分比，范围30～80
     sidebarResizing: false, // 是否正在拖动标尺侧边栏边缘
     sidebarDragStartX: 0, // 拖动开始时的鼠标横坐标
@@ -862,7 +862,7 @@ const UIController = {
     },
 
     /**
-     * 用途说明：根据媒体数据创建瀑布流卡片（含缩略图/占位图、勾选框、下载与删除按钮）。
+     * 用途说明：根据媒体数据创建瀑布流卡片（含缩略图/占位图、勾选框、详情、下载与删除按钮）。
      * 入参说明：item (Object) - 媒体项 {file_path, file_name, file_type, thumbnail_path}。
      * 返回值说明：HTMLElement - 创建好的卡片元素。
      */
@@ -919,6 +919,22 @@ const UIController = {
 
         const actions = document.createElement('div');
         actions.className = 'album-actions';
+
+        // 详情按钮放在操作行最左侧，与下载按钮共用尺寸和半透明悬停效果
+        const detailBtn = document.createElement('button');
+        detailBtn.type = 'button';
+        detailBtn.className = 'album-action-btn album-action-detail';
+        detailBtn.title = I18nManager.t('album.detail_open');
+        const detailIcon = document.createElement('span');
+        detailIcon.className = 'theme-icon icon-info';
+        detailIcon.setAttribute('aria-hidden', 'true');
+        detailBtn.appendChild(detailIcon);
+        detailBtn.onclick = (e) => {
+            e.stopPropagation();
+            this.showDetail(item);
+        };
+        actions.appendChild(detailBtn);
+
         const downloadBtn = document.createElement('button');
         downloadBtn.type = 'button';
         downloadBtn.className = 'album-action-btn';
@@ -949,31 +965,7 @@ const UIController = {
         }
         wrap.appendChild(actions);
 
-        // 文件名行：文件名 + 详情按钮（按钮位于名称右侧）
-        const nameRow = document.createElement('div');
-        nameRow.className = 'album-name-row';
-
-        const name = document.createElement('div');
-        name.className = 'album-name';
-        name.textContent = item.file_name;
-
-        const detailBtn = document.createElement('button');
-        detailBtn.type = 'button';
-        detailBtn.className = 'album-detail-trigger';
-        detailBtn.title = I18nManager.t('album.detail_open');
-        const detailIcon = document.createElement('span');
-        detailIcon.className = 'theme-icon icon-info';
-        detailIcon.setAttribute('aria-hidden', 'true');
-        detailBtn.appendChild(detailIcon);
-        detailBtn.onclick = (e) => {
-            e.stopPropagation();
-            this.showDetail(item);
-        };
-        nameRow.appendChild(name);
-        nameRow.appendChild(detailBtn);
-
         card.appendChild(wrap);
-        card.appendChild(nameRow);
         card.onclick = () => this.openPreview(item.file_path);
 
         State.cardMap.set(item.file_path, {
@@ -1701,7 +1693,7 @@ const UIController = {
     },
 
     /**
-     * 用途说明：按索引展示预览内容（图片或视频）。
+     * 用途说明：按索引展示预览内容（图片或视频），点击预览图片可关闭弹窗。
      * 入参说明：index (number) - State.items 中的索引。
      * 返回值说明：无
      */
@@ -1731,9 +1723,11 @@ const UIController = {
                 body.appendChild(video);
             } else {
                 const img = document.createElement('img');
-                img.className = 'album-preview-media';
+                img.className = 'album-preview-media album-preview-image';
                 img.alt = item.file_name;
                 img.src = AlbumBrowseRequest.buildMediaUrl(item.file_path);
+                // 点击预览图片关闭弹窗；视频保留原生控制区域，不绑定该行为
+                img.onclick = () => this.closePreview();
                 body.appendChild(img);
             }
         }

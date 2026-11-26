@@ -26,7 +26,7 @@ class AlbumService:
     职责：
         1. 查询图片/视频媒体列表（瀑布流分页 + 搜索）；
         2. 校验媒体文件并供下载/预览接口使用（缩略图生成统一由缩略图服务提供）；
-        3. 读写相册设置（缩略图存储路径、全系统缩略图最大边长与自动人脸识别开关）。
+        3. 读写相册设置（缩略图存储路径、全系统缩略图最大边长、新增文件自动生成缩略图与自动人脸识别开关）。
     """
 
     # 相册只展示图片与视频两类媒体
@@ -147,11 +147,14 @@ class AlbumService:
     @staticmethod
     def get_settings() -> AlbumSettingsResult:
         """
-        用途说明：获取相册设置（缩略图存储路径、实际路径、全系统缩略图最大边长与自动人脸识别开关）。
+        用途说明：获取相册设置（缩略图存储路径、实际路径、全系统缩略图最大边长、新增文件自动生成缩略图与自动人脸识别开关）。
         入参说明：无
         返回值说明：AlbumSettingsResult - 相册设置数据。
         """
         thumbnail_size: int = settingService.get_album_thumbnail_size()
+        auto_thumbnail_generation: bool = settingService.get_config().album.auto_thumbnail_generation
+        if not isinstance(auto_thumbnail_generation, bool):
+            auto_thumbnail_generation = False
         auto_face_recognition: bool = settingService.get_config().album.auto_face_recognition
         if not isinstance(auto_face_recognition, bool):
             auto_face_recognition = False
@@ -159,6 +162,7 @@ class AlbumService:
             thumbnail_dir=ThumbnailPathUtils.get_configured_dir(),
             thumbnail_dir_effective=ThumbnailPathUtils.get_thumbnail_dir(),
             thumbnail_size=thumbnail_size,
+            auto_thumbnail_generation=auto_thumbnail_generation,
             auto_face_recognition=auto_face_recognition
         )
 
@@ -195,19 +199,24 @@ class AlbumService:
     @staticmethod
     def update_settings(thumbnail_dir: str, operator_name: str,
                         thumbnail_size: Optional[int] = None,
+                        auto_thumbnail_generation: Optional[bool] = None,
                         auto_face_recognition: Optional[bool] = None) -> Optional[AlbumSettingsResult]:
         """
-        用途说明：更新缩略图存储路径、全系统缩略图最大边长与自动人脸识别开关，并确保目录可用。
+        用途说明：更新缩略图存储路径、全系统缩略图最大边长、新增文件自动生成缩略图与自动人脸识别开关，并确保目录可用。
         入参说明：
             thumbnail_dir (str): 用户输入的路径（相对 data 目录或绝对路径），空值使用默认 thumb。
             operator_name (str): 操作人用户名，用于日志。
             thumbnail_size (Optional[int]): 全系统缩略图最大边长（像素），None 表示不修改；仅接受正整数。
+            auto_thumbnail_generation (Optional[bool]): 新增文件自动生成缩略图开关，None 表示不修改；仅接受布尔值。
             auto_face_recognition (Optional[bool]): 自动识别新增图片开关，None 表示不修改；仅接受布尔值。
         返回值说明：Optional[AlbumSettingsResult] - 更新后的设置，失败返回 None。
         """
         if thumbnail_size is not None and (
                 isinstance(thumbnail_size, bool) or not isinstance(thumbnail_size, int) or thumbnail_size <= 0):
             LogUtils.error(t('album_thumbnail_size_invalid', value=thumbnail_size))
+            return None
+        if auto_thumbnail_generation is not None and not isinstance(auto_thumbnail_generation, bool):
+            LogUtils.error(t('album_auto_thumbnail_generation_invalid', value=auto_thumbnail_generation))
             return None
         if auto_face_recognition is not None and not isinstance(auto_face_recognition, bool):
             LogUtils.error(t('album_auto_face_recognition_invalid', value=auto_face_recognition))
@@ -229,10 +238,12 @@ class AlbumService:
             LogUtils.error(t('album_thumbnail_dir_create_failed', path=raw_value, error=str(e)))
             return None
 
-        # 通过统一设置服务持久化存储路径、全系统缩略图尺寸与自动识别开关
+        # 通过统一设置服务持久化存储路径、全系统缩略图尺寸与自动生成开关
         album_settings: dict = {"thumbnail_dir": raw_value}
         if thumbnail_size is not None:
             album_settings["thumbnail_size"] = thumbnail_size
+        if auto_thumbnail_generation is not None:
+            album_settings["auto_thumbnail_generation"] = auto_thumbnail_generation
         if auto_face_recognition is not None:
             album_settings["auto_face_recognition"] = auto_face_recognition
         updated: bool = settingService.update_settings(

@@ -322,7 +322,8 @@ class SettingService:
         用途：批量更新配置项并持久化。
         说明：登录锁定参数（login_max_attempts / login_lockout_minutes）必须为不小于 1 的整数，
         日志保留天数（log_management.retention_days）必须为不小于 1 的整数或 None（永久保留），
-        相册缩略图尺寸（album.thumbnail_size）必须为正整数，任一非法则拒绝本次更新并返回 False。
+        相册缩略图尺寸（album.thumbnail_size）必须为正整数，
+        新增文件自动生成缩略图（album.auto_thumbnail_generation）必须为布尔值，任一非法则拒绝本次更新并返回 False。
         入参：data: 包含更新项的字典，其一级键名应与 AppConfig 字段名一致（如 'user_data', 'file_repository'）。
         入参：operator_name: 执行更新操作的用户。
         返回值：是否更新成功。
@@ -363,6 +364,13 @@ class SettingService:
                 thumbnail_size: Any = album_section.get('thumbnail_size')
                 if isinstance(thumbnail_size, bool) or not isinstance(thumbnail_size, int) or thumbnail_size <= 0:
                     LogUtils.error(t('album_thumbnail_size_invalid', value=thumbnail_size))
+                    return False
+
+            # 新增文件自动生成缩略图仅接受布尔值，避免字符串被误判为开启
+            if isinstance(album_section, dict) and 'auto_thumbnail_generation' in album_section:
+                auto_thumbnail_generation: Any = album_section.get('auto_thumbnail_generation')
+                if not isinstance(auto_thumbnail_generation, bool):
+                    LogUtils.error(t('album_auto_thumbnail_generation_invalid', value=auto_thumbnail_generation))
                     return False
 
             old_language: str = self._config.user_data.language

@@ -237,6 +237,15 @@ class DBOperations:
         return processor_manager.file_index_processor.get_count(only_no_thumbnail)
 
     @staticmethod
+    def get_missing_media_thumbnails(after_id: int, limit: int = 500) -> List[FileIndexDBModel]:
+        """
+        用途说明：按主键游标分批获取缺少缩略图的有效图片或视频索引。
+        入参说明：after_id (int) - 上一批最后一个主键；limit (int) - 单批最大记录数。
+        返回值说明：List[FileIndexDBModel] - 按主键升序排列的媒体记录。
+        """
+        return processor_manager.file_index_processor.get_missing_media_thumbnails(after_id, limit)
+
+    @staticmethod
     def get_files_by_scan_time(checkpoint: Optional[str], newer: bool,
                                limit: Optional[int] = None, offset: int = 0) -> List[FileIndexDBModel]:
         """
