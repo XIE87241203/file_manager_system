@@ -4,7 +4,7 @@ class GlobalConfig:
     """
     # 系统统一运行端口 (前后端共用)
     SYSTEM_PORT: int = 5000
-    APP_VERSION: str = '1.1.2'
+    APP_VERSION: str = '1.1.3'
     SERVICE_CONTROL_STOP_TIMEOUT: float = 10.0
     SERVICE_CONTROL_START_TIMEOUT: float = 60.0
     SERVICE_CONTROL_HEALTH_PATH: str = '/api/system/version'

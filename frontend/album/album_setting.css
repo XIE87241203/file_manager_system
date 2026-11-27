@@ -1,5 +1,5 @@
 /**
- * 用途说明：相册设置页样式，定义设置卡片、路径输入、分辨率选择、自动生成缩略图、生效路径与人脸队列操作区。
+ * 用途说明：相册设置页样式，定义设置卡片、路径输入、分辨率选择、自动生成缩略图、缩略图管理、生效路径与人脸队列操作区。
  * 规范：仅使用 class 绑定样式，禁止内联样式。
  */
 
@@ -59,9 +59,16 @@
     box-sizing: border-box;
 }
 
-/* 缩略图维护卡片（由系统设置迁入） */
+/* 缩略图管理卡片：三个操作按钮保持同一行且尺寸一致 */
 .album-sync-card {
     margin-top: 20px;
+}
+
+.album-thumbnail-actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    width: 100%;
 }
 
 .album-sync-title {
@@ -106,20 +113,28 @@
     line-height: 1.4;
 }
 
-/* 操作按钮容器撑满维护项，内部按钮按设置页统一宽度居中 */
+/* 操作按钮容器撑满所在网格列，内部按钮按设置页统一尺寸显示 */
 .album-sync-btn-container,
 .album-generate-btn-container {
     display: flex;
     justify-content: center;
     width: 100%;
+    min-width: 0;
 }
 
+.album-thumbnail-actions .album-setting-action-btn,
 .album-sync-btn-container .progress-btn-container {
-    width: 200px;
-    max-width: 100%;
+    width: 100%;
+    min-width: 0;
     min-height: 48px;
+    margin: 0;
     padding: 0.75rem;
     box-sizing: border-box;
+}
+
+.album-thumbnail-actions .progress-btn-text {
+    font-size: inherit;
+    line-height: inherit;
 }
 
 .album-sync-btn-container .progress-btn-container:not(.processing):hover {
@@ -129,10 +144,6 @@
 .album-setting-action-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
-}
-
-.album-sync-spaced {
-    margin-top: 12px;
 }
 
 /* 索引新增文件自动生成缩略图开关 */
@@ -251,6 +262,17 @@
 
     .album-save-btn {
         max-width: none;
+    }
+
+    .album-thumbnail-actions {
+        gap: 8px;
+    }
+
+    .album-thumbnail-actions .album-setting-action-btn,
+    .album-sync-btn-container .progress-btn-container {
+        padding: 0.5rem;
+        font-size: 0.9rem;
+        line-height: 1.25;
     }
 
     .album-face-actions {

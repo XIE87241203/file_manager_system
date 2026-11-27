@@ -1,8 +1,9 @@
 import os
 import threading
 from collections import deque
+from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple, Set, Deque
+from typing import Deque, Dict, Iterator, List, Optional, Set, Tuple
 
 import cv2
 from PIL import Image
@@ -188,6 +189,17 @@ class ThumbnailGenerator:
                 self._resume_events.setdefault(repo_id, threading.Event()).set()
             LogUtils.info(t('thumb_gen_queue_cleared'))
 
+    @classmethod
+    @contextmanager
+    def generation_guard(cls) -> Iterator[None]:
+        """
+        用途说明：提供缩略图生成互斥上下文，供清空操作等待正在生成的缩略图完成并阻止新生成写入。
+        入参说明：无。
+        返回值说明：Iterator[None] - 通过 with 语句获取的生成锁上下文。
+        """
+        with cls._generate_now_lock:
+            yield
+
     @staticmethod
     def get_existing_thumbnail_path(file_md5: str) -> Optional[str]:
         """
@@ -252,17 +264,19 @@ class ThumbnailGenerator:
         resume_event: threading.Event = self._resume_events.setdefault(repo_id, threading.Event())
         while repo_id in self._paused_repos and not resume_event.wait(timeout=0.1):
             pass
-        with self._lock:
-            cancelled: bool = self._generation_by_repo.get(repo_id, 0) != generation
-        if file_info and not cancelled:
-            try:
-                thumb_size: int = settingService.get_album_thumbnail_size()
-                actual_path, thumb_path = self._generate_single_thumbnail(file_info, thumb_size)
-                if thumb_path:
-                    # 按 MD5 回填所有同内容文件（含副本）的缩略图路径，确保副本也能预览
-                    DBOperations.update_thumbnail_path_by_md5(file_info.file_md5, thumb_path)
-            except Exception as e:
-                LogUtils.error(t('thumb_gen_failed_log', path=file_info.file_path, error=str(e)))
+        # 与按需生成、清空操作共用互斥锁，避免清空后仍有正在处理的任务把缩略图重新写回
+        with self._generate_now_lock:
+            with self._lock:
+                cancelled: bool = self._generation_by_repo.get(repo_id, 0) != generation
+            if file_info and not cancelled:
+                try:
+                    thumb_size: int = settingService.get_album_thumbnail_size()
+                    actual_path, thumb_path = self._generate_single_thumbnail(file_info, thumb_size)
+                    if thumb_path:
+                        # 按 MD5 回填所有同内容文件（含副本）的缩略图路径，确保副本也能预览
+                        DBOperations.update_thumbnail_path_by_md5(file_info.file_md5, thumb_path)
+                except Exception as e:
+                    LogUtils.error(t('thumb_gen_failed_log', path=file_info.file_path, error=str(e)))
 
         with self._lock:
             self._processing_keys.discard(key)

@@ -54,27 +54,19 @@
                 <button id="btn-save-album-setting" class="btn-primary album-setting-action-btn" data-i18n="common.save"></button>
             </div>
 
-            <!-- 缩略图维护：生成缺失缩略图与清理无效缩略图任务（由系统设置迁入） -->
+            <!-- 缩略图管理：生成、清理无效与清空操作统一排列在一行 -->
             <div class="album-setting-card album-sync-card">
-                <h3 class="album-sync-title" data-i18n="album.sync_title"></h3>
-                <p class="album-sync-hint" data-i18n="album.sync_hint"></p>
-                <div class="album-sync-item">
-                    <div class="album-sync-info">
-                        <span class="album-sync-name" data-i18n="album.generate_thumbnails_name"></span>
-                        <span class="album-sync-desc" data-i18n="album.generate_thumbnails_desc"></span>
-                    </div>
+                <h3 class="album-sync-title" data-i18n="album.thumbnail_management_title"></h3>
+                <div class="album-thumbnail-actions">
                     <div class="album-generate-btn-container">
                         <button id="btn-generate-thumbnails" type="button" class="btn-primary album-setting-action-btn" disabled>
                             <span id="generate-thumbnails-label" data-i18n="album.generate_thumbnails_button"></span>
                         </button>
                     </div>
-                </div>
-                <div class="album-sync-item album-sync-spaced">
-                    <div class="album-sync-info">
-                        <span class="album-sync-name" data-i18n="album.sync_thumb"></span>
-                        <span class="album-sync-desc" data-i18n="album.sync_thumb_desc"></span>
-                    </div>
                     <div id="sync-thumbnail-btn-container" class="album-sync-btn-container"></div>
+                    <button id="btn-clear-thumbnails" type="button" class="btn-danger album-setting-action-btn" disabled>
+                        <span id="clear-thumbnails-label" data-i18n="album.clear_thumbnails_button"></span>
+                    </button>
                 </div>
             </div>
 

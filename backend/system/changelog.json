@@ -1,6 +1,36 @@
 {
   "entries": [
     {
+      "version": "1.1.3",
+      "date": "2026-11-27",
+      "highlights": [
+        {
+          "zh": "相册设置新增“缩略图管理”，生成缩略图、清理无效缩略图和清空缩略图三个按钮排列在同一行，尺寸一致。",
+          "en": "Album Settings now has Thumbnail Management, with Generate Thumbnails, Clean Invalid Thumbnails, and Clear Thumbnails aligned in one row at a consistent size."
+        },
+        {
+          "zh": "清空缩略图前会再次确认，只有系统管理员或当前仓库管理员可以操作；清空会停止生成队列，但不会影响原始图片和视频。",
+          "en": "Clearing thumbnails requires confirmation and is restricted to system or repository administrators. It stops thumbnail generation without affecting original images or videos."
+        },
+        {
+          "zh": "修复点击相册年份、月份或日期后仍回到原位置的问题，向上滚动补加载上一批内容时也会保持当前画面不跳动。",
+          "en": "Fixed album year, month, and date navigation returning to the original position, and kept the current view stable when loading a previous batch upward."
+        },
+        {
+          "zh": "文件名排序下的字母尺将“#”放在第一位，方便快速定位以数字或符号开头的文件名。",
+          "en": "The alphabet ruler now places “#” first when sorting by filename, making names beginning with numbers or symbols easier to find."
+        },
+        {
+          "zh": "修复当前任务按钮在有任务时动画反复重启、显示异常的问题，亮色和暗色主题下都能持续平稳转动。",
+          "en": "Fixed the Current Tasks icon repeatedly restarting or displaying incorrectly while tasks were running; it now rotates smoothly in light and dark themes."
+        }
+      ],
+      "rebuild_index_notice": {
+        "zh": "本次升级无需重建索引。清空缩略图后，再次浏览图片或视频时会按需重新生成，也可以使用“生成缩略图”提前补齐。",
+        "en": "No index rebuild is required. After clearing thumbnails, they are regenerated on demand when you browse images or videos, or you can use Generate Thumbnails to prepare them in advance."
+      }
+    },
+    {
       "version": "1.1.2",
       "date": "2026-11-26",
       "highlights": [

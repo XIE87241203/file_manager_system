@@ -23,6 +23,7 @@ class ThumbnailService(BaseAsyncService):
     1. 派发缩略图生成任务（手动批量派发与索引新增文件入队）。
     2. 同步物理文件（耗时操作，利用线程池异步清理无效文件）。
     3. 提供按需生成与生成队列余量监控。
+    4. 全量清空物理缩略图并重置当前仓库的缩略图路径记录。
     """
 
     @classmethod
@@ -278,20 +279,22 @@ class ThumbnailService(BaseAsyncService):
     @classmethod
     def clear_all_thumbnails(cls) -> bool:
         """
-        用途说明：全量清理操作。停止所有任务，清空物理缓存并重置数据库标记。
+        用途说明：全量清理操作。停止所有生成任务，等待正在生成的缩略图完成，清空物理缓存并重置数据库标记。
         入参说明：无
         返回值说明：bool - 操作是否全部成功。
         """
         try:
             cls.stop_thumbnail_generation()
 
-            # 清空当前配置目录与历史兼容目录，避免旧缩略图残留
-            for thumbnail_dir in ThumbnailPathUtils.get_known_dirs():
-                if os.path.exists(thumbnail_dir):
-                    shutil.rmtree(thumbnail_dir, ignore_errors=True)
-            ThumbnailPathUtils.ensure_thumbnail_dir()
+            # 持有生成锁期间清空目录，避免正在生成或新发起的生成任务在清理后重新写入缩略图
+            with ThumbnailGenerator.generation_guard():
+                # 清空当前配置目录与历史兼容目录，避免旧缩略图残留
+                for thumbnail_dir in ThumbnailPathUtils.get_known_dirs():
+                    if os.path.exists(thumbnail_dir):
+                        shutil.rmtree(thumbnail_dir, ignore_errors=True)
+                ThumbnailPathUtils.ensure_thumbnail_dir()
 
-            return DBOperations.clear_all_thumbnail_records()
+                return DBOperations.clear_all_thumbnail_records()
         except Exception as e:
             LogUtils.error(t('thumb_clear_all_failed', error=str(e)))
             return False

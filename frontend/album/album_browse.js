@@ -31,7 +31,7 @@ const State = {
     groupKeys: [], // 分组键列表，严格保持数据库全局排序顺序
     timelineTicks: [], // 动态标尺刻度缓存：[{ el, level, key, year, month, path, disabled }]
     axis: {
-        letters: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ#'.split(''), // 固定完整字母尺，无数据字母由后端结果置灰
+        letters: '#ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split(''), // 固定完整字母尺，# 置顶，无数据字母由后端结果置灰
         initialItems: [], // 文件名排序时的实际首字母分组
         yearItems: [], // 时间排序时的年份与未知日期分组
         expandedYear: '', // 当前展开的年份键，空字符串表示全部收起
@@ -704,7 +704,7 @@ const UIController = {
         }, { root: scrollRoot, rootMargin: '400px 0px' });
         if (this.elements.sentinel) State.sentinelObserver.observe(this.elements.sentinel);
 
-        // 顶部哨兵进入视口时向上加载，锚点定位后滚动回列表顶部即可继续补全
+        // 顶部哨兵进入视口时向上加载；锚点定位由 App 串行调用同一逻辑，避免与滚动竞争
         State.topSentinelObserver = new IntersectionObserver((entries) => {
             entries.forEach(entry => {
                 if (entry.isIntersecting) App.loadPreviousPage();
@@ -2103,11 +2103,14 @@ const App = {
 
     /**
      * 用途说明：以当前已加载第一条媒体为锚点反向加载上一批，并保持原视口位置不跳动。
-     * 入参说明：无
+     * 入参说明：onLoaded (Function) - 可选回调，上一批处理完成或请求失败后执行。
      * 返回值说明：无
      */
-    loadPreviousPage() {
-        if (State.loading || !State.hasPrevious || State.items.length === 0) return;
+    loadPreviousPage(onLoaded) {
+        if (State.loading || !State.hasPrevious || State.items.length === 0) {
+            if (typeof onLoaded === 'function') onLoaded();
+            return;
+        }
         const firstPath = State.items[0].file_path;
         const token = State.queryToken;
         State.loading = true;
@@ -2128,17 +2131,19 @@ const App = {
 
             // 用原首张卡片的新旧视口坐标差修正滚动值，抵消顶部插入造成的高度变化
             if (inserted && anchorCard && oldTop !== null) {
-                const scrollRoot = this.elements.list;
+                const scrollRoot = UIController.elements.list;
                 if (scrollRoot) {
                     scrollRoot.scrollTop += anchorCard.card.getBoundingClientRect().top - oldTop;
                 }
             }
+            if (typeof onLoaded === 'function') onLoaded();
         }, (msg) => {
             if (token !== State.queryToken) return;
             State.loading = false;
             UIController.updateEmptyState();
             State.loadDirection = '';
             Toast.show(msg || I18nManager.t('album.load_failed'));
+            if (typeof onLoaded === 'function') onLoaded();
         });
     },
 
@@ -2162,7 +2167,7 @@ const App = {
         State.selected.clear();
         this.clearSelection();
         UIController.clearList();
-        const scrollRoot = this.elements.list;
+        const scrollRoot = UIController.elements.list;
         if (scrollRoot) scrollRoot.scrollTop = 0;
 
         State.loading = true;
@@ -2178,9 +2183,13 @@ const App = {
             State.loading = false;
             UIController.appendItems(list);
             UIController.updateEmptyState();
-            State.loadDirection = '';
-            if (typeof onLoaded === 'function') onLoaded();
-            this.maybeLoadMore();
+
+            // 先串行补齐锚点之前的上一批，再定位目标，避免顶部哨兵并发插入旧数据打断滚动
+            this.loadPreviousPage(() => {
+                State.loadDirection = '';
+                if (typeof onLoaded === 'function') onLoaded();
+                this.maybeLoadMore();
+            });
         }, (msg) => {
             if (token !== State.queryToken) return;
             State.loading = false;

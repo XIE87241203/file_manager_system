@@ -1,6 +1,6 @@
 import os
 from dataclasses import asdict
-from typing import Optional
+from typing import Any, Optional, Tuple
 
 from flask import Blueprint, request, send_file
 
@@ -365,12 +365,23 @@ def get_thumbnail_queue_count():
 
 @file_repo_bp.route('/thumbnail/clear', methods=['POST'])
 @token_required
-def clear_thumbnails():
-    LogUtils.info(t('thumb_clear_log', user=_get_current_user()))
+def clear_thumbnails() -> Tuple[Any, int]:
+    """
+    用途说明：停止缩略图生成队列并清空全部已生成的缩略图，仅系统管理员或当前仓库管理员可操作。
+    入参说明：无；仓库 ID 来自请求上下文。
+    返回值说明：统一 JSON 响应，清空成功返回成功状态，失败返回 500。
+    """
+    username: str = _get_current_user()
+    repo_id: int = get_current_repo_id()
+    if userService.get_repo_permission(username, repo_id) \
+            != DBConstants.UserRepositoryPermission.PERMISSION_ADMIN:
+        LogUtils.error(t('user_repo_admin_required_log', username=username, repo_id=repo_id, path=request.path))
+        return error_response(t('user_repo_admin_required'), 403)
+
+    LogUtils.info(t('thumb_clear_log', user=username))
     if ThumbnailService.clear_all_thumbnails():
         return success_response(t('thumb_cleanup_success'))
-    else:
-        return error_response(t('thumb_clear_all_failed', error=''), 500)
+    return error_response(t('thumb_clear_all_failed', error=''), 500)
 
 
 @file_repo_bp.route('/thumbnail/sync/start', methods=['POST'])

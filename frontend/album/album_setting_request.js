@@ -1,5 +1,5 @@
 /**
- * 用途说明：相册设置页面 API 请求封装，负责缩略图设置、新增文件自动生成缩略图、当前用户权限与人脸识别任务。
+ * 用途说明：相册设置页面 API 请求封装，负责缩略图设置、缩略图管理、新增文件自动生成缩略图、当前用户权限与人脸识别任务。
  * 每个方法均提供成功回调 (onSuccess) 与错误回调 (onError)。
  */
 const AlbumSettingRequest = {
@@ -74,6 +74,22 @@ const AlbumSettingRequest = {
      */
     generateMissingThumbnails(onSuccess, onError) {
         Request.post('/api/album/thumbnail/generate', {}, {}, false)
+            .then(res => {
+                if (res.status === 'success') onSuccess(res);
+                else onError(res.message);
+            })
+            .catch(err => onError(err.message || I18nManager.t('common.network_error')));
+    },
+
+    /**
+     * 用途说明：停止缩略图生成队列并清空全部已生成的缩略图。
+     * 入参说明：
+     *   onSuccess (Function) - 成功回调，参数为后端响应。
+     *   onError (Function) - 失败回调，参数为错误信息。
+     * 返回值说明：无
+     */
+    clearThumbnails(onSuccess, onError) {
+        Request.post('/api/file_repository/thumbnail/clear')
             .then(res => {
                 if (res.status === 'success') onSuccess(res);
                 else onError(res.message);

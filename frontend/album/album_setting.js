@@ -1,5 +1,5 @@
 /**
- * 用途说明：相册设置页逻辑，负责缩略图设置、新增文件自动生成缩略图、缩略图同步与人脸识别任务的状态和操作。
+ * 用途说明：相册设置页逻辑，负责缩略图设置、新增文件自动生成缩略图、缩略图管理与人脸识别任务的状态和操作。
  * 模块划分：State（状态）、UIController（DOM 操作）、API（接口封装）、App（入口）。
  */
 
@@ -20,6 +20,10 @@ const State = {
     saving: false,
     // 手动扫描缺失缩略图的请求状态，仅扫描期间禁用按钮，生成进度由当前任务面板展示
     thumbnailGeneration: {
+        busy: false
+    },
+    // 清空缩略图请求状态，避免重复提交破坏性操作
+    thumbnailClear: {
         busy: false
     },
     // 缩略图同步任务状态（由系统设置迁入）
@@ -82,6 +86,15 @@ const API = {
      */
     generateMissingThumbnails(onSuccess, onError) {
         AlbumSettingRequest.generateMissingThumbnails(onSuccess, onError);
+    },
+
+    /**
+     * 用途说明：停止缩略图生成队列并清空全部已生成的缩略图。
+     * 入参说明：onSuccess (Function) - 成功回调，参数为后端响应；onError (Function) - 失败回调。
+     * 返回值说明：无
+     */
+    clearThumbnails(onSuccess, onError) {
+        AlbumSettingRequest.clearThumbnails(onSuccess, onError);
     },
 
     /**
@@ -196,6 +209,8 @@ const UIController = {
             saveBtn: document.getElementById('btn-save-album-setting'),
             generateThumbnailsBtn: document.getElementById('btn-generate-thumbnails'),
             generateThumbnailsLabel: document.getElementById('generate-thumbnails-label'),
+            clearThumbnailsBtn: document.getElementById('btn-clear-thumbnails'),
+            clearThumbnailsLabel: document.getElementById('clear-thumbnails-label'),
             faceCard: document.getElementById('face-recognition-card'),
             autoFaceCheckbox: document.getElementById('auto-face-recognition'),
             faceStatusText: document.getElementById('face-status-text'),
@@ -209,7 +224,7 @@ const UIController = {
         this.renderThumbnailSizeOptions();
         document.addEventListener('appearance:languagechange', () => {
             this.renderThumbnailUsage();
-            this.renderThumbnailGenerationButton();
+            this.renderThumbnailActionButtons();
         });
     },
 
@@ -305,23 +320,38 @@ const UIController = {
         if (this.elements.autoFaceCheckbox) {
             this.elements.autoFaceCheckbox.disabled = saving || !State.faceRecognition.canManage;
         }
-        this.renderThumbnailGenerationButton();
+        this.renderThumbnailActionButtons();
     },
 
     /**
-     * 用途说明：根据权限与扫描请求状态刷新生成按钮的文案和可用状态。
+     * 用途说明：根据权限与请求状态刷新生成、清空缩略图按钮的文案和可用状态。
      * 入参说明：无。
      * 返回值说明：无。
      */
-    renderThumbnailGenerationButton() {
-        const button = this.elements.generateThumbnailsBtn;
-        if (!button) return;
-        button.disabled = !State.canManageThumbnails || State.saving || State.thumbnailGeneration.busy;
+    renderThumbnailActionButtons() {
+        const generateButton = this.elements.generateThumbnailsBtn;
+        if (generateButton) {
+            generateButton.disabled = !State.canManageThumbnails || State.saving
+                || State.thumbnailGeneration.busy || State.thumbnailClear.busy;
+        }
         if (this.elements.generateThumbnailsLabel) {
             this.elements.generateThumbnailsLabel.textContent = I18nManager.t(
                 State.thumbnailGeneration.busy
                     ? 'album.generate_thumbnails_scanning'
                     : 'album.generate_thumbnails_button'
+            );
+        }
+
+        const clearButton = this.elements.clearThumbnailsBtn;
+        if (clearButton) {
+            clearButton.disabled = !State.canManageThumbnails || State.saving
+                || State.thumbnailGeneration.busy || State.thumbnailClear.busy;
+        }
+        if (this.elements.clearThumbnailsLabel) {
+            this.elements.clearThumbnailsLabel.textContent = I18nManager.t(
+                State.thumbnailClear.busy
+                    ? 'album.clear_thumbnails_clearing'
+                    : 'album.clear_thumbnails_button'
             );
         }
     },
@@ -333,7 +363,17 @@ const UIController = {
      */
     setThumbnailGenerationBusy(busy) {
         State.thumbnailGeneration.busy = busy;
-        this.renderThumbnailGenerationButton();
+        this.renderThumbnailActionButtons();
+    },
+
+    /**
+     * 用途说明：记录清空缩略图请求状态，防止重复提交。
+     * 入参说明：busy (boolean) - 是否正在清空缩略图。
+     * 返回值说明：无。
+     */
+    setThumbnailClearBusy(busy) {
+        State.thumbnailClear.busy = busy;
+        this.renderThumbnailActionButtons();
     },
 
     /**
@@ -382,7 +422,7 @@ const UIController = {
         if (this.elements.autoThumbnailCheckbox) {
             this.elements.autoThumbnailCheckbox.disabled = !canManage || State.saving;
         }
-        this.renderThumbnailGenerationButton();
+        this.renderThumbnailActionButtons();
     },
 
     /**
@@ -466,7 +506,7 @@ const App = {
     },
 
     /**
-     * 用途说明：绑定相册设置保存与人脸识别操作事件。
+     * 用途说明：绑定相册设置保存、缩略图管理与人脸识别操作事件。
      * 入参说明：无
      * 返回值说明：无
      */
@@ -475,6 +515,9 @@ const App = {
         if (saveBtn) saveBtn.onclick = () => this.saveSettings();
         if (UIController.elements.generateThumbnailsBtn) {
             UIController.elements.generateThumbnailsBtn.onclick = () => this.handleGenerateThumbnails();
+        }
+        if (UIController.elements.clearThumbnailsBtn) {
+            UIController.elements.clearThumbnailsBtn.onclick = () => this.confirmClearThumbnails();
         }
         if (UIController.elements.faceStartBtn) {
             UIController.elements.faceStartBtn.onclick = () => this.handleStartFaceRecognition();
@@ -565,7 +608,8 @@ const App = {
      * 返回值说明：无。
      */
     handleGenerateThumbnails() {
-        if (!State.canManageThumbnails || State.saving || State.thumbnailGeneration.busy) return;
+        if (!State.canManageThumbnails || State.saving || State.thumbnailGeneration.busy
+            || State.thumbnailClear.busy) return;
         UIController.setThumbnailGenerationBusy(true);
         API.generateMissingThumbnails((response) => {
             UIController.setThumbnailGenerationBusy(false);
@@ -574,6 +618,42 @@ const App = {
         }, (msg) => {
             UIController.setThumbnailGenerationBusy(false);
             Toast.show(msg || I18nManager.t('album.generate_thumbnails_failed'));
+        });
+    },
+
+    /**
+     * 用途说明：清空缩略图前二次确认，明确提示会停止生成队列且不影响原始媒体文件。
+     * 入参说明：无。
+     * 返回值说明：无。
+     */
+    confirmClearThumbnails() {
+        if (!State.canManageThumbnails || State.saving || State.thumbnailGeneration.busy
+            || State.thumbnailClear.busy) return;
+        UIComponents.showConfirmModal({
+            title: I18nManager.t('album.clear_thumbnails_confirm_title'),
+            message: I18nManager.t('album.clear_thumbnails_confirm_msg'),
+            confirmText: I18nManager.t('album.clear_thumbnails_button'),
+            onConfirm: () => this.runClearThumbnails()
+        });
+    },
+
+    /**
+     * 用途说明：请求后端停止缩略图生成队列并清空缩略图，完成后刷新占用与当前任务。
+     * 入参说明：无。
+     * 返回值说明：无。
+     */
+    runClearThumbnails() {
+        if (!State.canManageThumbnails || State.saving || State.thumbnailGeneration.busy
+            || State.thumbnailClear.busy) return;
+        UIController.setThumbnailClearBusy(true);
+        API.clearThumbnails((response) => {
+            UIController.setThumbnailClearBusy(false);
+            Toast.show(response.message || I18nManager.t('album.clear_thumbnails_success'));
+            this.loadThumbnailUsage();
+            CurrentTasksApp.refresh();
+        }, (msg) => {
+            UIController.setThumbnailClearBusy(false);
+            Toast.show(msg || I18nManager.t('album.clear_thumbnails_failed'));
         });
     },
 

@@ -107,7 +107,7 @@ const CurrentTasksUI = {
     },
 
     /**
-     * 用途说明：根据任务数量切换静态图、动图和按钮提示。
+     * 用途说明：根据任务数量切换静态图标、动图和按钮提示。
      * 入参说明：无。
      * 返回值说明：无。
      */
@@ -118,7 +118,9 @@ const CurrentTasksUI = {
         const hasTasks = CurrentTasksState.tasks.length > 0;
         const theme = document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
         const iconName = hasTasks ? 'task_running.svg' : 'task.svg';
-        icon.src = `/common/themes/${theme}/icons/${iconName}`;
+        const iconUrl = `/common/themes/${theme}/icons/${iconName}`;
+        // 轮询刷新时保持同一图片地址，避免重复下载导致 CSS 旋转动画不断重新开始
+        if (icon.getAttribute('src') !== iconUrl) icon.src = iconUrl;
         const label = I18nManager.t(hasTasks ? 'current_tasks.button_active' : 'current_tasks.button_idle', {
             count: CurrentTasksState.tasks.length
         });
