@@ -863,7 +863,7 @@ const UIController = {
 
     /**
      * 用途说明：根据媒体数据创建瀑布流卡片（含缩略图/占位图、勾选框、详情、下载与删除按钮）。
-     * 入参说明：item (Object) - 媒体项 {file_path, file_name, file_type, thumbnail_path}。
+     * 入参说明：item (Object) - 媒体项 {file_path, file_name, file_type, thumbnail_path, media_width, media_height}。
      * 返回值说明：HTMLElement - 创建好的卡片元素。
      */
     createCard(item) {
@@ -876,6 +876,13 @@ const UIController = {
 
         const placeholder = document.createElement('div');
         placeholder.className = 'album-placeholder';
+        const mediaWidth = Number(item.media_width);
+        const mediaHeight = Number(item.media_height);
+        if (Number.isFinite(mediaWidth) && Number.isFinite(mediaHeight)
+            && mediaWidth > 0 && mediaHeight > 0) {
+            // 先按原始媒体显示比例占位；缩略图加载失败时也能保持正确比例。
+            placeholder.style.setProperty('--album-media-ratio', `${mediaWidth} / ${mediaHeight}`);
+        }
         const placeholderIcon = document.createElement('span');
         placeholderIcon.className = `album-placeholder-icon theme-icon ${item.file_type === 'video' ? 'icon-video' : 'icon-image'}`;
         placeholderIcon.setAttribute('aria-hidden', 'true');

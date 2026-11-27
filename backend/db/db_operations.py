@@ -70,7 +70,7 @@ class DBOperations:
     @staticmethod
     def batch_update_album_metadata(data_list: List[FileIndexDBModel]) -> int:
         """
-        用途说明：批量补全媒体索引的三个相册字段，仅覆盖空字段。
+        用途说明：批量补全媒体索引信息，仅覆盖空字段。
         入参说明：data_list (List[FileIndexDBModel]): 从文件读取的媒体信息列表。
         返回值说明：int - 实际更新的索引记录数量。
         """

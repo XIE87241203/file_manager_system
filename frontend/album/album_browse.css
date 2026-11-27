@@ -614,7 +614,6 @@ body.album-sidebar-resizing {
     position: relative;
     width: 100%;
     background: var(--palette-e9edf3);
-    min-height: 90px;
 }
 
 .album-thumb {
@@ -635,7 +634,7 @@ body.album-sidebar-resizing {
     justify-content: center;
     gap: 6px;
     width: 100%;
-    aspect-ratio: 4 / 3;
+    aspect-ratio: var(--album-media-ratio, 4 / 3);
     background: linear-gradient(135deg, var(--palette-eef1f5) 0%, var(--palette-dfe5ec) 100%);
     color: var(--color-text-placeholder);
 }

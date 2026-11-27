@@ -18,3 +18,5 @@ class AlbumItemResult:
     file_mtime: Optional[str] = None             # 文件最后修改时间（EXIF 时间缺失时的兜底）
     file_exif_time: Optional[str] = None         # EXIF 拍摄时间/视频创建时间（相册优先使用）
     file_location: Optional[str] = None          # 拍摄地点（EXIF GPS / 视频 ISO 6709 坐标文本）
+    media_width: Optional[int] = None            # 原始媒体显示宽度（像素），无有效分辨率时为空
+    media_height: Optional[int] = None           # 原始媒体显示高度（像素），无有效分辨率时为空

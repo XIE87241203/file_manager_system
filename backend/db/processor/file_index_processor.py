@@ -43,7 +43,9 @@ class FileIndexProcessor(BaseDBProcessor):
                 f.scan_time,
                 f.file_mtime,
                 f.file_exif_time,
-                f.file_location
+                f.file_location,
+                f.media_width,
+                f.media_height
             ))
         
         query: str = f'''
@@ -60,9 +62,11 @@ class FileIndexProcessor(BaseDBProcessor):
                 {DBConstants.FileIndex.COL_SCAN_TIME},
                 {DBConstants.FileIndex.COL_FILE_MTIME},
                 {DBConstants.FileIndex.COL_FILE_EXIF_TIME},
-                {DBConstants.FileIndex.COL_FILE_LOCATION}
+                {DBConstants.FileIndex.COL_FILE_LOCATION},
+                {DBConstants.FileIndex.COL_MEDIA_WIDTH},
+                {DBConstants.FileIndex.COL_MEDIA_HEIGHT}
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         '''
 
         return BaseDBProcessor._execute_batch(query, data, conn=conn)
@@ -114,6 +118,11 @@ class FileIndexProcessor(BaseDBProcessor):
                 file_index.COL_FILE_EXIF_TIME,
                 file_index.COL_FILE_LOCATION
             )
+        ) + ' OR ' + ' OR '.join(
+            f"{column} IS NULL" for column in (
+                file_index.COL_MEDIA_WIDTH,
+                file_index.COL_MEDIA_HEIGHT
+            )
         )
         query: str = (
             f"SELECT * FROM {file_index.TABLE_NAME} "
@@ -141,6 +150,11 @@ class FileIndexProcessor(BaseDBProcessor):
                 file_index.COL_FILE_EXIF_TIME,
                 file_index.COL_FILE_LOCATION
             )
+        ) + ' OR ' + ' OR '.join(
+            f"{column} IS NULL" for column in (
+                file_index.COL_MEDIA_WIDTH,
+                file_index.COL_MEDIA_HEIGHT
+            )
         )
         query: str = (
             f"SELECT COUNT(*) AS total FROM {file_index.TABLE_NAME} "
@@ -157,7 +171,7 @@ class FileIndexProcessor(BaseDBProcessor):
     def batch_update_album_metadata(data_list: List[FileIndexDBModel],
                                     conn: Optional[sqlite3.Connection] = None) -> int:
         """
-        用途说明：批量补全索引中的媒体修改时间、拍摄时间和拍摄地点，只覆盖原本为空的字段。
+        用途说明：批量补全索引中的媒体修改时间、拍摄时间、拍摄地点和分辨率，只覆盖原本为空的字段。
         入参说明：
             data_list (List[FileIndexDBModel]): 从物理文件读取的媒体信息列表，单批不超过 200 条。
             conn (Optional[sqlite3.Connection]): 可选的外部事务连接。
@@ -176,11 +190,24 @@ class FileIndexProcessor(BaseDBProcessor):
             f"THEN ? ELSE {file_index.COL_FILE_EXIF_TIME} END, "
             f"{file_index.COL_FILE_LOCATION} = CASE "
             f"WHEN {file_index.COL_FILE_LOCATION} IS NULL OR {file_index.COL_FILE_LOCATION} = '' "
-            f"THEN ? ELSE {file_index.COL_FILE_LOCATION} END "
+            f"THEN ? ELSE {file_index.COL_FILE_LOCATION} END, "
+            f"{file_index.COL_MEDIA_WIDTH} = CASE "
+            f"WHEN {file_index.COL_MEDIA_WIDTH} IS NULL "
+            f"THEN ? ELSE {file_index.COL_MEDIA_WIDTH} END, "
+            f"{file_index.COL_MEDIA_HEIGHT} = CASE "
+            f"WHEN {file_index.COL_MEDIA_HEIGHT} IS NULL "
+            f"THEN ? ELSE {file_index.COL_MEDIA_HEIGHT} END "
             f"WHERE {file_index.COL_FILE_PATH} = ?"
         )
         data: List[tuple] = [
-            (item.file_mtime, item.file_exif_time, item.file_location, item.file_path)
+            (
+                item.file_mtime,
+                item.file_exif_time,
+                item.file_location,
+                item.media_width,
+                item.media_height,
+                item.file_path
+            )
             for item in data_list
         ]
         return BaseDBProcessor._execute_batch(query, data, conn=conn)

@@ -508,6 +508,8 @@ TRANSLATIONS = {
     "db_migrate_v24_failed": "Failed to upgrade to version 24: {error}",
     "db_migrate_v25_success": "Database upgraded to version 25: Added the persistent image face recognition queue",
     "db_migrate_v25_failed": "Failed to upgrade to version 25: {error}",
+    "db_migrate_v26_success": "Database upgraded to version 26: Added empty image/video resolution columns to file_index; historical values will be written during the next index scan or manual metadata refresh",
+    "db_migrate_v26_failed": "Failed to upgrade to version 26: {error}",
     "media_time_read_failed": "Failed to read media capture time: {path}, error: {error}",
     "media_location_read_failed": "Failed to read media capture location: {path}, error: {error}",
 

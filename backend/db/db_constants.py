@@ -3,7 +3,7 @@ class DBConstants:
     用途：数据库表名及列名常量类，统一管理所有数据库结构相关的硬编码字符串
     """
 
-    DB_VERSION: int = 25  # 当前数据库版本，升级至 25 以支持持久化图片人脸识别队列
+    DB_VERSION: int = 26  # 当前数据库版本，升级至 26 以支持图片与视频分辨率
 
     class VersionInfo:
         """用途：version_info 表相关的常量"""
@@ -27,6 +27,8 @@ class DBConstants:
         COL_FILE_MTIME: str = 'file_mtime'         # 新增：文件最后修改时间（用于相册时间轴分组）
         COL_FILE_EXIF_TIME: str = 'file_exif_time' # 新增：EXIF 拍摄时间/视频创建时间（相册优先使用）
         COL_FILE_LOCATION: str = 'file_location'   # 新增：拍摄地点（EXIF GPS / 视频 ISO 6709 坐标文本）
+        COL_MEDIA_WIDTH: str = 'media_width'       # 新增：图片或视频显示宽度（像素）
+        COL_MEDIA_HEIGHT: str = 'media_height'     # 新增：图片或视频显示高度（像素）
         # 已检查但确实不存在的媒体信息标记，避免每次手动补全都重复读取同一文件
         NO_INFO_VALUE: str = '__NO_INFO__'
         # 相册实际排序时间表达式：优先 EXIF/拍摄时间，缺失时回退文件修改时间；无信息标记按空值处理

@@ -358,7 +358,9 @@ class DBManager:
                 {DBConstants.FileIndex.COL_RECYCLE_BIN_TIME} DATETIME,
                 {DBConstants.FileIndex.COL_FILE_MTIME} DATETIME,
                 {DBConstants.FileIndex.COL_FILE_EXIF_TIME} DATETIME,
-                {DBConstants.FileIndex.COL_FILE_LOCATION} TEXT
+                {DBConstants.FileIndex.COL_FILE_LOCATION} TEXT,
+                {DBConstants.FileIndex.COL_MEDIA_WIDTH} INTEGER,
+                {DBConstants.FileIndex.COL_MEDIA_HEIGHT} INTEGER
             )
         ''')
         
@@ -972,6 +974,22 @@ class DBManager:
                 LogUtils.error(t('db_migrate_v25_failed', error=str(e)))
                 raise e
 
+        if old_version < 26:
+            # 升级到版本 26: 直接添加图片/视频分辨率空列，历史数据等待索引或手动补全时写入
+            try:
+                DBManager._add_column_if_missing(
+                    cursor, DBConstants.FileIndex.TABLE_NAME,
+                    DBConstants.FileIndex.COL_MEDIA_WIDTH, 'INTEGER'
+                )
+                DBManager._add_column_if_missing(
+                    cursor, DBConstants.FileIndex.TABLE_NAME,
+                    DBConstants.FileIndex.COL_MEDIA_HEIGHT, 'INTEGER'
+                )
+                LogUtils.info(t('db_migrate_v26_success'))
+            except Exception as e:
+                LogUtils.error(t('db_migrate_v26_failed', error=str(e)))
+                raise e
+
     @staticmethod
     def _add_column_if_missing(cursor: sqlite3.Cursor, table_name: str,
                                column_name: str, column_definition: str) -> None:
@@ -994,7 +1012,7 @@ class DBManager:
     @staticmethod
     def _ensure_file_index_album_columns(cursor: sqlite3.Cursor) -> None:
         """
-        用途说明：补齐相册依赖的修改时间、拍摄时间和拍摄地点空列及索引，不读取或扫描任何文件。
+        用途说明：补齐相册依赖的修改时间、拍摄时间、拍摄地点和分辨率空列及索引，不读取或扫描任何文件。
         入参说明：cursor (sqlite3.Cursor) - 初始化或迁移过程中的数据库游标。
         返回值说明：无；可重复执行，已有列和索引保持不变。
         """
@@ -1009,6 +1027,12 @@ class DBManager:
         )
         DBManager._add_column_if_missing(
             cursor, file_index.TABLE_NAME, file_index.COL_FILE_LOCATION, 'TEXT'
+        )
+        DBManager._add_column_if_missing(
+            cursor, file_index.TABLE_NAME, file_index.COL_MEDIA_WIDTH, 'INTEGER'
+        )
+        DBManager._add_column_if_missing(
+            cursor, file_index.TABLE_NAME, file_index.COL_MEDIA_HEIGHT, 'INTEGER'
         )
         cursor.execute(
             f"CREATE INDEX IF NOT EXISTS idx_file_index_mtime "

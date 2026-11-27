@@ -80,7 +80,9 @@ class AlbumService:
                 ),
                 file_location=(
                     None if item.file_location == DBConstants.FileIndex.NO_INFO_VALUE else item.file_location
-                )
+                ),
+                media_width=item.media_width if item.media_width and item.media_width > 0 else None,
+                media_height=item.media_height if item.media_height and item.media_height > 0 else None
             ))
 
         return CursorPaginationResult(

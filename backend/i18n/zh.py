@@ -508,6 +508,8 @@ TRANSLATIONS = {
     "db_migrate_v24_failed": "升级到版本 24 失败: {error}",
     "db_migrate_v25_success": "数据库升级到版本 25: 已新增持久化图片人脸识别队列",
     "db_migrate_v25_failed": "升级到版本 25 失败: {error}",
+    "db_migrate_v26_success": "数据库升级到版本 26: 已为 file_index 添加图片/视频分辨率空列，历史数据将在下次索引或手动补全时写入",
+    "db_migrate_v26_failed": "升级到版本 26 失败: {error}",
     "media_time_read_failed": "读取媒体拍摄时间失败: {path}，错误: {error}",
     "media_location_read_failed": "读取媒体拍摄地点失败: {path}，错误: {error}",
 
