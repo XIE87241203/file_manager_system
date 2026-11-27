@@ -1,4 +1,5 @@
 import sqlite3
+from contextlib import nullcontext
 from typing import Any, List, Dict, Optional, Set
 
 from backend.common.i18n_utils import t
@@ -10,6 +11,7 @@ from backend.db.processor.base_db_processor import BaseDBProcessor
 from backend.model.db.duplicate_group_db_model import DuplicateGroupDBModel
 from backend.model.db.file_index_db_model import FileIndexDBModel
 from backend.model.duplicate_group_result import DuplicateGroupResult, DuplicateFileResult
+from backend.model.file_move_info import FileMoveInfo
 from backend.model.pagination_result import PaginationResult
 
 
@@ -158,6 +160,57 @@ class DuplicateGroupProcessor(BaseDBProcessor):
                 conn.close()
 
     @staticmethod
+    def count_files_by_paths(file_paths: List[str], conn: Optional[sqlite3.Connection] = None) -> int:
+        """
+        用途说明：统计查重结果中指定路径的成员记录数，供生命周期适配器返回准确影响行数。
+        入参说明：file_paths (List[str]) - 待统计的文件路径；conn (Optional[sqlite3.Connection]) - 外部事务连接。
+        返回值说明：int - 匹配的 duplicate_files 记录数。
+        """
+        if not file_paths:
+            return 0
+        total: int = 0
+        batch_size: int = 500
+        for start in range(0, len(file_paths), batch_size):
+            batch: List[str] = file_paths[start:start + batch_size]
+            placeholders: str = ','.join('?' for _ in batch)
+            query: str = (
+                f"SELECT COUNT(*) AS total FROM {DBConstants.DuplicateFile.TABLE_FILES} "
+                f"WHERE {DBConstants.DuplicateFile.COL_FILE_PATH} IN ({placeholders})"
+            )
+            row: Optional[dict] = BaseDBProcessor._execute(
+                query, tuple(batch), is_query=True, fetch_one=True, conn=conn
+            )
+            total += int(row['total']) if row else 0
+        return total
+
+    @staticmethod
+    def update_file_paths(changes: List[FileMoveInfo], conn: Optional[sqlite3.Connection] = None) -> int:
+        """
+        用途说明：批量更新查重结果中的文件路径，保留分组及相似度信息。
+        入参说明：changes (List[FileMoveInfo]) - 文件路径变更列表；conn (Optional[sqlite3.Connection]) - 外部事务连接。
+        返回值说明：int - 实际更新的 duplicate_files 记录数。
+        """
+        if not changes:
+            return 0
+        affected_rows: int = 0
+        duplicate_file: type = DBConstants.DuplicateFile
+        with (db_manager.transaction() if conn is None else nullcontext(conn)) as tx:
+            for change in changes:
+                # 新路径若存在旧残留记录，先移除，避免同一路径在查重结果中重复出现。
+                BaseDBProcessor._execute(
+                    f"DELETE FROM {duplicate_file.TABLE_FILES} WHERE {duplicate_file.COL_FILE_PATH} = ?",
+                    (change.new_path,),
+                    conn=tx
+                )
+                affected_rows += BaseDBProcessor._execute(
+                    f"UPDATE {duplicate_file.TABLE_FILES} SET {duplicate_file.COL_FILE_PATH} = ? "
+                    f"WHERE {duplicate_file.COL_FILE_PATH} = ?",
+                    (change.new_path, change.old_path),
+                    conn=tx
+                )
+        return affected_rows
+
+    @staticmethod
     def _self_heal(conn: Optional[sqlite3.Connection] = None) -> None:
         """
         用途说明：核心数据库自愈逻辑，全表清理失效路径关联及解散成员不足 2 人的分组。
@@ -241,121 +294,111 @@ class DuplicateGroupProcessor(BaseDBProcessor):
             file_type: Optional[str] = None
     ) -> PaginationResult[DuplicateGroupResult]:
         """
-        用途说明：分页获取重复文件分组数据（基于先自愈后查询的优化方案）。
+        用途说明：分页获取有效文件的重复分组，回收站成员不参与展示和分组数量判断。
         流程说明：
-            1. 调用 _self_heal() 进行全局自愈，确保数据库数据 100% 真实有效。
-            2. 统计总数：由于数据已清理，直接统计即可获得准确的总条数。
-            3. 分页查询：获取当前页的分组信息。
-            4. 批量查询：获取所有成员详情（无需复杂的 LEFT JOIN 判断）。
-            5. 返回封装：封装并返回分页结果。
+            1. 清理已不存在文件路径的孤儿关联，保留回收站文件的查重关系以便恢复。
+            2. 仅选择至少包含两个有效成员的重复组，并应用相似度类型和文件类型筛选。
+            3. 分页查询分组，再批量获取组内有效成员详情。
         入参说明：
             page (int): 当前页码。
             limit (int): 每页条数。
-            similarity_type (Optional[str]): 相似度类型。
-            file_type (Optional[str]): 文件类型 (如 image, video)，按组内文件的实际类型筛选。
-        返回值说明：
-            PaginationResult[DuplicateGroupResult]: 清理后的准确分页结果。
+            similarity_type (Optional[str]): 相似度类型筛选。
+            file_type (Optional[str]): 文件类型筛选（如 image、video）。
+        返回值说明：PaginationResult[DuplicateGroupResult] - 仅包含有效文件成员的查重分组。
         """
-        # 1. 执行全表自愈，确保 total 计算前数据是干净的
         DuplicateGroupProcessor._self_heal()
+        file_index: type = DBConstants.FileIndex
+        duplicate_file: type = DBConstants.DuplicateFile
+        duplicate_group: type = DBConstants.DuplicateGroup
+        active_join: str = (
+            f"INNER JOIN {file_index.TABLE_NAME} fi "
+            f"ON fi.{file_index.COL_FILE_PATH} = df.{duplicate_file.COL_FILE_PATH} "
+            f"AND {file_index.active_condition('fi')}"
+        )
+        valid_groups_sql: str = (
+            f"SELECT df.{duplicate_file.COL_FILE_GROUP_ID} "
+            f"FROM {duplicate_file.TABLE_FILES} df {active_join} "
+            f"GROUP BY df.{duplicate_file.COL_FILE_GROUP_ID} HAVING COUNT(*) >= 2"
+        )
 
-        # 2. 构建筛选条件（相似度类型 / 文件类型），并统计准确的总分组数
         conditions: List[str] = []
         condition_params: List[Any] = []
-        join_clause: str = ""
         if similarity_type:
-            conditions.append(f"df.{DBConstants.DuplicateFile.COL_SIMILARITY_TYPE} = ?")
+            conditions.append(f"df.{duplicate_file.COL_SIMILARITY_TYPE} = ?")
             condition_params.append(similarity_type)
         if file_type:
-            join_clause = (
-                f"INNER JOIN {DBConstants.FileIndex.TABLE_NAME} fi "
-                f"ON fi.{DBConstants.FileIndex.COL_FILE_PATH} = df.{DBConstants.DuplicateFile.COL_FILE_PATH}"
-            )
-            conditions.append(f"fi.{DBConstants.FileIndex.COL_FILE_TYPE} = ?")
+            conditions.append(f"fi.{file_index.COL_FILE_TYPE} = ?")
             condition_params.append(file_type)
+        where_clause: str = 'WHERE ' + ' AND '.join(conditions) if conditions else ''
 
-        if conditions:
-            where_clause: str = "WHERE " + " AND ".join(conditions)
-            count_query: str = f"""
-                SELECT COUNT(DISTINCT df.{DBConstants.DuplicateFile.COL_FILE_GROUP_ID}) as total
-                FROM {DBConstants.DuplicateFile.TABLE_FILES} df
-                {join_clause}
-                {where_clause}
-            """
-            count_res = BaseDBProcessor._execute(count_query, tuple(condition_params), is_query=True, fetch_one=True)
-            total: int = count_res['total'] if count_res else 0
-        else:
-            total: int = DuplicateGroupProcessor.get_group_count()
-
+        count_query: str = f"""
+            SELECT COUNT(DISTINCT vg.{duplicate_file.COL_FILE_GROUP_ID}) AS total
+            FROM ({valid_groups_sql}) vg
+            JOIN {duplicate_file.TABLE_FILES} df
+              ON df.{duplicate_file.COL_FILE_GROUP_ID} = vg.{duplicate_file.COL_FILE_GROUP_ID}
+            {active_join}
+            {where_clause}
+        """
+        count_res: Optional[dict] = BaseDBProcessor._execute(
+            count_query, tuple(condition_params), is_query=True, fetch_one=True
+        )
+        total: int = int(count_res['total']) if count_res else 0
         if total == 0:
             return PaginationResult(total=0, list=[], page=page, limit=limit, sort_by="", order="ASC")
 
-        # 3. 分页查询分组列表
         offset: int = max(0, (page - 1) * limit)
-        if conditions:
-            group_query: str = f"""
-                SELECT g.* FROM {DBConstants.DuplicateGroup.TABLE_GROUPS} g
-                JOIN (
-                    SELECT DISTINCT df.{DBConstants.DuplicateFile.COL_FILE_GROUP_ID}
-                    FROM {DBConstants.DuplicateFile.TABLE_FILES} df
-                    {join_clause}
-                    {where_clause}
-                ) f ON g.{DBConstants.DuplicateGroup.COL_GRP_ID_PK} = f.{DBConstants.DuplicateFile.COL_FILE_GROUP_ID}
-                ORDER BY g.{DBConstants.DuplicateGroup.COL_GRP_CREATE_TIME} DESC
-                LIMIT ? OFFSET ?
-            """
-            group_rows: List[dict] = BaseDBProcessor._execute(group_query, tuple(condition_params) + (limit, offset), is_query=True)
-        else:
-            group_query: str = f"""
-                SELECT * FROM {DBConstants.DuplicateGroup.TABLE_GROUPS}
-                ORDER BY {DBConstants.DuplicateGroup.COL_GRP_CREATE_TIME} DESC
-                LIMIT ? OFFSET ?
-            """
-            group_rows: List[dict] = BaseDBProcessor._execute(group_query, (limit, offset), is_query=True)
-        
+        group_query: str = f"""
+            SELECT g.* FROM {duplicate_group.TABLE_GROUPS} g
+            JOIN ({valid_groups_sql}) vg
+              ON g.{duplicate_group.COL_GRP_ID_PK} = vg.{duplicate_file.COL_FILE_GROUP_ID}
+            JOIN {duplicate_file.TABLE_FILES} df
+              ON df.{duplicate_file.COL_FILE_GROUP_ID} = vg.{duplicate_file.COL_FILE_GROUP_ID}
+            {active_join}
+            {where_clause}
+            GROUP BY g.{duplicate_group.COL_GRP_ID_PK}
+            ORDER BY g.{duplicate_group.COL_GRP_CREATE_TIME} DESC
+            LIMIT ? OFFSET ?
+        """
+        group_rows: List[dict] = BaseDBProcessor._execute(
+            group_query, tuple(condition_params) + (limit, offset), is_query=True
+        )
         if not group_rows:
             return PaginationResult(total=total, list=[], page=page, limit=limit, sort_by="", order="ASC")
 
-        # 4. 批量获取成员详情
-        group_ids: List[int] = [row[DBConstants.DuplicateGroup.COL_GRP_ID_PK] for row in group_rows]
-        placeholders: str = ','.join(['?'] * len(group_ids))
-        
+        group_ids: List[int] = [int(row[duplicate_group.COL_GRP_ID_PK]) for row in group_rows]
+        placeholders: str = ','.join('?' for _ in group_ids)
         file_query: str = f"""
-            SELECT df.{DBConstants.DuplicateFile.COL_FILE_GROUP_ID}, 
-                   df.{DBConstants.DuplicateFile.COL_SIMILARITY_TYPE},
-                   df.{DBConstants.DuplicateFile.COL_SIMILARITY_RATE},
-                   fi.* 
-            FROM {DBConstants.FileIndex.TABLE_NAME} fi
-            INNER JOIN {DBConstants.DuplicateFile.TABLE_FILES} df 
-            ON fi.{DBConstants.FileIndex.COL_FILE_PATH} = df.{DBConstants.DuplicateFile.COL_FILE_PATH}
-            WHERE df.{DBConstants.DuplicateFile.COL_FILE_GROUP_ID} IN ({placeholders})
+            SELECT df.{duplicate_file.COL_FILE_GROUP_ID},
+                   df.{duplicate_file.COL_SIMILARITY_TYPE},
+                   df.{duplicate_file.COL_SIMILARITY_RATE},
+                   fi.*
+            FROM {file_index.TABLE_NAME} fi
+            INNER JOIN {duplicate_file.TABLE_FILES} df
+              ON fi.{file_index.COL_FILE_PATH} = df.{duplicate_file.COL_FILE_PATH}
+            WHERE df.{duplicate_file.COL_FILE_GROUP_ID} IN ({placeholders})
+              AND {file_index.active_condition('fi')}
         """
         all_file_rows: List[dict] = BaseDBProcessor._execute(file_query, tuple(group_ids), is_query=True)
 
-        # 5. 组织数据
         group_files_map: Dict[int, List[DuplicateFileResult]] = {}
         for f_row in all_file_rows:
-            gid: int = f_row.pop(DBConstants.DuplicateFile.COL_FILE_GROUP_ID)
-            sim_type: str = f_row.pop(DBConstants.DuplicateFile.COL_SIMILARITY_TYPE)
-            sim_rate: float = f_row.pop(DBConstants.DuplicateFile.COL_SIMILARITY_RATE)
-            
+            gid: int = int(f_row.pop(duplicate_file.COL_FILE_GROUP_ID))
+            sim_type: Optional[str] = f_row.pop(duplicate_file.COL_SIMILARITY_TYPE)
+            sim_rate: Optional[float] = f_row.pop(duplicate_file.COL_SIMILARITY_RATE)
             file_info: FileIndexDBModel = FileIndexDBModel(**f_row)
-            if gid not in group_files_map:
-                group_files_map[gid] = []
-            group_files_map[gid].append(DuplicateFileResult(
+            group_files_map.setdefault(gid, []).append(DuplicateFileResult(
                 file_info=file_info,
                 similarity_type=sim_type or SimilarityType.MD5,
                 similarity_rate=sim_rate if sim_rate is not None else 1.0
             ))
 
-        # 6. 封装返回
         results: List[DuplicateGroupResult] = []
         for g_row in group_rows:
-            group_id: int = g_row[DBConstants.DuplicateGroup.COL_GRP_ID_PK]
+            group_id: int = int(g_row[duplicate_group.COL_GRP_ID_PK])
             results.append(DuplicateGroupResult(
                 id=group_id,
-                group_name=g_row[DBConstants.DuplicateGroup.COL_GRP_GROUP_NAME],
-                create_time=g_row[DBConstants.DuplicateGroup.COL_GRP_CREATE_TIME],
+                group_name=g_row[duplicate_group.COL_GRP_GROUP_NAME],
+                create_time=g_row[duplicate_group.COL_GRP_CREATE_TIME],
                 files=group_files_map.get(group_id, [])
             ))
 
@@ -371,12 +414,25 @@ class DuplicateGroupProcessor(BaseDBProcessor):
     @staticmethod
     def get_group_count() -> int:
         """
-        用途：获取重复分组总数
-        返回值说明：int: 重复分组总数
+        用途说明：统计至少包含两个有效成员的重复组数量，回收站文件不计入。
+        入参说明：无。
+        返回值说明：int - 有效重复组总数。
         """
-        count_query: str = f"SELECT COUNT(*) as total FROM {DBConstants.DuplicateGroup.TABLE_GROUPS}"
-        count_res: Optional[dict] = BaseDBProcessor._execute(count_query, (), is_query=True, fetch_one=True)
-        return count_res['total'] if count_res else 0
+        file_index: type = DBConstants.FileIndex
+        duplicate_file: type = DBConstants.DuplicateFile
+        query: str = f"""
+            SELECT COUNT(*) AS total FROM (
+                SELECT df.{duplicate_file.COL_FILE_GROUP_ID}
+                FROM {duplicate_file.TABLE_FILES} df
+                INNER JOIN {file_index.TABLE_NAME} fi
+                  ON fi.{file_index.COL_FILE_PATH} = df.{duplicate_file.COL_FILE_PATH}
+                  AND {file_index.active_condition('fi')}
+                GROUP BY df.{duplicate_file.COL_FILE_GROUP_ID}
+                HAVING COUNT(*) >= 2
+            )
+        """
+        row: Optional[dict] = BaseDBProcessor._execute(query, is_query=True, fetch_one=True)
+        return int(row['total']) if row else 0
 
     @staticmethod
     def get_last_check_time() -> Optional[str]:

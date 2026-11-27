@@ -5,7 +5,7 @@ from backend.common.i18n_utils import t
 from backend.common.log_utils import LogUtils
 from backend.common.progress_manager import ProgressStatus
 from backend.db.db_operations import DBOperations
-from backend.file_repository.base_file_service import BaseFileService
+from backend.file_repository.file_lifecycle_service import FileLifecycleService
 from backend.model.db.file_index_db_model import FileIndexDBModel
 from backend.model.pagination_result import PaginationResult
 
@@ -54,7 +54,7 @@ class RecycleBinService(BaseAsyncService):
         用途说明：批量将指定文件移入回收站标记状态。
         """
         try:
-            return DBOperations.batch_move_to_recycle_bin(file_paths)
+            return FileLifecycleService.recycle_files(file_paths).affected_files > 0
         except Exception as e:
             LogUtils.error(t('repo_clear_error', error=str(e)))
             return False
@@ -65,9 +65,23 @@ class RecycleBinService(BaseAsyncService):
         用途说明：批量将文件从回收站状态恢复。
         """
         try:
-            return DBOperations.batch_restore_from_recycle_bin(file_paths)
+            return FileLifecycleService.restore_files(file_paths).affected_files > 0
         except Exception as e:
             LogUtils.error(t('repo_clear_error', error=str(e)))
+            return False
+
+    @staticmethod
+    def _delete_single_file(file_path: str) -> bool:
+        """
+        用途说明：逐个永久删除文件，单个文件失败时记录日志并允许批量任务继续。
+        入参说明：file_path (str) - 待删除的文件完整路径。
+        返回值说明：bool - 是否成功删除物理文件并清理索引。
+        """
+        try:
+            FileLifecycleService.delete_file(file_path)
+            return True
+        except Exception as e:
+            LogUtils.error(t('file_lifecycle_delete_failed', path=file_path, error=str(e)))
             return False
 
     @classmethod
@@ -92,7 +106,7 @@ class RecycleBinService(BaseAsyncService):
                         LogUtils.info(t('repo_task_stopped_log', count=total_deleted))
                         break
                         
-                    success, _ = BaseFileService.delete_file(path)
+                    success: bool = cls._delete_single_file(path)
                     if success:
                         total_deleted += 1
                     
@@ -127,7 +141,7 @@ class RecycleBinService(BaseAsyncService):
                     for path in batch_paths:
                         if not cls.wait_if_paused():
                             break
-                        success, _ = BaseFileService.delete_file(path)
+                        success: bool = cls._delete_single_file(path)
                         if success:
                             total_deleted += 1
                         

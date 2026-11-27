@@ -31,6 +31,27 @@ class DBConstants:
         COL_MEDIA_HEIGHT: str = 'media_height'     # 新增：图片或视频显示高度（像素）
         # 已检查但确实不存在的媒体信息标记，避免每次手动补全都重复读取同一文件
         NO_INFO_VALUE: str = '__NO_INFO__'
+
+        @staticmethod
+        def active_condition(alias: str = '') -> str:
+            """
+            用途说明：生成“有效文件”的统一 SQL 条件，供文件列表、查重和附属索引查询复用。
+            入参说明：alias (str) - 可选表别名；为空时直接使用当前表的回收站时间列。
+            返回值说明：str - 回收站时间为 NULL 或空字符串的 SQL 条件。
+            """
+            prefix: str = f'{alias}.' if alias else ''
+            return f"({prefix}{DBConstants.FileIndex.COL_RECYCLE_BIN_TIME} IS NULL OR {prefix}{DBConstants.FileIndex.COL_RECYCLE_BIN_TIME} = '')"
+
+        @staticmethod
+        def recycled_condition(alias: str = '') -> str:
+            """
+            用途说明：生成“回收站文件”的统一 SQL 条件。
+            入参说明：alias (str) - 可选表别名；为空时直接使用当前表的回收站时间列。
+            返回值说明：str - 回收站时间既非 NULL 也非空字符串的 SQL 条件。
+            """
+            prefix: str = f'{alias}.' if alias else ''
+            return f"({prefix}{DBConstants.FileIndex.COL_RECYCLE_BIN_TIME} IS NOT NULL AND {prefix}{DBConstants.FileIndex.COL_RECYCLE_BIN_TIME} != '')"
+
         # 相册实际排序时间表达式：优先 EXIF/拍摄时间，缺失时回退文件修改时间；无信息标记按空值处理
         ALBUM_TIME_EXPRESSION: str = (
             f"COALESCE(NULLIF({COL_FILE_EXIF_TIME}, '{NO_INFO_VALUE}'), "

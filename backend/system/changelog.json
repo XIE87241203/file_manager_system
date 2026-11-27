@@ -1,6 +1,36 @@
 {
   "entries": [
     {
+      "version": "1.1.4",
+      "date": "2026-11-27",
+      "highlights": [
+        {
+          "zh": "建立文件索引时自动保存图片和视频分辨率；相册没有缩略图时，先按原始媒体比例显示占位，升级旧库只补空列，不扫描文件。",
+          "en": "File indexing now saves image and video dimensions. Albums without thumbnails use the original media aspect ratio for placeholders, and existing databases receive empty columns without file scans."
+        },
+        {
+          "zh": "文件移动、改名、永久删除、移入和移出回收站统一走同一套生命周期管理，主索引、查重关系和人脸数据在同一个数据库事务内同步更新。",
+          "en": "File moves, renames, permanent deletion, recycling, and restoration now share one lifecycle manager, updating file, duplicate, and face indexes in a single database transaction."
+        },
+        {
+          "zh": "回收站文件不再出现在相册、文件管理和查重结果中，但保留查重关系与人脸特征；恢复后重新可见，无需重新识别人脸。",
+          "en": "Recycled files are hidden from albums, file management, and duplicate results while their duplicate links and face data are preserved. Restoring makes them visible again without rerunning face recognition."
+        },
+        {
+          "zh": "永久删除会同步清理文件索引、查重关系和人脸数据；多个文件共用缩略图时，只有最后一个引用被删除才删除缩略图。",
+          "en": "Permanent deletion now cleans file, duplicate, and face indexes together. Shared thumbnails are removed only after their last referencing file is deleted."
+        },
+        {
+          "zh": "移动文件后若数据库更新失败，会尝试把文件移回原位置；批量索引更新采用分批处理，并兼容 Windows 路径大小写差异。",
+          "en": "If a database update fails after a file move, the system attempts to move the file back. Batch index updates are chunked and handle Windows path case differences."
+        }
+      ],
+      "rebuild_index_notice": {
+        "zh": "本次升级无需重建索引。已有图片或视频缺少分辨率时，可在建立文件索引页面点击“补全缺少信息”；旧库升级不会自动扫描文件。",
+        "en": "No index rebuild is required. For existing images or videos missing dimensions, use “Fill Missing Information” on the file indexing page; upgrading an older database does not trigger file scans."
+      }
+    },
+    {
       "version": "1.1.3",
       "date": "2026-11-27",
       "highlights": [

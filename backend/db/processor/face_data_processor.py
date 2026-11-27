@@ -1,6 +1,6 @@
 import sqlite3
 from contextlib import nullcontext
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from backend.common.i18n_utils import t
 from backend.common.log_utils import LogUtils
@@ -13,6 +13,7 @@ from backend.model.db.face_file_index_state_db_model import FaceFileIndexStateDB
 from backend.model.db.face_queue_item_db_model import FaceQueueItemDBModel
 from backend.model.db.file_index_db_model import FileIndexDBModel
 from backend.model.face_index_result import FaceIndexSummaryResult
+from backend.model.file_move_info import FileMoveInfo
 
 
 class FaceDataProcessor:
@@ -156,15 +157,22 @@ class FaceDataProcessor:
     @staticmethod
     def get_queue_count() -> int:
         """
-        用途说明：获取当前仓库待识别队列数量，不加载队列明细。
-        入参说明：无
-        返回值说明：int - 队列中的图片数量。
+        用途说明：获取当前仓库待识别队列中的有效图片数量，不加载队列明细。
+        入参说明：无。
+        返回值说明：int - 未移入回收站且仍存在文件索引的队列图片数量。
         """
         queue = DBConstants.FaceRecognitionQueue
+        file_index = DBConstants.FileIndex
+        query: str = f"""
+            SELECT COUNT(*) AS count
+            FROM {queue.TABLE_NAME} q
+            INNER JOIN {file_index.TABLE_NAME} f
+              ON f.{file_index.COL_FILE_PATH} = q.{queue.COL_FILE_PATH}
+            WHERE f.{file_index.COL_FILE_TYPE} = ?
+              AND {file_index.active_condition('f')}
+        """
         row: Optional[dict] = BaseDBProcessor._execute(
-            f"SELECT COUNT(*) AS count FROM {queue.TABLE_NAME}",
-            is_query=True,
-            fetch_one=True
+            query, (FileType.IMAGE.value,), is_query=True, fetch_one=True
         )
         return int(row['count']) if row else 0
 
@@ -202,21 +210,36 @@ class FaceDataProcessor:
             conn (Optional[sqlite3.Connection]): 可选的外部事务连接。
         返回值说明：bool - 是否完成队列清理。
         """
-        if not file_paths:
-            return True
-        queue = DBConstants.FaceRecognitionQueue
-        placeholders: str = ','.join('?' for _ in file_paths)
         try:
-            with (db_manager.transaction() if conn is None else nullcontext(conn)) as tx:
-                BaseDBProcessor._execute(
-                    f"DELETE FROM {queue.TABLE_NAME} WHERE {queue.COL_FILE_PATH} IN ({placeholders})",
-                    tuple(file_paths),
-                    conn=tx
-                )
+            FaceDataProcessor.delete_queue_by_paths_count(file_paths, conn=conn)
             return True
         except Exception as e:
             LogUtils.error(t('face_queue_delete_failed_log', error=str(e)))
             return False
+
+    @staticmethod
+    def delete_queue_by_paths_count(file_paths: List[str],
+                                    conn: Optional[sqlite3.Connection] = None) -> int:
+        """
+        用途说明：按路径批量移除待识别队列并返回实际删除数量，可参与文件生命周期事务。
+        入参说明：file_paths (List[str]) - 待移除队列的图片路径；conn (Optional[sqlite3.Connection]) - 外部事务连接。
+        返回值说明：int - 实际删除的队列记录数。
+        """
+        if not file_paths:
+            return 0
+        queue: type = DBConstants.FaceRecognitionQueue
+        affected_rows: int = 0
+        batch_size: int = 500
+        with (db_manager.transaction() if conn is None else nullcontext(conn)) as tx:
+            for start in range(0, len(file_paths), batch_size):
+                batch: List[str] = file_paths[start:start + batch_size]
+                placeholders: str = ','.join('?' for _ in batch)
+                affected_rows += BaseDBProcessor._execute(
+                    f"DELETE FROM {queue.TABLE_NAME} WHERE {queue.COL_FILE_PATH} IN ({placeholders})",
+                    tuple(batch),
+                    conn=tx
+                )
+        return affected_rows
 
     @staticmethod
     def clear_queue(conn: Optional[sqlite3.Connection] = None) -> bool:
@@ -257,8 +280,14 @@ class FaceDataProcessor:
                    AND (s.{state.COL_FILE_PATH} IS NULL
                         OR s.{state.COL_FILE_MD5} != f.{file_index.COL_FILE_MD5}
                         OR s.{state.COL_PIPELINE_VERSION} != ?)) AS pending,
-                (SELECT COUNT(*) FROM {queue.TABLE_NAME}) AS queued,
-                (SELECT COUNT(*) FROM {face.TABLE_NAME}) AS faces
+                (SELECT COUNT(*) FROM {queue.TABLE_NAME} q
+                 INNER JOIN {file_index.TABLE_NAME} fq
+                   ON fq.{file_index.COL_FILE_PATH} = q.{queue.COL_FILE_PATH}
+                 WHERE {file_index.active_condition('fq')}) AS queued,
+                (SELECT COUNT(*) FROM {face.TABLE_NAME} fe
+                 INNER JOIN {file_index.TABLE_NAME} ff
+                   ON ff.{file_index.COL_FILE_PATH} = fe.{face.COL_FILE_PATH}
+                 WHERE {file_index.active_condition('ff')}) AS faces
         """
         row: Optional[dict] = BaseDBProcessor._execute(
             query,
@@ -350,30 +379,80 @@ class FaceDataProcessor:
         返回值说明：bool - 是否完成清理。
         """
         try:
-            with (db_manager.transaction() if conn is None else nullcontext(conn)) as tx:
-                face = DBConstants.FaceEmbedding
-                state = DBConstants.FaceIndexState
-                queue = DBConstants.FaceRecognitionQueue
-                BaseDBProcessor._execute(
-                    f"DELETE FROM {face.TABLE_NAME} WHERE {face.COL_FILE_PATH} = ?",
-                    (file_path,),
-                    conn=tx
-                )
-                BaseDBProcessor._execute(
-                    f"DELETE FROM {state.TABLE_NAME} WHERE {state.COL_FILE_PATH} = ?",
-                    (file_path,),
-                    conn=tx
-                )
-                if remove_queue:
-                    BaseDBProcessor._execute(
-                        f"DELETE FROM {queue.TABLE_NAME} WHERE {queue.COL_FILE_PATH} = ?",
-                        (file_path,),
-                        conn=tx
-                    )
+            FaceDataProcessor.delete_by_paths([file_path], conn=conn, remove_queue=remove_queue)
             return True
         except Exception as e:
             LogUtils.error(t('face_data_delete_failed_log', path=file_path, error=str(e)))
             return False
+
+    @staticmethod
+    def delete_by_paths(file_paths: List[str], conn: Optional[sqlite3.Connection] = None,
+                        remove_queue: bool = True) -> int:
+        """
+        用途说明：批量删除人脸特征、处理状态及待识别队列，供文件生命周期事务统一调用。
+        入参说明：
+            file_paths (List[str]): 待清理的文件完整路径列表。
+            conn (Optional[sqlite3.Connection]): 可选的外部事务连接。
+            remove_queue (bool): 是否同步移除待识别队列项。
+        返回值说明：int - 三张人脸相关表中实际删除的记录数。
+        """
+        if not file_paths:
+            return 0
+        face: type = DBConstants.FaceEmbedding
+        state: type = DBConstants.FaceIndexState
+        queue: type = DBConstants.FaceRecognitionQueue
+        tables: List[Tuple[str, str]] = [
+            (face.TABLE_NAME, face.COL_FILE_PATH),
+            (state.TABLE_NAME, state.COL_FILE_PATH)
+        ]
+        if remove_queue:
+            tables.append((queue.TABLE_NAME, queue.COL_FILE_PATH))
+
+        affected_rows: int = 0
+        batch_size: int = 500
+        with (db_manager.transaction() if conn is None else nullcontext(conn)) as tx:
+            for start in range(0, len(file_paths), batch_size):
+                batch: List[str] = file_paths[start:start + batch_size]
+                placeholders: str = ','.join('?' for _ in batch)
+                for table_name, path_column in tables:
+                    affected_rows += BaseDBProcessor._execute(
+                        f"DELETE FROM {table_name} WHERE {path_column} IN ({placeholders})",
+                        tuple(batch),
+                        conn=tx
+                    )
+        return affected_rows
+
+    @staticmethod
+    def update_file_paths(changes: List[FileMoveInfo], conn: Optional[sqlite3.Connection] = None) -> int:
+        """
+        用途说明：批量迁移人脸特征、处理状态和队列路径，文件内容未变时无需重新识别人脸。
+        入参说明：changes (List[FileMoveInfo]) - 文件路径变更列表；conn (Optional[sqlite3.Connection]) - 外部事务连接。
+        返回值说明：int - 实际更新的人脸相关记录数。
+        """
+        if not changes:
+            return 0
+        face: type = DBConstants.FaceEmbedding
+        state: type = DBConstants.FaceIndexState
+        queue: type = DBConstants.FaceRecognitionQueue
+        tables: List[Tuple[str, str]] = [
+            (face.TABLE_NAME, face.COL_FILE_PATH),
+            (state.TABLE_NAME, state.COL_FILE_PATH),
+            (queue.TABLE_NAME, queue.COL_FILE_PATH)
+        ]
+        affected_rows: int = 0
+        with (db_manager.transaction() if conn is None else nullcontext(conn)) as tx:
+            for change in changes:
+                if change.old_path == change.new_path:
+                    continue
+                # 新路径可能存在旧版本遗留数据，先清理再迁移，避免唯一约束冲突。
+                FaceDataProcessor.delete_by_paths([change.new_path], conn=tx)
+                for table_name, path_column in tables:
+                    affected_rows += BaseDBProcessor._execute(
+                        f"UPDATE {table_name} SET {path_column} = ? WHERE {path_column} = ?",
+                        (change.new_path, change.old_path),
+                        conn=tx
+                    )
+        return affected_rows
 
     @staticmethod
     def cleanup_orphan_data(conn: Optional[sqlite3.Connection] = None) -> bool:

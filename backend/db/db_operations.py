@@ -3,7 +3,9 @@ from typing import List, Optional, Tuple, Set
 
 from backend.common.i18n_utils import t
 from backend.common.log_utils import LogUtils
+from backend.db.db_constants import DBConstants
 from backend.db.db_manager import db_manager
+from backend.db.file_index_lifecycle_manager import FileIndexLifecycleManager
 from backend.db.processor_manager import processor_manager
 from backend.model.db.already_entered_file_db_model import AlreadyEnteredFileDBModel
 from backend.model.db.duplicate_group_db_model import DuplicateGroupDBModel
@@ -17,6 +19,7 @@ from backend.model.db.pending_entry_file_db_model import PendingEntryFileDBModel
 from backend.model.db.video_feature_db_model import VideoFeatureDBModel
 from backend.model.duplicate_group_result import DuplicateGroupResult
 from backend.model.face_index_result import FaceIndexSummaryResult
+from backend.model.file_move_info import FileMoveInfo
 from backend.model.cursor_pagination_result import CursorPaginationResult
 from backend.model.db.album_axis_item_db_model import AlbumAxisItemDBModel
 from backend.model.pagination_result import PaginationResult
@@ -143,21 +146,12 @@ class DBOperations:
     @staticmethod
     def delete_file_index_by_path(file_path: str) -> bool:
         """
-        用途说明：删除指定文件索引，并同步维护重复文件分组与人脸数据（使用事务确保原子性）。
+        用途说明：永久删除指定文件的所有有效索引关联，由生命周期管理器在单一事务内处理。
         入参说明：file_path (str): 文件完整路径。
         返回值说明：bool: 是否删除成功。
         """
         try:
-            with db_manager.transaction() as conn:
-                # 1. 删除文件索引
-                res1: bool = processor_manager.file_index_processor.delete_by_path(file_path, conn=conn)
-                # 2. 从重复组中批量移除（虽然是单个，也调用批量接口）
-                res2: bool = processor_manager.duplicate_group_processor.delete_files_by_paths([file_path], conn=conn)
-                # 3. 清理该文件的人脸特征与处理状态
-                res3: bool = processor_manager.face_data_processor.delete_by_path(file_path, conn=conn)
-                if not res3:
-                    raise RuntimeError(t('face_data_operation_failed'))
-                return res1 and res2 and res3
+            return FileIndexLifecycleManager.delete([file_path]).affected_files > 0
         except Exception as e:
             LogUtils.error(t('repo_delete_crash', error=str(e)))
             return False
@@ -287,21 +281,12 @@ class DBOperations:
     @staticmethod
     def batch_move_to_recycle_bin(file_paths: List[str]) -> bool:
         """
-        用途说明：批量将文件移入回收站，并同步维护重复分组与人脸队列（使用事务）。
+        用途说明：批量将文件移入回收站，由生命周期管理器统一处理主索引、查重可见性和人脸队列。
         入参说明：file_paths (List[str]) - 需要移入回收站的文件完整路径列表。
-        返回值说明：bool - 是否至少移动成功一条记录。
+        返回值说明：bool - 是否至少处理一条记录。
         """
-        recycle_time: str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         try:
-            with db_manager.transaction() as conn:
-                # 1. 移动到回收站
-                res1: int = processor_manager.file_index_processor.move_to_recycle_bin(file_paths, recycle_time, conn=conn)
-                # 2. 批量从查重结果中移除
-                processor_manager.duplicate_group_processor.delete_files_by_paths(file_paths, conn=conn)
-                # 3. 移除待识别队列项，避免继续识别已移入回收站的图片
-                if not processor_manager.face_data_processor.delete_queue_by_paths(file_paths, conn=conn):
-                    raise RuntimeError(t('face_queue_delete_failed'))
-                return res1 > 0
+            return FileIndexLifecycleManager.recycle(file_paths).affected_files > 0
         except Exception as e:
             LogUtils.error(t('repo_clear_error', error=str(e)))
             return False
@@ -309,9 +294,15 @@ class DBOperations:
     @staticmethod
     def batch_restore_from_recycle_bin(file_paths: List[str]) -> bool:
         """
-        用途说明：批量将文件从回收站恢复。
+        用途说明：批量将文件从回收站恢复，由生命周期管理器统一清除主索引状态。
+        入参说明：file_paths (List[str]) - 需要恢复的文件完整路径列表。
+        返回值说明：bool - 是否至少处理一条记录。
         """
-        return processor_manager.file_index_processor.restore_from_recycle_bin(file_paths) > 0
+        try:
+            return FileIndexLifecycleManager.restore(file_paths).affected_files > 0
+        except Exception as e:
+            LogUtils.error(t('repo_clear_error', error=str(e)))
+            return False
 
     @staticmethod
     def get_recycle_bin_paths_under(dir_prefixes: List[str]) -> Set[str]:
@@ -628,23 +619,16 @@ class DBOperations:
     @staticmethod
     def update_file_path(old_path: str, new_path: str) -> int:
         """
-        用途说明：文件移动/改名后更新文件索引，并清理旧路径的人脸数据与队列项，下次识别时重新建立关联。
+        用途说明：文件移动或改名后，由生命周期管理器同步更新主索引、查重关系和人脸数据路径。
         入参说明：
             old_path (str): 索引中记录的原文件路径。
-            new_path (str): 文件移动/改名后的新文件路径。
-        返回值说明：int - 实际更新的记录数；0 表示原路径不在索引或新路径唯一约束冲突被忽略。
+            new_path (str): 文件移动或改名后的新文件路径。
+        返回值说明：int - 实际更新的主索引记录数；0 表示未发生有效更新。
         """
         try:
-            with db_manager.transaction() as conn:
-                updated_count: int = processor_manager.file_index_processor.update_file_path(
-                    old_path, new_path, conn=conn
-                )
-                if updated_count > 0:
-                    if not processor_manager.face_data_processor.delete_by_path(old_path, conn=conn):
-                        raise RuntimeError(t('face_data_operation_failed'))
-                return updated_count
+            return FileIndexLifecycleManager.move([FileMoveInfo(old_path=old_path, new_path=new_path)]).affected_files
         except Exception as e:
-            LogUtils.error(t('repo_update_index_error', old_path=old_path, error=str(e)))
+            LogUtils.error(t('repo_update_index_error', old_path=old_path, new_path=new_path, error=str(e)))
             return 0
 
     @staticmethod

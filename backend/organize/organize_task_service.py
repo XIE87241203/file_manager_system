@@ -1,5 +1,4 @@
 import os
-import shutil
 import threading
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -11,10 +10,9 @@ from backend.common.repo_context import get_current_repo_id
 from backend.common.utils import Utils
 from backend.db.db_operations import DBOperations
 from backend.db.processor_manager import processor_manager
-from backend.file_repository.file_info_service import FileInfoService
-from backend.file_repository.file_service import FileService
-from backend.model.db.file_index_db_model import FileIndexDBModel
+from backend.file_repository.file_lifecycle_service import FileLifecycleService
 from backend.model.db.organize_record_db_model import OrganizeRecordDBModel
+from backend.model.file_lifecycle_result import FileLifecycleResult
 from backend.organize.organize_models import (
     OrganizePendingFileInfo,
     OrganizePendingResult,
@@ -220,7 +218,8 @@ class OrganizeTaskService:
                 raise ValueError(t('organize_task_target_exists', name=final_name))
             os.makedirs(session.organized_dir, exist_ok=True)
             try:
-                shutil.move(path, dest)
+                # 物理移动与主索引、查重、人脸索引变更统一处理；索引失败时自动回滚文件。
+                FileLifecycleService.move_file(path, dest)
             except Exception as e:
                 LogUtils.error(t('organize_task_move_error', error=str(e)))
                 raise ValueError(t('organize_task_move_error', error=str(e)))
@@ -234,8 +233,7 @@ class OrganizeTaskService:
                 ))
             except Exception as e:
                 LogUtils.error(t('organize_task_record_error', error=str(e)))
-            # 同步文件索引：已入索引的文件移动后更新路径（未入索引的由方法内部过滤跳过，不阻断整理）
-            FileService.update_file_index_path(path, dest)
+            # 历史整理记录独立保存；失败仅记日志，不阻断已完成的文件移动。
             session.queue.remove(path)
             session.queue_set.discard(path)
             remaining: int = len(session.queue)
@@ -287,17 +285,10 @@ class OrganizeTaskService:
                 raise ValueError(t('organize_task_paused') if session.status != 'processing'
                                  else t('organize_task_not_in_queue'))
 
-            # 1. 已在文件索引中：直接打回收站标记（同步清理查重分组关联）
-            existing: Optional[FileIndexDBModel] = DBOperations.get_file_by_path(path)
-            if existing is not None:
-                ok: bool = DBOperations.batch_move_to_recycle_bin([path])
-            else:
-                # 2. 未索引的文件：补建索引记录（复用扫描同一套信息提取），插入时直接带回收站时间
-                info: Optional[FileIndexDBModel] = FileInfoService.get_file_info(path)
-                if info is None:
-                    raise ValueError(t('organize_task_file_missing'))
-                info.recycle_bin_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                ok = DBOperations.batch_insert_files_index([info])
+            # 已有索引直接标记回收站；未索引文件由生命周期服务提取信息后补建并标记。
+            result: FileLifecycleResult = FileLifecycleService.recycle_files(
+                [path], index_missing=True)
+            ok: bool = result.affected_files > 0
             if not ok:
                 raise ValueError(t('organize_task_recycle_failed'))
 

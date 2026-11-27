@@ -85,6 +85,19 @@ class FileIndexProcessor(BaseDBProcessor):
         return bool(result and result > 0)
 
     @staticmethod
+    def delete_by_paths(file_paths: List[str], conn: Optional[sqlite3.Connection] = None) -> int:
+        """
+        用途说明：按路径批量删除文件索引，供永久删除流程在同一个事务内调用。
+        入参说明：file_paths (List[str]) - 待删除的文件完整路径列表；conn (Optional[sqlite3.Connection]) - 外部事务连接。
+        返回值说明：int - 实际删除的索引记录数。
+        """
+        if not file_paths:
+            return 0
+        data: List[tuple] = [(path,) for path in file_paths]
+        query: str = f"DELETE FROM {DBConstants.FileIndex.TABLE_NAME} WHERE {DBConstants.FileIndex.COL_FILE_PATH} = ?"
+        return BaseDBProcessor._execute_batch(query, data, conn=conn)
+
+    @staticmethod
     def batch_update_scan_time(file_paths: List[str], scan_time: str, conn: Optional[sqlite3.Connection] = None) -> int:
         """
         用途说明：批量更新文件的扫描时间。
@@ -240,6 +253,33 @@ class FileIndexProcessor(BaseDBProcessor):
         return None
 
     @staticmethod
+    def get_file_indexes_by_paths(file_paths: List[str], conn: Optional[sqlite3.Connection] = None,
+                                  case_insensitive: bool = False) -> List[FileIndexDBModel]:
+        """
+        用途说明：批量获取指定路径的文件索引，用于生命周期操作前的冲突检查和缩略图引用判断。
+        入参说明：
+            file_paths (List[str]) - 待查询的文件完整路径列表。
+            conn (Optional[sqlite3.Connection]) - 可选的外部事务连接。
+            case_insensitive (bool) - 是否按不区分大小写方式匹配，Windows 路径冲突检查应启用。
+        返回值说明：List[FileIndexDBModel] - 与输入路径匹配的索引记录，不加载表中其他数据。
+        """
+        if not file_paths:
+            return []
+        file_index: type = DBConstants.FileIndex
+        collation: str = ' COLLATE NOCASE' if case_insensitive else ''
+        rows: List[dict] = []
+        batch_size: int = 500
+        for start in range(0, len(file_paths), batch_size):
+            batch: List[str] = file_paths[start:start + batch_size]
+            placeholders: str = ','.join('?' for _ in batch)
+            query: str = (
+                f"SELECT * FROM {file_index.TABLE_NAME} "
+                f"WHERE {file_index.COL_FILE_PATH}{collation} IN ({placeholders})"
+            )
+            rows.extend(BaseDBProcessor._execute(query, tuple(batch), is_query=True, conn=conn))
+        return [FileIndexDBModel(**row) for row in rows]
+
+    @staticmethod
     def get_ids_by_paths(file_paths: List[str], conn: Optional[sqlite3.Connection] = None) -> List[int]:
         """
         用途说明：根据路径列表批量获取对应的文件 ID。
@@ -283,6 +323,22 @@ class FileIndexProcessor(BaseDBProcessor):
         query: str = f"UPDATE {DBConstants.FileIndex.TABLE_NAME} SET {DBConstants.FileIndex.COL_THUMBNAIL_PATH} = ? WHERE {DBConstants.FileIndex.COL_FILE_MD5} = ?"
         result: int = BaseDBProcessor._execute(query, (thumbnail_path, file_md5), conn=conn)
         return result or 0
+
+    @staticmethod
+    def count_thumbnail_references(thumbnail_path: str, conn: Optional[sqlite3.Connection] = None) -> int:
+        """
+        用途说明：统计仍引用同一缩略图路径的文件索引数量，避免删除共享缩略图破坏其他文件预览。
+        入参说明：thumbnail_path (str) - 待检查的缩略图路径；conn (Optional[sqlite3.Connection]) - 外部事务连接。
+        返回值说明：int - 引用该缩略图的索引记录数。
+        """
+        query: str = (
+            f"SELECT COUNT(*) AS total FROM {DBConstants.FileIndex.TABLE_NAME} "
+            f"WHERE {DBConstants.FileIndex.COL_THUMBNAIL_PATH} = ?"
+        )
+        result: Optional[dict] = BaseDBProcessor._execute(
+            query, (thumbnail_path,), is_query=True, fetch_one=True, conn=conn
+        )
+        return int(result['total']) if result else 0
 
     @staticmethod
     def update_file_path(old_path: str, new_path: str, conn: Optional[sqlite3.Connection] = None) -> int:
@@ -637,16 +693,17 @@ class FileIndexProcessor(BaseDBProcessor):
     @staticmethod
     def get_list_by_condition(offset: int, limit: int, only_no_thumbnail: bool = False) -> List[FileIndexDBModel]:
         """
-        用途说明：根据指定 condition 获取文件列表（如仅获取无缩略图的文件）。
+        用途说明：按指定条件获取有效文件列表（排除回收站文件），例如仅获取无缩略图的文件。
         入参说明：
             offset (int): 偏移量。
             limit (int): 限制条数。
             only_no_thumbnail (bool): 是否仅获取无缩略图的文件。
         返回值说明：返回 FileIndexDBModel 列表。
         """
-        where_clause: str = ""
+        conditions: List[str] = [DBConstants.FileIndex.active_condition()]
         if only_no_thumbnail:
-            where_clause = f"WHERE ({DBConstants.FileIndex.COL_THUMBNAIL_PATH} IS NULL OR {DBConstants.FileIndex.COL_THUMBNAIL_PATH} = '')"
+            conditions.append(f"({DBConstants.FileIndex.COL_THUMBNAIL_PATH} IS NULL OR {DBConstants.FileIndex.COL_THUMBNAIL_PATH} = '')")
+        where_clause: str = 'WHERE ' + ' AND '.join(conditions)
 
         actual_limit: int = limit if limit > 0 else -1
 
@@ -684,14 +741,15 @@ class FileIndexProcessor(BaseDBProcessor):
     @staticmethod
     def get_count(only_no_thumbnail: bool = False) -> int:
         """
-        用途说明：获取符合条件的文件总数。
+        用途说明：统计有效文件（排除回收站文件）的总数，并可选择仅统计无缩略图的文件。
         入参说明：
             only_no_thumbnail (bool): 是否仅统计无缩略图的文件。
-        返回值说明：返回文件总数。
+        返回值说明：返回符合条件的有效文件总数。
         """
-        where_clause: str = ""
+        conditions: List[str] = [DBConstants.FileIndex.active_condition()]
         if only_no_thumbnail:
-            where_clause = f"WHERE ({DBConstants.FileIndex.COL_THUMBNAIL_PATH} IS NULL OR {DBConstants.FileIndex.COL_THUMBNAIL_PATH} = '')"
+            conditions.append(f"({DBConstants.FileIndex.COL_THUMBNAIL_PATH} IS NULL OR {DBConstants.FileIndex.COL_THUMBNAIL_PATH} = '')")
+        where_clause: str = 'WHERE ' + ' AND '.join(conditions)
 
         query: str = f"SELECT COUNT(*) as total FROM {DBConstants.FileIndex.TABLE_NAME} {where_clause}"
         res: Optional[dict] = BaseDBProcessor._execute(query, is_query=True, fetch_one=True)
